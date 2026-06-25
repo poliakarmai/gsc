@@ -681,7 +681,9 @@ def cmd_triage(args):
     tp = fp = skipped = 0
     for r in rows:
         print(f"[{r['category']}] {r['title'][:80]}")
-        print(f"  {r.get('file_path','?')}:{r.get('line_number','?')}")
+        fp = r['file_path'] or '?'
+        ln = r['line_number'] or '?'
+        print(f"  {fp}:{ln}")
         try:
             choice = input("  [y/n/i/q] ").strip().lower()
         except (EOFError, KeyboardInterrupt):

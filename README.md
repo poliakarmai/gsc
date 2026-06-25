@@ -111,13 +111,15 @@ python3 gsc.py dashboard
 
 ### Фаза 1: Упаковка ✅
 
-- [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`
+- [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`, `gsc doctor`
 - [x] 277 seed-паттернов (OWASP + CWE + 7 языков: Python/Go/TS/Rust/Java/Docker/Terraform)
-- [x] Веб-дашборд с историей, трендами и эффективностью паттернов
-- [x] `gsc triage` — интерактивная разметка TP/FP (основа самообучения)
-- [x] `gsc explain` — CVSS-оценка, threat/impact для каждой находки
-- [x] Pre-commit hook — блокирует коммиты с CRITICAL находками
-- [x] GitHub Action: `poliakarmai/gsc-action@v1`
+- [x] `gsc scan --ci --json` — чистый JSON для CI-пайплайнов (проверен)
+- [x] `gsc explain <id>` — CVSS-оценка, threat/impact (проверен)
+- [x] `gsc doctor` — диагностика окружения (проверен)
+- [x] GitHub Action: `poliakarmai/gsc-action@v1` (код готов, не тестирован в реальном PR)
+- [x] Pre-commit hook — блокирует коммиты с CRITICAL находками (код готов, не тестирован)
+- [x] `gsc triage` — интерактивная разметка TP/FP (код готов, не тестирован)
+- [x] Веб-дашборд с историей и трендами (код готов, не тестирован)
 - [x] Persistent SQLite DB + Obsidian-отчёты
 
 ### Фаза 2: Интеграция + DX 🔜

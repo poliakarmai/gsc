@@ -10,13 +10,16 @@ if ! command -v python3 >/dev/null 2>&1; then
     exit 0
 fi
 
-GSC_DIR="$HOME/.gsc"
-GSC_SCRIPT="$GSC_DIR/gsc.py"
-if [ ! -f "$GSC_SCRIPT" ]; then
-    GSC_SCRIPT="$(dirname "$0")/../../gsc/gsc.py"
-fi
-if [ ! -f "$GSC_SCRIPT" ]; then
-    echo "⚠️  GSC not found at $GSC_SCRIPT, skipping"
+# Ищем gsc.py: сначала локально, потом ~/gsc, потом ../gsc
+GSC_SCRIPT=""
+for dir in "$HOME/gsc" "$(dirname "$0")/../.." "$(dirname "$0")/../../../gsc"; do
+    if [ -f "$dir/gsc.py" ]; then
+        GSC_SCRIPT="$dir/gsc.py"
+        break
+    fi
+done
+if [ -z "$GSC_SCRIPT" ]; then
+    echo "⚠️  GSC not found, skipping (install: git clone https://github.com/poliakarmai/gsc ~/gsc)"
     exit 0
 fi
 
