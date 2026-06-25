@@ -17,14 +17,13 @@
 
 CLI-инструмент с накоплением паттернов и **самообучением**. Каждый день сканирует свежие open-source проекты, авто-триажит находки, и слабые паттерны отключаются.
 
-**Текущее состояние:**
-- 112 активных паттернов (7 языков: Python, Go, TS, Rust, Java, Docker, Terraform)
-- 3+1 эшелон: source (grep) → security (regex/perms) → adversarial (semantic) → LLM (`--deep`)
-- Precision: **73%** на нашей кодовой базе (104 TP / 38 FP, ручная разметка)
-- 34 000+ находок в базе (накопление с 6 проектов + самообучение)
-- Docstring/comment фильтр, language-aware + AST-фильтры
-- Авто-деактивация паттернов с эффективностью <30% (при ≥10 оценках)
-- AI-патч (`gsc fix`), SARIF, diff-only, baseline
+**Текущее состояние (v0.5):**
+- 112 активных паттернов (7 языков), авто-создание новых из TP (≥3 подтверждений)
+- 3+1 эшелон: source → security → adversarial → LLM (`--deep`)
+- Precision: **73%** (104 TP / 38 FP, ручная разметка), 34 000+ находок в базе
+- Фильтры: docstring/comment, language + AST, **inline suppression** (`# gsc:ignore`), **reachability** (`--reachability`)
+- Самообучение: 53 проекта, daily cron, **multi-LLM voting** (gemini + qwen), **severity-weighted** деактивация (CRITICAL защищены)
+- AI-патч (`gsc fix`), SARIF, diff-only, baseline, **PR comments**
 
 > **Почему 112, а не 277?** v0.3 генерировал 178 одинаковых «Generic code smell» паттернов — все матчились на `TODO|FIXME`. В v0.4 они деактивированы как бесполезные. Взамен добавлены 12 точных Python-паттернов (asyncio, subprocess, multiprocessing). **Реальных правил стало больше, а не меньше.**
 
