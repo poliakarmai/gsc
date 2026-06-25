@@ -30,6 +30,10 @@ GSC — CLI-инструмент для поиска багов и уязвим�
 - SARIF-экспорт для GitHub Code Scanning
 - Diff-only scan для PR
 - Baseline/suppressions для CI
+- Compliance-отчёты (PCI DSS, SOC2, ISO 27001)
+- SSO через OAuth2 Proxy (Google/Auth0/Okta/Azure AD)
+- Pattern marketplace (экспорт/импорт YAML)
+- Helm chart для Kubernetes
 
 **Результат на своём проекте:** 388 → 46 находок. **88% шума отфильтровано.**
 
@@ -140,6 +144,7 @@ $ gsc fix 42
 | Авто-деактивация ложных паттернов | ✅ | ❌ | ❌ | ❌ |
 | Language-aware фильтрация | ✅ | ✅ | ✅ | ✅ |
 | Framework-aware (AST импортов) | ✅ | ❌ | ❌ | ❌ |
+| Compliance mapping (PCI/SOC2/ISO) | ✅ | ❌ | ❌ | ❌ |
 | AI-patch (опционально) | ✅ | ❌ | ❌ | ❌ |
 | Автономный | ✅ | ❌ | ❌ | ✅ |
 | Open source | ✅ | ❌ | ❌ | ✅ |
@@ -168,6 +173,7 @@ gsc metrics                  # precision/recall
 gsc config                   # настройки
 gsc marketplace              # экспорт/импорт паттернов
 gsc issue <id>               # тикет в Jira/Linear
+gsc scan <project> --compliance pci-dss  # compliance-отчёт
 ```
 
 ---
@@ -180,9 +186,9 @@ gsc issue <id>               # тикет в Jira/Linear
 | **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, baseline, шифрование | Август 2026 | ✅ |
 | **3. Качество** | Corpus-тесты (8/8), language filter (-66%), framework filter (-88% FP), HTML-отчёты | Сентябрь 2026 | ✅ |
 | **4. DX** | VSCode extension, Jira/Linear, PDF export | Октябрь 2026 | 🔜 |
-| **5. Enterprise** | Helm chart, SSO (SAML/OIDC), RBAC, audit log | Ноябрь 2026 | 📋 |
-| **6. Сеть** | Federated learning, pattern marketplace | Январь 2027 | 📋 |
-| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence collection | Февраль 2027 | 📋 |
+| **5. Enterprise** | Helm chart, SSO (OAuth2 Proxy), RBAC | Ноябрь 2026 | 🔜 код готов |
+| **6. Сеть** | Federated learning, pattern marketplace | Январь 2027 | 📋 marketplace ✅ |
+| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence collection | Февраль 2027 | 🔜 mapping ✅ |
 
 ---
 
@@ -240,14 +246,6 @@ python3 gsc.py doctor
 python3 gsc.py scan .
 ```
 
-## 🤝 Контрибьюция
-
-- **Python-разработчики:** новые паттерны, интеграции с языками
-- **Security-инженеры:** OWASP/CWE/NIST-покрытие
-- **DevOps:** CI/CD шаблоны, Helm-чарты
-
-Откройте [Issue](https://github.com/poliakarmai/gsc/issues) или пришлите PR.
-
 ## 🚀 Попробуй сейчас
 
 ```bash
@@ -255,3 +253,30 @@ git clone https://github.com/poliakarmai/gsc.git
 cd gsc
 python3 gsc.py scan .  # первый аудит за 10 секунд
 ```
+
+## Enterprise
+
+- **Helm chart:** `helm install gsc ./helm` — CronJob-аудит в Kubernetes
+- **SSO:** OAuth2 Proxy sidecar (Google/Auth0/Okta/Azure AD), `sso.enabled: true` в values.yaml
+- **DB encryption:** Fernet AES-128, `gsc encrypt-db`
+- **Audit log:** каждая находка имеет `reviewed_at`, `reviewer`, `status`
+
+## Compliance
+
+```bash
+gsc scan my-project --compliance pci-dss    # PCI DSS 4.0 (6 требований)
+gsc scan my-project --compliance soc2        # SOC2 (CC6/CC7)
+gsc scan my-project --compliance iso27001    # ISO 27001 (Annex A)
+gsc scan my-project --compliance all         # все стандарты
+```
+
+32+ паттернов замаплены на PCI DSS, 28 на SOC2, 35 на ISO 27001.  
+[Полный маппинг](./docs/compliance.md)
+
+## 🤝 Контрибьюция
+
+- **Python-разработчики:** новые паттерны, интеграции с языками
+- **Security-инженеры:** OWASP/CWE/NIST-покрытие
+- **DevOps:** CI/CD шаблоны, Helm-чарты
+
+Откройте [Issue](https://github.com/poliakarmai/gsc/issues) или пришлите PR.
