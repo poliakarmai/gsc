@@ -77,9 +77,15 @@ pip install ripgrep  # единственная зависимость
 # Первый аудит
 python3 gsc.py scan my-project
 
-# Инициализация в проекте (создаёт .gsc/ + GitHub Action)
-cd my-project
-python3 ~/gsc/gsc.py init
+# Интерактивный триаж (разметка TP/FP)
+python3 gsc.py triage my-project
+
+# Развёрнутое объяснение находки
+python3 gsc.py explain 42
+
+# Pre-commit hook (блокирует CRITICAL findings)
+cp pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
 
 # Веб-дашборд
 python3 gsc.py dashboard
@@ -92,47 +98,91 @@ python3 gsc.py dashboard
 
 | Фаза | Срок | Что | Статус |
 |------|------|-----|--------|
-| **1. Упаковка** | Июль 2026 | CLI + 223 паттерна + дашборд + `gsc init` | ✅ Готово |
-| **2. Интеграция** | Август 2026 | GitHub Action + GitLab CI + SARIF экспорт | 🔜 |
-| **3. Масштабирование** | Сентябрь 2026 | Поддержка Go, TypeScript, Rust + авто-фиксы | 📋 |
-| **4. Монетизация** | Октябрь 2026 | SaaS (gsc.cloud) + тарифы Free/Pro/Team | 📋 |
-| **5. Сеть** | Ноябрь 2026 | Федеративное обучение + паттерн-маркетплейс | 📋 |
+| **1. Упаковка** | Июль 2026 | CLI + 277 паттернов + дашборд + triage | ✅ |
+| **2. Интеграция** | Август 2026 | GitHub Action + pre-commit + baseline + diff-only | 🔜 |
+| **2.5. IDE** | Сентябрь 2026 | VSCode extension + explain + Jira/Linear | 📋 |
+| **3. Масштабирование** | Октябрь 2026 | 7 языков + авто-фиксы + SBOM | 📋 |
+| **3.5. Enterprise** | Ноябрь 2026 | SSO + RBAC + Helm chart | 📋 |
+| **4. AI-remediation** | Декабрь 2026 | Auto-fix v2 + тесты + контекстные патчи | 📋 |
+| **5. Сеть** | Январь 2027 | Федеративное обучение + паттерн-маркетплейс | 📋 |
+| **6. Compliance** | Февраль 2027 | PCI DSS + SOC2 auto-reports + evidence collection | 📋 |
 
 ### Фаза 1: Упаковка ✅
 
-- [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc patterns`, `gsc db`
-- [x] 223 seed-паттерна (OWASP Top 10, CWE Top 25, Python-specific)
+- [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`
+- [x] 277 seed-паттернов (OWASP + CWE + 7 языков: Python/Go/TS/Rust/Java/Docker/Terraform)
 - [x] Веб-дашборд с историей, трендами и эффективностью паттернов
-- [x] `gsc init` — авто-установка `.gsc/` + GitHub Actions CI-шаблон
+- [x] `gsc triage` — интерактивная разметка TP/FP (основа самообучения)
+- [x] `gsc explain` — CVSS-оценка, threat/impact для каждой находки
+- [x] Pre-commit hook — блокирует коммиты с CRITICAL находками
+- [x] GitHub Action: `poliakarmai/gsc-action@v1`
 - [x] Persistent SQLite DB + Obsidian-отчёты
 
-### Фаза 2: Интеграция 🔜
+### Фаза 2: Интеграция + DX 🔜
 
-- [ ] GitHub Action: `poliakarmai/gsc-action@v1` — аудит в каждом PR
-- [ ] GitLab CI шаблон
+- [ ] Baseline/suppressions — чтобы CI не спамил старыми находками
+- [ ] Diff-only scan — аудит только изменённых строк в PR
 - [ ] SARIF экспорт (совместимость с GitHub Code Scanning)
-- [ ] `.gsc/config.yaml` — per-project ignore-листы и пороги
-- [ ] Slack/Telegram нотификации при CRITICAL находках
+- [ ] Шифрование БД (SQLCipher) — до первых внешних пользователей
+- [ ] Corpus-тесты для паттернов — без них контрибьюции невозможны
+
+### Фаза 2.5: IDE & Developer Experience 📋
+
+- [ ] VSCode extension: подсветка находок прямо в редакторе
+- [ ] Jira/Linear integration: находка → тикет одним кликом
+- [ ] HTML/PDF экспорт для тех, кто не в Obsidian
+- [ ] `gsc fix <id>` — AI-патч (MVP: inline, полный: Hermes delegate_task)
 
 ### Фаза 3: Масштабирование 📋
 
-- [ ] Поддержка Go, TypeScript, Rust, Java
-- [ ] Инфра-конфиги: Terraform, Kubernetes, Docker
-- [ ] Авто-фиксы: AI предлагает diff → click to apply
-- [ ] Pre-commit hook: локальный аудит до коммита
+- [ ] 7 языков: Python, Go, TypeScript, Rust, Java, Docker, Terraform (seed-паттерны уже есть)
+- [ ] SBOM-генерация (CycloneDX) — supply chain security
+- [ ] Typosquatting detection в зависимостях
+- [ ] Compliance mapping: finding → PCI DSS / SOC2 / ISO27001
+- [ ] Performance: <10 сек на 10K LOC
 
-### Фаза 4: Монетизация 📋
+### Фаза 3.5: Enterprise 📋
 
-- [ ] SaaS: `gsc.cloud` — регистрация → подключить репо → аудит
-- [ ] Тарифы: Free (1 public repo) / Pro ($29/мес) / Team ($99/мес)
-- [ ] On-premise лицензия для enterprise
-- [ ] Stripe/Paddle биллинг
+- [ ] SSO (SAML/OIDC) для команд
+- [ ] RBAC: admin / auditor / viewer
+- [ ] Audit log: кто, когда, какой finding подтвердил
+- [ ] On-premise Helm chart для Kubernetes
+- [ ] Multi-tenancy с изоляцией данных
 
-### Фаза 5: Сеть 📋
+### Фаза 4: AI-ремедиация 📋
 
-- [ ] Федеративное обучение: паттерны из N проектов → общий пул
-- [ ] Анонимизация: opt-in, GDPR-friendly
-- [ ] Паттерн-маркетплейс: «PCI DSS паттерны от Security Corp — $99»
+- [ ] Auto-fix v2: не просто diff, а полный PR с тестами
+- [ ] Context-aware suggestions: учитывает стиль кода проекта
+- [ ] Regression test generation: AI пишет тест, доказывающий фикс
+
+### Фаза 6: Compliance-as-a-Service 📋
+
+- [ ] Автоматическая генерация audit-отчётов для PCI DSS / SOC2
+- [ ] Continuous compliance monitoring — не разовый скан, а постоянный
+- [ ] Evidence collection для аудиторов (скриншоты, логи, git history)
+
+### Фаза 7: Экосистема 📋
+
+- [ ] Pattern marketplace с рейтингами
+- [ ] Community rules hub (а-ля ESLint shareable configs)
+- [ ] Bug bounty integration: finding → отчёт в HackerOne
+- [ ] GSC Academy: сертификация «GSC Auditor»
+
+---
+
+## 📊 Метрики самообучения
+
+| Метрика | Значение | Зачем |
+|---------|----------|-------|
+| Всего паттернов | 277 | Seed + learned |
+| Паттернов из реальных находок | 62+ | Самообучение в действии |
+| TP/FP на паттерн | per-pattern counter | Авто-деактивация < 30% |
+| Проектов отaudit'овано | 6 | Разнообразие кодовых баз |
+| Audit runs | 5 | История для трендов |
+| Precision | TP/(TP+FP) | Качество каждого паттерна |
+| Cross-project transfer | tracked | Как часто паттерн срабатывает в новых проектах |
+
+> **Живой счётчик:** GSC нашёл **100+** уязвимостей в **6** проектах. Следующий скан будет умнее.
 
 ---
 
