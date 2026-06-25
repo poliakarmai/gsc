@@ -47,29 +47,32 @@ def cmd_scan(args):
         print(f"❌ Project not found: {project}")
         sys.exit(1)
 
-    print(f"🔍 GSC Scanning: {project} ({project_path})")
-    print(f"   Echelons: {'all 3' if not args.echelon else args.echelon}")
-    print()
+    if not (getattr(args, 'ci', False) or getattr(args, 'json', False)):
+        print(f"🔍 GSC Scanning: {project} ({project_path})")
+        print(f"   Echelons: {'all 3' if not args.echelon else args.echelon}")
+        print()
 
-    # 1. Load patterns
-    patterns_cmd = [sys.executable, str(SCRIPTS_DIR / "gsc_load_patterns.py"), project]
-    patterns = subprocess.run(patterns_cmd, capture_output=True, text=True)
-    print(patterns.stdout)
+    # 1. Load patterns (suppress in CI mode)
+    if not (getattr(args, 'ci', False) or getattr(args, 'json', False)):
+        patterns_cmd = [sys.executable, str(SCRIPTS_DIR / "gsc_load_patterns.py"), project]
+        patterns = subprocess.run(patterns_cmd, capture_output=True, text=True)
+        print(patterns.stdout)
 
     # 2. Run audit via delegate_task equivalent
     # In standalone mode, we run the checks directly
-    findings = run_audit_echelons(project, project_path, args.echelon)
+    findings = run_audit_echelons(project, project_path, args.echelon, getattr(args, 'deep', False))
 
     # 3. Save findings
-    save_findings(project, findings)
+    save_findings(project, findings, quiet=getattr(args, 'ci', False) or getattr(args, 'json', False))
 
     # 4. Report
-    print_summary(findings)
-    if args.json:
+    if args.ci or args.json:
         print(json.dumps(findings, indent=2))
+    else:
+        print_summary(findings)
 
 
-def run_audit_echelons(project: str, path: Path, echelons: str = None) -> list[dict]:
+def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: bool = False) -> list[dict]:
     """Run audit checks directly (standalone mode)."""
     findings = []
 
@@ -79,7 +82,7 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None) -> list[d
         findings.extend(check_security(project, path))
     if not echelons or "3" in echelons:
         findings.extend(check_adversarial(project, path))
-    if getattr(args, 'deep', False):
+    if deep:
         findings.extend(check_deep(project, path))
 
     return findings
@@ -239,7 +242,7 @@ def check_deep(project: str, path: Path) -> list[dict]:
     }]
 
 
-def save_findings(project: str, findings: list[dict]):
+def save_findings(project: str, findings: list[dict], quiet: bool = False):
     """Persist findings to GSC database."""
     if not DB_PATH.exists():
         print("⚠️  GSC DB not found — findings not saved")
@@ -269,7 +272,8 @@ def save_findings(project: str, findings: list[dict]):
     )
     conn.commit()
     conn.close()
-    print(f"💾 Saved: {total} findings (run #{run_id})")
+    if not quiet:
+        print(f"💾 Saved: {total} findings (run #{run_id})")
 
 
 def load_patterns(project: str, echelon: int = None) -> list[dict]:
@@ -730,11 +734,14 @@ def cmd_explain(args):
 
     t = threats.get(cat, ("Unknown", "Unknown"))
     print(f"🔍 #{row['id']}: {row['title']}")
-    print(f"   File: {row.get('file_path','?')}:{row.get('line_number','?')}")
-    print(f"   Status: {row.get('status','open')} | Category: {cat}")
+    fp = row['file_path'] or '?'
+    ln = row['line_number'] or '?'
+    st = row['status'] or 'open'
+    print(f"   File: {fp}:{ln}")
+    print(f"   Status: {st} | Category: {cat}")
     print(f"   Threat: {t[0]}")
     print(f"   Impact: {t[1]}")
-    if row.get('detail'):
+    if row['detail']:
         print(f"   Detail: {row['detail'][:200]}")
     conn.close()
 
