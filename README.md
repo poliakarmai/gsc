@@ -149,3 +149,11 @@ Env vars: `GSC_LLM_PROVIDER=ollama`, `GSC_DB_KEY=...`, `OPENROUTER_API_KEY=...`
 ## 📄 Лицензия
 
 MIT — см. [LICENSE](./LICENSE).
+
+## 📚 Документация
+
+- [Установка](docs/INSTALL.md)
+- [Использование](docs/USAGE.md)
+- [Паттерны](docs/PATTERNS.md)
+- [Конфигурация](docs/CONFIG.md)
+- [Compliance](docs/compliance.md)
