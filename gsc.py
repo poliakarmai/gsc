@@ -376,6 +376,49 @@ def check_security(project: str, path: Path) -> list[dict]:
                     "pattern_title": "chmod: World-readable",
                 })
 
+    # ── Systemd service file structural audit ──
+    REQUIRED_DIRECTIVES = [
+        ("NoNewPrivileges=true", "NoNewPrivileges", "HIGH",
+         "NoNewPrivileges= not set"),
+        ("ProtectSystem=strict", "ProtectSystem", "MEDIUM",
+         "ProtectSystem= not set"),
+        ("ProtectHome=read-only", "ProtectHome", "MEDIUM",
+         "ProtectHome= not set"),
+        ("PrivateTmp=true", "PrivateTmp", "LOW",
+         "PrivateTmp= not set"),
+        ("ProtectProc=invisible", "ProtectProc", "LOW",
+         "ProtectProc= not set"),
+        ("MemoryDenyWriteExecute=true", "MemoryDenyWriteExecute", "LOW",
+         "MemoryDenyWriteExecute= not set"),
+        ("RestrictRealtime=true", "RestrictRealtime", "LOW",
+         "RestrictRealtime= not set"),
+        ("RemoveIPC=true", "RemoveIPC", "LOW",
+         "RemoveIPC= not set"),
+        ("LockPersonality=true", "LockPersonality", "LOW",
+         "LockPersonality= not set"),
+        ("RestrictSUIDSGID=true", "RestrictSUIDSGID", "LOW",
+         "RestrictSUIDSGID= not set"),
+    ]
+
+    for svc_file in path.rglob("*.service"):
+        try:
+            content = svc_file.read_text()
+            for directive, key, category, detail in REQUIRED_DIRECTIVES:
+                if key not in content:
+                    if key + "=" in content:
+                        continue
+                    findings.append({
+                        "category": category,
+                        "echelon": 2,
+                        "title": f"Systemd: {key}= not set",
+                        "file_path": str(svc_file),
+                        "line_number": 0,
+                        "detail": detail,
+                        "pattern_title": "Systemd security hardening",
+                    })
+        except Exception:
+            pass
+
     return findings
 
 
