@@ -99,6 +99,8 @@ def cmd_scan(args):
         print(json.dumps(findings, indent=2))
     elif args.sarif:
         print(json.dumps(export_sarif(findings, project), indent=2))
+    elif args.compliance:
+        print_compliance(findings, args.compliance)
     else:
         print_summary(findings)
 
@@ -383,6 +385,58 @@ def run_diff_scan(project: str, path: Path) -> list[dict]:
                 })
 
     return findings
+
+
+def print_compliance(findings: list[dict], framework: str):
+    """Print compliance report for PCI DSS, SOC2, or ISO 27001."""
+    # Mapping from compliance.md
+    mapping = {
+        "pci-dss": {
+            "Req 3": ["Hardcoded encryption key", "Hardcoded secret", "Hardcoded API key"],
+            "Req 4": ["Insecure TLS", "crypto/md5", "crypto/sha1", "math/rand for crypto"],
+            "Req 6": ["SQL injection", "eval()", "pickle.load", "Bare except"],
+            "Req 7": ["World-readable"],
+            "Req 8": ["Hardcoded password", "Token in /proc"],
+            "Req 10": ["print() instead", "console.log"],
+        },
+        "soc2": {
+            "CC6.1": ["World-readable"],
+            "CC6.6": ["SQL injection", "XSS", "Command injection"],
+            "CC6.7": ["Insecure TLS", "crypto"],
+            "CC6.8": ["eval()", "pickle.load"],
+            "CC7.2": ["print()", "missing HEALTHCHECK"],
+        },
+        "iso27001": {
+            "A.9": ["Hardcoded credential", "token leak"],
+            "A.10": ["MD5", "SHA1", "insecure random", "Insecure TLS"],
+            "A.14": ["SQL injection", "XSS"],
+            "A.16": ["swallowed exception", "Bare except"],
+        },
+    }
+
+    frameworks = list(mapping.keys()) if framework == "all" else [framework]
+
+    print(f"\n📋 Compliance Report — {', '.join(frameworks).upper()}")
+    print("=" * 55)
+
+    for fw in frameworks:
+        print(f"\n## {fw.upper()}")
+        total = passed = failed = 0
+        for req, patterns in mapping.get(fw, {}).items():
+            total += 1
+            matched = [f for f in findings if any(p.lower() in f.get("title","").lower() for p in patterns)]
+            if matched:
+                failed += 1
+                crit_count = sum(1 for f in matched if f.get("category") == "CRITICAL")
+                print(f"  ❌ {req}: {len(matched)} findings ({crit_count} critical)")
+            else:
+                passed += 1
+                print(f"  ✅ {req}: pass")
+
+        if total > 0:
+            print(f"\n  Score: {passed}/{total} passed, {failed} failed")
+            if failed == 0:
+                print("  🟢 Compliant")
 
 
 def export_sarif(findings: list[dict], project: str) -> dict:
@@ -1107,6 +1161,8 @@ def main():
     scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
     scan.add_argument("--diff", action="store_true", help="Scan only changed files (git diff HEAD)")
     scan.add_argument("--sarif", action="store_true", help="Export as SARIF (GitHub Code Scanning)")
+    scan.add_argument("--compliance", choices=["pci-dss","soc2","iso27001","all"], help="Compliance framework")
+    scan.add_argument("--quiet", action="store_true", help="Silent mode (CI-friendly)")
     scan.add_argument("--ci", action="store_true", help="CI mode: JSON output, no interactive prompts")
     scan.add_argument("--json", action="store_true", help="Output JSON")
 

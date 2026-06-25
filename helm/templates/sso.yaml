@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-oauth2-config
+data:
+  oauth2-proxy.cfg: |
+    provider = "oidc"
+    oidc_issuer_url = "{{ .Values.sso.oidc.issuer_url }}"
+    client_id = "{{ .Values.sso.oidc.client_id }}"
+    client_secret = "{{ .Values.sso.oidc.client_secret }}"
+    cookie_secret = "{{ .Values.sso.cookie_secret }}"
+    email_domains = ["*"]
+    upstreams = ["http://localhost:8080"]
+    http_address = "0.0.0.0:4180"
+    redirect_url = "{{ .Values.sso.redirect_url }}"
+    scope = "openid email profile"
+    session_store_type = "cookie"
+    cookie_secure = true
+    reverse_proxy = true
+    set_authorization_header = true
+    set_xauthrequest = true
+    pass_access_token = true
+    pass_authorization_header = true
+    pass_user_headers = true
+    skip_provider_button = false
+    allowed_groups = {{ .Values.sso.allowed_groups | toJson }}
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: {{ .Release.Name }}-sso-secrets
+stringData:
+  client-id: {{ .Values.sso.oidc.client_id | quote }}
+  client-secret: {{ .Values.sso.oidc.client_secret | quote }}
+  cookie-secret: {{ .Values.sso.cookie_secret | quote }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gsc-dashboard
+  template:
+    metadata:
+      labels:
+        app: gsc-dashboard
+    spec:
+      containers:
+      - name: gsc
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        args: ["gsc", "dashboard", "--port", "8080", "--no-browser"]
+        ports:
+        - containerPort: 8080
+        volumeMounts:
+        - name: data
+          mountPath: /root/.hermes/state
+      - name: oauth2-proxy
+        image: quay.io/oauth2-proxy/oauth2-proxy:v7.9.0
+        args: ["--config", "/etc/oauth2-proxy/oauth2-proxy.cfg"]
+        ports:
+        - containerPort: 4180
+        volumeMounts:
+        - name: oauth2-config
+          mountPath: /etc/oauth2-proxy
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: {{ .Release.Name }}-data
+      - name: oauth2-config
+        configMap:
+          name: {{ .Release.Name }}-oauth2-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-dashboard
+spec:
+  selector:
+    app: gsc-dashboard
+  ports:
+  - name: oauth2
+    port: 4180
+    targetPort: 4180
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}-dashboard
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  tls:
+  - hosts:
+    - {{ .Values.sso.domain }}
+    secretName: {{ .Release.Name }}-tls
+  rules:
+  - host: {{ .Values.sso.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: {{ .Release.Name }}-dashboard
+            port:
+              number: 4180

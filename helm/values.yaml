@@ -14,8 +14,15 @@ gsc:
   #   branch: main
   openrouter_key: ""  # For E4 LLM analysis
 
-persistence:
-  enabled: true
-  size: 1Gi
+sso:
+  enabled: false
+  domain: "gsc.example.com"
+  redirect_url: "https://gsc.example.com/oauth2/callback"
+  cookie_secret: ""  # openssl rand -base64 32
+  allowed_groups: ["gsc-admins", "gsc-auditors"]
+  oidc:
+    issuer_url: "https://accounts.google.com"  # or Okta/Auth0/Azure AD
+    client_id: ""
+    client_secret: ""
 
 resources: {}
