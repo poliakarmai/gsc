@@ -654,60 +654,108 @@ def cmd_db(args):
 
 
 def cmd_triage(args):
-    """Interactive finding review — y=yes, n=no, i=ignore."""
+    """Interactive finding review — y/n/i/$/q + bulk mode."""
+    if args.bulk:
+        return triage_bulk(args)
+
     project = args.project or "all"
     if not DB_PATH.exists():
-        print("No GSC database found")
-        return
+        print("No GSC database found"); return
 
     conn = sqlite3.connect(str(DB_PATH))
     conn.row_factory = sqlite3.Row
 
     query = "SELECT * FROM findings WHERE status='open'"
+    params = []
     if project != "all":
         query += " AND project = ?"
-        rows = conn.execute(query, (project,)).fetchall()
-    else:
-        rows = conn.execute(query).fetchall()
-
+        params.append(project)
+    rows = conn.execute(query, params).fetchall()
     if not rows:
-        print("✅ No open findings to triage")
-        conn.close()
-        return
+        print("✅ No open findings to triage"); conn.close(); return
 
     print(f"🔍 Triage: {len(rows)} open findings\n")
-    print("  [y] yes — TP    [n] no — FP    [i] ignore    [q] quit\n")
+    print("  [y] TP  [n] FP  [i] skip  [$] skip pattern  [e] explain  [q] quit\n")
 
-    tp = fp = skipped = 0
+    tp = fp = skipped = spo = 0
+    skipped_patterns = set()
+
     for r in rows:
+        pid = r['pattern_id']
+        if pid and pid in skipped_patterns:
+            skipped += 1; continue
+
         print(f"[{r['category']}] {r['title'][:80]}")
-        fp = r['file_path'] or '?'
-        ln = r['line_number'] or '?'
-        print(f"  {fp}:{ln}")
+        print(f"  {r['file_path'] or '?'}:{r['line_number'] or '?'}")
         try:
-            choice = input("  [y/n/i/q] ").strip().lower()
+            choice = input("  [y/n/i/$/e/q] ").strip().lower()
         except (EOFError, KeyboardInterrupt):
             break
 
         if choice == 'y':
-            conn.execute("UPDATE findings SET status='confirmed' WHERE id=?", (r['id'],))
-            if r.get('pattern_id'):
-                conn.execute("UPDATE patterns SET true_positive_count=true_positive_count+1 WHERE id=?", (r['pattern_id'],))
+            conn.execute("UPDATE findings SET status='confirmed', reviewed_at=datetime('now') WHERE id=?", (r['id'],))
+            if pid:
+                conn.execute("""UPDATE patterns SET 
+                    true_positive_count = true_positive_count + 1,
+                    last_seen_at = datetime('now'),
+                    effectiveness = CAST(true_positive_count + 1 AS REAL) / NULLIF(true_positive_count + 1 + false_positive_count, 0)
+                    WHERE id=?""", (pid,))
+                # Auto-deactivate if <30% AND >=10 ratings
+                conn.execute("""UPDATE patterns SET active = 0, deactivated_at = datetime('now')
+                    WHERE id=? AND effectiveness < 0.3 AND (true_positive_count + false_positive_count) >= 10""", (pid,))
             tp += 1
         elif choice == 'n':
-            conn.execute("UPDATE findings SET status='false_positive' WHERE id=?", (r['id'],))
-            if r.get('pattern_id'):
-                conn.execute("UPDATE patterns SET false_positive_count=false_positive_count+1 WHERE id=?", (r['pattern_id'],))
+            conn.execute("UPDATE findings SET status='false_positive', reviewed_at=datetime('now') WHERE id=?", (r['id'],))
+            if pid:
+                conn.execute("""UPDATE patterns SET 
+                    false_positive_count = false_positive_count + 1,
+                    effectiveness = CAST(true_positive_count AS REAL) / NULLIF(true_positive_count + false_positive_count + 1, 0)
+                    WHERE id=?""", (pid,))
             fp += 1
-        elif choice == 'i':
-            skipped += 1
+        elif choice == '$':
+            if pid: skipped_patterns.add(pid)
+            spo += 1
+        elif choice == 'e':
+            print(f"  Pattern: {r['pattern_title'] or 'none'}")
+            print(f"  Detail: {(r['detail'] or '')[:200]}")
             continue
-        elif choice == 'q':
-            break
+        elif choice == 'i': skipped += 1; continue
+        elif choice == 'q': break
 
     conn.commit()
     conn.close()
-    print(f"\n✅ Triage: {tp} TP, {fp} FP, {skipped} skipped")
+    print(f"\n✅ Triage: {tp} TP, {fp} FP, {spo} pattern-skips, {skipped} skipped")
+
+
+def triage_bulk(args):
+    """Bulk triage from stdin JSON."""
+    import json as _j
+    data = _j.loads(sys.stdin.read())
+    findings = data if isinstance(data, list) else data.get('findings', [])
+
+    if not findings:
+        print("No findings in input"); return
+
+    if not DB_PATH.exists():
+        print("No GSC database found"); return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    auto = args.auto_accept
+
+    tp = 0
+    for f in findings:
+        fid = f.get('id')
+        if not fid: continue
+        if auto and f.get('category') == 'CRITICAL':
+            conn.execute("UPDATE findings SET status='confirmed', reviewed_at=datetime('now') WHERE id=?", (fid,))
+            tp += 1
+        elif auto:
+            conn.execute("UPDATE findings SET status='confirmed', reviewed_at=datetime('now') WHERE id=?", (fid,))
+            tp += 1
+
+    conn.commit()
+    conn.close()
+    print(f"✅ Bulk: {tp} accepted out of {len(findings)}")
 
 
 def cmd_explain(args):
@@ -789,6 +837,8 @@ def main():
     # gsc triage
     triage = sub.add_parser("triage", help="Interactive finding review (y/n/i)")
     triage.add_argument("project", nargs="?", help="Project name")
+    triage.add_argument("--bulk", action="store_true", help="Bulk mode: read JSON from stdin")
+    triage.add_argument("--auto-accept", action="store_true", help="Auto-accept all CRITICAL in bulk mode")
 
     # gsc explain
     explain = sub.add_parser("explain", help="Detailed explanation of a finding")
