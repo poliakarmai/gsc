@@ -191,13 +191,15 @@ python3 gsc.py dashboard
 | Фича | GSC | SonarQube | Snyk | Semgrep |
 |------|-----|-----------|------|---------|
 | 3 эшелона (Source+Security+Logic) | ✅ | ❌ | ❌ | ❌ |
-| Самообучение на реальных находках | ✅ | ❌ | ❌ | ❌ |
-| LLM-рассуждение (не regex) | ✅ | ❌ | ❌ | ❌ |
+| Адаптивное накопление паттернов | ✅ | ❌ | ❌ | ❌ |
+| LLM-powered deep analysis (E4, опционально) | ✅ | ❌ | ❌ | ❌ |
 | False-positive auto-cleanup | ✅ | ❌ | ❌ | ❌ |
 | Чейнинг (fix→pattern→next audit) | ✅ | ❌ | ❌ | ❌ |
 | Человекочитаемые Obsidian-отчёты | ✅ | ❌ | ❌ | ❌ |
 | Автономный (не требует сервера) | ✅ | ❌ | ❌ | ✅ |
 | Open source | ✅ | ❌ | ❌ | ✅ |
+
+> **Важно:** GSC не использует LLM для каждого finding'а. 90% находок — grep/regex (E1-E3, <1 сек). LLM (E4) подключается опционально через `--deep` для сложных логических паттернов (race conditions, schema mismatches, precision errors). Вне Hermes-сессии E4 недоступен. Это не AGI для кода, а целенаправленный deep-анализ по накопленным паттернам.
 
 ---
 

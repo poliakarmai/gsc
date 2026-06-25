@@ -789,6 +789,9 @@ def main():
     fix = sub.add_parser("fix", help="AI-suggested fix for a finding")
     fix.add_argument("finding_id", help="Finding ID")
 
+    # gsc doctor
+    doctor = sub.add_parser("doctor", help="Diagnose GSC environment")
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -807,6 +810,8 @@ def main():
         cmd_explain(args)
     elif args.command == "fix":
         cmd_fix(args)
+    elif args.command == "doctor":
+        subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_doctor.py")])
     else:
         parser.print_help()
 
