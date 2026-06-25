@@ -102,12 +102,12 @@ $ gsc fix 42
 | Накопление паттернов между аудитами | ✅ | ❌ | ❌ | ❌ |
 | Авто-деактивация ложных паттернов | ✅ | ❌ | ❌ | ❌ |
 | Language-aware фильтрация | ✅ | ✅ | ✅ | ✅ |
-| LLM deep analysis (опционально) | ✅ | ❌ | ❌ | ❌ |
-| AI-generate patch | ✅ | ❌ | ❌ | ❌ |
+| AI-generate patch (опционально) | ✅ | ❌ | ❌ | ❌ |
+| LLM deep analysis (--deep) | ✅ | ❌ | ❌ | ❌ |
 | Автономный (не требует сервера) | ✅ | ❌ | ❌ | ✅ |
 | Open source | ✅ | ❌ | ❌ | ✅ |
 
-> 90% находок — grep/regex (< 1 сек). E4 LLM подключается через `--deep` для сложных логических паттернов. AI-патч через `gsc fix` опционален и требует OpenRouter API.
+> ⚠️ `--deep` и `gsc fix` отправляют фрагменты кода в OpenRouter API (сторонний сервис). Для enterprise-сегмента используйте локальную модель: `GSC_LLM_PROVIDER=ollama`.
 
 ---
 
@@ -163,11 +163,34 @@ gsc encrypt-db               # шифрование БД (Fernet)
 ## Установка
 
 ```bash
-pip install ripgrep
+# 1. ripgrep (бинарник, не pip!)
+brew install ripgrep      # macOS
+sudo apt install ripgrep  # Linux
+# или: cargo install ripgrep
+
+# 2. GSC
 git clone https://github.com/poliakarmai/gsc.git
 cd gsc
-
-# Первый запуск
-python3 gsc.py doctor          # проверка окружения
-python3 gsc.py scan my-project # первый аудит
+python3 gsc.py doctor     # проверка окружения
+python3 gsc.py scan .     # первый аудит
 ```
+
+## CI/CD (GitHub Actions)
+
+```yaml
+- name: Run GSC Security Audit
+  run: |
+    python3 ~/gsc/gsc.py scan . --diff --sarif > results.sarif
+- name: Upload SARIF
+  uses: github/codeql-action/upload-sarif@v3
+  with:
+    sarif_file: results.sarif
+```
+
+## Obsidian Integration
+
+GSC генерирует Markdown-заметки для каждой находки, создавая связи между уязвимостями, файлами и паттернами в вашем Obsidian vault. Откройте `obsidian-vault/audits/` — и увидите граф безопасности проекта: какие файлы наиболее уязвимы, какие паттерны связаны друг с другом.
+
+## Dashboard
+
+`gsc dashboard` поднимает веб-интерфейс на порту 8080. Показывает: Top-10 шумных паттернов, статус триажа (TP/FP), график накопления находок, и позволяет одним кликом помечать находки в браузере.

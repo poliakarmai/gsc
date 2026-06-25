@@ -16,10 +16,15 @@ try:
 except: check("Python", False)
 
 # ripgrep
+# ripgrep — check for actual rg binary, not Python wrapper
 try:
     r = subprocess.run(["rg", "--version"], capture_output=True, text=True, timeout=5)
-    check("ripgrep", r.returncode == 0, r.stdout.split('\n')[0] if r.stdout else "installed")
-except: check("ripgrep", False, "pip install ripgrep")
+    if r.returncode == 0:
+        check("ripgrep", True, r.stdout.split('\n')[0] if r.stdout else "installed")
+    else:
+        check("ripgrep", False, "rg found but returned error")
+except FileNotFoundError:
+    check("ripgrep", False, "not found — install: brew install ripgrep / apt install ripgrep / cargo install ripgrep")
 
 # Git
 try:

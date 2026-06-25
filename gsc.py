@@ -820,6 +820,8 @@ def cmd_triage(args):
     """Interactive finding review — y/n/i/$/q + bulk mode."""
     if args.bulk:
         return triage_bulk(args)
+    if args.group_by == "pattern":
+        return triage_by_pattern(args)
 
     project = args.project or "all"
     if not DB_PATH.exists():
@@ -892,6 +894,48 @@ def cmd_triage(args):
     conn.commit()
     conn.close()
     print(f"\n✅ Triage: {tp} TP, {fp} FP, {spo} pattern-skips, {skipped} skipped")
+
+
+def triage_by_pattern(args):
+    """Group findings by pattern — accept/reject entire clusters at once."""
+    project = args.project or "all"
+    if not DB_PATH.exists():
+        print("No GSC database found"); return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    where = f"WHERE project = '{project}'" if project != "all" else "WHERE 1=1"
+    rows = conn.execute(f"SELECT pattern_title, title, COUNT(*) as cnt, category FROM findings {where} AND status='open' GROUP BY pattern_title ORDER BY cnt DESC").fetchall()
+
+    if not rows:
+        print("✅ No open findings to triage"); conn.close(); return
+
+    tp = fp = 0
+    for r in rows:
+        pat = r['pattern_title'] or r['title']
+        cnt = r['cnt']
+        cat = r['category']
+        print(f"\n[{cat}] {pat} — {cnt} findings")
+        try:
+            choice = input("  [y] accept all  [n] reject all  [i] skip  [q] quit: ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        if choice == 'y':
+            conn.execute(f"UPDATE findings SET status='confirmed', reviewed_at=datetime('now') WHERE pattern_title=? AND status='open'", (pat,))
+            conn.execute(f"UPDATE patterns SET true_positive_count = true_positive_count + {cnt}, effectiveness = CAST(true_positive_count + {cnt} AS REAL) / NULLIF(true_positive_count + {cnt} + false_positive_count, 0) WHERE title=?", (pat,))
+            tp += cnt
+        elif choice == 'n':
+            conn.execute(f"UPDATE findings SET status='false_positive', reviewed_at=datetime('now') WHERE pattern_title=? AND status='open'", (pat,))
+            conn.execute(f"UPDATE patterns SET false_positive_count = false_positive_count + {cnt}, effectiveness = CAST(true_positive_count AS REAL) / NULLIF(true_positive_count + false_positive_count + {cnt}, 0) WHERE title=?", (pat,))
+            fp += cnt
+        elif choice == 'q':
+            break
+
+    conn.commit()
+    conn.close()
+    print(f"\n✅ Bulk: {tp} TP, {fp} FP")
 
 
 def triage_bulk(args):
@@ -1078,6 +1122,7 @@ def main():
     triage.add_argument("project", nargs="?", help="Project name")
     triage.add_argument("--bulk", action="store_true", help="Bulk mode: read JSON from stdin")
     triage.add_argument("--auto-accept", action="store_true", help="Auto-accept all CRITICAL in bulk mode")
+    triage.add_argument("--group-by", type=str, choices=["pattern"], help="Group by pattern (accept/reject all at once)")
 
     # gsc explain
     explain = sub.add_parser("explain", help="Detailed explanation of a finding")
@@ -1089,6 +1134,12 @@ def main():
 
     # gsc doctor
     doctor = sub.add_parser("doctor", help="Diagnose GSC environment")
+
+    # gsc config
+    config = sub.add_parser('config', help='Manage GSC settings')
+    config.add_argument('action', nargs='?', choices=['show','set','init'])
+    config.add_argument('key', nargs='?')
+    config.add_argument('value', nargs='?')
 
     # gsc metrics
     metrics = sub.add_parser('metrics', help='Precision/recall metrics')
@@ -1114,6 +1165,9 @@ def main():
         cmd_explain(args)
     elif args.command == "fix":
         cmd_fix(args)
+    elif args.command == 'config':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_config.py'), args.action or 'show', args.key or '', args.value or ''])
+
     elif args.command == 'metrics':
         subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_metrics.py')])
 
