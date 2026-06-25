@@ -134,8 +134,8 @@ python3 gsc.py dashboard
 - [x] SARIF экспорт — GitHub Code Scanning ✅
 - [x] `gsc fix <id>` — AI-generated patch ✅
 - [ ] Baseline/suppressions в CI (код готов, ждёт интеграции)
-- [ ] Шифрование БД (SQLCipher)
-- [ ] Corpus-тесты для паттернов
+- [x] Шифрование БД (Fernet AES-128) ✅
+- [x] Corpus-тесты: 8/8 pass ✅
 
 ### Фаза 2.5: IDE & Developer Experience 📋
 
