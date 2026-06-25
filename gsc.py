@@ -47,27 +47,33 @@ def cmd_scan(args):
         print(f"❌ Project not found: {project}")
         sys.exit(1)
 
-    if not (getattr(args, 'ci', False) or getattr(args, 'json', False)):
+    quiet = getattr(args, 'ci', False) or getattr(args, 'json', False) or getattr(args, 'sarif', False)
+    if not quiet:
         print(f"🔍 GSC Scanning: {project} ({project_path})")
         print(f"   Echelons: {'all 3' if not args.echelon else args.echelon}")
         print()
 
     # 1. Load patterns (suppress in CI mode)
-    if not (getattr(args, 'ci', False) or getattr(args, 'json', False)):
+    quiet = getattr(args, 'ci', False) or getattr(args, 'json', False) or getattr(args, 'sarif', False)
+    if not quiet:
         patterns_cmd = [sys.executable, str(SCRIPTS_DIR / "gsc_load_patterns.py"), project]
         patterns = subprocess.run(patterns_cmd, capture_output=True, text=True)
         print(patterns.stdout)
 
-    # 2. Run audit via delegate_task equivalent
-    # In standalone mode, we run the checks directly
-    findings = run_audit_echelons(project, project_path, args.echelon, getattr(args, 'deep', False))
+    # 2. Run audit
+    if args.diff:
+        findings = run_diff_scan(project, project_path)
+    else:
+        findings = run_audit_echelons(project, project_path, args.echelon, getattr(args, 'deep', False))
 
     # 3. Save findings
-    save_findings(project, findings, quiet=getattr(args, 'ci', False) or getattr(args, 'json', False))
+    save_findings(project, findings, quiet=quiet)
 
     # 4. Report
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
+    elif args.sarif:
+        print(json.dumps(export_sarif(findings, project), indent=2))
     else:
         print_summary(findings)
 
@@ -249,6 +255,92 @@ def check_deep(project: str, path: Path) -> list[dict]:
         } for f in enriched if f.get('e4_analyzed')]
     except Exception as e:
         return [{"category": "INFO", "echelon": 4, "title": f"E4 error: {e}", "file_path": "", "line_number": 0, "detail": str(e)}]
+
+
+def run_diff_scan(project: str, path: Path) -> list[dict]:
+    """Scan only changed files (git diff HEAD). Falls back to full scan if no git."""
+    import subprocess as sp
+    changed_files = []
+
+    try:
+        r = sp.run(["git", "-C", str(path), "diff", "--name-only", "HEAD"], capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            changed_files = [f for f in r.stdout.strip().split("\n") if f]
+    except Exception:
+        pass
+
+    if not changed_files:
+        return run_audit_echelons(project, path)
+
+    findings = []
+    for fname in changed_files:
+        fpath = path / fname
+        if not fpath.exists() or not fpath.suffix in ('.py', '.go', '.ts', '.rs', '.java', '.tf', '.js', '.yaml', '.yml'):
+            continue
+
+        # Run patterns on this file only
+        for pattern in load_patterns(project):
+            search = pattern.get('search_pattern', '')
+            if not search:
+                continue
+            try:
+                r = sp.run(["rg", "--no-heading", "-n", search, str(fpath)], capture_output=True, text=True, timeout=10)
+                for line in r.stdout.strip().split("\n"):
+                    if not line: continue
+                    parts = line.split(":", 2)
+                    if len(parts) >= 2:
+                        findings.append({
+                            "category": pattern.get("category", "MEDIUM"),
+                            "echelon": pattern.get("echelon", 1),
+                            "title": pattern["title"],
+                            "file_path": parts[0], "line_number": int(parts[1]) if parts[1].isdigit() else 0,
+                            "detail": pattern.get("description", ""), "pattern_title": pattern["title"],
+                        })
+            except Exception:
+                pass
+
+    # Check file permissions for changed files
+    for fname in changed_files:
+        fpath = path / fname
+        if fpath.exists() and fpath.suffix in ('.db', '.json', '.log', '.env', '.yaml', '.yml', '.key', '.pem'):
+            perms = oct(fpath.stat().st_mode)[-3:]
+            if int(perms[-1]) >= 4:
+                findings.append({
+                    "category": "HIGH", "echelon": 2,
+                    "title": f"World-readable file: {fpath.name} ({perms})",
+                    "file_path": str(fpath), "line_number": 0,
+                    "detail": f"Permissions {perms} — should be 600", "pattern_title": "chmod: World-readable",
+                })
+
+    return findings
+
+
+def export_sarif(findings: list[dict], project: str) -> dict:
+    """Export findings as SARIF 2.1.0 for GitHub Code Scanning."""
+    rules = {}
+    results = []
+
+    for f in findings:
+        rid = f"GSC-{f.get('pattern_title','generic')[:40].replace(' ','-')}"
+        if rid not in rules:
+            rules[rid] = {
+                "id": rid,
+                "name": f.get("pattern_title", f.get("title", "Unknown")),
+                "shortDescription": {"text": f.get("title", "")},
+                "defaultConfiguration": {"level": {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note"}.get(f.get("category", "MEDIUM"), "warning")}
+            }
+        results.append({
+            "ruleId": rid,
+            "level": {"CRITICAL": "error", "HIGH": "error", "MEDIUM": "warning", "LOW": "note"}.get(f.get("category", "MEDIUM"), "warning"),
+            "message": {"text": f.get("detail", f.get("title", ""))},
+            "locations": [{"physicalLocation": {"artifactLocation": {"uri": f.get("file_path", "")}, "region": {"startLine": f.get("line_number", 1)}}}]
+        })
+
+    return {
+        "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+        "version": "2.1.0",
+        "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results}]
+    }
 
 
 def save_findings(project: str, findings: list[dict], quiet: bool = False):
@@ -806,10 +898,80 @@ def cmd_explain(args):
 
 
 def cmd_fix(args):
-    """AI-suggested fix."""
-    print(f"🔧 GSC fix #{args.finding_id}")
-    print("   Auto-fix: run inside Hermes session for AI-generated patch.")
-    print("   The agent reads context, generates diff, verifies syntax.")
+    """AI-suggested fix using OpenRouter."""
+    if not DB_PATH.exists():
+        print("No database"); return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    fid = args.finding_id
+    row = conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone() if fid.isdigit() else None
+    if not row:
+        print(f"Not found: {fid}"); conn.close(); return
+
+    fp = row['file_path']
+    project = row['project']
+    # Resolve relative path against known project dirs
+    if project in KNOWN_PROJECTS:
+        fp = str(KNOWN_PROJECTS[project] / fp)
+    elif not Path(fp).is_absolute():
+        fp = str(Path.home() / project / fp)
+    if not fp or not Path(fp).exists():
+        print(f"File not found: {fp}"); conn.close(); return
+
+    # Read code context
+    code = Path(fp).read_text()
+    lines = code.split("\n")
+    ln = row['line_number'] or 1
+    start = max(0, ln - 10)
+    end = min(len(lines), ln + 10)
+    snippet = "\n".join(f"{i+1}: {l}" for i, l in enumerate(lines[start:end], start))
+
+    print(f"🔧 GSC fix #{row['id']}: {row['title']}")
+    print(f"   File: {fp}:{ln}")
+    print(f"   Analyzing with OpenRouter...")
+
+    prompt = f"""You are GSC-Fix, a code repair engine.
+Given a security finding and code context, generate a minimal, correct fix.
+
+## Finding
+Title: {row['title']}
+Category: {row['category']}
+Detail: {(row['detail'] or '')}
+
+## Code Context ({fp}:{ln})
+```python
+{snippet}
+```
+
+## Task
+Generate the MINIMAL fix that addresses this finding. Output ONLY the diff in unified format.
+Use the existing code style of this project. Do NOT refactor unrelated code.
+
+Output format:
+```diff
+--- a/{fp}
++++ b/{fp}
+@@ ... @@
+ [your fix here]
+```"""
+
+    try:
+        sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+        from e4_llm import call_openrouter
+
+        result = call_openrouter(prompt.replace("E4_CONFIG", ""))  # Use same API, different prompt
+        if result and result.get("is_real") is not None:
+            # E4 format — extract the "fix" field
+            print(f"\n   💡 Suggested fix:\n{result.get('fix','No fix generated')}")
+        else:
+            # Direct response — print raw
+            print(f"\n   💡 LLM response:\n{result}")
+    except Exception as e:
+        print(f"   ❌ Fix generation failed: {e}")
+        print("   Run inside Hermes session for full AI-powered fix.")
+
+    conn.close()
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
@@ -823,6 +985,8 @@ def main():
     scan.add_argument("project", help="Project name or path")
     scan.add_argument("--echelon", help="Echelons to run (e.g., '12' for source+security)")
     scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
+    scan.add_argument("--diff", action="store_true", help="Scan only changed files (git diff HEAD)")
+    scan.add_argument("--sarif", action="store_true", help="Export as SARIF (GitHub Code Scanning)")
     scan.add_argument("--ci", action="store_true", help="CI mode: JSON output, no interactive prompts")
     scan.add_argument("--json", action="store_true", help="Output JSON")
 
