@@ -193,10 +193,10 @@ gsc config show                          # текущие настройки
 | **1. CLI** | scan, triage, explain, fix, 277 паттернов, dashboard | Июль 2026 | ✅ |
 | **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, baseline, Fernet | Август 2026 | ✅ |
 | **3. Качество** | Corpus-тесты (8/8), lang filter (-66%), framework filter (-88%), HTML | Сентябрь 2026 | ✅ |
-| **4. DX** | VSCode, Jira/Linear, PDF export | Октябрь 2026 | 🔜 |
-| **5. Enterprise** | Helm chart, SSO (OAuth2), RBAC | Ноябрь 2026 | 🔜 |
+| **4. DX** | VSCode extension (требует Azure DevOps PAT) | Октябрь 2026 | 🔜 отложен |
+| **5. Enterprise** | Helm chart (код готов), SSO (OAuth2), RBAC | Ноябрь 2026 | 🔜 |
 | **6. Сеть** | Federated learning, pattern marketplace (SaaS) | Январь 2027 | 📋 |
-| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence | Февраль 2027 | 🔜 |
+| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence | Февраль 2027 | 🔜 mapping ✅ |
 
 ---
 
