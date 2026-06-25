@@ -739,13 +739,14 @@ def generate_pattern_rows(patterns: list) -> str:
 
 
 def cmd_patterns(args):
-    """Manage seed patterns."""
-    if args.seed:
-        seed_patterns(args.seed)
-    elif args.list:
-        list_patterns()
+    """Manage patterns — export/import/list."""
+    action = getattr(args, 'pat_action', None) or 'list'
+    if action == 'export':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), 'export', getattr(args, 'file', '') or 'gsc_patterns.yaml'])
+    elif action == 'import':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), 'import', getattr(args, 'file', '') or ''])
     else:
-        print("Usage: gsc patterns --seed <count> | --list")
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py')])
 
 
 def seed_patterns(count: int):
@@ -1174,10 +1175,15 @@ def main():
     dash = sub.add_parser("dashboard", help="Launch web dashboard")
     dash.add_argument("--port", type=int, help="Port (default: 8080)")
 
-    # gsc patterns
-    pat = sub.add_parser("patterns", help="Manage patterns")
-    pat.add_argument("--seed", type=int, help="Generate N seed patterns")
-    pat.add_argument("--list", action="store_true", help="List active patterns")
+    # gsc patterns (with subcommands)
+    patterns = sub.add_parser('patterns', help='Manage patterns')
+    pat_sub = patterns.add_subparsers(dest='pat_action')
+    pat_export = pat_sub.add_parser('export', help='Export patterns to YAML')
+    pat_export.add_argument('file', nargs='?')
+    pat_import = pat_sub.add_parser('import', help='Import patterns from YAML')
+    pat_import.add_argument('file')
+    pat_import.add_argument('--force', action='store_true')
+    pat_list = pat_sub.add_parser('list', help='List patterns')
 
     # gsc db
     db = sub.add_parser("db", help="Query GSC database")
@@ -1210,10 +1216,8 @@ def main():
     # gsc metrics
     metrics = sub.add_parser('metrics', help='Precision/recall metrics')
 
-    # gsc marketplace
-    mp = sub.add_parser('marketplace', help='Export/import patterns')
-    mp.add_argument('action', nargs='?', choices=['export','import','list'])
-    mp.add_argument('file', nargs='?')
+    # gsc encrypt-db
+    encrypt = sub.add_parser("encrypt-db", help="Encrypt GSC database (Fernet)")
 
     # gsc issue
     issue = sub.add_parser('issue', help='Create Jira/Linear ticket')
@@ -1221,9 +1225,6 @@ def main():
     issue.add_argument('--jira', action='store_true')
     issue.add_argument('--linear', action='store_true')
     issue.add_argument('--md', action='store_true')
-
-    # gsc encrypt-db
-    encrypt = sub.add_parser("encrypt-db", help="Encrypt GSC database (Fernet)")
 
     args = parser.parse_args()
 
@@ -1249,8 +1250,8 @@ def main():
     elif args.command == 'metrics':
         subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_metrics.py')])
 
-    elif args.command == 'marketplace':
-        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), args.action or '', args.file or ''])
+    elif args.command == 'patterns':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), args.pat_action or 'list', getattr(args, 'file', '') or ''])
 
     elif args.command == 'issue':
         import importlib.util as _iu

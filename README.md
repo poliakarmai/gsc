@@ -1,5 +1,10 @@
 # 🔒 GSC — Git Security Checker
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+![patterns-277](https://img.shields.io/badge/patterns-277-green)
+![fp-reduction-88%](https://img.shields.io/badge/FP%20reduction-88%25-brightgreen)
+![corpus-8/8](https://img.shields.io/badge/corpus-8%2F8-success)
+
 > Адаптивный аудитор кода. Находит уязвимости, запоминает паттерны, умнеет с каждым проектом.
 
 **Для кого:** разработчики и команды, которым надоел шум от SonarQube/Semgrep.
@@ -30,20 +35,15 @@ GSC — CLI-инструмент для поиска багов и уязвим�
 - SARIF-экспорт для GitHub Code Scanning
 - Diff-only scan для PR
 - Baseline/suppressions для CI
-- Compliance-отчёты (PCI DSS, SOC2, ISO 27001)
-- SSO через OAuth2 Proxy (Google/Auth0/Okta/Azure AD)
-- Pattern marketplace (экспорт/импорт YAML)
-- Helm chart для Kubernetes
 
 **Результат на своём проекте:** 388 → 46 находок. **88% шума отфильтровано.**
 
-## Быстрый старт
+## 🚀 Установка и быстрый старт
+
+**Требования:** Python 3.10+, ripgrep 13+ (бинарник, не pip!)
 
 ```bash
-# Требования: Python 3.10+, ripgrep 13+
-python3 --version  # должно быть 3.10+
-
-# 1. Установить ripgrep (бинарник, не pip!)
+# 1. Установить ripgrep
 brew install ripgrep      # macOS
 sudo apt install ripgrep  # Linux
 
@@ -51,17 +51,17 @@ sudo apt install ripgrep  # Linux
 git clone https://github.com/poliakarmai/gsc.git
 cd gsc
 
-# 3. Первый аудит
-python3 gsc.py scan my-project
+# 3. Проверить окружение
+python3 gsc.py doctor
 
-# 4. Интерактивный триаж (разметка TP/FP)
-python3 gsc.py triage my-project
+# 4. Первый аудит
+python3 gsc.py scan .
 
-# 5. Обновить baseline (игнорировать известные находки)
-python3 gsc.py baseline --update
+# 5. Интерактивный триаж (разметка TP/FP)
+python3 gsc.py triage .
 
 # 6. Сканировать только изменённые файлы (для PR)
-python3 gsc.py scan my-project --diff
+python3 gsc.py scan . --diff
 ```
 
 ---
@@ -91,17 +91,8 @@ Seed patterns (OWASP/CWE/7 языков)
   Новые подтверждённые находки → становятся паттернами
 ```
 
-### Модель данных
-
-- **Seed patterns:** 277 правил из OWASP Top 10, CWE Top 25, и 7 языков
-- **Learned patterns:** находки, подтверждённые через `gsc triage` как TP
-- **TP/FP счётчики:** каждый паттерн хранит `true_positive_count` и `false_positive_count`
-- **Effectiveness:** `TP / (TP + FP)` — пересчитывается при каждом триаже
-- **Авто-деактивация:** при effectiveness < 30% AND ≥10 разметок паттерн отключается
-
 ### Пример: от находки до паттерна
 
-**Код:**
 ```python
 # api/billing.py:147
 def apply_discount(user_id, code):
@@ -109,30 +100,22 @@ def apply_discount(user_id, code):
     return db.execute(query)
 ```
 
-**Скан:**
 ```bash
-$ gsc scan pci-index
+$ gsc scan .
 🔴 CRITICAL: SQL injection risk: f-string in query
-   File: api/billing.py:147
-   CVSS: 8.6
-```
+   File: api/billing.py:147 | CVSS: 8.6
 
-**AI-фикс:**
-```bash
 $ gsc fix 42
 🔧 GSC fix #42: SQL injection risk
-
 --- a/api/billing.py
 +++ b/api/billing.py
-@@ -145,7 +145,7 @@
- def apply_discount(user_id, code):
 -    query = f"SELECT * FROM discounts WHERE code='{code}'"
 +    query = "SELECT * FROM discounts WHERE code=?"
 -    return db.execute(query)
 +    return db.execute(query, (code,))
-```
 
-**Триаж:** пользователь подтверждает (TP) → счётчик растёт → следующий скан умнее.
+$ gsc triage .  # [y] accept → TP+1 → следующий скан умнее
+```
 
 ---
 
@@ -144,12 +127,18 @@ $ gsc fix 42
 | Авто-деактивация ложных паттернов | ✅ | ❌ | ❌ | ❌ |
 | Language-aware фильтрация | ✅ | ✅ | ✅ | ✅ |
 | Framework-aware (AST импортов) | ✅ | ❌ | ❌ | ❌ |
-| Compliance mapping (PCI/SOC2/ISO) | ✅ | ❌ | ❌ | ❌ |
 | AI-patch (опционально) | ✅ | ❌ | ❌ | ❌ |
 | Автономный | ✅ | ❌ | ❌ | ✅ |
-| Open source | ✅ | ❌ | ❌ | ✅ |
+| Open source (MIT) | ✅ | ❌ | ❌ | ✅ |
 
 > ⚠️ `--deep` и `gsc fix` отправляют код в OpenRouter API. Для enterprise: `GSC_LLM_PROVIDER=ollama`.
+
+## ⚠️ Ограничения
+
+- **Тестирован на 6 собственных проектах.** На чужих репозиториях неизбежны ложные срабатывания — для этого triage и авто-деактивация.
+- **LLM-анализ отправляет код в OpenRouter.** Для enterprise используйте локальную модель: `GSC_LLM_PROVIDER=ollama`.
+- **Языки:** Python, Go, TS, Rust, Java, Docker, Terraform. C/C++, PHP, Ruby — в roadmap.
+- **Compliance-маппинг — не сертификация.** GSC показывает соответствие стандартам, но не заменяет официальный аудит.
 
 ---
 
@@ -171,9 +160,9 @@ gsc dashboard                # веб-интерфейс (:8080)
 gsc doctor                   # диагностика
 gsc metrics                  # precision/recall
 gsc config                   # настройки
-gsc marketplace              # экспорт/импорт паттернов
+gsc patterns export          # экспорт паттернов в YAML
+gsc patterns import <file>   # импорт паттернов из YAML
 gsc issue <id>               # тикет в Jira/Linear
-gsc scan <project> --compliance pci-dss  # compliance-отчёт
 ```
 
 ---
@@ -183,12 +172,12 @@ gsc scan <project> --compliance pci-dss  # compliance-отчёт
 | Фаза | Что | Срок | Статус |
 |------|-----|------|--------|
 | **1. CLI** | scan, triage, explain, fix, 277 паттернов, dashboard | Июль 2026 | ✅ |
-| **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, baseline, шифрование | Август 2026 | ✅ |
-| **3. Качество** | Corpus-тесты (8/8), language filter (-66%), framework filter (-88% FP), HTML-отчёты | Сентябрь 2026 | ✅ |
+| **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, baseline, Fernet | Август 2026 | ✅ |
+| **3. Качество** | Corpus-тесты (8/8), lang filter (-66%), framework filter (-88%), HTML | Сентябрь 2026 | ✅ |
 | **4. DX** | VSCode extension, Jira/Linear, PDF export | Октябрь 2026 | 🔜 |
-| **5. Enterprise** | Helm chart, SSO (OAuth2 Proxy), RBAC | Ноябрь 2026 | 🔜 код готов |
-| **6. Сеть** | Federated learning, pattern marketplace | Январь 2027 | 📋 marketplace ✅ |
-| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence collection | Февраль 2027 | 🔜 mapping ✅ |
+| **5. Enterprise** | Helm chart, SSO (OAuth2 Proxy), RBAC | Ноябрь 2026 | 🔜 |
+| **6. Сеть** | Federated learning, pattern marketplace (SaaS) | Январь 2027 | 📋 |
+| **7. Compliance** | PCI DSS, SOC2 auto-reports, evidence collection | Февраль 2027 | 🔜 |
 
 ---
 
@@ -217,34 +206,62 @@ gsc scan <project> --compliance pci-dss  # compliance-отчёт
 | FP reduction (framework filter) | -88% от исходного |
 | Precision (оценка по triage) | ~72% |
 
-> ⚠️ GSC тестирован на 6 собственных проектах. На чужих репозиториях неизбежны ложные срабатывания — для этого triage и авто-деактивация.
+## 📖 Case Study: bybit-ws
+
+**Проект:** Python-трейдинг-монитор Bybit (15k LOC)
+
+| Этап | Находок | Критических |
+|------|---------|-------------|
+| Сырой скан | 388 | 22 |
+| Language filter | 133 (-66%) | 20 |
+| Framework filter | 46 (-88%) | 2 |
+| После triage (5 мин) | 2 | 0 |
+
+**Реальные находки:** SQL injection в `dspy_optimizer.py`, TOCTOU в `save_state()`.  
+**Время:** 4 минуты вместо часов ручного ревью.
 
 ## Obsidian Integration
 
-GSC генерирует Markdown-заметки для каждой находки, создавая связи между уязвимостями, файлами и паттернами в вашем Obsidian vault. Откройте `obsidian-vault/audits/` — и увидите граф безопасности проекта.
+GSC генерирует Markdown-заметки, создавая связи между уязвимостями, файлами и паттернами в вашем Obsidian vault. Откройте `obsidian-vault/audits/` — и увидите граф безопасности проекта.
 
 ## Dashboard
 
-`gsc dashboard` поднимает веб-интерфейс на порту 8080: Top-10 шумных паттернов, статус триажа (TP/FP), график накопления находок.
+`gsc dashboard` — веб-интерфейс на :8080: Top-10 шумных паттернов, статус триажа (TP/FP), график накопления находок.
 
 ---
 
-## Установка
+## ❓ FAQ
 
-```bash
-# Требования: Python 3.10+, ripgrep 13+
-python3 --version
+**Q: Чем отличается от SonarQube/Semgrep?**  
+A: GSC накапливает паттерны между аудитами и авто-деактивирует ложные. SonarQube/Semgrep — жёсткие правила.
 
-# 1. ripgrep (бинарник)
-brew install ripgrep      # macOS
-sudo apt install ripgrep  # Linux
+**Q: Можно ли в CI/CD?**  
+A: Да. `gsc scan --diff --sarif` + GitHub Actions. Pre-commit hook прилагается.
 
-# 2. GSC
-git clone https://github.com/poliakarmai/gsc.git
-cd gsc
-python3 gsc.py doctor
-python3 gsc.py scan .
-```
+**Q: Как работает самообучение?**  
+A: `gsc triage` → счётчики TP/FP обновляются → эффективность <30% → авто-деактивация.
+
+**Q: Можно без интернета?**  
+A: Да. Только `--deep` и `gsc fix` требуют OpenRouter (или локальный Ollama).
+
+## 🔮 Что дальше
+
+**Октябрь 2026 (Фаза 4):** VSCode extension, Jira/Linear, PDF export  
+**Ноябрь 2026 (Фаза 5):** Helm chart, SSO, RBAC  
+**Январь 2027 (Фаза 6):** Federated learning, pattern marketplace (SaaS)  
+**Февраль 2027 (Фаза 7):** PCI DSS/SOC2 auto-reports
+
+## 🤝 Контрибьюция
+
+- **Python-разработчики:** новые паттерны, интеграции с языками
+- **Security-инженеры:** OWASP/CWE/NIST-покрытие
+- **DevOps:** CI/CD шаблоны, Helm-чарты
+
+[Issue](https://github.com/poliakarmai/gsc/issues) → PR.
+
+## 📄 Лицензия
+
+MIT License — см. [LICENSE](./LICENSE).
 
 ## 🚀 Попробуй сейчас
 
@@ -253,30 +270,3 @@ git clone https://github.com/poliakarmai/gsc.git
 cd gsc
 python3 gsc.py scan .  # первый аудит за 10 секунд
 ```
-
-## Enterprise
-
-- **Helm chart:** `helm install gsc ./helm` — CronJob-аудит в Kubernetes
-- **SSO:** OAuth2 Proxy sidecar (Google/Auth0/Okta/Azure AD), `sso.enabled: true` в values.yaml
-- **DB encryption:** Fernet AES-128, `gsc encrypt-db`
-- **Audit log:** каждая находка имеет `reviewed_at`, `reviewer`, `status`
-
-## Compliance
-
-```bash
-gsc scan my-project --compliance pci-dss    # PCI DSS 4.0 (6 требований)
-gsc scan my-project --compliance soc2        # SOC2 (CC6/CC7)
-gsc scan my-project --compliance iso27001    # ISO 27001 (Annex A)
-gsc scan my-project --compliance all         # все стандарты
-```
-
-32+ паттернов замаплены на PCI DSS, 28 на SOC2, 35 на ISO 27001.  
-[Полный маппинг](./docs/compliance.md)
-
-## 🤝 Контрибьюция
-
-- **Python-разработчики:** новые паттерны, интеграции с языками
-- **Security-инженеры:** OWASP/CWE/NIST-покрытие
-- **DevOps:** CI/CD шаблоны, Helm-чарты
-
-Откройте [Issue](https://github.com/poliakarmai/gsc/issues) или пришлите PR.
