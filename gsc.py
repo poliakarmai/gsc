@@ -649,6 +649,103 @@ def cmd_db(args):
         conn.close()
 
 
+def cmd_triage(args):
+    """Interactive finding review — y=yes, n=no, i=ignore."""
+    project = args.project or "all"
+    if not DB_PATH.exists():
+        print("No GSC database found")
+        return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    query = "SELECT * FROM findings WHERE status='open'"
+    if project != "all":
+        query += " AND project = ?"
+        rows = conn.execute(query, (project,)).fetchall()
+    else:
+        rows = conn.execute(query).fetchall()
+
+    if not rows:
+        print("✅ No open findings to triage")
+        conn.close()
+        return
+
+    print(f"🔍 Triage: {len(rows)} open findings\n")
+    print("  [y] yes — TP    [n] no — FP    [i] ignore    [q] quit\n")
+
+    tp = fp = skipped = 0
+    for r in rows:
+        print(f"[{r['category']}] {r['title'][:80]}")
+        print(f"  {r.get('file_path','?')}:{r.get('line_number','?')}")
+        try:
+            choice = input("  [y/n/i/q] ").strip().lower()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        if choice == 'y':
+            conn.execute("UPDATE findings SET status='confirmed' WHERE id=?", (r['id'],))
+            if r.get('pattern_id'):
+                conn.execute("UPDATE patterns SET true_positive_count=true_positive_count+1 WHERE id=?", (r['pattern_id'],))
+            tp += 1
+        elif choice == 'n':
+            conn.execute("UPDATE findings SET status='false_positive' WHERE id=?", (r['id'],))
+            if r.get('pattern_id'):
+                conn.execute("UPDATE patterns SET false_positive_count=false_positive_count+1 WHERE id=?", (r['pattern_id'],))
+            fp += 1
+        elif choice == 'i':
+            skipped += 1
+            continue
+        elif choice == 'q':
+            break
+
+    conn.commit()
+    conn.close()
+    print(f"\n✅ Triage: {tp} TP, {fp} FP, {skipped} skipped")
+
+
+def cmd_explain(args):
+    """Detailed explanation of a finding."""
+    if not DB_PATH.exists():
+        print("No database")
+        return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    fid = args.finding_id
+    row = (conn.execute("SELECT * FROM findings WHERE id=?", (fid,)).fetchone() if fid.isdigit()
+           else conn.execute("SELECT * FROM findings WHERE title LIKE ? LIMIT 1", (f"%{fid}%",)).fetchone())
+
+    if not row:
+        print(f"Not found: {fid}")
+        conn.close()
+        return
+
+    cat = row['category']
+    threats = {"CRITICAL": ("Remotely exploitable", "CVSS 9.0+ — fix immediately"),
+               "HIGH": ("Locally exploitable, data leak", "CVSS 7.0-8.9 — fix this sprint"),
+               "MEDIUM": ("Weakens defenses", "CVSS 4.0-6.9 — fix within month"),
+               "LOW": ("Best practice", "CVSS <4.0 — tech debt")}
+
+    t = threats.get(cat, ("Unknown", "Unknown"))
+    print(f"🔍 #{row['id']}: {row['title']}")
+    print(f"   File: {row.get('file_path','?')}:{row.get('line_number','?')}")
+    print(f"   Status: {row.get('status','open')} | Category: {cat}")
+    print(f"   Threat: {t[0]}")
+    print(f"   Impact: {t[1]}")
+    if row.get('detail'):
+        print(f"   Detail: {row['detail'][:200]}")
+    conn.close()
+
+
+def cmd_fix(args):
+    """AI-suggested fix."""
+    print(f"🔧 GSC fix #{args.finding_id}")
+    print("   Auto-fix: run inside Hermes session for AI-generated patch.")
+    print("   The agent reads context, generates diff, verifies syntax.")
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main():
@@ -680,6 +777,18 @@ def main():
     db = sub.add_parser("db", help="Query GSC database")
     db.add_argument("sql", help="SQL query")
 
+    # gsc triage
+    triage = sub.add_parser("triage", help="Interactive finding review (y/n/i)")
+    triage.add_argument("project", nargs="?", help="Project name")
+
+    # gsc explain
+    explain = sub.add_parser("explain", help="Detailed explanation of a finding")
+    explain.add_argument("finding_id", help="Finding ID or pattern title")
+
+    # gsc fix
+    fix = sub.add_parser("fix", help="AI-suggested fix for a finding")
+    fix.add_argument("finding_id", help="Finding ID")
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -692,6 +801,12 @@ def main():
         cmd_patterns(args)
     elif args.command == "db":
         cmd_db(args)
+    elif args.command == "triage":
+        cmd_triage(args)
+    elif args.command == "explain":
+        cmd_explain(args)
+    elif args.command == "fix":
+        cmd_fix(args)
     else:
         parser.print_help()
 

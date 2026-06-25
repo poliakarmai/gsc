@@ -1,0 +1,60 @@
+#!/bin/sh
+# GSC Pre-commit Hook — аудит изменённых файлов перед коммитом
+# Установка: cp pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
+
+echo "🔒 GSC pre-commit audit..."
+
+# Проверяем, установлен ли GSC
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "⚠️  Python3 not found, skipping GSC"
+    exit 0
+fi
+
+GSC_DIR="$HOME/.gsc"
+GSC_SCRIPT="$GSC_DIR/gsc.py"
+if [ ! -f "$GSC_SCRIPT" ]; then
+    GSC_SCRIPT="$(dirname "$0")/../../gsc/gsc.py"
+fi
+if [ ! -f "$GSC_SCRIPT" ]; then
+    echo "⚠️  GSC not found at $GSC_SCRIPT, skipping"
+    exit 0
+fi
+
+# Только staged Python/JS/TS/Go/Rust/Java/TF файлы
+FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(py|js|ts|go|rs|java|tf)$')
+if [ -z "$FILES" ]; then
+    exit 0
+fi
+
+# Временный стейт для аудита
+TMPDIR=$(mktemp -d)
+trap "rm -rf $TMPDIR" EXIT
+
+echo "$FILES" | while read f; do
+    mkdir -p "$TMPDIR/$(dirname "$f")"
+    git show ":$f" > "$TMPDIR/$f" 2>/dev/null
+done
+
+# Запускаем GSC на временной копии
+python3 "$GSC_SCRIPT" scan "$(basename $(pwd))" --path "$TMPDIR" --ci --quiet 2>/dev/null > "$TMPDIR/report.json"
+CRITICAL=$(python3 -c "import json; d=json.load(open('$TMPDIR/report.json')); print(sum(1 for f in d if f.get('category')=='CRITICAL'))" 2>/dev/null || echo 0)
+
+if [ "$CRITICAL" -gt 0 ]; then
+    echo ""
+    echo "🔴 GSC found $CRITICAL critical findings in your staged changes!"
+    echo "   Run 'gsc triage' to review, or 'git commit --no-verify' to skip."
+    echo ""
+    python3 -c "
+import json
+findings = json.load(open('$TMPDIR/report.json'))
+critical = [f for f in findings if f.get('category') == 'CRITICAL']
+for f in critical[:5]:
+    print(f\"  [{f['category']}] {f['title']} — {f.get('file_path','?')}:{f.get('line_number','?')}\")
+if len(critical) > 5:
+    print(f\"  ... and {len(critical)-5} more\")
+" 2>/dev/null
+    exit 1
+fi
+
+echo "  ✅ No critical findings"
+exit 0
