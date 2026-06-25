@@ -1,63 +1,69 @@
 #!/bin/sh
-# GSC Pre-commit Hook — аудит изменённых файлов перед коммитом
+# GSC Smart Pre-commit Hook — блокирует только НОВЫЕ Critical находки
 # Установка: cp pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
 echo "🔒 GSC pre-commit audit..."
 
-# Проверяем, установлен ли GSC
-if ! command -v python3 >/dev/null 2>&1; then
-    echo "⚠️  Python3 not found, skipping GSC"
-    exit 0
-fi
-
-# Ищем gsc.py: сначала локально, потом ~/gsc, потом ../gsc
+# Ищем GSC
 GSC_SCRIPT=""
 for dir in "$HOME/gsc" "$(dirname "$0")/../.." "$(dirname "$0")/../../../gsc"; do
-    if [ -f "$dir/gsc.py" ]; then
-        GSC_SCRIPT="$dir/gsc.py"
-        break
-    fi
+    if [ -f "$dir/gsc.py" ]; then GSC_SCRIPT="$dir/gsc.py"; break; fi
 done
-if [ -z "$GSC_SCRIPT" ]; then
-    echo "⚠️  GSC not found, skipping (install: git clone https://github.com/poliakarmai/gsc ~/gsc)"
-    exit 0
-fi
+[ -z "$GSC_SCRIPT" ] && echo "⚠️  GSC not found" && exit 0
 
-# Только staged Python/JS/TS/Go/Rust/Java/TF файлы
-FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(py|js|ts|go|rs|java|tf)$')
-if [ -z "$FILES" ]; then
-    exit 0
-fi
+# Аргументы — только изменённые файлы, JSON, CI-режим
+python3 "$GSC_SCRIPT" scan "$(pwd)" --diff --ci --json > /tmp/gsc_hook_result.json 2>/dev/null
 
-# Временный стейт для аудита
-TMPDIR=$(mktemp -d)
-trap "rm -rf $TMPDIR" EXIT
+# Считаем новые CRITICAL (те, что не в baseline)
+CRITICAL=$(python3 -c "
+import json, os
+try:
+    findings = json.load(open('/tmp/gsc_hook_result.json'))
+except: findings = []
 
-echo "$FILES" | while read f; do
-    mkdir -p "$TMPDIR/$(dirname "$f")"
-    git show ":$f" > "$TMPDIR/$f" 2>/dev/null
-done
+# Try to load baseline
+baseline_path = '.gsc/baseline.json'
+baseline_hashes = set()
+if os.path.exists(baseline_path):
+    baseline = json.load(open(baseline_path))
+    baseline_hashes = {f['hash'] for f in baseline.get('findings', [])}
 
-# Запускаем GSC на временной копии
-python3 "$GSC_SCRIPT" scan "$(basename $(pwd))" --path "$TMPDIR" --ci --quiet 2>/dev/null > "$TMPDIR/report.json"
-CRITICAL=$(python3 -c "import json; d=json.load(open('$TMPDIR/report.json')); print(sum(1 for f in d if f.get('category')=='CRITICAL'))" 2>/dev/null || echo 0)
+new_critical = []
+for f in findings:
+    if f.get('category') == 'CRITICAL':
+        # Check if in baseline
+        import hashlib
+        h = hashlib.sha256(f\"{f['file_path']}:{f['line_number']}:{f['title']}\".encode()).hexdigest()[:12]
+        if h not in baseline_hashes:
+            new_critical.append(f)
 
-if [ "$CRITICAL" -gt 0 ]; then
+print(len(new_critical))
+for f in new_critical[:5]:
+    print(f'  [{f[\"category\"]}] {f[\"title\"][:70]} — {f[\"file_path\"]}:{f[\"line_number\"]}')
+if len(new_critical) > 5:
+    print(f'  ... and {len(new_critical)-5} more')
+" 2>/dev/null)
+
+if [ "$CRITICAL" -gt 0 ] 2>/dev/null; then
     echo ""
-    echo "🔴 GSC found $CRITICAL critical findings in your staged changes!"
+    echo "🔴 GSC found $CRITICAL NEW critical findings!"
     echo "   Run 'gsc triage' to review, or 'git commit --no-verify' to skip."
-    echo ""
     python3 -c "
-import json
-findings = json.load(open('$TMPDIR/report.json'))
-critical = [f for f in findings if f.get('category') == 'CRITICAL']
-for f in critical[:5]:
-    print(f\"  [{f['category']}] {f['title']} — {f.get('file_path','?')}:{f.get('line_number','?')}\")
-if len(critical) > 5:
-    print(f\"  ... and {len(critical)-5} more\")
+import json, hashlib, os
+findings = json.load(open('/tmp/gsc_hook_result.json'))
+baseline_path = '.gsc/baseline.json'
+baseline_hashes = set()
+if os.path.exists(baseline_path):
+    baseline = json.load(open(baseline_path))
+    baseline_hashes = {f['hash'] for f in baseline.get('findings', [])}
+for f in findings:
+    if f.get('category') == 'CRITICAL':
+        h = hashlib.sha256(f'{f[\"file_path\"]}:{f[\"line_number\"]}:{f[\"title\"]}'.encode()).hexdigest()[:12]
+        if h not in baseline_hashes:
+            print(f'  [{f[\"category\"]}] {f[\"title\"]} — {f[\"file_path\"]}:{f[\"line_number\"]}')
 " 2>/dev/null
     exit 1
 fi
 
-echo "  ✅ No critical findings"
+echo "  ✅ No new critical findings"
 exit 0
