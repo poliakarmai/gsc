@@ -101,7 +101,7 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
 
     # Run grep-based patterns
     for p in patterns:
-        if p.get("pattern_type") != "grep":
+        if p.get("pattern_type", "regex") not in ("grep", "regex"):
             continue
         search_pattern = p.get("search_pattern", "")
         if not search_pattern:
@@ -180,6 +180,22 @@ def check_security(project: str, path: Path) -> list[dict]:
                         "detail": f"Permissions {perms} — should be 600 for sensitive files",
                         "pattern_title": "chmod: World-readable sensitive files",
                     })
+
+    # Also check root-level sensitive files (including dotfiles)
+    sensitive_names = {".env", ".envrc", ".secrets", ".credentials"}
+    for f in path.glob("*"):
+        is_sensitive = (f.name in sensitive_names or 
+                       f.suffix in (".db", ".json", ".log", ".yaml", ".yml", ".key", ".pem"))
+        if f.is_file() and is_sensitive:
+            perms = oct(f.stat().st_mode)[-3:]
+            if int(perms[-1]) >= 4:
+                findings.append({
+                    "category": "HIGH", "echelon": 2,
+                    "title": f"World-readable file: {f.name} ({perms})",
+                    "file_path": str(f), "line_number": 0,
+                    "detail": f"Permissions {perms} — should be 600",
+                    "pattern_title": "chmod: World-readable",
+                })
 
     return findings
 
@@ -1024,6 +1040,9 @@ def main():
     # gsc doctor
     doctor = sub.add_parser("doctor", help="Diagnose GSC environment")
 
+    # gsc encrypt-db
+    encrypt = sub.add_parser("encrypt-db", help="Encrypt GSC database (Fernet)")
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -1044,6 +1063,8 @@ def main():
         cmd_fix(args)
     elif args.command == "doctor":
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_doctor.py")])
+    elif args.command == "encrypt-db":
+        subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "db_encrypt.py"), "encrypt"])
     else:
         parser.print_help()
 
