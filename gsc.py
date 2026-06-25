@@ -79,6 +79,8 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None) -> list[d
         findings.extend(check_security(project, path))
     if not echelons or "3" in echelons:
         findings.extend(check_adversarial(project, path))
+    if getattr(args, 'deep', False):
+        findings.extend(check_deep(project, path))
 
     return findings
 
@@ -208,6 +210,33 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
             pass
 
     return findings
+
+
+def check_deep(project: str, path: Path) -> list[dict]:
+    """Echelon 4: LLM-powered deep analysis (requires Hermes delegate_task)."""
+    if not os.environ.get("HERMES_SESSION"):
+        return [{
+            "category": "INFO", "echelon": 4,
+            "title": "Deep analysis requires Hermes agent",
+            "file_path": "", "line_number": 0,
+            "detail": "Run `gsc scan --deep` inside a Hermes session for LLM-powered audit."
+        }]
+
+    print("  🧠 E4: LLM deep analysis...")
+    files = []
+    for ext in [".py", ".go", ".ts", ".rs", ".java", ".tf"]:
+        for f in list(path.rglob(f"*{ext}"))[:5]:
+            try:
+                files.append(str(f.relative_to(path)))
+            except Exception:
+                pass
+
+    return [{
+        "category": "INFO", "echelon": 4,
+        "title": f"Deep analysis available for {project}",
+        "file_path": "", "line_number": 0,
+        "detail": f"{len(files)} source files ready for LLM audit. Use Hermes delegate_task for full E4 analysis."
+    }]
 
 
 def save_findings(project: str, findings: list[dict]):
@@ -630,6 +659,8 @@ def main():
     scan = sub.add_parser("scan", help="Run audit on a project")
     scan.add_argument("project", help="Project name or path")
     scan.add_argument("--echelon", help="Echelons to run (e.g., '12' for source+security)")
+    scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
+    scan.add_argument("--ci", action="store_true", help="CI mode: JSON output, no interactive prompts")
     scan.add_argument("--json", action="store_true", help="Output JSON")
 
     # gsc init

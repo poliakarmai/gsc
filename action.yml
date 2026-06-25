@@ -1,0 +1,64 @@
+name: 'GSC Audit'
+description: 'Self-learning code audit — finds bugs, security issues, and anti-patterns'
+author: 'poliakarmai'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  project:
+    description: 'Project name for audit tracking'
+    required: true
+  fail_on:
+    description: 'Fail on critical findings'
+    required: false
+    default: 'true'
+
+outputs:
+  total:
+    description: 'Total findings'
+  critical:
+    description: 'Critical count'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout GSC
+      uses: actions/checkout@v4
+      with:
+        repository: poliakarmai/gsc
+        path: .gsc-action
+
+    - name: Setup Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Install ripgrep
+      run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+      shell: bash
+
+    - name: Run GSC Scan
+      id: scan
+      run: |
+        cd .gsc-action
+        python3 gsc.py scan ${{ inputs.project }} --json --ci > /tmp/gsc_report.json 2>/tmp/gsc_log.txt
+        TOTAL=$(python3 -c "import json; print(len(json.load(open('/tmp/gsc_report.json'))))")
+        CRIT=$(python3 -c "import json; d=json.load(open('/tmp/gsc_report.json')); print(sum(1 for f in d if f.get('category')=='CRITICAL'))")
+        echo "total=$TOTAL" >> $GITHUB_OUTPUT
+        echo "critical=$CRIT" >> $GITHUB_OUTPUT
+      shell: bash
+
+    - name: Post Results
+      run: |
+        python3 .gsc-action/scripts/ci_report.py /tmp/gsc_report.json >> $GITHUB_STEP_SUMMARY
+      shell: bash
+
+    - name: Fail on Critical
+      if: inputs.fail_on == 'true'
+      run: |
+        if [ "${{ steps.scan.outputs.critical }}" -gt 0 ]; then
+          echo "::error::GSC found ${{ steps.scan.outputs.critical }} CRITICAL findings"
+          exit 1
+        fi
+      shell: bash
