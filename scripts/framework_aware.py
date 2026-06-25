@@ -48,7 +48,9 @@ FRAMEWORK_WHITELIST = {
 # File extension patterns that should be skipped entirely
 SKIP_FILE_PATTERNS = [
     "test_*.py", "*_test.py", "conftest.py", "__init__.py",
-    "setup.py", "migrations/*.py", "*.md", "*.rst", "*.txt"
+    "setup.py", "migrations/*.py", "*.md", "*.rst", "*.txt",
+    "docs_src/**", "docs/**", "tests/**", "examples/**",
+    ".github/**", "node_modules/**", "vendor/**"
 ]
 
 # Categories that are always skipped in framework context
@@ -74,10 +76,18 @@ def get_imports(file_path: str) -> set:
 
 
 def should_skip_file(file_path: str) -> bool:
-    """Check if file matches skip patterns."""
+    """Check if file should be skipped: tests, docs, examples, etc."""
     fname = os.path.basename(file_path)
+    # Check by glob pattern
     for pattern in SKIP_FILE_PATTERNS:
-        if Path(file_path).match(pattern):
+        try:
+            if Path(file_path).match(pattern):
+                return True
+        except Exception:
+            pass
+    # Check by substring (catch docs_src/, docs/, tests/ anywhere in path)
+    for skip_dir in ["docs_src/", "docs/", "tests/", "examples/", "node_modules/", "vendor/", ".github/"]:
+        if skip_dir in file_path:
             return True
     return False
 

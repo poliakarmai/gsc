@@ -25,6 +25,17 @@ GSC_HOME.mkdir(parents=True, exist_ok=True)
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 SCRIPTS_DIR = Path.home() / ".hermes" / "scripts"
 
+# Ensure WAL mode for concurrent CI/CD access
+def _init_db():
+    """Enable WAL mode + busy timeout for concurrent access."""
+    if DB_PATH.exists():
+        import sqlite3 as _sq
+        conn = _sq.connect(str(DB_PATH))
+        conn.execute("PRAGMA journal_mode=WAL")
+        conn.execute("PRAGMA busy_timeout=5000")
+        conn.close()
+_init_db()
+
 # File extension → language mapping
 EXT_TO_LANG = {
     ".py": "python", ".pyx": "python", ".pyi": "python",
