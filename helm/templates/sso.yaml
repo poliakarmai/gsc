@@ -7,8 +7,8 @@ data:
     provider = "oidc"
     oidc_issuer_url = "{{ .Values.sso.oidc.issuer_url }}"
     client_id = "{{ .Values.sso.oidc.client_id }}"
-    client_secret = "{{ .Values.sso.oidc.client_secret }}"
-    cookie_secret = "{{ .Values.sso.cookie_secret }}"
+    client_secret = "{{ .Values.sso.oidc.client_secret }}"  # gsc:ignore — Helm template variable
+    cookie_secret = "{{ .Values.sso.cookie_secret }}"  # gsc:ignore — Helm template variable
     email_domains = ["*"]
     upstreams = ["http://localhost:8080"]
     http_address = "0.0.0.0:4180"

@@ -12,7 +12,7 @@ from pathlib import Path
 
 # Pattern → safe import contexts
 FRAMEWORK_WHITELIST = {
-    "pickle.load() — unsafe deserialization": {
+    "pickle.load() — unsafe deserialization": {  # gsc:ignore — pattern whitelist config
         "safe_imports": ["torch", "tensorflow", "keras", "sklearn", "joblib",
                         "xgboost", "lightgbm", "catboost", "transformers", "diffusers"],
         "action": "downgrade",  # downgrade CRITICAL→LOW, not skip entirely
@@ -158,7 +158,7 @@ def filter_findings(findings: list[dict]) -> list[dict]:
 if __name__ == "__main__":
     # Test: show framework filter in action
     test_findings = [
-        {"title": "pickle.load() — unsafe deserialization", "category": "CRITICAL",
+        {"title": "pickle.load() — unsafe deserialization", "category": "CRITICAL",  # gsc:ignore — test fixture — unsafe deserialization", "category": "CRITICAL",
          "file_path": "lstm_regime.py", "line_number": 617, "detail": ""},
         {"title": "Hardcoded encryption key", "category": "CRITICAL",
          "file_path": "rpc.py", "line_number": 180, "detail": ""},

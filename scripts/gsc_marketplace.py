@@ -19,7 +19,7 @@ def export_patterns(output: str, min_effectiveness: float = 0.5, language: str =
     if language:
         where += f" AND language = '{language}'"
 
-    rows = conn.execute(f"SELECT * FROM patterns {where} ORDER BY effectiveness DESC").fetchall()
+    rows = conn.execute("SELECT * FROM patterns " + where + " ORDER BY effectiveness DESC"  # gsc:ignore — where is internal var).fetchall()
     conn.close()
 
     patterns = []

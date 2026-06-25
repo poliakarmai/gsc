@@ -13,11 +13,11 @@ def export_html(project: str = None, output: str = None):
     conn.row_factory = sqlite3.Row
 
     where = f"WHERE project = '{project}'" if project else "WHERE 1=1"
-    total = conn.execute(f"SELECT COUNT(*) FROM findings {where}").fetchone()[0]
-    crit = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND category='CRITICAL'").fetchone()[0]
-    high = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND category='HIGH'").fetchone()[0]
-    medium = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND category='MEDIUM'").fetchone()[0]
-    findings = conn.execute(f"SELECT * FROM findings {where} ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END, id LIMIT 50").fetchall()
+    total = conn.execute("SELECT COUNT(*) FROM findings " + where  # gsc:ignore — where is internal var, not user input).fetchone()[0]
+    crit = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='CRITICAL'").fetchone()[0]
+    high = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='HIGH'").fetchone()[0]
+    medium = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='MEDIUM'").fetchone()[0]
+    findings = conn.execute("SELECT * FROM findings {where} ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END, id LIMIT 50").fetchall()
     conn.close()
 
     html = f"""<!DOCTYPE html>

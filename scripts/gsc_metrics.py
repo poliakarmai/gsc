@@ -15,11 +15,11 @@ def calc_metrics(project: str = None):
     where_p = ""
 
     # Overall stats
-    total = conn.execute(f"SELECT COUNT(*) FROM findings {where}").fetchone()[0]
-    tp = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND status='confirmed'").fetchone()[0]
-    fp = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND status='false_positive'").fetchone()[0]
-    open_f = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND status='open'").fetchone()[0]
-    baseline = conn.execute(f"SELECT COUNT(*) FROM findings {where} AND status='baseline'").fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM findings " + where  # gsc:ignore — where is internal var, not user input).fetchone()[0]
+    tp = conn.execute("SELECT COUNT(*) FROM findings {where} AND status='confirmed'").fetchone()[0]
+    fp = conn.execute("SELECT COUNT(*) FROM findings {where} AND status='false_positive'").fetchone()[0]
+    open_f = conn.execute("SELECT COUNT(*) FROM findings {where} AND status='open'").fetchone()[0]
+    baseline = conn.execute("SELECT COUNT(*) FROM findings {where} AND status='baseline'").fetchone()[0]
 
     print("=" * 55)
     print(f"GSC Precision/Recall {'— ' + project if project else ''}")

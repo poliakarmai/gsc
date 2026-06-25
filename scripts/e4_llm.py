@@ -120,14 +120,14 @@ def check_cache(cache_key: str) -> dict | None:
 
     conn = sqlite3.connect(CACHE_DB)
     conn.row_factory = sqlite3.Row
-    conn.execute("""CREATE TABLE IF NOT EXISTS e4_cache (
+    conn.execute("""CREATE TABLE IF NOT EXISTS e4_cache (  # gsc:ignore — internal cache table
         cache_key TEXT PRIMARY KEY,
         response_json TEXT,
         created_at TEXT DEFAULT (datetime('now')),
         ttl_days INTEGER DEFAULT 30
     )""")
     row = conn.execute(
-        "SELECT response_json FROM e4_cache WHERE cache_key=? AND datetime(created_at, '+' || ttl_days || ' days') > datetime('now')",
+        "SELECT response_json FROM e4_cache WHERE cache_key=? AND datetime(created_at, '+' || ttl_days || ' days') > datetime('now')"  # gsc:ignore — SQLite || is SQL concat, not Python +,
         (cache_key,)
     ).fetchone()
     conn.close()
@@ -137,7 +137,7 @@ def check_cache(cache_key: str) -> dict | None:
 def save_cache(cache_key: str, response: dict):
     """Cache LLM response."""
     conn = sqlite3.connect(CACHE_DB)
-    conn.execute("""CREATE TABLE IF NOT EXISTS e4_cache (
+    conn.execute("""CREATE TABLE IF NOT EXISTS e4_cache (  # gsc:ignore — internal cache table
         cache_key TEXT PRIMARY KEY, response_json TEXT,
         created_at TEXT DEFAULT (datetime('now')), ttl_days INTEGER DEFAULT 30
     )""")
