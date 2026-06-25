@@ -83,6 +83,14 @@ def cmd_scan(args):
     else:
         findings = run_audit_echelons(project, project_path, args.echelon, getattr(args, 'deep', False))
 
+    # 2.5 Framework-aware filter (reduce FP)
+    try:
+        sys.path.insert(0, str(Path(__file__).parent / "scripts"))
+        from framework_aware import filter_findings as fw_filter
+        findings = fw_filter(findings)
+    except Exception:
+        pass
+
     # 3. Save findings
     save_findings(project, findings, quiet=quiet)
 
