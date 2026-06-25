@@ -116,7 +116,9 @@ python3 gsc.py dashboard
 - [x] `gsc scan --ci --json` — чистый JSON ✅
 - [x] `gsc explain <id>` — CVSS ✅
 - [x] `gsc doctor` — диагностика ✅
-- [x] `gsc triage` — интерактивная разметка TP/FP ✅
+- [x] `gsc triage` — [$] skip pattern, [e] explain inline, auto-deactivation <30% ✅
+- [x] `gsc triage --bulk --auto-accept` — CI-friendly batch mode ✅
+- [x] Baseline suppressions (`gsc_baseline.py` save/apply) ✅
 - [x] `gsc init` — авто-установка .gsc/ ✅
 - [x] `gsc dashboard` — веб-интерфейс ✅
 - [x] Pre-commit hook ✅

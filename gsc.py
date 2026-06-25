@@ -216,30 +216,39 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
 
 
 def check_deep(project: str, path: Path) -> list[dict]:
-    """Echelon 4: LLM-powered deep analysis (requires Hermes delegate_task)."""
+    """Echelon 4: LLM-powered deep analysis."""
     if not os.environ.get("HERMES_SESSION"):
         return [{
             "category": "INFO", "echelon": 4,
             "title": "Deep analysis requires Hermes agent",
             "file_path": "", "line_number": 0,
-            "detail": "Run `gsc scan --deep` inside a Hermes session for LLM-powered audit."
+            "detail": "Run `gsc scan --deep` inside Hermes for LLM audit. Standalone: use scripts/e4_llm.py."
         }]
 
     print("  🧠 E4: LLM deep analysis...")
-    files = []
-    for ext in [".py", ".go", ".ts", ".rs", ".java", ".tf"]:
-        for f in list(path.rglob(f"*{ext}"))[:5]:
-            try:
-                files.append(str(f.relative_to(path)))
-            except Exception:
-                pass
+    try:
+        from scripts.e4_llm import run_e4_scan
+        # Load latest findings for this project
+        findings = []
+        if DB_PATH.exists():
+            conn = sqlite3.connect(str(DB_PATH))
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                "SELECT * FROM findings WHERE project=? AND status='open' ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END LIMIT 20",
+                (project,)
+            ).fetchall()
+            findings = [dict(r) for r in rows]
+            conn.close()
 
-    return [{
-        "category": "INFO", "echelon": 4,
-        "title": f"Deep analysis available for {project}",
-        "file_path": "", "line_number": 0,
-        "detail": f"{len(files)} source files ready for LLM audit. Use Hermes delegate_task for full E4 analysis."
-    }]
+        enriched = run_e4_scan(findings)
+        return [{
+            "category": f.get('category', 'INFO'), "echelon": 4,
+            "title": f"[E4] {f.get('title','')}",
+            "file_path": f.get('file_path', ''), "line_number": f.get('line_number', 0),
+            "detail": json.dumps(f.get('e4_result', {}))
+        } for f in enriched if f.get('e4_analyzed')]
+    except Exception as e:
+        return [{"category": "INFO", "echelon": 4, "title": f"E4 error: {e}", "file_path": "", "line_number": 0, "detail": str(e)}]
 
 
 def save_findings(project: str, findings: list[dict], quiet: bool = False):
