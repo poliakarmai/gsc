@@ -1,0 +1,24 @@
+{
+  "name": "gsc-vscode",
+  "displayName": "GSC — Git Security Checker",
+  "description": "In-editor findings from GSC audit. See vulnerabilities where you code.",
+  "version": "0.1.0",
+  "publisher": "poliakarmai",
+  "engines": {"vscode": "^1.85.0"},
+  "categories": ["Linters", "Other"],
+  "activationEvents": ["onCommand:gsc.showFindings", "onCommand:gsc.scanCurrent"],
+  "main": "./extension.js",
+  "contributes": {
+    "commands": [
+      {"command": "gsc.showFindings", "title": "GSC: Show Findings"},
+      {"command": "gsc.scanCurrent", "title": "GSC: Scan Current Project"}
+    ],
+    "configuration": {
+      "title": "GSC",
+      "properties": {
+        "gsc.path": {"type": "string", "default": "~/gsc/gsc.py", "description": "Path to GSC CLI"},
+        "gsc.autoScan": {"type": "boolean", "default": false, "description": "Scan on file save"}
+      }
+    }
+  }
+}

@@ -1090,6 +1090,9 @@ def main():
     # gsc doctor
     doctor = sub.add_parser("doctor", help="Diagnose GSC environment")
 
+    # gsc metrics
+    metrics = sub.add_parser('metrics', help='Precision/recall metrics')
+
     # gsc encrypt-db
     encrypt = sub.add_parser("encrypt-db", help="Encrypt GSC database (Fernet)")
 
@@ -1111,7 +1114,10 @@ def main():
         cmd_explain(args)
     elif args.command == "fix":
         cmd_fix(args)
-    elif args.command == "doctor":
+    elif args.command == 'metrics':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_metrics.py')])
+
+    elif args.command == 'doctor':
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_doctor.py")])
     elif args.command == "encrypt-db":
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "db_encrypt.py"), "encrypt"])
