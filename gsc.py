@@ -110,6 +110,9 @@ def cmd_scan(args):
         except Exception:
             pass
 
+    # 2.7 Clear file cache to prevent memory leak
+    _file_cache.clear()
+
     # 3. Save findings
     save_findings(project, findings, quiet=quiet)
 
@@ -401,11 +404,17 @@ def check_security(project: str, path: Path) -> list[dict]:
     ]
 
     for svc_file in path.rglob("*.service"):
+        # Skip symlinks (dedup: target.wants/ symlinks point to same files)
+        if svc_file.is_symlink():
+            continue
+        # Skip systemd target directories with symlinks
+        if '.target.wants' in str(svc_file):
+            continue
         try:
-            content = svc_file.read_text()
+            svc_content = svc_file.read_text()
             for directive, key, category, detail in REQUIRED_DIRECTIVES:
-                if key not in content:
-                    if key + "=" in content:
+                if key not in svc_content:
+                    if key + "=" in svc_content:
                         continue
                     findings.append({
                         "category": category,
