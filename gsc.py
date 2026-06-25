@@ -102,6 +102,14 @@ def cmd_scan(args):
     except Exception:
         pass
 
+    # 2.6 Reachability analysis — downgrade findings in unreachable files (opt-in)
+    if getattr(args, 'reachability', False):
+        try:
+            from gsc_reachability import analyze_reachability
+            findings = analyze_reachability(findings, str(project_path))
+        except Exception:
+            pass
+
     # 3. Save findings
     save_findings(project, findings, quiet=quiet)
 
@@ -132,7 +140,42 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     # Post-filter: remove findings in docstrings, comments, type annotations
     findings = [f for f in findings if not _is_in_docstring_or_comment(f)]
 
+    # Post-filter: inline suppression (# gsc:ignore / // gsc:ignore)
+    findings = [f for f in findings if not _is_suppressed_inline(f)]
+
     return findings
+
+
+# ── Inline suppression filter ──────────────────────────────────────────
+
+def _is_suppressed_inline(finding: dict) -> bool:
+    """Check if the finding's line has a gsc:ignore suppression comment.
+    Returns True if finding should be DISCARDED."""
+    fp = finding.get("file_path", "")
+    ln = (finding.get("line_number") or 0)
+    if not fp or ln <= 0:
+        return False
+
+    p = Path(fp)
+    if not p.exists():
+        return False
+
+    cache_key = str(p)
+    if cache_key not in _file_cache:
+        try:
+            _file_cache[cache_key] = p.read_text().split("\n")
+        except Exception:
+            _file_cache[cache_key] = []
+
+    lines = _file_cache[cache_key]
+    if not lines or ln > len(lines):
+        return False
+
+    line = lines[ln - 1].strip()
+    # Support: # gsc:ignore, // gsc:ignore, -- gsc:ignore
+    suppress_markers = ("# gsc:ignore", "// gsc:ignore", "-- gsc:ignore",
+                        "# nosec", "# gsc: nosec")
+    return any(marker in line for marker in suppress_markers)
 
 
 # ── Docstring / comment filter ────────────────────────────────────────────
@@ -1280,6 +1323,7 @@ def main():
     scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
     scan.add_argument("--diff", action="store_true", help="Scan only changed files (git diff HEAD)")
     scan.add_argument("--sarif", action="store_true", help="Export as SARIF (GitHub Code Scanning)")
+    scan.add_argument("--reachability", action="store_true", help="Downgrade findings in unreachable files (import-graph analysis)")
     scan.add_argument("--compliance", choices=["pci-dss","soc2","iso27001","all"], help="Compliance framework")
     scan.add_argument("--quiet", action="store_true", help="Silent mode (CI-friendly)")
     scan.add_argument("--ci", action="store_true", help="CI mode: JSON output, no interactive prompts")
