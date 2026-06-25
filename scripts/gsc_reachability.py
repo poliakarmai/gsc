@@ -38,8 +38,14 @@ def build_import_graph(project_path: str) -> dict[str, set[str]]:
 
 def is_reachable(file_path: str, import_graph: dict[str, set[str]]) -> bool:
     """Check if a file is imported by any other file (reachable)."""
-    # Normalize paths
     fp = Path(file_path)
+
+    # Skip reachability check for non-code files — permissions matter regardless
+    CODE_EXTS = {".py", ".go", ".ts", ".tsx", ".js", ".rs", ".java", ".c", ".cpp", ".h"}
+    if fp.suffix not in CODE_EXTS:
+        return True  # Always consider data/config files as reachable
+
+    # Normalize paths
     rel = str(fp)
 
     # Check if any file imports this one
