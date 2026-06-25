@@ -114,6 +114,7 @@ python3 gsc.py dashboard
 - [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`, `gsc doctor`
 - [x] 277 seed-паттернов (OWASP + CWE + 7 языков: Python/Go/TS/Rust/Java/Docker/Terraform)
 - [x] `gsc scan --ci --json` — чистый JSON ✅
+- [x] `gsc scan --deep` — E4 LLM-анализ (cost-guarded, cached, escalation rules) ✅
 - [x] `gsc explain <id>` — CVSS ✅
 - [x] `gsc doctor` — диагностика ✅
 - [x] `gsc triage` — [$] skip pattern, [e] explain inline, auto-deactivation <30% ✅
