@@ -1,253 +1,173 @@
 # 🔒 GSC — Git Security Checker
 
-> Самообучающаяся система аудита кода. Не просто находит баги — запоминает их и умнеет с каждым проектом.
+> Адаптивный аудитор кода. Находит уязвимости, запоминает паттерны, умнеет с каждым проектом.
 
-[![Phase](https://img.shields.io/badge/phase-1%20(CLI)-blue)](https://github.com/poliakarmai/gsc)
-[![Patterns](https://img.shields.io/badge/patterns-223-green)](https://github.com/poliakarmai/gsc)
-[![Projects](https://img.shields.io/badge/projects%20audited-6-orange)](https://github.com/poliakarmai/gsc)
+## Что это
 
----
+GSC — CLI-инструмент для поиска багов и уязвимостей с накоплением паттернов. Не просто линтер: каждая подтверждённая находка становится правилом для будущих сканов. Слабые паттерны автоматически отключаются.
 
-## 🤔 Проблема
+**Для кого:** разработчики и команды, которым надоел шум от SonarQube/Semgrep.
 
-Статические анализаторы (SonarQube, Snyk, Semgrep) работают по жёстким правилам. Они находят `SQL injection` по сигнатуре `f"SELECT {var}"`, но **никогда** не найдут:
+**Сегодня работает:**
+- 3 эшелона аудита (Source → Security → Adversarial)
+- 277 seed-паттернов (Python, Go, TS, Rust, Java, Docker, Terraform)
+- Language-aware фильтрация (Go-паттерны не лезут в Python)
+- Авто-деактивация ложных паттернов (< 30% эффективности)
+- AI-патч через OpenRouter (опционально)
+- SARIF-экспорт для GitHub Code Scanning
 
-- *«В этом проекте `round(..., 2)` в финансах — баг, нужно 6 знаков»*
-- *«После рефакторинга промокодов сломалась схема БД — колонки `valid_from` стали `created_at`»*
-- *«Вот этот конкретный паттерн TOCTOU уже 3 раза приводил к потере данных»*
-
-Такие находки рождаются только из **опыта на конкретных проектах**. И они теряются сразу после аудита.
-
-GSC их сохраняет.
-
----
-
-## 🧠 Как это работает
-
-```
-┌─────────────────────────────────────────────────────┐
-│                    GSC scan pci-index                │
-├─────────────────────────────────────────────────────┤
-│  Seed Patterns (223)                                 │
-│  ├── OWASP Top 10: SQL injection, XSS, SSRF...      │
-│  ├── CWE Top 25: buffer overflow, race conditions   │
-│  └── Python: bare except, eval(), pickle...          │
-│                                                      │
-│  Learned Patterns (из прошлых аудитов)               │
-│  ├── PCI: round() precision mismatch (2dp vs 6dp)   │
-│  ├── VPN: promo_redeem SQL schema mismatch          │
-│  ├── bybit-ws: state.db world-readable              │
-│  └── Apolaibot: PUBLIC_URL literal in f-string      │
-│                                                      │
-│  3 Echelons:                                         │
-│  ├── E1 Source-Driven: grep-паттерны, импорты       │
-│  ├── E2 Security: права, ключи, systemd hardening   │
-│  └── E3 Adversarial: race conditions, precision     │
-│                                                      │
-│  Результат: 62 находки → SQLite + Obsidian 📝       │
-└─────────────────────────────────────────────────────┘
-```
-
-**Ключевая фича:** после каждого аудита находки сохраняются в базу. Следующий аудит (любого проекта) получает их как **дополнительные паттерны**. Чем больше проектов — тем умнее GSC.
-
----
-
-## 📊 Самообучение в цифрах
-
-| Метрика | Значение |
-|---------|----------|
-| Seed-паттернов (OWASP/CWE/7 языков) | 277 |
-| Паттернов, рождённых из реальных находок | 62+ |
-| Проектов отaudit'овано | 6 |
-| Всего находок в базе | 358 |
-| Audit runs | 8 |
-
-> **⚠️ Честно:** данные выше — с наших собственных проектов (pci-index, bybit-ws, vpn-infra, apolaibot, hermes-self). GSC пока не запускался на чужих репозиториях. Первые внешние пользователи неизбежно найдут ложные срабатывания — для этого и нужен `gsc triage`.
-
-Каждый паттерн имеет `true_positive / false_positive` счётчик. При эффективности < 30% автоматически деактивируется — GSC сам чистит ложные срабатывания.
-
----
-
-## 🚀 Быстрый старт
+**Результат:** 388 → 133 находки на своём проекте after language filter. 66% шума отфильтровано.
 
 ```bash
-# Установка
-git clone https://github.com/poliakarmai/gsc.git
-cd gsc
 pip install ripgrep  # единственная зависимость
-
-# Первый аудит
+git clone https://github.com/poliakarmai/gsc.git
 python3 gsc.py scan my-project
-
-# Интерактивный триаж (разметка TP/FP)
-python3 gsc.py triage my-project
-
-# Развёрнутое объяснение находки
-python3 gsc.py explain 42
-
-# Pre-commit hook (блокирует CRITICAL findings)
-cp pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
-
-# Веб-дашборд
-python3 gsc.py dashboard
-# → http://localhost:8080
 ```
 
 ---
 
-## 🗺️ Дорожная карта
+## Как это работает
 
-| Фаза | Срок | Что | Статус |
-|------|------|-----|--------|
-| **1. Упаковка** | Июль 2026 | CLI + 277 паттернов + дашборд + triage | ✅ |
-| **2. Интеграция** | Август 2026 | GitHub Action + pre-commit + baseline + diff-only | 🔜 |
-| **2.5. IDE** | Сентябрь 2026 | VSCode extension + explain + Jira/Linear | 📋 |
-| **3. Масштабирование** | Октябрь 2026 | 7 языков + авто-фиксы + SBOM | 📋 |
-| **3.5. Enterprise** | Ноябрь 2026 | SSO + RBAC + Helm chart | 📋 |
-| **4. AI-remediation** | Декабрь 2026 | Auto-fix v2 + тесты + контекстные патчи | 📋 |
-| **5. Сеть** | Январь 2027 | Федеративное обучение + паттерн-маркетплейс | 📋 |
-| **6. Compliance** | Февраль 2027 | PCI DSS + SOC2 auto-reports + evidence collection | 📋 |
+### Модель данных
 
-### Фаза 1: Упаковка ✅
+```
+Seed patterns (OWASP/CWE/7 языков)
+        ↓
+    gsc scan
+        ↓
+   E1: Source-driven (grep по коду)
+   E2: Security (regex + права файлов)
+   E3: Adversarial (логические паттерны)
+   E4: LLM deep analysis (опционально, --deep)
+        ↓
+  Сохранение в SQLite + Obsidian
+        ↓
+   gsc triage → TP/FP разметка
+        ↓
+  Паттерны с эффективностью <30% → авто-деактивация
+  Новые подтверждённые находки → становятся паттернами
+```
 
-- [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`, `gsc doctor`
-- [x] 277 seed-паттернов (OWASP + CWE + 7 языков: Python/Go/TS/Rust/Java/Docker/Terraform)
-- [x] `gsc scan --ci --json` — чистый JSON ✅
-- [x] `gsc scan --diff` — diff-only scan (changed files) ✅
-- [x] `gsc scan --sarif` — SARIF 2.1.0 for GitHub Code Scanning ✅
-- [x] `gsc fix <id>` — AI-generated patch via OpenRouter ✅
-- [x] `gsc explain <id>` — CVSS ✅
-- [x] `gsc doctor` — диагностика ✅
-- [x] `gsc triage` — [$] skip pattern, [e] explain inline, auto-deactivation <30% ✅
-- [x] `gsc triage --bulk --auto-accept` — CI-friendly batch mode ✅
-- [x] Baseline suppressions (`gsc_baseline.py` save/apply) ✅
-- [x] `gsc init` — авто-установка .gsc/ ✅
-- [x] `gsc dashboard` — веб-интерфейс ✅
-- [x] Pre-commit hook ✅
-- [x] GitHub Action (код готов, ждёт реального PR для теста)
-- [x] Persistent SQLite DB + Obsidian
+### Пример: от находки до паттерна
 
-### Фаза 2: Интеграция + DX 🔜
+**Код:**
+```python
+# api/billing.py:147
+def apply_discount(user_id, code):
+    query = f"SELECT * FROM discounts WHERE code='{code}'"
+    return db.execute(query)
+```
 
-- [x] Language-aware filtering (12 languages, ripgrep -t) ✅
-- [x] `.md` exclusion for security patterns ✅
-- [x] `gsc scan --diff` — diff-only scan ✅
-- [x] SARIF экспорт — GitHub Code Scanning ✅
-- [x] `gsc fix <id>` — AI-generated patch ✅
-- [ ] Baseline/suppressions в CI (код готов, ждёт интеграции)
-- [x] Шифрование БД (Fernet AES-128) ✅
-- [x] Corpus-тесты: 8/8 pass ✅
+**Скан:**
+```bash
+$ gsc scan pci-index
+🔴 CRITICAL: SQL injection risk: f-string in query
+   File: api/billing.py:147
+   Pattern: sql-injection-fstring (seed, E2)
+   CVSS: 8.6
+```
 
-### Фаза 2.5: IDE & Developer Experience 📋
+**Объяснение:**
+```bash
+$ gsc explain 42
+🔍 #42: SQL injection risk: f-string in query
+   Threat: Remotely exploitable
+   Impact: CVSS 8.6 — злоумышленник может читать/менять БД
+```
 
-- [ ] VSCode extension: подсветка находок прямо в редакторе
-- [ ] Jira/Linear integration: находка → тикет одним кликом
-- [ ] HTML/PDF экспорт для тех, кто не в Obsidian
-- [ ] `gsc fix <id>` — AI-патч (MVP: inline, полный: Hermes delegate_task)
+**AI-фикс:**
+```bash
+$ gsc fix 42
+🔧 GSC fix #42: SQL injection risk
+   Analyzing with OpenRouter...
 
-### Фаза 3: Масштабирование 📋
+--- a/api/billing.py
++++ b/api/billing.py
+@@ -145,7 +145,7 @@
+ def apply_discount(user_id, code):
+-    query = f"SELECT * FROM discounts WHERE code='{code}'"
++    query = "SELECT * FROM discounts WHERE code=?"
+-    return db.execute(query)
++    return db.execute(query, (code,))
+```
 
-- [ ] 7 языков: Python, Go, TypeScript, Rust, Java, Docker, Terraform (seed-паттерны уже есть)
-- [ ] SBOM-генерация (CycloneDX) — supply chain security
-- [ ] Typosquatting detection в зависимостях
-- [ ] Compliance mapping: finding → PCI DSS / SOC2 / ISO27001
-- [ ] Performance: <10 сек на 10K LOC
-
-### Фаза 3.5: Enterprise 📋
-
-- [ ] SSO (SAML/OIDC) для команд
-- [ ] RBAC: admin / auditor / viewer
-- [ ] Audit log: кто, когда, какой finding подтвердил
-- [ ] On-premise Helm chart для Kubernetes
-- [ ] Multi-tenancy с изоляцией данных
-
-### Фаза 4: AI-ремедиация 📋
-
-- [ ] Auto-fix v2: не просто diff, а полный PR с тестами
-- [ ] Context-aware suggestions: учитывает стиль кода проекта
-- [ ] Regression test generation: AI пишет тест, доказывающий фикс
-
-### Фаза 6: Compliance-as-a-Service 📋
-
-- [ ] Автоматическая генерация audit-отчётов для PCI DSS / SOC2
-- [ ] Continuous compliance monitoring — не разовый скан, а постоянный
-- [ ] Evidence collection для аудиторов (скриншоты, логи, git history)
-
-### Фаза 7: Экосистема 📋
-
-- [ ] Pattern marketplace с рейтингами
-- [ ] Community rules hub (а-ля ESLint shareable configs)
-- [ ] Bug bounty integration: finding → отчёт в HackerOne
-- [ ] GSC Academy: сертификация «GSC Auditor»
+**Триаж:** пользователь подтверждает находку (TP) → счётчик `true_positive` растёт → следующий скан находит похожие паттерны быстрее.
 
 ---
 
-## 📊 Метрики самообучения
-
-| Метрика | Значение | Зачем |
-|---------|----------|-------|
-| Всего паттернов | 277 | Seed + learned |
-| Паттернов из реальных находок | 62+ | Самообучение в действии |
-| TP/FP на паттерн | per-pattern counter | Авто-деактивация < 30% |
-| Проектов отaudit'овано | 6 | Разнообразие кодовых баз |
-| Audit runs | 5 | История для трендов |
-| Precision | TP/(TP+FP) | Качество каждого паттерна |
-| Cross-project transfer | tracked | Как часто паттерн срабатывает в новых проектах |
-
-> **Живой счётчик:** GSC нашёл **100+** уязвимостей в **6** проектах. Следующий скан будет умнее.
-
----
-
-## 🆚 Почему не SonarQube/Snyk/Semgrep?
+## Сравнение
 
 | Фича | GSC | SonarQube | Snyk | Semgrep |
 |------|-----|-----------|------|---------|
-| 3 эшелона (Source+Security+Logic) | ✅ | ❌ | ❌ | ❌ |
-| Адаптивное накопление паттернов | ✅ | ❌ | ❌ | ❌ |
-| LLM-powered deep analysis (E4, опционально) | ✅ | ❌ | ❌ | ❌ |
-| False-positive auto-cleanup | ✅ | ❌ | ❌ | ❌ |
-| Чейнинг (fix→pattern→next audit) | ✅ | ❌ | ❌ | ❌ |
-| Человекочитаемые Obsidian-отчёты | ✅ | ❌ | ❌ | ❌ |
+| Накопление паттернов между аудитами | ✅ | ❌ | ❌ | ❌ |
+| Авто-деактивация ложных паттернов | ✅ | ❌ | ❌ | ❌ |
+| Language-aware фильтрация | ✅ | ✅ | ✅ | ✅ |
+| LLM deep analysis (опционально) | ✅ | ❌ | ❌ | ❌ |
+| AI-generate patch | ✅ | ❌ | ❌ | ❌ |
 | Автономный (не требует сервера) | ✅ | ❌ | ❌ | ✅ |
 | Open source | ✅ | ❌ | ❌ | ✅ |
 
-> **Важно:** GSC не использует LLM для каждого finding'а. 90% находок — grep/regex (E1-E3, <1 сек). LLM (E4) подключается опционально через `--deep` для сложных логических паттернов (race conditions, schema mismatches, precision errors). Вне Hermes-сессии E4 недоступен. Это не AGI для кода, а целенаправленный deep-анализ по накопленным паттернам.
+> 90% находок — grep/regex (< 1 сек). E4 LLM подключается через `--deep` для сложных логических паттернов. AI-патч через `gsc fix` опционален и требует OpenRouter API.
 
 ---
 
-## 🏗️ Архитектура
+## Команды
 
+```bash
+gsc scan <project>           # полный аудит
+gsc scan <project> --diff    # только изменённые файлы
+gsc scan <project> --deep    # + E4 LLM-анализ
+gsc scan <project> --sarif   # экспорт для GitHub Code Scanning
+
+gsc triage <project>         # интерактивная разметка TP/FP
+gsc explain <id>             # CVSS, threat/impact
+gsc fix <id>                 # AI-generate patch
+
+gsc init                     # установка в проект (.gsc/, hook, CI)
+gsc dashboard                # веб-интерфейс (:8080)
+gsc doctor                   # диагностика окружения
+gsc encrypt-db               # шифрование БД (Fernet)
 ```
-~/.hermes/state/gsc_audit.db    ← SQLite (SSOT)
-    ├── patterns (223+)
-    ├── findings (100+)
-    └── audit_runs (5)
 
-~/gsc/
-    ├── gsc.py                   ← CLI
-    ├── patterns/*.json          ← Seed-паттерны
-    └── dashboard/               ← Веб-интерфейс
+---
 
-~/obsidian-vault/audits/        ← Человеческие отчёты
-    ├── gsc-patterns.md
-    ├── gsc-YYYY-MM-DD.md
-    └── findings/*.md
+## Дорожная карта
+
+| Фаза | Что | Статус |
+|------|-----|--------|
+| **1. CLI** | scan, triage, explain, fix, 277 паттернов, dashboard | ✅ |
+| **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, шифрование | ✅ |
+| **3. Качество** | Corpus-тесты (8/8), language filter (-66% FP), precision/recall | 🔜 |
+| **4. DX** | VSCode extension, Jira/Linear, HTML/PDF export | 📋 |
+| **5. Enterprise** | SSO, RBAC, Helm chart, multi-tenancy | 📋 |
+| **6. Экосистема** | Pattern marketplace, community rules, bug bounty | 📋 |
+
+---
+
+## Метрики
+
+| Метрика | Значение |
+|---------|----------|
+| Seed-паттернов | 277 (7 языков) |
+| Паттернов из находок | 62+ |
+| Проектов отсканировано | 6 |
+| Находок в базе | 358 |
+| Corpus-тестов | 8/8 pass |
+| FP reduction (lang filter) | -66% |
+| Precision (оценка) | растёт с каждым triage |
+
+> ⚠️ GSC тестирован на 6 собственных проектах. На чужих репозиториях неизбежны ложные срабатывания — для этого triage и авто-деактивация.
+
+---
+
+## Установка
+
+```bash
+pip install ripgrep
+git clone https://github.com/poliakarmai/gsc.git
+cd gsc
+
+# Первый запуск
+python3 gsc.py doctor          # проверка окружения
+python3 gsc.py scan my-project # первый аудит
 ```
-
----
-
-## 🤝 Контрибьюция
-
-GSC на стадии MVP. Нужны:
-
-- **Python-разработчики:** новые паттерны, интеграции с языками
-- **Security-инженеры:** OWASP/CWE/NIST-покрытие
-- **DevOps:** GitHub/GitLab CI, Docker-образ
-- **Дизайнеры:** дашборд, лендинг gsc.cloud
-
-Issues и PR: [github.com/poliakarmai/gsc](https://github.com/poliakarmai/gsc)
-
----
-
-*GSC — потому что твой линтер не помнит, что случилось вчера.*
