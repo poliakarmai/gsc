@@ -166,8 +166,6 @@ Env vars: `GSC_LLM_PROVIDER=ollama`, `OPENROUTER_API_KEY=...`
 
 ## Дорожная карта
 
-## Дорожная карта
-
 | Фаза | Что | Статус |
 |------|-----|--------|
 | **1. CLI** | scan, triage, explain, fix, dashboard, 112 паттернов | ✅ |
@@ -175,9 +173,11 @@ Env vars: `GSC_LLM_PROVIDER=ollama`, `OPENROUTER_API_KEY=...`
 | **3. Качество** | Corpus-тесты (8/8), docstring-фильтр, AST-фильтр, метрики | ✅ |
 | **4. LLM** | E4 deep analysis, gsc fix, LLM-триаж в самообучении | ✅ |
 | **5. Самообучение** | Ежедневный цикл, 53 Python-проекта, авто-триаж, авто-деактивация | ✅ |
-| **6. DX** | VSCode extension, Jira/Linear, Pattern marketplace | 🔜 |
-| **7. Enterprise** | Helm chart, SSO, шифрование БД, dependency scanning | 🔜 |
-| **8. Мультиязычность** | Самообучение на Go, TS, Rust, Java (сейчас только Python) | 🔜 |
+| **6. Мультиязычность** | Самообучение на Go, TS, Rust, Java, Docker, Terraform (сейчас только Python) | 🔜 Июль 2026 |
+| **7. Dependency scanning** | pip-audit, npm audit, cargo-audit — проверка зависимостей в requirements.txt, package.json, Cargo.toml | 🔜 Июль 2026 |
+| **8. Шифрование БД** | Fernet-шифрование `gsc_audit.db` (AES-128) — защита находок при хранении и передаче | 🔜 Август 2026 |
+| **9. DX** | VSCode extension, Jira/Linear, Pattern marketplace | 🔜 Август 2026 |
+| **10. Enterprise** | Helm chart, SSO (OAuth2), Compliance (PCI/SOC2/ISO), RBAC | 📋 2027 |
 
 ## CI/CD (GitHub Actions)
 
