@@ -799,6 +799,10 @@ def cmd_triage(args):
 
     for r in rows:
         pid = r['pattern_id']
+        # Fallback: match by title if pattern_id is NULL
+        if not pid and r['title']:
+            pid_row = conn.execute("SELECT id FROM patterns WHERE title=? LIMIT 1", (r['title'],)).fetchone()
+            pid = pid_row['id'] if pid_row else None
         if pid and pid in skipped_patterns:
             skipped += 1; continue
 
