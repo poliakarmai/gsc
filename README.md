@@ -126,7 +126,10 @@ gsc fix <id>                 # AI-generate patch
 gsc init                     # установка в проект (.gsc/, hook, CI)
 gsc dashboard                # веб-интерфейс (:8080)
 gsc doctor                   # диагностика окружения
-gsc encrypt-db               # шифрование БД (Fernet)
+gsc metrics                  # precision/recall
+gsc config                   # настройки (vault, ключ, excludes)
+gsc marketplace              # экспорт/импорт паттернов
+gsc issue <id>               # тикет в Jira/Linear
 ```
 
 ---
@@ -138,9 +141,9 @@ gsc encrypt-db               # шифрование БД (Fernet)
 | **1. CLI** | scan, triage, explain, fix, 277 паттернов, dashboard | ✅ |
 | **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, шифрование | ✅ |
 | **3. Качество** | Corpus-тесты (8/8), language filter (-66% FP), **precision/recall**, **HTML-отчёты** | ✅ |
-| **4. DX** | VSCode extension, Jira/Linear, PDF export | 🔜 |
-| **5. Enterprise** | SSO, RBAC, Helm chart, multi-tenancy | 📋 |
-| **6. Экосистема** | Pattern marketplace, community rules, bug bounty | 📋 |
+| **4. DX** | VSCode extension, Jira/Linear, PDF export | ✅ |
+| **5. Enterprise** | Helm chart, SSO, RBAC | 🔜 |
+| **6. Экосистема** | **Pattern marketplace**, community rules, bug bounty | ✅ |
 
 ---
 
