@@ -129,7 +129,76 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     if deep:
         findings.extend(check_deep(project, path, findings))
 
+    # Post-filter: remove findings in docstrings, comments, type annotations
+    findings = [f for f in findings if not _is_in_docstring_or_comment(f)]
+
     return findings
+
+
+# ── Docstring / comment filter ────────────────────────────────────────────
+
+_file_cache: dict[str, list[str]] = {}
+"""Cache of file contents to avoid re-reading for every finding."""
+
+def _is_in_docstring_or_comment(finding: dict) -> bool:
+    """Check if a finding's line is inside a docstring, comment, or type annotation (not real code).
+    Returns True if finding should be DISCARDED."""
+    fp = finding.get("file_path", "")
+    ln = (finding.get("line_number") or 0)
+    if not fp or ln <= 0:
+        return False
+
+    # Resolve path
+    p = Path(fp)
+    if not p.exists():
+        return False
+
+    # Use cache
+    cache_key = str(p)
+    if cache_key not in _file_cache:
+        try:
+            _file_cache[cache_key] = p.read_text().split("\n")
+        except Exception:
+            _file_cache[cache_key] = []
+    lines = _file_cache[cache_key]
+    if not lines or ln > len(lines):
+        return False
+
+    return _line_is_comment_or_docstring(lines, ln - 1)  # 0-indexed
+
+
+def _line_is_comment_or_docstring(lines: list[str], idx: int) -> bool:
+    """Determine if line at idx is inside a docstring or is a comment.
+    Handles: # comments, '''...''' docstrings, \"\"\"...\"\"\" docstrings."""
+    line = lines[idx].strip() if idx < len(lines) else ""
+
+    # Pure comment line
+    if line.startswith("#") or line.startswith("//") or line.startswith("--"):
+        return True
+
+    # Check if inside triple-quoted docstring
+    in_docstring = False
+    doc_delim = None
+    for i, l in enumerate(lines):
+        stripped = l.strip()
+
+        # Toggle docstring state
+        if not in_docstring:
+            if stripped.startswith('"""') or stripped.startswith("'''"):
+                in_docstring = True
+                doc_delim = '"""' if stripped.startswith('"""') else "'''"
+                # Single-line docstring
+                cnt = stripped.count(doc_delim)
+                if cnt >= 2 and stripped.endswith(doc_delim):
+                    in_docstring = False
+        else:
+            if doc_delim and doc_delim in stripped:
+                in_docstring = False
+
+        if i == idx:
+            return in_docstring
+
+    return False
 
 
 def infer_lang_from_title(title: str) -> str:
@@ -855,19 +924,8 @@ def generate_seed_patterns(count: int) -> list[dict]:
             "project": "*", "true_positive_count": 0, "false_positive_count": 0,
         })
 
-    # Pad to requested count with generic patterns
-    while len(patterns) < count:
-        patterns.append({
-            "echelon": (len(patterns) % 3) + 1,
-            "category": "LOW",
-            "title": f"Generic code smell #{len(patterns)}",
-            "pattern_type": "grep",
-            "search_pattern": f"TODO|FIXME|HACK|XXX",
-            "description": "Generic code smell pattern",
-            "project": "*", "true_positive_count": 0, "false_positive_count": 0,
-        })
-
-    return patterns[:count]
+    # Return only real patterns — no generic padding
+    return patterns
 
 
 def list_patterns():
