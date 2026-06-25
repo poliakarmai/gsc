@@ -1,0 +1,21 @@
+replicaCount: 1
+
+image:
+  repository: poliakarmai/gsc
+  tag: latest
+  pullPolicy: IfNotPresent
+
+schedule: "0 6 * * *"  # Daily at 06:00
+
+gsc:
+  projects: []  # List of git repos to audit
+  # - name: my-project
+  #   url: https://github.com/user/repo.git
+  #   branch: main
+  openrouter_key: ""  # For E4 LLM analysis
+
+persistence:
+  enabled: true
+  size: 1Gi
+
+resources: {}

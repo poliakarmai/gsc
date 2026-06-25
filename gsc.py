@@ -1152,6 +1152,18 @@ def main():
     # gsc metrics
     metrics = sub.add_parser('metrics', help='Precision/recall metrics')
 
+    # gsc marketplace
+    mp = sub.add_parser('marketplace', help='Export/import patterns')
+    mp.add_argument('action', nargs='?', choices=['export','import','list'])
+    mp.add_argument('file', nargs='?')
+
+    # gsc issue
+    issue = sub.add_parser('issue', help='Create Jira/Linear ticket')
+    issue.add_argument('finding_id')
+    issue.add_argument('--jira', action='store_true')
+    issue.add_argument('--linear', action='store_true')
+    issue.add_argument('--md', action='store_true')
+
     # gsc encrypt-db
     encrypt = sub.add_parser("encrypt-db", help="Encrypt GSC database (Fernet)")
 
@@ -1178,6 +1190,19 @@ def main():
 
     elif args.command == 'metrics':
         subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_metrics.py')])
+
+    elif args.command == 'marketplace':
+        subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), args.action or '', args.file or ''])
+
+    elif args.command == 'issue':
+        import importlib.util as _iu
+        spec = _iu.spec_from_file_location('gsc_issue', str(Path(__file__).parent / 'scripts' / 'gsc_issue.py'))
+        mod = _iu.module_from_spec(spec); spec.loader.exec_module(mod)
+        finding = mod.get_finding(args.finding_id)
+        if finding:
+            if args.jira: mod.create_jira(finding)
+            elif args.linear: mod.create_linear(finding)
+            else: mod.print_markdown(finding)
 
     elif args.command == 'doctor':
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_doctor.py")])
