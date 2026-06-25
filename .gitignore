@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+*.pyo
+node_modules/
+*.egg-info/
+.vsix
+.DS_Store
