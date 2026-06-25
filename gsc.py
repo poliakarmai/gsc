@@ -25,6 +25,23 @@ GSC_HOME.mkdir(parents=True, exist_ok=True)
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 SCRIPTS_DIR = Path.home() / ".hermes" / "scripts"
 
+# File extension → language mapping
+EXT_TO_LANG = {
+    ".py": "python", ".pyx": "python", ".pyi": "python",
+    ".go": "go",
+    ".ts": "typescript", ".tsx": "typescript", ".js": "javascript", ".jsx": "javascript",
+    ".rs": "rust",
+    ".java": "java", ".kt": "java", ".scala": "java",
+    ".tf": "terraform", ".tfvars": "terraform", ".hcl": "terraform",
+    "Dockerfile": "docker", ".dockerfile": "docker",
+    ".sql": "sql", ".sh": "shell", ".bash": "shell",
+    ".yml": "yaml", ".yaml": "yaml", ".md": "markdown", ".json": "json",
+    ".env": "dotenv", ".toml": "toml", ".cfg": "ini", ".ini": "ini",
+}
+# Universal patterns — apply to all file types
+UNIVERSAL_PATTERNS = {"Hardcoded encryption key", "Hardcoded secret", "World-readable",
+                      "Bare except:", "print() instead", "Хардкод", "Generic code smell"}
+
 KNOWN_PROJECTS = {
     "pci-index": Path.home() / "pci-index",
     "bybit-ws": Path.home() / "bybit-ws",
@@ -94,6 +111,22 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     return findings
 
 
+def infer_lang_from_title(title: str) -> str:
+    """Infer language from pattern title (e.g. 'Java: SQL injection' → 'java')."""
+    prefixes = {"Go:": "go", "TS:": "typescript", "Java:": "java", "Rust:": "rust",
+                "Docker:": "docker", "Terraform:": "terraform", "Python:": "python"}
+    for prefix, lang in prefixes.items():
+        if title.startswith(prefix):
+            return lang
+    return ""
+
+def lang_to_rg_types(lang: str) -> str:
+    """Convert language name to ripgrep -t type string."""
+    mapping = {"python": "py", "go": "go", "typescript": "ts", "javascript": "js",
+               "rust": "rs", "java": "java", "terraform": "tf", "docker": "docker"}
+    return mapping.get(lang, "")
+
+
 def check_source_driven(project: str, path: Path) -> list[dict]:
     """Echelon 1: Source-driven checks."""
     findings = []
@@ -106,11 +139,16 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
         search_pattern = p.get("search_pattern", "")
         if not search_pattern:
             continue
+        # Language filter: skip if file extension doesn't match pattern's language
+        p_lang = p.get("language", "") or infer_lang_from_title(p.get("title", ""))
         try:
-            result = subprocess.run(
-                ["rg", "--no-heading", "-n", search_pattern, str(path)],
-                capture_output=True, text=True, timeout=30
-            )
+            # Use file-type filter for ripgrep to speed up
+            file_types = lang_to_rg_types(p_lang) if p_lang else None
+            rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
+            if file_types:
+                rg_args.insert(2, "-t")
+                rg_args.insert(3, file_types)
+            result = subprocess.run(rg_args, capture_output=True, text=True, timeout=30)
             for line in result.stdout.strip().split("\n"):
                 if not line:
                     continue
@@ -141,11 +179,19 @@ def check_security(project: str, path: Path) -> list[dict]:
             search_pattern = p.get("search_pattern", "")
             if not search_pattern:
                 continue
+            # Language filter
+            p_lang = p.get("language", "") or infer_lang_from_title(p.get("title", ""))
+            file_types = lang_to_rg_types(p_lang) if p_lang else None
             try:
-                result = subprocess.run(
-                    ["rg", "--no-heading", "-n", search_pattern, str(path)],
-                    capture_output=True, text=True, timeout=30
-                )
+                rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
+                if file_types:
+                    rg_args.insert(2, "-t")
+                    rg_args.insert(3, file_types)
+                # Exclude markdown/docs from security patterns
+                if p.get("echelon") == 2 and not file_types:
+                    rg_args.insert(2, "-g")
+                    rg_args.insert(3, "!*.md")
+                result = subprocess.run(rg_args, capture_output=True, text=True, timeout=30)
                 for line in result.stdout.strip().split("\n"):
                     if not line:
                         continue
