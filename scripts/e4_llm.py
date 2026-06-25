@@ -28,7 +28,8 @@ CACHE_DB = os.path.expanduser("~/.hermes/state/gsc_e4_cache.db")
 
 E4_CONFIG = {
     "provider": os.environ.get("GSC_LLM_PROVIDER", "openrouter"),
-    "model": os.environ.get("GSC_LLM_MODEL", "google/gemini-2.5-flash"),
+    "model": os.environ.get("GSC_LLM_MODEL", "deepseek/deepseek-chat"),  # наш основной
+    "fallback_models": ["google/gemini-2.5-flash", "qwen/qwen-3-coder"],
     "max_tokens_per_finding": int(os.environ.get("GSC_E4_MAX_TOKENS", "800")),
     "max_cost_per_scan_usd": float(os.environ.get("GSC_E4_MAX_COST_USD", "2.0")),
     "circuit_breaker_max": int(os.environ.get("GSC_E4_CB_MAX", "20")),
