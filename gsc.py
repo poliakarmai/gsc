@@ -127,7 +127,7 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     if not echelons or "3" in echelons:
         findings.extend(check_adversarial(project, path))
     if deep:
-        findings.extend(check_deep(project, path))
+        findings.extend(check_deep(project, path, findings))
 
     return findings
 
@@ -304,30 +304,46 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
     return findings
 
 
-def check_deep(project: str, path: Path) -> list[dict]:
+def check_deep(project: str, path: Path, findings: list[dict] = None) -> list[dict]:
     """Echelon 4: LLM-powered deep analysis."""
-    if not os.environ.get("HERMES_SESSION"):
+    # Check for OpenRouter key — works both in Hermes and standalone
+    has_llm = False
+    try:
+        import yaml
+        cfg_path = os.path.expanduser("~/.hermes/config.yaml")
+        if os.path.exists(cfg_path):
+            with open(cfg_path) as f:
+                cfg = yaml.safe_load(f)
+            has_llm = bool(cfg.get("auxiliary", {}).get("vision", {}).get("api_key", ""))
+    except Exception:
+        pass
+    if not has_llm:
+        has_llm = bool(os.environ.get("OPENROUTER_API_KEY"))
+
+    if not has_llm:
         return [{
             "category": "INFO", "echelon": 4,
-            "title": "Deep analysis requires Hermes agent",
+            "title": "Deep analysis requires OpenRouter API key",
             "file_path": "", "line_number": 0,
-            "detail": "Run `gsc scan --deep` inside Hermes for LLM audit. Standalone: use scripts/e4_llm.py."
+            "detail": "Set OPENROUTER_API_KEY env var or configure in ~/.hermes/config.yaml"
         }]
 
-    print("  🧠 E4: LLM deep analysis...")
+    print("  🧠 E4: LLM deep analysis...", file=sys.stderr)
     try:
         from scripts.e4_llm import run_e4_scan
-        # Load latest findings for this project
-        findings = []
-        if DB_PATH.exists():
-            conn = sqlite3.connect(str(DB_PATH))
-            conn.row_factory = sqlite3.Row
-            rows = conn.execute(
-                "SELECT * FROM findings WHERE project=? AND status='open' ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END LIMIT 20",
-                (project,)
-            ).fetchall()
-            findings = [dict(r) for r in rows]
-            conn.close()
+
+        # Use passed findings, or load from DB as fallback
+        if findings is None:
+            findings = []
+            if DB_PATH.exists():
+                conn = sqlite3.connect(str(DB_PATH))
+                conn.row_factory = sqlite3.Row
+                rows = conn.execute(
+                    "SELECT * FROM findings WHERE project=? AND status='open' ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END LIMIT 20",
+                    (project,)
+                ).fetchall()
+                findings = [dict(r) for r in rows]
+                conn.close()
 
         enriched = run_e4_scan(findings)
         return [{
@@ -1117,10 +1133,11 @@ def cmd_fix(args):
     print(f"   File: {fp}:{ln}")
     print(f"   Analyzing with OpenRouter...")
 
-    prompt = f"""You are GSC-Fix, a code repair engine.
-Given a security finding and code context, generate a minimal, correct fix.
+    try:
+        sys.path.insert(0, str(Path(__file__).parent / "scripts"))
 
-## Finding
+        # Build a fix-specific prompt (not E4 analysis — different format)
+        fix_prompt = f"""## Finding
 Title: {row['title']}
 Category: {row['category']}
 Detail: {(row['detail'] or '')}
@@ -1142,20 +1159,52 @@ Output format:
  [your fix here]
 ```"""
 
-    try:
-        sys.path.insert(0, str(Path(__file__).parent / "scripts"))
-        from e4_llm import call_openrouter
+        # Use direct OpenRouter call for fix generation
+        import requests, yaml
 
-        result = call_openrouter(prompt.replace("E4_CONFIG", ""))  # Use same API, different prompt
-        if result and result.get("is_real") is not None:
-            # E4 format — extract the "fix" field
-            print(f"\n   💡 Suggested fix:\n{result.get('fix','No fix generated')}")
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            cfg_path = os.path.expanduser("~/.hermes/config.yaml")
+            if os.path.exists(cfg_path):
+                with open(cfg_path) as f:
+                    cfg = yaml.safe_load(f)
+                api_key = cfg.get("auxiliary", {}).get("vision", {}).get("api_key", "")
+
+        if not api_key:
+            print("   ❌ No OpenRouter API key found")
+            conn.close(); return
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/poliakarmai/gsc",
+            "X-Title": "GSC-Fix"
+        }
+
+        body = {
+            "model": "google/gemini-2.5-flash",
+            "messages": [
+                {"role": "system", "content": "You are GSC-Fix, a code repair engine. You receive security findings and code context. Output ONLY the fix in unified diff format. Do NOT explain — just the diff."},
+                {"role": "user", "content": fix_prompt}
+            ],
+            "max_tokens": 1200,
+            "temperature": 0.1
+        }
+
+        r = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers, json=body, timeout=30
+        )
+
+        if r.status_code == 200:
+            data = r.json()
+            content = data["choices"][0]["message"]["content"]
+            print(f"\n   💡 Suggested fix:\n{content}")
         else:
-            # Direct response — print raw
-            print(f"\n   💡 LLM response:\n{result}")
+            print(f"   ❌ OpenRouter error {r.status_code}: {r.text[:200]}")
+
     except Exception as e:
         print(f"   ❌ Fix generation failed: {e}")
-        print("   Run inside Hermes session for full AI-powered fix.")
 
     conn.close()
 

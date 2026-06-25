@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GSC Corpus Tests — v2."""
+"""GSC Corpus Tests — v2.1 (pytest-compatible)."""
 import subprocess, sys, os, json, tempfile, shutil
 from pathlib import Path
 
@@ -8,8 +8,10 @@ PASS = FAIL = 0
 
 def check(name, condition, detail=""):
     global PASS, FAIL
-    if condition: PASS += 1; print(f"  ✅ {name}")
-    else: FAIL += 1; print(f"  ❌ {name}" + (f" — {detail}" if detail else ""))
+    if condition:
+        PASS += 1; print(f"  ✅ {name}")
+    else:
+        FAIL += 1; print(f"  ❌ {name}" + (f" — {detail}" if detail else ""))
 
 def scan_file(code: str, filename: str = "test.py", chmod: str = None) -> list[dict]:
     d = tempfile.mkdtemp()
@@ -33,54 +35,77 @@ def scan_file(code: str, filename: str = "test.py", chmod: str = None) -> list[d
         shutil.rmtree(d, ignore_errors=True)
 
 def has_finding(findings, keyword, category=None):
-    return any(keyword.lower() in f.get("title","").lower() and 
+    return any(keyword.lower() in f.get("title","").lower() and
                (category is None or f.get("category") == category) for f in findings)
 
-print("=" * 50)
-print("GSC Corpus Tests")
-print("=" * 50)
 
-# 1. SQL injection via f-string
-print("\n── 1. SQL Injection ──")
-findings = scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n')
-check("SQL injection detected", has_finding(findings, "sql", "CRITICAL"), f"{len(findings)} findings")
+# ── pytest-compatible test functions ──────────────────────────────────────
 
-# 2. Hardcoded secret
-print("\n── 2. Hardcoded Secret ──")
-findings = scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')
-check("Hardcoded secret detected", len(findings) > 0, f"{len(findings)} findings")
+def test_sql_injection():
+    findings = scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n')
+    assert has_finding(findings, "sql", "CRITICAL"), f"SQL injection not detected ({len(findings)} findings)"
 
-# 3. pickle.loads
-print("\n── 3. Unsafe pickle ──")
-findings = scan_file("import pickle\ndef load(x): return pickle.loads(x)\n")
-check("pickle.loads detected", has_finding(findings, "pickle", "CRITICAL"))
+def test_hardcoded_secret():
+    findings = scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')
+    assert len(findings) > 0, "Hardcoded secret not detected"
 
-# 4. Bare except
-print("\n── 4. Bare except ──")
-findings = scan_file("try:\n    risky()\nexcept:\n    pass\n")
-check("Bare except detected", has_finding(findings, "bare except", "MEDIUM"))
+def test_unsafe_pickle():
+    findings = scan_file("import pickle\ndef load(x): return pickle.loads(x)\n")
+    assert has_finding(findings, "pickle", "CRITICAL"), "pickle.loads not detected"
 
-# 5. eval()
-print("\n── 5. eval() ──")
-findings = scan_file("def exec(u): return eval(u)\n")
-check("eval() detected", has_finding(findings, "eval", "HIGH"))
+def test_bare_except():
+    findings = scan_file("try:\n    risky()\nexcept:\n    pass\n")
+    assert has_finding(findings, "bare except", "MEDIUM"), "Bare except not detected"
 
-# 6. World-readable .env
-print("\n── 6. World-readable .env ──")
-findings = scan_file("SECRET=abc123\ndb://localhost\n", ".env", "644")
-check("World-readable .env detected", has_finding(findings, "world-readable", "HIGH"))
+def test_eval():
+    findings = scan_file("def exec(u): return eval(u)\n")
+    assert has_finding(findings, "eval", "HIGH"), "eval() not detected"
 
-# 7. Clean code
-print("\n── 7. Clean code ──")
-findings = scan_file("def add(a: int, b: int) -> int:\n    return a + b\n")
-check("No CRITICAL on clean", not has_finding(findings, "", "CRITICAL"))
+def test_world_readable_env():
+    findings = scan_file("SECRET=abc123\ndb://localhost\n", ".env", "644")
+    assert has_finding(findings, "world-readable", "HIGH"), "World-readable .env not detected"
 
-# 8. assert in production
-print("\n── 8. assert in production ──")
-findings = scan_file("def validate(x):\n    assert x > 0\n    return x\n")
-check("assert detected", has_finding(findings, "assert", "MEDIUM"))
+def test_clean_code():
+    findings = scan_file("def add(a: int, b: int) -> int:\n    return a + b\n")
+    assert not has_finding(findings, "", "CRITICAL"), f"False positive: {len(findings)} findings on clean code"
 
-print(f"\n{'='*50}")
-print(f"Results: {PASS} passed, {FAIL} failed")
-print(f"{'='*50}")
-sys.exit(0 if FAIL == 0 else 1)
+def test_assert_in_prod():
+    findings = scan_file("def validate(x):\n    assert x > 0\n    return x\n")
+    assert has_finding(findings, "assert", "MEDIUM"), "assert not detected"
+
+
+# ── CLI mode (backward compatible) ────────────────────────────────────────
+
+def run_corpus():
+    global PASS, FAIL
+    print("=" * 50)
+    print("GSC Corpus Tests")
+    print("=" * 50)
+
+    tests = [
+        ("SQL injection", lambda: has_finding(scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n'), "sql", "CRITICAL")),
+        ("Hardcoded secret", lambda: len(scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')) > 0),
+        ("Unsafe pickle", lambda: has_finding(scan_file("import pickle\ndef load(x): return pickle.loads(x)\n"), "pickle", "CRITICAL")),
+        ("Bare except", lambda: has_finding(scan_file("try:\n    risky()\nexcept:\n    pass\n"), "bare except", "MEDIUM")),
+        ("eval()", lambda: has_finding(scan_file("def exec(u): return eval(u)\n"), "eval", "HIGH")),
+        ("World-readable .env", lambda: has_finding(scan_file("SECRET=abc123\ndb://localhost\n", ".env", "644"), "world-readable", "HIGH")),
+        ("Clean code", lambda: not has_finding(scan_file("def add(a: int, b: int) -> int:\n    return a + b\n"), "", "CRITICAL")),
+        ("assert in prod", lambda: has_finding(scan_file("def validate(x):\n    assert x > 0\n    return x\n"), "assert", "MEDIUM")),
+    ]
+
+    for name, fn in tests:
+        print(f"\n── {name} ──")
+        try:
+            check(name, fn(), "")
+        except Exception as e:
+            check(name, False, str(e))
+
+    print(f"\n{'='*50}")
+    print(f"Results: {PASS} passed, {FAIL} failed")
+    print(f"{'='*50}")
+    return FAIL == 0
+
+
+if __name__ == "__main__":
+    success = run_corpus()
+    sys.exit(0 if success else 1)
