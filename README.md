@@ -114,7 +114,9 @@ python3 gsc.py dashboard
 - [x] CLI: `gsc scan`, `gsc init`, `gsc dashboard`, `gsc triage`, `gsc explain`, `gsc fix`, `gsc patterns`, `gsc db`, `gsc doctor`
 - [x] 277 seed-паттернов (OWASP + CWE + 7 языков: Python/Go/TS/Rust/Java/Docker/Terraform)
 - [x] `gsc scan --ci --json` — чистый JSON ✅
-- [x] `gsc scan --deep` — E4 LLM-анализ (cost-guarded, cached, escalation rules) ✅
+- [x] `gsc scan --diff` — diff-only scan (changed files) ✅
+- [x] `gsc scan --sarif` — SARIF 2.1.0 for GitHub Code Scanning ✅
+- [x] `gsc fix <id>` — AI-generated patch via OpenRouter ✅
 - [x] `gsc explain <id>` — CVSS ✅
 - [x] `gsc doctor` — диагностика ✅
 - [x] `gsc triage` — [$] skip pattern, [e] explain inline, auto-deactivation <30% ✅
@@ -128,11 +130,12 @@ python3 gsc.py dashboard
 
 ### Фаза 2: Интеграция + DX 🔜
 
-- [ ] Baseline/suppressions — чтобы CI не спамил старыми находками
-- [ ] Diff-only scan — аудит только изменённых строк в PR
-- [ ] SARIF экспорт (совместимость с GitHub Code Scanning)
-- [ ] Шифрование БД (SQLCipher) — до первых внешних пользователей
-- [ ] Corpus-тесты для паттернов — без них контрибьюции невозможны
+- [x] `gsc scan --diff` — diff-only scan ✅
+- [x] SARIF экспорт — GitHub Code Scanning ✅
+- [x] `gsc fix <id>` — AI-generated patch ✅
+- [ ] Baseline/suppressions в CI (код готов, ждёт интеграции)
+- [ ] Шифрование БД (SQLCipher)
+- [ ] Corpus-тесты для паттернов
 
 ### Фаза 2.5: IDE & Developer Experience 📋
 
