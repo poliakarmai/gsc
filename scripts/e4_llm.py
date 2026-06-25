@@ -222,14 +222,11 @@ def analyze_finding(finding: dict, all_findings: list[dict], code_snippet: str =
         related_findings=collect_related(all_findings, finding.get('file_path', '')),
     )
 
-    # If local ollama, use subprocess
+    # Route: ollama → OpenRouter API → placeholder
     if E4_CONFIG["local_fallback"]:
         result = analyze_local(prompt)
     else:
-        # Placeholder for API call (requires Hermes or direct HTTP)
-        result = {"is_real": True, "exploitability": "unknown", "confidence": 0.5,
-                  "reasoning": "E4 API not available in standalone mode. Run inside Hermes session.",
-                  "fix": "N/A", "cvss_vector": "N/A", "cvss_score": 0.0}
+        result = call_openrouter(prompt)
 
     if result:
         save_cache(cache_key, result)
@@ -238,6 +235,67 @@ def analyze_finding(finding: dict, all_findings: list[dict], code_snippet: str =
         finding['e4_source'] = 'llm'
 
     return finding
+
+
+def call_openrouter(prompt: str) -> dict | None:
+    """Call OpenRouter API for E4 analysis."""
+    try:
+        import requests
+
+        # Get API key — from config.yaml (already set via hermes config set)
+        api_key = os.environ.get("OPENROUTER_API_KEY")
+        if not api_key:
+            # Read from Hermes config
+            import yaml
+            cfg_path = os.path.expanduser("~/.hermes/config.yaml")
+            if os.path.exists(cfg_path):
+                with open(cfg_path) as f:
+                    cfg = yaml.safe_load(f)
+                api_key = cfg.get("auxiliary", {}).get("vision", {}).get("api_key", "")
+
+        if not api_key:
+            return {"is_real": False, "exploitability": "none", "confidence": 0.0,
+                    "reasoning": "No OpenRouter API key found", "fix": "N/A",
+                    "cvss_vector": "N/A", "cvss_score": 0.0}
+
+        headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://github.com/poliakarmai/gsc",
+            "X-Title": "GSC-E4"
+        }
+
+        body = {
+            "model": E4_CONFIG["model"],
+            "messages": [
+                {"role": "system", "content": PROMPT_SYSTEM},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": E4_CONFIG["max_tokens_per_finding"],
+            "temperature": 0.1,
+            "response_format": {"type": "json_object"}
+        }
+
+        r = requests.post(
+            "https://openrouter.ai/api/v1/chat/completions",
+            headers=headers, json=body, timeout=30
+        )
+
+        if r.status_code != 200:
+            return {"is_real": False, "exploitability": "none", "confidence": 0.0,
+                    "reasoning": f"OpenRouter error {r.status_code}: {r.text[:200]}",
+                    "fix": "N/A", "cvss_vector": "N/A", "cvss_score": 0.0}
+
+        data = r.json()
+        content = data["choices"][0]["message"]["content"]
+
+        # Parse JSON from response
+        return json.loads(content)
+
+    except Exception as e:
+        return {"is_real": False, "exploitability": "none", "confidence": 0.0,
+                "reasoning": f"E4 API call failed: {e}", "fix": "N/A",
+                "cvss_vector": "N/A", "cvss_score": 0.0}
 
 
 def analyze_local(prompt: str) -> dict | None:
