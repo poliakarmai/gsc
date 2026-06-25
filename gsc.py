@@ -504,7 +504,9 @@ def cmd_init(args):
     """Initialize GSC in a project directory."""
     target = Path(args.dir or ".").resolve()
     gsc_dir = target / ".gsc"
-    gsc_dir.mkdir(exist_ok=True)
+    gsc_dir.mkdir(parents=True, exist_ok=True)
+    # Also create GitHub Actions dir
+    (target / ".github" / "workflows").mkdir(parents=True, exist_ok=True)
 
     # Create config
     config = {

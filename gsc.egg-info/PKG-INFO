@@ -1,3 +1,23 @@
+Metadata-Version: 2.4
+Name: gsc
+Version: 0.4.0
+Summary: Git Security Checker — adaptive code audit with pattern learning
+Author: poliakarmai
+License: MIT
+Project-URL: Homepage, https://github.com/poliakarmai/gsc
+Project-URL: Repository, https://github.com/poliakarmai/gsc.git
+Project-URL: Issues, https://github.com/poliakarmai/gsc/issues
+Keywords: security,audit,static-analysis,sast,lint
+Classifier: Development Status :: 3 — Alpha
+Classifier: Intended Audience :: Developers
+Classifier: Topic :: Security
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.10
+Description-Content-Type: text/markdown
+
 # 🔒 GSC — Git Security Checker
 
 > Адаптивный аудитор кода. Находит уязвимости, запоминает паттерны, умнеет с каждым проектом.

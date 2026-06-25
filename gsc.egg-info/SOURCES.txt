@@ -1,0 +1,9 @@
+README.md
+gsc.py
+pyproject.toml
+gsc.egg-info/PKG-INFO
+gsc.egg-info/SOURCES.txt
+gsc.egg-info/dependency_links.txt
+gsc.egg-info/entry_points.txt
+gsc.egg-info/top_level.txt
+tests/test_corpus.py
