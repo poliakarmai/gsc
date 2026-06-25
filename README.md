@@ -130,6 +130,8 @@ python3 gsc.py dashboard
 
 ### Фаза 2: Интеграция + DX 🔜
 
+- [x] Language-aware filtering (12 languages, ripgrep -t) ✅
+- [x] `.md` exclusion for security patterns ✅
 - [x] `gsc scan --diff` — diff-only scan ✅
 - [x] SARIF экспорт — GitHub Code Scanning ✅
 - [x] `gsc fix <id>` — AI-generated patch ✅
