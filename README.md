@@ -177,6 +177,7 @@ Env vars: `GSC_LLM_PROVIDER=ollama`, `OPENROUTER_API_KEY=...`
 | **8. Шифрование БД** | Fernet-шифрование `gsc_audit.db` (AES-128) — защита находок при хранении и передаче | 🔜 Август 2026 |
 | **9. DX** | VSCode extension, Jira/Linear, Pattern marketplace | 🔜 Август 2026 |
 | **10. Enterprise** | Helm chart, SSO (OAuth2), Compliance (PCI/SOC2/ISO), RBAC | 📋 2027 |
+| **11. Agent Training** | Экспорт размеченных находок (JSONL/OpenAI/Markdown) для обучения AI-агентов — 40 000+ примеров TP/FP | ✅ v0.5 |
 
 ## CI/CD (GitHub Actions)
 
