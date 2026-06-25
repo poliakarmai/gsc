@@ -1,0 +1,35 @@
+[
+  {
+    "title": "Python: Template string for SQL — safer than f-string",
+    "category": "LOW",
+    "language": "python",
+    "pattern": "Template\\s*\\(\\s*['\"].*SELECT|Template\\s*\\(\\s*['\"].*INSERT|Template\\s*\\(\\s*['\"].*UPDATE|Template\\s*\\(\\s*['\"].*DELETE",
+    "file_glob": "*.py",
+    "detail": "string.Template used for SQL query — safer than f-strings. No attribute/method access allowed, only $var substitution. Still ensure input sanitization.",
+    "fix": "✅ Already using Template. Ensure $variables are sanitized via parameterized queries where possible.",
+    "cwes": ["CWE-89"],
+    "efficiency": 0.9
+  },
+  {
+    "title": "Python: str.format() in SQL query — less safe than Template",
+    "category": "HIGH",
+    "language": "python",
+    "pattern": "\\.format\\s*\\(.*SELECT|\\.format\\s*\\(.*INSERT|\\.format\\s*\\(.*UPDATE|\\.format\\s*\\(.*DELETE",
+    "file_glob": "*.py",
+    "detail": "str.format() used in SQL query — allows attribute access like {0.__class__}. Prefer string.Template or parameterized queries.",
+    "fix": "Replace with string.Template('SELECT * FROM t WHERE id=$id').substitute(id=val) or parameterized queries.",
+    "cwes": ["CWE-89"],
+    "efficiency": 0.85
+  },
+  {
+    "title": "Python: raw string concatenation in SQL",
+    "category": "CRITICAL",
+    "language": "python",
+    "pattern": "['\"](SELECT|INSERT|UPDATE|DELETE)\\s.*['\"]\\s*\\+",
+    "file_glob": "*.py",
+    "detail": "String concatenation with SQL — classic SQL injection vector. Use parameterized queries or Template.",
+    "fix": "Use cursor.execute('SELECT * FROM t WHERE id=?', (user_id,)) or string.Template.",
+    "cwes": ["CWE-89"],
+    "efficiency": 0.95
+  }
+]
