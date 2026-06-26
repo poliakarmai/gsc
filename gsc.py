@@ -116,6 +116,9 @@ def cmd_scan(args):
     # 3. Save findings
     save_findings(project, findings, quiet=quiet)
 
+    # 3.5 Export to Obsidian vault
+    export_to_obsidian(project, findings, project_path, quiet=quiet)
+
     # 4. Report
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
@@ -133,8 +136,10 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
 
     if not echelons or "1" in echelons:
         findings.extend(check_source_driven(project, path))
+        findings.extend(check_plugin_detectors(project, path, echelon=1))
     if not echelons or "2" in echelons:
         findings.extend(check_security(project, path))
+        findings.extend(check_plugin_detectors(project, path, echelon=2))
     if not echelons or "3" in echelons:
         findings.extend(check_adversarial(project, path))
     if deep:
@@ -261,6 +266,40 @@ def lang_to_rg_types(lang: str) -> str:
     mapping = {"python": "py", "go": "go", "typescript": "ts", "javascript": "js",
                "rust": "rs", "java": "java", "terraform": "tf", "docker": "docker"}
     return mapping.get(lang, "")
+
+
+def check_plugin_detectors(project: str, path: Path, echelon: int | None = None) -> list[dict]:
+    """Run plugin-based detectors (CVE Lite-inspired architecture).
+
+    Each detector is an independent module in detectors/ with:
+      detect(ctx: AuditContext) → list[Finding]
+
+    This complements the legacy grep-based check_source_driven / check_security
+    paths. Over time, more patterns should migrate to plugin detectors.
+    """
+    try:
+        # Ensure gsc/ is on path for direct invocation
+        import sys as _sys
+        _gsc_root = str(Path(__file__).parent)
+        if _gsc_root not in _sys.path:
+            _sys.path.insert(0, _gsc_root)
+        from gsc_detectors import AuditContext, Finding
+        from gsc_detectors.registry import get_detectors
+
+        ctx = AuditContext(project=project, path=path)
+        findings: list[dict] = []
+        for det in get_detectors(echelon=echelon):
+            if det.rule_id in ctx.skipped_detectors:
+                continue
+            det_findings = det.detect(ctx)
+            for f in det_findings:
+                f["echelon"] = det.echelon
+                f["pattern_title"] = f"{det.rule_id} ({det.description[:60]})"
+            findings.extend(det_findings)
+        return findings
+    except ImportError:
+        # detectors/ package not available — graceful degradation
+        return []
 
 
 def check_source_driven(project: str, path: Path) -> list[dict]:
@@ -690,6 +729,89 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
     conn.close()
     if not quiet:
         print(f"💾 Saved: {total} findings (run #{run_id})")
+
+
+# ── Obsidian Export ──────────────────────────────────────────────────────────
+
+OBSIDIAN_VAULT = Path.home() / "obsidian-vault"
+AUDITS_DIR = OBSIDIAN_VAULT / "audits"
+
+
+def export_to_obsidian(project: str, findings: list[dict], project_path: Path, quiet: bool = False):
+    """Export findings as a Markdown report to Obsidian vault."""
+    if not AUDITS_DIR.exists():
+        return  # vault not set up — skip silently
+
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    filename = f"gsc-{project}-{date_str}.md"
+    filepath = AUDITS_DIR / filename
+
+    # Group by category
+    critical = [f for f in findings if f.get("category") == "CRITICAL"]
+    high = [f for f in findings if f.get("category") == "HIGH"]
+    medium = [f for f in findings if f.get("category") == "MEDIUM"]
+    low = [f for f in findings if f.get("category") == "LOW"]
+
+    # Build rules breakdown
+    from collections import Counter
+    rules = Counter(f.get("rule_id", f.get("title", "?")) for f in findings)
+
+    lines = [
+        "---",
+        f"title: \"GSC Audit: {project}\"",
+        f"date: {date_str}",
+        "tags: [gsc, audit, security]",
+        "---",
+        "",
+        f"# 🔒 GSC Audit — {project}",
+        "",
+        f"**Дата:** {datetime.now().strftime('%d.%m.%Y %H:%M')}  ",
+        f"**Путь:** `{project_path}`  ",
+        f"**Всего находок:** {len(findings)}  ",
+        f"**CRITICAL:** {len(critical)} | **HIGH:** {len(high)} | **MEDIUM:** {len(medium)} | **LOW:** {len(low)}",
+        "",
+        "## 📊 По детекторам",
+        "",
+        "| Детектор | Находок |",
+        "|----------|--------|",
+    ]
+    for rule, count in rules.most_common():
+        lines.append(f"| {rule} | {count} |")
+
+    # Critical + High findings with details
+    if critical or high:
+        lines.append("")
+        lines.append("## 🔴 Критические и важные")
+        lines.append("")
+        lines.append("| Категория | Правило | Файл | Строка | Детали |")
+        lines.append("|-----------|--------|------|--------|--------|")
+        for f in critical + high:
+            fname = Path(f.get("file_path", "")).name
+            rule = f.get("rule_id", "?")
+            lines.append(
+                f"| {f.get('category','')} | {rule} | {fname} | "
+                f"{f.get('line_number','?')} | {f.get('detail','')[:60]} |"
+            )
+
+    # All findings table (compact)
+    lines.append("")
+    lines.append("## 📋 Все находки")
+    lines.append("")
+    lines.append("| Кат. | Правило | Файл | Строка |")
+    lines.append("|------|--------|------|--------|")
+    for f in findings:
+        fname = Path(f.get("file_path", "")).name
+        rule = f.get("rule_id", "?")
+        cat = f.get("category", "?")[0]  # C/H/M/L
+        lines.append(f"| {cat} | {rule} | {fname} | {f.get('line_number','?')} |")
+
+    lines.append("")
+    lines.append("---")
+    lines.append(f"*Сгенерировано GSC v0.6 · {datetime.now().isoformat()}*")
+
+    filepath.write_text("\n".join(lines))
+    if not quiet:
+        print(f"📝 Obsidian: {filename}")
 
 
 def load_patterns(project: str, echelon: int = None) -> list[dict]:
