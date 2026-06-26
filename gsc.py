@@ -762,7 +762,8 @@ def export_to_obsidian(project: str, findings: list[dict], project_path: Path, q
         return  # vault not set up — skip silently
 
     date_str = datetime.now().strftime("%Y-%m-%d")
-    filename = f"gsc-{project}-{date_str}.md"
+    safe_project = project.replace("/", "-").replace(" ", "-").strip("-")
+    filename = f"gsc-{safe_project}-{date_str}.md"
     filepath = AUDITS_DIR / filename
 
     # Group by category
