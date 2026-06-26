@@ -102,6 +102,25 @@ def cmd_scan(args):
     except Exception:
         pass
 
+    # 2.7 LLM Verification — deep analysis of CRITICAL/HIGH findings
+    if getattr(args, 'deep', False) or getattr(args, 'llm', False):
+        try:
+            sys.path.insert(0, str(Path(__file__).parent))
+            from gsc_detectors.llm_verify import verify_findings
+            before = len([f for f in findings if f.get("category") in ("CRITICAL", "HIGH")])
+            findings = verify_findings(findings, str(project_path), max_per_batch=15)
+            after_real = len([f for f in findings
+                              if f.get("category") in ("CRITICAL", "HIGH")
+                              and f.get("llm_verified", True)])
+            after_fp = len([f for f in findings
+                            if f.get("category") in ("CRITICAL", "HIGH")
+                            and not f.get("llm_verified", True)])
+            if not quiet:
+                print(f"🧠 LLM verified: {before} CRITICAL/HIGH → {after_real} real, {after_fp} FP")
+        except Exception as e:
+            if not quiet:
+                print(f"⚠️ LLM verification skipped: {e}")
+
     # 2.6 Reachability analysis — downgrade findings in unreachable files (opt-in)
     if getattr(args, 'reachability', False):
         try:
