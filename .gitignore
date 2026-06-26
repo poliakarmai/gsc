@@ -5,3 +5,4 @@ node_modules/
 *.egg-info/
 .vsix
 .DS_Store
+__pycache__/
