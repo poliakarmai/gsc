@@ -18,6 +18,7 @@ import gsc_detectors.gs001_hardcoded_secret as _gs001
 import gsc_detectors.gs002_world_readable as _gs002
 import gsc_detectors.gs003_debug_prints as _gs003
 import gsc_detectors.gs004_dangerous_subprocess as _gs004
+import gsc_detectors.gs005_sql_injection as _gs005
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -61,6 +62,12 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs004.ECHELON,
         detect_fn=_gs004.detect,
         description=_gs004.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs005.RULE_ID,
+        echelon=_gs005.ECHELON,
+        detect_fn=_gs005.detect,
+        description=_gs005.description,
     ),
 ]
 
