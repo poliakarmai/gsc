@@ -1071,10 +1071,70 @@ def generate_pattern_rows(patterns: list) -> str:
     return "\n".join(rows)
 
 
+def cmd_patterns_review():
+    """Show patterns needing manual review (auto-created, inactive)."""
+    if not DB_PATH.exists():
+        print("❌ GSC DB not found")
+        return
+
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+
+    # Inactive patterns (auto-created, pending activation)
+    pending = conn.execute("""
+        SELECT id, title, category, description, created_at
+        FROM patterns
+        WHERE active = 0
+        ORDER BY created_at DESC
+        LIMIT 50
+    """).fetchall()
+
+    # Recently deactivated
+    deactivated = conn.execute("""
+        SELECT id, title, category, effectiveness, deactivated_at
+        FROM patterns
+        WHERE active = 0 AND deactivated_at IS NOT NULL
+        ORDER BY deactivated_at DESC
+        LIMIT 20
+    """).fetchall()
+
+    if pending:
+        print(f"\n🟡 PENDING ACTIVATION ({len(pending)} patterns):")
+        print(f"   Run: gsc patterns --activate <id>   or   gsc patterns --reject <id>")
+        print(f"{'ID':<6} {'Title':<50} {'Category':<10} {'Created'}")
+        print("-" * 85)
+        for p in pending:
+            print(f"{p['id']:<6} {p['title'][:48]:<50} {p['category']:<10} {p['created_at'] or '?'}")
+    else:
+        print("✅ No patterns pending activation")
+
+    if deactivated:
+        print(f"\n🔴 RECENTLY DEACTIVATED ({len(deactivated)} patterns):")
+        print(f"{'ID':<6} {'Title':<50} {'Category':<10} {'Efficiency':<10} {'Deactivated'}")
+        print("-" * 90)
+        for d in deactivated:
+            eff = f"{d['effectiveness']*100:.0f}%" if d['effectiveness'] else '?'
+            print(f"{d['id']:<6} {d['title'][:48]:<50} {d['category']:<10} {eff:<10} {d['deactivated_at'] or '?'}")
+    else:
+        print("✅ No recently deactivated patterns")
+
+    # Stats
+    total = conn.execute("SELECT COUNT(*) FROM patterns").fetchone()[0]
+    active = conn.execute("SELECT COUNT(*) FROM patterns WHERE active=1").fetchone()[0]
+    conn.close()
+    print(f"\n📊 Total: {total} patterns ({active} active, {total - active} inactive)")
+
+    if pending:
+        print(f"\n💡 To activate a pattern: gsc db \"UPDATE patterns SET active=1 WHERE id=<id>\"")
+        print(f"💡 To reject (delete):   gsc db \"DELETE FROM patterns WHERE id=<id>\"")
+
+
 def cmd_patterns(args):
-    """Manage patterns — export/import/list."""
+    """Manage patterns — list/review/export/import."""
     action = getattr(args, 'pat_action', None) or 'list'
-    if action == 'export':
+    if action == 'review':
+        cmd_patterns_review()
+    elif action == 'export':
         subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), 'export', getattr(args, 'file', '') or 'gsc_patterns.yaml'])
     elif action == 'import':
         subprocess.run([sys.executable, str(Path(__file__).parent / 'scripts' / 'gsc_marketplace.py'), 'import', getattr(args, 'file', '') or ''])

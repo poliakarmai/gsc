@@ -20,6 +20,7 @@ import gsc_detectors.gs003_debug_prints as _gs003
 import gsc_detectors.gs004_dangerous_subprocess as _gs004
 import gsc_detectors.gs005_sql_injection as _gs005
 import gsc_detectors.gs007_idor as _gs007
+import gsc_detectors.gs008_dead_code as _gs008
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -75,6 +76,12 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs007.ECHELON,
         detect_fn=_gs007.detect,
         description=_gs007.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs008.RULE_ID,
+        echelon=_gs008.ECHELON,
+        detect_fn=_gs008.detect,
+        description=_gs008.description,
     ),
 ]
 
