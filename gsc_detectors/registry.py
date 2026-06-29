@@ -22,6 +22,12 @@ import gsc_detectors.gs005_sql_injection as _gs005
 import gsc_detectors.gs007_idor as _gs007
 import gsc_detectors.gs008_dead_code as _gs008
 import gsc_detectors.gs009_supply_chain as _gs009
+import gsc_detectors.gs010_ssh_hardening as _gs010
+import gsc_detectors.gs011_jwt_vulnerabilities as _gs011
+import gsc_detectors.gs012_mass_assignment as _gs012
+import gsc_detectors.gs013_graphql_security as _gs013
+import gsc_detectors.gs014_credential_exposure as _gs014
+import gsc_detectors.gs015_entry_points as _gs015
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -89,6 +95,42 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs009.ECHELON,
         detect_fn=_gs009.detect,
         description=_gs009.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs010.RULE_ID,
+        echelon=_gs010.ECHELON,
+        detect_fn=_gs010.detect,
+        description=_gs010.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs011.RULE_ID,
+        echelon=_gs011.ECHELON,
+        detect_fn=_gs011.detect,
+        description=_gs011.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs012.RULE_ID,
+        echelon=_gs012.ECHELON,
+        detect_fn=_gs012.detect,
+        description=_gs012.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs013.RULE_ID,
+        echelon=_gs013.ECHELON,
+        detect_fn=_gs013.detect,
+        description=_gs013.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs014.RULE_ID,
+        echelon=_gs014.ECHELON,
+        detect_fn=_gs014.detect,
+        description=_gs014.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs015.RULE_ID,
+        echelon=_gs015.ECHELON,
+        detect_fn=_gs015.detect,
+        description=_gs015.description,
     ),
 ]
 

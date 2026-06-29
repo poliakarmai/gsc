@@ -28,24 +28,31 @@ class Finding(dict):
     def __init__(
         self,
         rule_id: str,
-        category: str = "MEDIUM",
+        severity: str = "MEDIUM",
         title: str = "",
         file_path: str = "",
-        line_number: int = 0,
+        line: int = 0,
         detail: str = "",
         fix_suggestion: str = "",
         references: list[str] | None = None,
+        noise_tier: str = "normal",
         **kwargs,
     ):
+        # Support both 'severity' and 'category' keys (backward compat)
+        sev = kwargs.pop("category", severity)
+        line_no = kwargs.pop("line_number", line)
         super().__init__(
             rule_id=rule_id,
-            category=category,
+            severity=sev,
+            category=sev,
             title=title,
             file_path=file_path,
-            line_number=line_number,
+            line=line_no,
+            line_number=line_no,
             detail=detail,
             fix_suggestion=fix_suggestion,
             references=references or [],
+            noise_tier=noise_tier or "normal",
             **kwargs,
         )
 

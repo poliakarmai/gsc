@@ -94,6 +94,27 @@ def cmd_scan(args):
     else:
         findings = run_audit_echelons(project, project_path, args.echelon, getattr(args, 'deep', False))
 
+    # 2.1 Resume tracking: save per-file state
+    if hasattr(args, 'resume') and args.resume:
+        try:
+            from gsc_resume import FileStateManager
+            fsm = FileStateManager(str(DB_PATH), project)
+            all_files = list(project_path.rglob("*"))
+            code_files = [f for f in all_files if f.is_file() and not any(
+                p.startswith(".") for p in f.parts) and ".git/" not in str(f)]
+            fsm.init_files(code_files)
+            # Mark files with findings as scanned
+            seen_files = set()
+            for f in findings:
+                fp = f.get("file_path", "")
+                if fp and fp not in seen_files:
+                    seen_files.add(fp)
+                    fsm.mark_scanned(fp, candidates_count=1)
+            fsm.release_locks()
+            fsm.close()
+        except Exception:
+            pass  # Non-fatal — resume tracking is optional
+
     # 2.5 Framework-aware filter (reduce FP)
     try:
         sys.path.insert(0, str(Path(__file__).parent / "scripts"))
@@ -1569,6 +1590,78 @@ Output format:
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
+def cmd_revalidate(args):
+    """gsc revalidate — Deepsec-inspired structured re-check of findings."""
+    from gsc_revalidate import Revalidator
+
+    project_path = Path(args.project).resolve()
+    project_name = project_path.name
+
+    rev = Revalidator(str(DB_PATH), project_path)
+
+    # Load findings from DB
+    conn = sqlite3.connect(str(DB_PATH))
+    conn.row_factory = sqlite3.Row
+    rows = conn.execute(
+        "SELECT * FROM findings WHERE project=? AND (revalidation_verdict IS NULL OR revalidation_verdict='')",
+        (project_name,)
+    ).fetchall()
+    conn.close()
+
+    findings = [dict(r) for r in rows]
+    
+    if not findings:
+        print("No unvalidated findings to revalidate.")
+        rev.close()
+        return
+
+    print(f"Revalidating {len(findings)} findings for {project_name}...")
+    print(f"Min severity: {args.min_severity}, LLM: {not args.no_llm}")
+    print()
+
+    use_llm = not args.no_llm
+    results = rev.revalidate_findings(findings, min_severity=args.min_severity, use_llm=use_llm)
+
+    # Show verdicts
+    verdicts = {}
+    for r in results:
+        v = r.get("revalidation_verdict", "uncertain")
+        verdicts[v] = verdicts.get(v, 0) + 1
+
+    print()
+    for v in ["true-positive", "false-positive", "fixed", "uncertain"]:
+        count = verdicts.get(v, 0)
+        emoji = {"true-positive": "🔴", "false-positive": "✅", "fixed": "🔧", "uncertain": "❓"}.get(v, "")
+        print(f"  {emoji} {v}: {count}")
+
+    if args.json:
+        print(json.dumps({"verdicts": verdicts, "findings": results}, indent=2))
+
+    rev.close()
+
+
+def cmd_status(args):
+    """gsc status — scan progress (resume-aware)."""
+    from gsc_resume import FileStateManager
+
+    project_path = Path(args.project).resolve()
+    project_name = project_path.name
+
+    fsm = FileStateManager(str(DB_PATH), project_name)
+    stats = fsm.get_stats()
+
+    print(f"Project: {project_name}")
+    print(f"Files:   {stats['total']} total")
+    print(f"Progress: {stats['completed']}/{stats['total']} ({stats['progress_pct']}%)")
+    print()
+    for status in FileStateManager.STATUSES:
+        count = stats.get(status, 0)
+        bar = "█" * int(count / max(stats['total'], 1) * 20)
+        print(f"  {status:12s} {count:5d}  {bar}")
+
+    fsm.close()
+
+
 def main():
     parser = argparse.ArgumentParser(description="GSC — Git Security Checker")
     sub = parser.add_subparsers(dest="command")
@@ -1585,6 +1678,7 @@ def main():
     scan.add_argument("--quiet", action="store_true", help="Silent mode (CI-friendly)")
     scan.add_argument("--ci", action="store_true", help="CI mode: JSON output, no interactive prompts")
     scan.add_argument("--json", action="store_true", help="Output JSON")
+    scan.add_argument("--resume", action="store_true", help="Resume interrupted scan (skip already-scanned files)")
 
     # gsc init
     init = sub.add_parser("init", help="Initialize GSC in a project")
@@ -1645,6 +1739,18 @@ def main():
     issue.add_argument('--linear', action='store_true')
     issue.add_argument('--md', action='store_true')
 
+    # gsc revalidate (Deepsec-inspired)
+    reval = sub.add_parser('revalidate', help='Re-check existing findings (TP/FP/Fixed)')
+    reval.add_argument('project', help='Project name or path')
+    reval.add_argument('--min-severity', default='HIGH', choices=['CRITICAL','HIGH','MEDIUM','LOW'],
+                       help='Minimum severity to revalidate (default: HIGH)')
+    reval.add_argument('--no-llm', action='store_true', help='Skip LLM — heuristic-only revalidation')
+    reval.add_argument('--json', action='store_true', help='Output JSON')
+
+    # gsc status (resume-aware progress)
+    status = sub.add_parser('status', help='Show scan progress (resume-aware)')
+    status.add_argument('project', help='Project name or path')
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -1686,6 +1792,10 @@ def main():
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_doctor.py")])
     elif args.command == "encrypt-db":
         subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "db_encrypt.py"), "encrypt"])
+    elif args.command == "revalidate":
+        cmd_revalidate(args)
+    elif args.command == "status":
+        cmd_status(args)
     else:
         parser.print_help()
 
