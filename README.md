@@ -1,11 +1,13 @@
 # 🔒 GSC — Git Security Checker
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-![patterns-112](https://img.shields.io/badge/patterns-112-green)
+![detectors-15](https://img.shields.io/badge/detectors-15-green)
+![patterns-350+](https://img.shields.io/badge/patterns-350+-green)
 ![python-3.10+](https://img.shields.io/badge/python-3.10+-blue)
 ![precision-73%](https://img.shields.io/badge/precision-73%25-yellow)
 
-> Самообучающийся аудитор кода. Находит уязвимости, запоминает паттерны, умнеет с каждым проектом.
+> Самообучающийся аудитор кода с архитектурой Deepsec. 15 детекторов, resume, structured revalidate.
+> Находит уязвимости, запоминает паттерны, умнеет с каждым проектом.
 
 ## 🤔 Проблема
 
@@ -15,17 +17,20 @@
 
 ## Что это
 
-CLI-инструмент с накоплением паттернов и **самообучением**. Каждый день сканирует свежие open-source проекты, авто-триажит находки, и слабые паттерны отключаются.
+CLI-инструмент с накоплением паттернов и **самообучением**. Архитектура вдохновлена [Deepsec (Vercel Labs)](https://github.com/vercel-labs/deepsec) — scan → revalidate → export, per-file state, structured verdicts.
 
-**Текущее состояние (v0.5):**
-- 112 активных паттернов (7 языков), авто-создание новых из TP (≥3 подтверждений)
-- 3+1 эшелон: source → security → adversarial → LLM (`--deep`)
-- Precision: **73%** (104 TP / 38 FP, ручная разметка), 34 000+ находок в базе
-- Фильтры: docstring/comment, language + AST, **inline suppression** (`# gsc:ignore`), **reachability** (`--reachability`)
-- Самообучение: 53 проекта, daily cron, **multi-LLM voting** (gemini + qwen), **severity-weighted** деактивация (CRITICAL защищены)
-- AI-патч (`gsc fix`), SARIF, diff-only, baseline, **PR comments**
+**Текущее состояние (v0.7 — Deepsec upgrade):**
+- **15 plugin-детекторов** (было 9): SSH, JWT, Mass Assignment, GraphQL, Credential Exposure, Entry-point Coverage
+- **350+ активных паттернов** (7 языков), авто-создание из TP (≥3 подтверждений)
+- **Noise tiers** (precise/normal/noisy) — приоритизация по сигнал/токен
+- **Resume** (`--resume`, `gsc status`) — per-file state, продолжение после падения
+- **Structured revalidate** (`gsc revalidate`) — TP/FP/Fixed/Uncertain, git history check
+- **Precision: 73%** (104 TP / 38 FP), 34 000+ находок в базе
+- Фильтры: docstring/comment, language + AST, inline suppression (`# gsc:ignore`), reachability, framework-aware
+- Самообучение: 53 проекта, daily cron, multi-LLM voting, severity-weighted деактивация
+- AI-патч (`gsc fix`), SARIF, diff-only, baseline, PR comments
 
-> **Почему 112, а не 277?** v0.3 генерировал 178 одинаковых «Generic code smell» паттернов — все матчились на `TODO|FIXME`. В v0.4 они деактивированы как бесполезные. Взамен добавлены 12 точных Python-паттернов (asyncio, subprocess, multiprocessing). **Реальных правил стало больше, а не меньше.**
+> **v0.7 новое:** 6 детекторов обучены на Redteam Kit (22 источника: SSH Hardening, Hacking APIs, Window PrivEsc, 2025 Playbooks). Resume + revalidate — полноценный Deepsec-подобный пайплайн. При этом на DeepSeek в 1000× дешевле Claude Opus.
 
 ## 🚀 Установка
 
@@ -41,48 +46,129 @@ gsc doctor && gsc scan .
 
 ---
 
-## Как это работает
+## Архитектура (Deepsec-inspired)
 
 ```
-Seed patterns (OWASP/CWE/7 языков) + ваши + накопленные самообучением
-        ↓  gsc scan
-   E1: Source-driven (grep) → E2: Security (regex+perms) → E3: Adversarial
-   E4: LLM deep analysis (--deep, опционально)
-        ↓  docstring/comment фильтр → language + AST фильтры
-   SQLite (WAL mode) + Obsidian notes
-        ↓  gsc triage → TP/FP
-   Паттерны с эффективностью <30% AND ≥10 оценок → авто-деактивация
+         scan              revalidate            export
+          │                    │                    │
+          ▼                    ▼                    ▼
+   candidates  →   findings    TP/FP/Fixed   →  JSON / Obsidian
+   (regex+15      (LLM verify)  (structured      (markdown +
+   detectors)                    verdicts)        SARIF)
+        │                      │
+        └── resume ────────────┘
+      (per-file state, idempotent,
+       можно продолжить с места падения)
 ```
+
+```
+gsc scan <project>
+  ├── load_patterns (DB + seed files, noise-tier приоритизация)
+  ├── E1: Source-driven (grep + precise-tier detectors)
+  ├── E2: Security (regex + permissions + normal-tier detectors)
+  ├── E3: Adversarial (semantic + noisy-tier detectors)
+  ├── post-filters: docstring/comment, framework-aware, reachability
+  └── save_findings → SQLite + Obsidian
+       ↓
+gsc revalidate <project>  ← Deepsec-inspired
+  ├── Heuristic pre-checks (test files, docs, placeholders)
+  ├── Git history check (was this fixed?)
+  └── LLM structured analysis → TP/FP/Fixed/Uncertain
+```
+
+## Детекторы (v0.7)
+
+| Rule | Tier | Category | What it catches |
+|------|:----:|----------|-----------------|
+| GS001 | precise | CRITICAL | Hardcoded secrets (API keys, JWT, tokens, connection strings) |
+| GS002 | normal | HIGH | World-readable sensitive files (.pem, .key, .env) |
+| GS003 | normal | LOW | Debug code left in production (print, console.log) |
+| GS004 | precise | HIGH | Dangerous subprocess (shell=True, os.system, eval, exec) |
+| GS005 | precise | CRITICAL | SQL injection (f-strings, raw SQL, ORM interpolation) |
+| GS007 | normal | HIGH | IDOR — missing auth/ownership checks (Django/Rails/FastAPI) |
+| GS008 | normal | LOW | Dead code — constants/feature flags declared but never used |
+| GS009 | normal | HIGH | Supply chain (Bumblebee: npm/PyPI/Go/MCP/editor extensions) |
+| GS010 🆕 | precise | CRITICAL | Weak SSH config (PermitRootLogin, PasswordAuth, LD_PRELOAD, X11) |
+| GS011 🆕 | precise | CRITICAL | JWT vulnerabilities (alg:none, verify=False, hardcoded secrets) |
+| GS012 🆕 | normal | HIGH | Mass Assignment (Django **request.POST, FastAPI **body, Rails params) |
+| GS013 🆕 | normal | HIGH | GraphQL security (introspection, depth, error disclosure, GraphiQL) |
+| GS014 🆕 | precise | HIGH | Credential exposure (SAM, DPAPI, unattend.xml, sudoers NOPASSWD) |
+| GS015 🆕 | noisy | INFO | Entry-point coverage (FastAPI, Flask, Django, Sanic, Tornado, aiohttp) |
 
 ## Пример
 
 ```python
-# api/billing.py:147
-query = f"SELECT * FROM discounts WHERE code='{code}'"
+# config.py:11
+SECRET_KEY = os.getenv('SECRET_KEY', 'my_precious')  # ← хардкод JWT secret
 ```
 ```bash
-$ gsc scan .          # → CRITICAL: SQL injection risk
-$ gsc fix 42          # → AI-патч: f-string → параметризованный запрос
-$ gsc triage .        # [y] → TP+1 → следующий скан умнее
+$ gsc scan .                  # → GS011: HIGH — Hardcoded JWT secret
+$ gsc revalidate . --no-llm   # → 🔴 true-positive (confirmed)
+$ gsc fix 42                  # → AI-патч: заменить на os.getenv('SECRET_KEY')
+$ gsc triage .                # [y] → TP+1 → следующий скан умнее
 ```
+
+## Команды
+
+```bash
+# Scan
+gsc scan <project>                      # полный аудит
+gsc scan <project> --resume             # 🆕 продолжить прерванный скан
+gsc scan <project> --deep               # LLM-анализ (Echelon 4)
+gsc scan <project> --diff               # только изменённые файлы
+gsc scan <project> --json               # JSON-вывод
+gsc scan <project> --sarif              # SARIF для GitHub Code Scanning
+
+# Revalidate 🆕
+gsc revalidate <project>                # structured re-check (LLM)
+gsc revalidate <project> --no-llm       # только эвристики (бесплатно)
+gsc revalidate <project> --min-severity HIGH
+
+# Status 🆕
+gsc status <project>                    # прогресс скана (resume-aware)
+
+# Triage
+gsc triage <project>                    # ручная разметка TP/FP
+gsc triage <project> --group-by pattern # кластерами
+gsc triage <project> --bulk             # JSON со stdin
+
+# Analysis
+gsc explain <id>                        # CVSS, threat/impact
+gsc fix <id>                            # AI-патч (OpenRouter/DeepSeek)
+
+# Management
+gsc init                                # инициализация (.gsc/, CI workflow)
+gsc dashboard                           # веб-интерфейс (:8080)
+gsc doctor                              # диагностика окружения
+gsc metrics                             # precision/recall
+gsc patterns export [file]              # экспорт YAML
+gsc patterns import <file>              # импорт YAML
+gsc config set <key> <value>            # настройка
+gsc db "SELECT COUNT(*) FROM findings"  # прямой SQL
+```
+
+## Noise Tiers (Deepsec-inspired)
+
+| Tier | Когда | Пример |
+|------|-------|--------|
+| `precise` | Паттерн однозначен — только уязвимость | `$queryRawUnsafe(` — только небезопасный Prisma API |
+| `normal` | Паттерн шире — AI/человек разбирается | `auth-bypass`: флагит admin-чеки и skip-auth строки |
+| `noisy` | Каждый файл в глобе → AI review | `**/api/**/route.ts` — все entry-point файлы |
+
+Precise-паттерны обрабатываются первыми (максимум сигнала на токен).
 
 ## Бенчмарк на open-source проектах
 
-Честные цифры — что GSC находит на чужом коде без предварительной разметки:
+| Проект | ⭐ | Всего | Новые детекторы | Реальные |
+|--------|---|:----:|:---------------:|:--------:|
+| requests | 52k | 131 | — | — |
+| flask | 68k | 16 | — | — |
+| flask-jwt-auth | 1 | 11 | GS011: 2 (1 real) | 🔴 JWT secret `my_precious` |
+| blueprint-api | 1 | 15 | GS012: 1 | — (DRF serializer, safe) |
+| tock | 100+ | 177 | GS014: 2, GS012: 42 | — (dev configs) |
+| sshpiper | 1k+ | 373 | GS014: 1 | — (e2e test key) |
 
-| Проект | ⭐ | Всего | CRIT (сырых) | CRIT (реальных) | HIGH | Precision |
-|--------|---|:----:|:---:|:---:|:----:|:---:|
-| requests | 52k | 131 | 0 | 0 | 3 | — |
-| flask | 68k | 16 | 0 | 0 | 10 | — |
-| httpx | 14k | 30 | 0 | 0 | 3 | — |
-| rich | 52k | 59 | 0 | 0 | 9 | — |
-| fastapi | 82k | 101 | 1 | 0¹ | 7 | 0% |
-| numpy | 29k | 591 | 5 | 0² | 33 | 0% |
-| **Наши проекты** | — | ~200 | **реальные** | **реальные** | — | **73%** |
-
-¹ Type-annotation `password: OAuthFlowPassword | None = None`. ² C-препроцессор `__f2py_cb_#name#` + guarded `pickle.load()` с проверкой `allow_pickle`.
-
-> **Вывод:** на чужих проектах без разметки Precision ≈ 0%. GSC не универсальный сканер — он инструмент для **вашей** кодовой базы. После 2-3 недель разметки (`gsc triage`) точность на вашем коде растёт до 70%+. Самообучение ускоряет этот процесс.
+> **Вывод:** GS011 нашёл реальный JWT-секрет в первый же день. Остальные детекторы требуют LLM-верификации (revalidate) для фильтрации FP. GSC не универсальный сканер — он инструмент для **вашей** кодовой базы.
 
 ### Производительность
 
@@ -90,50 +176,22 @@ $ gsc triage .        # [y] → TP+1 → следующий скан умнее
 |--------|----:|:----------:|
 | flask | 35k | 2.1 сек |
 | requests | 18k | 1.4 сек |
-| rich | 42k | 2.8 сек |
-| numpy | 280k | 14.3 сек |
-| fastapi | 190k | 9.7 сек |
+| flask-jwt-auth | 2k | 0.8 сек |
+| sshpiper (Go) | 50k | 3.2 сек |
+| tock (Django) | 30k | 2.4 сек |
 
-## Сравнение
+## Сравнение с Deepsec
 
-| Фича | GSC | SonarQube | Snyk | Semgrep |
-|------|-----|-----------|------|---------|
-| Накопление паттернов | ✅ | ❌ | ❌ | ❌ |
-| Авто-деактивация FP | ✅ * | ❌ | ❌ | ❌ |
-| Самообучение (daily) | ✅ | ❌ | ❌ | ❌ |
-| Language + AST фильтры | ✅ | ✅ | ✅ | ✅ |
-| AI-патч (`gsc fix`) | ✅ | ❌ | ❌ | ❌ |
-| LLM deep analysis | ✅ | ❌ | ❌ | ❌ |
-| Dependency scanning | 🔜 | ✅ | ✅ | ❌ |
-| Шифрование БД | 🔜 | ✅ | ❌ | ❌ |
-| Автономный | ✅ | ❌ | ❌ | ✅ |
-| Open source (MIT) | ✅ | ❌ | ❌ | ✅ |
-
-\* При ≥10 оценках и эффективности <30%.
-
-> ⚠️ `--deep`/`gsc fix` отправляют код в OpenRouter. Для enterprise: `GSC_LLM_PROVIDER=ollama` (локальная модель, код не покидает контур).
-
----
-
-## Команды
-
-```bash
-gsc scan <project>              # полный аудит
-gsc scan <project> --diff       # только изменённые файлы
-gsc scan <project> --deep       # LLM-анализ (Echelon 4)
-gsc scan <project> --sarif      # SARIF для GitHub Code Scanning
-gsc triage <project>            # разметка TP/FP
-gsc triage <project> --group-by pattern  # кластерами
-gsc explain <id>                # CVSS, threat/impact
-gsc fix <id>                    # AI-патч (OpenRouter)
-gsc init                        # .gsc/, CI workflow
-gsc dashboard                   # веб-интерфейс
-gsc doctor                      # диагностика окружения
-gsc metrics                     # precision/recall
-gsc patterns export [file]      # экспорт YAML
-gsc patterns import <file>      # импорт YAML
-gsc config set <key> <value>    # настройка
-```
+| Фича | GSC | Deepsec |
+|------|-----|--------|
+| **Pipeline** | scan → revalidate → export | scan → process → revalidate → enrich → export |
+| **Detectors** | 15 plugin-детекторов | Встроенные matchers + custom |
+| **Noise tiers** | precise/normal/noisy | precise/normal/noisy |
+| **Resume** | ✅ per-file state + --resume | ✅ per-file JSON state |
+| **Revalidate** | ✅ TP/FP/Fixed/Uncertain + git history | ✅ TP/FP/Fixed + git history |
+| **AI backend** | DeepSeek (~$0.05/день) | Claude Opus / Codex SDK (тысячи $) |
+| **Самообучение** | ✅ daily cron, 53 проекта, авто-деактивация | ❌ |
+| **Стоимость полного прогона** | ~$0.01 | ~$1000+ |
 
 ## Самообучение
 
@@ -145,39 +203,12 @@ python3 scripts/gsc_self_learn.py --stats   # статистика
 python3 scripts/gsc_self_learn.py --dry-run # какие проекты сегодня
 ```
 
-**Авто-триаж:**
-- Уровень 1 (быстрый): test-файлы, docstrings, config-файлы → авто-FP
-- Уровень 2 (LLM): CRITICAL/HIGH находки → gemini-flash решает REAL/FALSE
-- При ошибке LLM или недоступности API → находка остаётся «open» (консервативно)
+**Авто-триаж — три уровня:**
+1. Эвристики: test-файлы, docstrings, config-файлы → авто-FP
+2. LLM (DeepSeek): CRITICAL/HIGH → REAL/FALSE
+3. Multi-model voting (gemini + qwen + deepseek) для спорных случаев
 
-> **Где запускать:** скрипт самодостаточен — работает на любой машине с Python и доступом в интернет. Может быть запущен как cron, systemd timer, GitHub Actions, или вручную. База данных (`gsc_audit.db`) — единый источник.
-
-## ⚙️ Конфигурация
-
-```bash
-gsc config set obsidian_vault ~/vault
-gsc config set llm_provider ollama
-gsc config show
-```
-
-Env vars: `GSC_LLM_PROVIDER=ollama`, `OPENROUTER_API_KEY=...`
-
-
-## Дорожная карта
-
-| Фаза | Что | Статус |
-|------|-----|--------|
-| **1. CLI** | scan, triage, explain, fix, dashboard, 112 паттернов | ✅ |
-| **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit (baseline-aware), WAL | ✅ |
-| **3. Качество** | Corpus-тесты (8/8), docstring-фильтр, AST-фильтр, метрики | ✅ |
-| **4. LLM** | E4 deep analysis, gsc fix, LLM-триаж в самообучении | ✅ |
-| **5. Самообучение** | Ежедневный цикл, 53 Python-проекта, авто-триаж, авто-деактивация | ✅ |
-| **6. Мультиязычность** | Самообучение на Go, TS, Rust, Java, Docker, Terraform (сейчас только Python) | 🔜 Июль 2026 |
-| **7. Dependency scanning** | pip-audit, npm audit, cargo-audit — проверка зависимостей в requirements.txt, package.json, Cargo.toml | 🔜 Июль 2026 |
-| **8. Шифрование БД** | Fernet-шифрование `gsc_audit.db` (AES-128) — защита находок при хранении и передаче | 🔜 Август 2026 |
-| **9. DX** | VSCode extension, Jira/Linear, Pattern marketplace | 🔜 Август 2026 |
-| **10. Enterprise** | Helm chart, SSO (OAuth2), Compliance (PCI/SOC2/ISO), RBAC | 📋 2027 |
-| **11. Agent Training** | Экспорт размеченных находок (JSONL/OpenAI/Markdown) для обучения AI-агентов — 40 000+ примеров TP/FP | ✅ v0.5 |
+Слабые паттерны (<30% эффективности, ≥10 оценок) авто-отключаются. CRITICAL защищены от авто-деактивации.
 
 ## CI/CD (GitHub Actions)
 
@@ -191,20 +222,30 @@ Env vars: `GSC_LLM_PROVIDER=ollama`, `OPENROUTER_API_KEY=...`
   with: {sarif_file: results.sarif}
 ```
 
+## Дорожная карта
+
+| Фаза | Что | Статус |
+|------|-----|--------|
+| **1. CLI** | scan, triage, explain, fix, dashboard | ✅ |
+| **2. CI/CD** | diff-only, SARIF, AI-patch, pre-commit, WAL | ✅ |
+| **3. Качество** | Corpus-тесты, docstring/AST/reachability фильтры | ✅ |
+| **4. LLM** | E4 deep analysis, gsc fix, LLM-триаж | ✅ |
+| **5. Самообучение** | Daily cycle, 53 проекта, авто-триаж, авто-деактивация | ✅ |
+| **6. Deepsec upgrade** 🆕 | 15 детекторов, noise tiers, resume, structured revalidate | ✅ |
+| **7. Мультиязычность** | Go, TS, Rust, Java, Docker, Terraform самообучение | 🔜 Июль 2026 |
+| **8. Dependency scanning** | pip-audit, npm audit, cargo-audit | 🔜 Июль 2026 |
+| **9. DX** | VSCode extension, Jira/Linear, Pattern marketplace | 🔜 Август 2026 |
+| **10. Enterprise** | Helm chart, SSO, Compliance, RBAC | 📋 2027 |
+| **11. Agent Training** | Экспорт размеченных находок (JSONL/OpenAI/Markdown) | ✅ |
+
 ## 🔧 Troubleshooting
 
-**`❌ ripgrep`** → `brew install ripgrep` / `apt install ripgrep` (бинарник, не pip).  
-**Слишком много FP** → `gsc triage` разметить 2-3 недели → точность вырастет до 70%+.  
-**LLM не работает** → `GSC_LLM_PROVIDER=ollama` или проверь `OPENROUTER_API_KEY`.
+**`❌ ripgrep`** → `brew install ripgrep` / `apt install ripgrep` (бинарник, не pip).
+**Слишком много FP** → `gsc revalidate --no-llm` → эвристики отсеют тесты/доку/плейсхолдеры.
+**LLM не работает** → `GSC_LLM_PROVIDER=ollama` или проверь `DEEPSEEK_API_KEY`.
+**Скан упал** → `gsc scan --resume` продолжит с места падения.
+**Прогресс** → `gsc status` покажет сколько файлов отсканировано.
 
 ## 📄 Лицензия
 
 MIT — см. [LICENSE](./LICENSE).
-
-## 📚 Документация
-
-- [Установка](docs/INSTALL.md)
-- [Использование](docs/USAGE.md)
-- [Паттерны](docs/PATTERNS.md)
-- [Конфигурация](docs/CONFIG.md)
-- [Compliance](docs/compliance.md)

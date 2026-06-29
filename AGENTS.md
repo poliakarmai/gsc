@@ -1,45 +1,200 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — self-learning audit system.
+> Обновлено: 2026-06-29 (Deepsec-inspired upgrade — resume, revalidate, 15 detectors)
 
 ## Что это
 
-Трёхэшелонный аудитор кода с самообучением. 200+ seed-паттернов, SQLite DB, Obsidian-отчёты.  
+Пятистадийный аудитор кода с самообучением. 350+ паттернов, 15 plugin-детекторов, SQLite DB, Obsidian-отчёты.
 Каждая находка становится паттерном для будущих аудитов.
+
+Архитектура вдохновлена Deepsec (Vercel Labs): scan → revalidate → export, per-file state, structured verdicts.
 
 ## Структура
 
-```\ngsc/\n├── gsc.py              ← CLI entry point (scan, init, dashboard, patterns, db)\n├── gsc_detectors/      ← Plugin detector system (CVE Lite-inspired, v0.6, 26.06.2026)\n│   ├── __init__.py     ← AuditContext, Finding, Detector interface\n│   ├── registry.py     ← ALL_DETECTORS, get_detectors(), run_detectors()\n│   ├── gs001_hardcoded_secret.py  ← API keys, tokens, passwords in code\n│   ├── gs002_world_readable.py    ← Sensitive files with permissive permissions\n│   └── gs003_debug_prints.py      ← print() / console.log left in production\n├── patterns/           ← Seed patterns (OWASP Top 10, CWE Top 25, Python)\n│   ├── owasp.json      ← OWASP 2021 Top 10\n│   ├── cwe.json        ← CWE Top 25\n│   └── python.json     ← Python-specific anti-patterns\n├── dashboard/          ← Web dashboard\n├── tests/              ← Tests\n├── AGENTS.md           ← This file\n└── README.md           ← User documentation\n```
+```
+gsc/
+├── gsc.py                ← CLI entry point (15 команд)
+├── gsc_detectors/        ← Plugin detector system (v0.7, 15 детекторов)
+│   ├── __init__.py       ← AuditContext, Finding (noise_tier), Detector interface
+│   ├── registry.py       ← ALL_DETECTORS, get_detectors(), run_detectors()
+│   ├── gs001_hardcoded_secret.py   ← API keys, tokens, passwords
+│   ├── gs002_world_readable.py     ← Sensitive files (perms)
+│   ├── gs003_debug_prints.py       ← print() / console.log in production
+│   ├── gs004_dangerous_subprocess.py ← shell=True, eval, exec
+│   ├── gs005_sql_injection.py      ← f-string SQL, raw queries
+│   ├── gs007_idor.py              ← Django/FastAPI missing auth checks
+│   ├── gs008_dead_code.py         ← Constants never used
+│   ├── gs009_supply_chain.py      ← Bumblebee scanner (npm/PyPI/Go/MCP)
+│   ├── gs010_ssh_hardening.py     ← 🆕 sshd_config weakness
+│   ├── gs011_jwt_vulnerabilities.py ← 🆕 alg:none, weak secrets
+│   ├── gs012_mass_assignment.py   ← 🆕 Django/FastAPI/Rails/GraphQL
+│   ├── gs013_graphql_security.py  ← 🆕 introspection, depth limiting
+│   ├── gs014_credential_exposure.py ← 🆕 SAM, DPAPI, unattend, sudoers
+│   └── gs015_entry_points.py      ← 🆕 Noisy matcher: all HTTP handlers
+├── gsc_resume.py         ← 🆕 FileStateManager (per-file scan state)
+├── gsc_revalidate.py     ← 🆕 Structured revalidator (TP/FP/Fixed/Uncertain)
+├── patterns/             ← Seed patterns (OWASP, CWE, 7 languages)
+├── scripts/              ← Self-learn, export, metrics, CI, config
+├── tests/                ← Corpus tests (8/8)
+├── AGENTS.md             ← This file
+└── README.md             ← User docs
+```
 
 ## Как запускать
 
 ```bash
 cd ~/gsc
 
-# CLI
-python3 gsc.py scan pci-index          # аудит проекта
-python3 gsc.py scan bybit-ws --json    # JSON-вывод
-python3 gsc.py init                    # инициализация в проекте
-python3 gsc.py dashboard               # веб-дашборд (:8080)
-python3 gsc.py patterns --seed 200     # засеять 200 паттернов
-python3 gsc.py patterns --list         # список активных паттернов
-python3 gsc.py db "SELECT COUNT(*) FROM findings"  # запрос к БД
+# Scan
+python3 gsc.py scan <project>                       # полный аудит
+python3 gsc.py scan <project> --resume              # 🆕 продолжить прерванный скан
+python3 gsc.py scan <project> --deep                # LLM-анализ
+python3 gsc.py scan <project> --diff                # только изменённые файлы
+python3 gsc.py scan <project> --json                # JSON-вывод
+
+# Revalidate (Deepsec-inspired)
+python3 gsc.py revalidate <project>                 # 🆕 перепроверить находки (LLM)
+python3 gsc.py revalidate <project> --no-llm        # 🆕 только эвристики (бесплатно)
+python3 gsc.py revalidate <project> --min-severity HIGH
+
+# Status
+python3 gsc.py status <project>                     # 🆕 прогресс скана (resume-aware)
+
+# Other
+python3 gsc.py init                                 # инициализация
+python3 gsc.py dashboard                            # веб-дашборд (:8080)
+python3 gsc.py patterns --list                      # список паттернов
+python3 gsc.py triage <project>                     # ручная разметка TP/FP
+python3 gsc.py explain <id>                         # CVSS + анализ
+python3 gsc.py fix <id>                             # AI-патч
+python3 gsc.py metrics                              # precision/recall
+python3 gsc.py db "SELECT COUNT(*) FROM findings"   # прямой SQL
 ```
 
 ## Архитектура
 
-```\ngsc scan <project>\n  ├── load_patterns (DB + seed files)\n  ├── E1: Source-driven (grep patterns + plugin detectors GS001, GS003)\n  ├── E2: Security (regex + file permissions + plugin detector GS002)\n  ├── E3: Adversarial (semantic patterns)\n  └── save_findings → SQLite + Obsidian\n```\n\n### Plugin Detector System (v0.6)\n\nInspired by OWASP CVE Lite CLI override detectors. Each detector is an independent module:\n\n```python\ndef detect(ctx: AuditContext) -> list[Finding]:\n    # Check condition → return Finding with rule_id, severity, fix_suggestion, references\n```\n\n**Detectors:**\n| Rule | Category | Echelon | Description |\n|------|----------|---------|-------------|\n| GS001 | CRITICAL | 1 | Hardcoded secrets (API keys, tokens, passwords) |\n| GS002 | HIGH | 2 | World-readable sensitive files (.pem, .key, .env) |\n| GS003 | LOW | 1 | Debug/diagnostic code left in production (print, console.log) |
-| GS004 | MEDIUM | 1 | Dangerous subprocess calls (shell=True, unsafe commands) |
-| GS005 | HIGH | 2 | SQL injection patterns (string formatting in queries) |
-| GS007 | HIGH | 2 | Insecure Direct Object Reference (IDOR) |
-| GS008 | LOW | 1 | Dead code: constants and feature flags declared but never used |\n\n**Adding a detector:**\n1. Create `gsc_detectors/gsNNN_name.py` with `detect(ctx)`, `RULE_ID`, `ECHELON`, `description`\n2. Register in `gsc_detectors/registry.py` → `import ... as _gsNNN` + `DetectorEntry(...)`\n3. Done — `gsc scan` picks it up automatically
+```
+gsc scan <project>
+  ├── load_patterns (DB + seed files, noise-tier приоритизация)
+  ├── E1: Source-driven (grep + precise-tier detectors)
+  ├── E2: Security (regex + permissions + normal-tier detectors)
+  ├── E3: Adversarial (semantic + noisy-tier detectors)
+  ├── E4: LLM deep analysis (--deep, опционально)
+  ├── post-filters: docstring/comment, framework-aware, reachability
+  └── save_findings → SQLite + Obsidian
+       ↓
+gsc revalidate <project>  ← 🆕 Deepsec-inspired
+  ├── Heuristic pre-checks (test files, docs, placeholders)
+  ├── Git history check (was this fixed?)
+  ├── LLM structured analysis (DeepSeek)
+  └── Verdict: true-positive / false-positive / fixed / uncertain
+```
+
+### Pipeline (Deepsec-inspired)
+
+```
+         scan              revalidate            export
+          │                    │                    │
+          ▼                    ▼                    ▼
+   candidates  →   findings    TP/FP/Fixed   →  JSON / Obsidian
+   (regex+15      (LLM verify)  (structured      (markdown +
+   detectors)                    verdicts)        SARIF)
+        │                      │
+        └── resume ────────────┘
+      (per-file state, idempotent,
+       можно продолжить с места падения)
+```
+
+### Plugin Detector System (v0.7)
+
+| Rule | Tier | Category | Description |
+|------|:----:|----------|-------------|
+| GS001 | precise | CRITICAL | Hardcoded secrets (API keys, tokens, passwords) |
+| GS002 | normal | HIGH | World-readable sensitive files |
+| GS003 | normal | LOW | Debug/diagnostic code (print, console.log) |
+| GS004 | precise | HIGH | Dangerous subprocess (shell=True, eval, exec) |
+| GS005 | precise | CRITICAL | SQL injection (f-strings, raw SQL) |
+| GS007 | normal | HIGH | IDOR — missing auth/ownership checks |
+| GS008 | normal | LOW | Dead code — constants never used |
+| GS009 | normal | HIGH | Supply chain (Bumblebee scanner) |
+| GS010 🆕 | precise | CRITICAL | Weak SSH config (PermitRootLogin, LD_PRELOAD) |
+| GS011 🆕 | precise | CRITICAL | JWT vulnerabilities (alg:none, weak secrets) |
+| GS012 🆕 | normal | HIGH | Mass Assignment (Django/FastAPI/Rails/GraphQL) |
+| GS013 🆕 | normal | HIGH | GraphQL security (introspection, depth limiting) |
+| GS014 🆕 | precise | HIGH | Credential exposure (SAM, DPAPI, unattend, sudoers) |
+| GS015 🆕 | noisy | INFO | Entry-point coverage (all HTTP handlers → AI review) |
+
+### Noise Tiers (Deepsec-inspired)
+
+| Tier | When | Processing |
+|------|------|------------|
+| `precise` | Pattern is unambiguous | Processed first (highest signal/token) |
+| `normal` | Pattern is broader; needs disambiguation | Default tier |
+| `noisy` | Every file matching glob must be AI-reviewed | Entry-point coverage (GS015) |
+
+### Resume Mechanism
+
+```python
+# Per-file state tracking in SQLite
+from gsc_resume import FileStateManager
+fsm = FileStateManager(db_path, project, run_id)
+fsm.init_files(code_files)           # mark all files
+pending = fsm.get_pending_files()    # files to scan
+fsm.mark_scanned(file_path, count)   # file done
+fsm.mark_processed(file_path, count) # AI done
+
+# CLI: gsc scan --resume → skips already-scanned files
+# CLI: gsc status → progress: 45/200 (22.5%)
+```
+
+### Structured Revalidate
+
+```python
+from gsc_revalidate import Revalidator
+rev = Revalidator(db_path, project_path)
+
+result = rev.revalidate_finding(finding, use_llm=True)
+# → {revalidation_verdict: "true-positive", reasoning: "..."}
+# → {revalidation_verdict: "false-positive", reasoning: "test config"}
+# → {revalidation_verdict: "fixed", reasoning: "patched in abc123"}
+# → {revalidation_verdict: "uncertain", reasoning: "needs manual review"}
+
+stats = rev.get_stats()
+# → {true-positive: 3, false-positive: 12, fp_rate: 66.7%}
+```
+
+Heuristic pre-checks (free, no LLM):
+1. File no longer exists → `fixed`
+2. Test/demo/fixture files → `false-positive`
+3. Documentation files → `false-positive`
+4. Template/example configs → `false-positive`
+5. Placeholder values → `false-positive`
+
+Git history check: `git blame` + `git log` to detect recent fixes.
+
+### Adding a Detector
+
+1. Create `gsc_detectors/gsNNN_name.py`:
+```python
+RULE_ID = "GSNNN"
+ECHELON = 2
+NOISE_TIER = "precise"  # precise|normal|noisy
+description = "What this detects"
+
+def detect(ctx: AuditContext) -> list[Finding]:
+    return [Finding(rule_id=RULE_ID, severity="HIGH", ...)]
+```
+2. Register in `gsc_detectors/registry.py` → `import ... as _gsNNN` + `DetectorEntry(...)`
+3. Done — `gsc scan` picks it up automatically
 
 ## Инварианты
 
-1. **Самообучение обязательно.** После каждого аудита находки сохраняются в DB.
-2. **Patterns first.** Перед grep — DB. Перед LLM — grep. Экономия токенов.
-3. **CLI over delegate_task.** `gsc scan` = автономный, не требует Hermes-агента.
+1. **Самообучение обязательно.** После каждого аудита находки → DB.
+2. **Noise tiers first.** Precise → normal → noisy. Экономия токенов.
+3. **Resume by default.** Каждый скан трекает per-file state.
 4. **DB — SSOT.** `~/.hermes/state/gsc_audit.db` — единственный источник правды.
+5. **Revalidate before report.** Structured verdicts (TP/FP/Fixed/Uncertain), не бинарный REAL/FALSE.
 
 ## Связанные компоненты
 
@@ -47,6 +202,10 @@ python3 gsc.py db "SELECT COUNT(*) FROM findings"  # запрос к БД
 |-----------|------|
 | GSC DB | `~/.hermes/state/gsc_audit.db` |
 | Seed patterns | `~/gsc/patterns/*.json` |
-| Loader script | `~/.hermes/scripts/gsc_load_patterns.py` |
-| Saver script | `~/.hermes/scripts/gsc_save_findings.py` |
+| Detectors | `~/gsc/gsc_detectors/gs*.py` |
+| Resume tracking | `~/gsc/gsc_resume.py` |
+| Revalidation | `~/gsc/gsc_revalidate.py` |
+| Self-learn | `~/.hermes/scripts/gsc_self_learn.py` |
 | Obsidian reports | `~/obsidian-vault/audits/` |
+| Redteam Kit (training) | `~/obsidian-vault/hermes/redteam-kit/` |
+| GSC Dev Skill | `~/.hermes/skills/engineering/gsc-development/` |
