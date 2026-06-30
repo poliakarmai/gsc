@@ -28,6 +28,7 @@ import gsc_detectors.gs012_mass_assignment as _gs012
 import gsc_detectors.gs013_graphql_security as _gs013
 import gsc_detectors.gs014_credential_exposure as _gs014
 import gsc_detectors.gs015_entry_points as _gs015
+import gsc_detectors.gs016_linux_priv_esc as _gs016
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -131,6 +132,12 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs015.ECHELON,
         detect_fn=_gs015.detect,
         description=_gs015.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs016.RULE_ID,
+        echelon=_gs016.ECHELON,
+        detect_fn=_gs016.detect,
+        description=_gs016.description,
     ),
 ]
 

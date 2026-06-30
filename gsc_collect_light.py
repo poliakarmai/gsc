@@ -34,6 +34,9 @@ HEADERS = {
     "Accept": "application/json",
 }
 
+# GitHub token for authenticated API access
+_GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+
 # ── Pattern extraction from CVE descriptions ───────────────────────────────
 
 CVE_PATTERN_MAP = [
@@ -209,9 +212,13 @@ class GscCollector:
 
             try:
                 url = "https://api.github.com/search/code"
+                gh_headers = dict(HEADERS)
+                gh_headers["Accept"] = "application/vnd.github.v3+json"
+                if _GITHUB_TOKEN:
+                    gh_headers["Authorization"] = f"Bearer {_GITHUB_TOKEN}"
                 resp = requests.get(
                     url,
-                    headers={**HEADERS, "Accept": "application/vnd.github.v3+json"},
+                    headers=gh_headers,
                     params={"q": q, "per_page": 5},
                     timeout=15,
                 )
