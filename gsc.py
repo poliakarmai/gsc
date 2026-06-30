@@ -1751,6 +1751,13 @@ def main():
     status = sub.add_parser('status', help='Show scan progress (resume-aware)')
     status.add_argument('project', help='Project name or path')
 
+    # gsc dork
+    dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
+    dork.add_argument('org', help='GitHub organization or company name')
+    dork.add_argument('--limit', type=int, default=5, help='Results per dork (default: 5)')
+    dork.add_argument('--days', type=int, default=7, help='Scan repos updated in last N days (default: 7)')
+    dork.add_argument('--list', action='store_true', help='List available dorks')
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -1796,6 +1803,13 @@ def main():
         cmd_revalidate(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "dork":
+        if args.list:
+            subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), "--list-dorks"])
+        else:
+            cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
+                   "--limit", str(args.limit), "--days", str(args.days)]
+            subprocess.run(cmd)
     else:
         parser.print_help()
 
