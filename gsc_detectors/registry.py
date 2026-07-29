@@ -36,11 +36,12 @@ import gsc_detectors.gs016_linux_priv_esc as _gs016
 class DetectorEntry:
     """Lightweight descriptor — not the module itself."""
 
-    def __init__(self, rule_id: str, echelon: int, detect_fn: Callable, description: str):
+    def __init__(self, rule_id: str, echelon: int, detect_fn: Callable, description: str, noise_tier: str = "normal"):
         self.rule_id = rule_id
         self.echelon = echelon
         self.detect = detect_fn
         self.description = description
+        self.noise_tier = noise_tier
 
     def __repr__(self):
         return f"DetectorEntry({self.rule_id}, echelon={self.echelon})"
@@ -84,6 +85,7 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs007.ECHELON,
         detect_fn=_gs007.detect,
         description=_gs007.description,
+        noise_tier=getattr(_gs007, "NOISE_TIER", "normal"),
     ),
     DetectorEntry(
         rule_id=_gs008.RULE_ID,

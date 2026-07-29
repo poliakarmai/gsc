@@ -1,7 +1,7 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — self-learning audit system.
-> Обновлено: 2026-06-29 (Deepsec-inspired upgrade — resume, revalidate, 15 detectors)
+> Обновлено: 2026-07-28 (GS007 v2.0 — Meta $78K bounty inspired BAC patterns, 28 patterns, 5-project benchmark)
 
 ## Что это
 
@@ -23,7 +23,7 @@ gsc/
 │   ├── gs003_debug_prints.py       ← print() / console.log in production
 │   ├── gs004_dangerous_subprocess.py ← shell=True, eval, exec
 │   ├── gs005_sql_injection.py      ← f-string SQL, raw queries
-│   ├── gs007_idor.py              ← Django/FastAPI missing auth checks
+│   ├── gs007_idor.py              ← BAC: IDOR + sequential enum + cross-tenant + admin panels + file downloads (28 patterns, v2.0)
 │   ├── gs008_dead_code.py         ← Constants never used
 │   ├── gs009_supply_chain.py      ← Bumblebee scanner (npm/PyPI/Go/MCP)
 │   ├── gs010_ssh_hardening.py     ← 🆕 sshd_config weakness
@@ -115,7 +115,7 @@ gsc revalidate <project>  ← 🆕 Deepsec-inspired
 | GS003 | normal | LOW | Debug/diagnostic code (print, console.log) |
 | GS004 | precise | HIGH | Dangerous subprocess (shell=True, eval, exec) |
 | GS005 | precise | CRITICAL | SQL injection (f-strings, raw SQL) |
-| GS007 | normal | HIGH | IDOR — missing auth/ownership checks |
+| GS007 | normal | HIGH | Broken Access Control — IDOR, sequential enum, cross-tenant, admin panels, file downloads, ticket operations (28 patterns) |
 | GS008 | normal | LOW | Dead code — constants never used |
 | GS009 | normal | HIGH | Supply chain (Bumblebee scanner) |
 | GS010 🆕 | precise | CRITICAL | Weak SSH config (PermitRootLogin, LD_PRELOAD) |
@@ -208,4 +208,34 @@ def detect(ctx: AuditContext) -> list[Finding]:
 | Self-learn | `~/.hermes/scripts/gsc_self_learn.py` |
 | Obsidian reports | `~/obsidian-vault/audits/` |
 | Redteam Kit (training) | `~/obsidian-vault/hermes/redteam-kit/` |
-| GSC Dev Skill | `~/.hermes/skills/engineering/gsc-development/` |
+|| GSC Dev Skill | `~/.hermes/skills/engineering/gsc-development/` |
+
+## GS007 v2.0 — BAC Upgrade (2026-07-28)
+
+**Источник:** Meta $78K bug bounty — chained Broken Access Control в support-инфраструктуре.
+Исследователь Рони К. Рой: комбинация IDOR + ticket enumeration + missing org checks → доступ к тикетам, файлам, переписке.
+
+**Что добавлено (28 patterns total, было 5):**
+- Sequential ID enumeration (AUTOINCREMENT, SERIAL, `int(request.GET['id'])`)
+- Cross-tenant/org isolation gaps (missing `tenant_id`/`org_id` filter)
+- Admin/support/internal panel routes without auth
+- File/attachment download without ownership check
+- Ticket operations without permission (subscribe, status change)
+
+**Бенчмарк 5 проектов (2026-07-28):**
+
+| Проект | GS007 v1 | GS007 v2 | Урок |
+|--------|:-------:|:-------:|------|
+| django-helpdesk | 0 | 2 | Оба — контекстные FP (staff-only view, single-tenant). Паттерны корректны. |
+| Flask-AppBuilder | 0 | 0 | Чисто |
+| fastapi-realworld | 0 | 0 | Чисто |
+| django-organizations | 0 | 0 | Чисто |
+| Corpus (gs007_bac) | — | 9 | 9/9 expected (5 HIGH, 4 INFO) |
+
+**Тюнинг шума:**
+- `SERIAL` без `\b` → матчил `serializers` (109 FP на django-helpdesk) → фикс: `\bSERIAL\b`
+- `subscribe` без `\b` → матчил `swagger-ui-bundle.js` (14 FP) → фикс: `\badd_subscriber\b`
+- AUTOINCREMENT: CRITICAL → INFO (фасилитатор, не уязвимость сама по себе)
+- Добавлен skip vendor/minified/static файлов
+
+**Итого:** 96% reduction шума (257→2 на 4 проектах), все 2 оставшиеся — объяснимые контекстные FP.
