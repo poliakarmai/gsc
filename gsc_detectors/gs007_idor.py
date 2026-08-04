@@ -96,6 +96,23 @@ _PATTERNS: list[tuple[str, str]] = [
     # Method override bypass: X-HTTP-Method / _method → обход ACL
     (r'\b(?:HTTP_METHOD_OVERRIDE|X-HTTP-Method|X-HTTP-Method-Override)\b', "HTTP Method Override header — potential ACL bypass"),
     (r'\b_method\b\s*=', "HTTP method override via _method parameter — potential ACL bypass"),
+
+    # ── FINTECH IDOR (2026 Pentest) ───────────────────────────────────────
+    # Payment method access without ownership check
+    (r'(?:payment_method|PaymentMethod|card|Card)\s*\.\s*(?:get|find|objects\.get)\s*\(\s*(?:id|pk)\s*=\s*',
+     "Payment method/card lookup — verify ownership before exposing"),
+    # Transaction/statement access by sequential ID
+    (r'(?:transaction|Transaction|statement|Statement)\s*\.\s*(?:get|find|objects\.get)\s*\(\s*.*request\.',
+     "Transaction/statement lookup from request — verify account ownership"),
+    # Bank account operations without ownership verification
+    (r'(?:bank_account|BankAccount|account)\s*\.\s*(?:get|find|objects\.get)\s*\(\s*(?:id|pk|number)\s*=',
+     "Bank account access — verify customer ownership"),
+    # Invoice/bill access by ID
+    (r'(?:invoice|Invoice|bill|Bill)\s*\.\s*(?:get|find|objects\.get)\s*\(\s*(?:id|pk|number)\s*=\s*request',
+     "Invoice/bill access by request param — verify payer/recipient ownership"),
+    # Balance/portfolio lookup by user ID (no auth check)
+    (r'(?:balance|Balance|portfolio|Portfolio)\s*\.\s*(?:get|find|objects\.get)\s*\(\s*(?:user_id|account_id)\s*=\s*request',
+     "Balance lookup by user_id from request — verify caller is the owner"),
 ]
 
 # Skip patterns (legitimate use cases)

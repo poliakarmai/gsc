@@ -1,0 +1,930 @@
+{
+  "communities": {
+    "0": [
+      "gsc_collector_gsc_collector_items",
+      "gsc_collector_gsc_collector_items_rationale_1",
+      "gsc_collector_gsc_collector_items_rationale_10",
+      "gsc_collector_gsc_collector_items_rationale_32",
+      "gsc_collector_gsc_collector_items_rationale_51",
+      "gsc_collector_gsc_collector_items_vulnerabilityitem",
+      "gsc_collector_gsc_collector_items_vulnerabilityitem_to_dict",
+      "gsc_collector_gsc_collector_items_vulnerabilityitem_to_gsc_finding",
+      "gsc_collector_gsc_collector_items_vulnerabilityitem_to_gsc_pattern",
+      "gsc_collector_gsc_collector_pipelines",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline_close_spider",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline_hash_pattern",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline_init",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline_open_spider",
+      "gsc_collector_gsc_collector_pipelines_gscdatabasepipeline_process_item",
+      "gsc_collector_gsc_collector_pipelines_jsonexportpipeline",
+      "gsc_collector_gsc_collector_pipelines_jsonexportpipeline_close_spider",
+      "gsc_collector_gsc_collector_pipelines_jsonexportpipeline_init",
+      "gsc_collector_gsc_collector_pipelines_jsonexportpipeline_open_spider",
+      "gsc_collector_gsc_collector_pipelines_jsonexportpipeline_process_item",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline_close_spider",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline_init",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline_open_spider",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline_process_item",
+      "gsc_collector_gsc_collector_pipelines_obsidianexportpipeline_update_index",
+      "gsc_collector_gsc_collector_pipelines_rationale_1",
+      "gsc_collector_gsc_collector_pipelines_rationale_153",
+      "gsc_collector_gsc_collector_pipelines_rationale_176",
+      "gsc_collector_gsc_collector_pipelines_rationale_18",
+      "gsc_collector_gsc_collector_pipelines_rationale_38",
+      "gsc_collector_gsc_collector_pipelines_rationale_95",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_cvenvdspider",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_cvenvdspider_extract_patterns",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_cvenvdspider_parse_cves",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_cvenvdspider_start_requests",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_gscvulnspider",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_gscvulnspider_parse_search",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_gscvulnspider_start_requests",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_hackeronespider",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_hackeronespider_parse_hacktivity",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_hackeronespider_start_requests",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_1",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_127",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_138",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_175",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_216",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_226",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_54",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_66",
+      "gsc_collector_gsc_collector_spiders_gsc_vuln_spider_rationale_78"
+    ],
+    "1": [
+      "ref_linters",
+      "ref_oncommand_gsc_scancurrent",
+      "ref_oncommand_gsc_showfindings",
+      "ref_other",
+      "vscode_package",
+      "vscode_package_activationevents",
+      "vscode_package_author",
+      "vscode_package_categories",
+      "vscode_package_configuration_properties",
+      "vscode_package_configuration_title",
+      "vscode_package_contributes",
+      "vscode_package_contributes_commands",
+      "vscode_package_contributes_configuration",
+      "vscode_package_description",
+      "vscode_package_devdependencies",
+      "vscode_package_devdependencies_vscode_vsce",
+      "vscode_package_displayname",
+      "vscode_package_engines",
+      "vscode_package_engines_vscode",
+      "vscode_package_gsc_autoscan_default",
+      "vscode_package_gsc_autoscan_description",
+      "vscode_package_gsc_autoscan_type",
+      "vscode_package_gsc_path_default",
+      "vscode_package_gsc_path_description",
+      "vscode_package_gsc_path_type",
+      "vscode_package_keywords",
+      "vscode_package_license",
+      "vscode_package_main",
+      "vscode_package_name",
+      "vscode_package_properties_gsc_autoscan",
+      "vscode_package_properties_gsc_path",
+      "vscode_package_publisher",
+      "vscode_package_scripts",
+      "vscode_package_scripts_test",
+      "vscode_package_version",
+      "vscode_vsce"
+    ],
+    "2": [
+      "gsc_resume",
+      "gsc_resume_filestatemanager",
+      "gsc_resume_filestatemanager_close",
+      "gsc_resume_filestatemanager_get_history",
+      "gsc_resume_filestatemanager_get_pending_files",
+      "gsc_resume_filestatemanager_get_resumable_files",
+      "gsc_resume_filestatemanager_get_stats",
+      "gsc_resume_filestatemanager_hash_file",
+      "gsc_resume_filestatemanager_init",
+      "gsc_resume_filestatemanager_init_files",
+      "gsc_resume_filestatemanager_is_changed",
+      "gsc_resume_filestatemanager_lock_files",
+      "gsc_resume_filestatemanager_mark_processed",
+      "gsc_resume_filestatemanager_mark_scanned",
+      "gsc_resume_filestatemanager_mark_skipped",
+      "gsc_resume_filestatemanager_release_locks",
+      "gsc_resume_filestatemanager_release_stale_locks",
+      "gsc_resume_filestatemanager_reset_if_changed",
+      "gsc_resume_py_path",
+      "gsc_resume_rationale_1",
+      "gsc_resume_rationale_102",
+      "gsc_resume_rationale_119",
+      "gsc_resume_rationale_135",
+      "gsc_resume_rationale_143",
+      "gsc_resume_rationale_155",
+      "gsc_resume_rationale_166",
+      "gsc_resume_rationale_174",
+      "gsc_resume_rationale_187",
+      "gsc_resume_rationale_29",
+      "gsc_resume_rationale_40",
+      "gsc_resume_rationale_49",
+      "gsc_resume_rationale_73",
+      "gsc_resume_rationale_81",
+      "gsc_resume_rationale_89"
+    ],
+    "3": [
+      "gsc_revalidate",
+      "gsc_revalidate_py_path",
+      "gsc_revalidate_rationale_1",
+      "gsc_revalidate_rationale_109",
+      "gsc_revalidate_rationale_154",
+      "gsc_revalidate_rationale_193",
+      "gsc_revalidate_rationale_247",
+      "gsc_revalidate_rationale_273",
+      "gsc_revalidate_rationale_279",
+      "gsc_revalidate_rationale_295",
+      "gsc_revalidate_rationale_31",
+      "gsc_revalidate_rationale_328",
+      "gsc_revalidate_rationale_379",
+      "gsc_revalidate_rationale_398",
+      "gsc_revalidate_rationale_42",
+      "gsc_revalidate_rationale_64",
+      "gsc_revalidate_revalidator",
+      "gsc_revalidate_revalidator_build_revalidation_prompt",
+      "gsc_revalidate_revalidator_call_llm",
+      "gsc_revalidate_revalidator_check_git_fixed",
+      "gsc_revalidate_revalidator_close",
+      "gsc_revalidate_revalidator_ensure_schema",
+      "gsc_revalidate_revalidator_get_stats",
+      "gsc_revalidate_revalidator_heuristic_check",
+      "gsc_revalidate_revalidator_init",
+      "gsc_revalidate_revalidator_llm_check",
+      "gsc_revalidate_revalidator_llm_check_structured",
+      "gsc_revalidate_revalidator_read_context",
+      "gsc_revalidate_revalidator_revalidate_finding",
+      "gsc_revalidate_revalidator_revalidate_findings",
+      "gsc_revalidate_revalidator_save_verdict"
+    ],
+    "4": [
+      "scripts_e4_llm",
+      "scripts_e4_llm_analyze_finding",
+      "scripts_e4_llm_analyze_local",
+      "scripts_e4_llm_call_openrouter",
+      "scripts_e4_llm_check_cache",
+      "scripts_e4_llm_collect_related",
+      "scripts_e4_llm_get_cache_key",
+      "scripts_e4_llm_rationale_111",
+      "scripts_e4_llm_rationale_117",
+      "scripts_e4_llm_rationale_153",
+      "scripts_e4_llm_rationale_172",
+      "scripts_e4_llm_rationale_184",
+      "scripts_e4_llm_rationale_242",
+      "scripts_e4_llm_rationale_303",
+      "scripts_e4_llm_rationale_325",
+      "scripts_e4_llm_rationale_89",
+      "scripts_e4_llm_read_code_snippet",
+      "scripts_e4_llm_run_e4_scan",
+      "scripts_e4_llm_save_cache",
+      "scripts_e4_llm_should_escalate"
+    ],
+    "5": [
+      "gsc_check_adversarial",
+      "gsc_check_deep",
+      "gsc_check_plugin_detectors",
+      "gsc_check_security",
+      "gsc_is_in_docstring_or_comment",
+      "gsc_is_suppressed_inline",
+      "gsc_load_patterns",
+      "gsc_py_path",
+      "gsc_rationale_174",
+      "gsc_rationale_200",
+      "gsc_rationale_235",
+      "gsc_rationale_312",
+      "gsc_rationale_388",
+      "gsc_rationale_514",
+      "gsc_rationale_551",
+      "gsc_rationale_603",
+      "gsc_rationale_859",
+      "gsc_run_audit_echelons",
+      "gsc_run_diff_scan"
+    ],
+    "6": [
+      "gsc_detectors_gs004_dangerous_subprocess",
+      "gsc_detectors_gs004_dangerous_subprocess_detect",
+      "gsc_detectors_gs004_dangerous_subprocess_rationale_1",
+      "gsc_detectors_gs004_dangerous_subprocess_rationale_81",
+      "gsc_detectors_gs011_jwt_vulnerabilities",
+      "gsc_detectors_gs011_jwt_vulnerabilities_detect",
+      "gsc_detectors_gs011_jwt_vulnerabilities_rationale_1",
+      "gsc_detectors_gs012_mass_assignment",
+      "gsc_detectors_gs012_mass_assignment_detect",
+      "gsc_detectors_gs012_mass_assignment_rationale_1",
+      "gsc_detectors_gs015_entry_points",
+      "gsc_detectors_gs015_entry_points_detect",
+      "gsc_detectors_gs015_entry_points_rationale_1",
+      "gsc_detectors_init_auditcontext",
+      "gsc_detectors_init_rationale_62",
+      "gsc_detectors_registry",
+      "gsc_detectors_registry_rationale_1",
+      "gsc_detectors_registry_rationale_167",
+      "gsc_detectors_registry_run_detectors"
+    ],
+    "7": [
+      "gsc_collect_light",
+      "gsc_collect_light_gsccollector",
+      "gsc_collect_light_gsccollector_close",
+      "gsc_collect_light_gsccollector_collect_github",
+      "gsc_collect_light_gsccollector_collect_nvd",
+      "gsc_collect_light_gsccollector_export_obsidian",
+      "gsc_collect_light_gsccollector_extract_cve_patterns",
+      "gsc_collect_light_gsccollector_init",
+      "gsc_collect_light_gsccollector_load_state",
+      "gsc_collect_light_gsccollector_save_pattern",
+      "gsc_collect_light_gsccollector_save_state",
+      "gsc_collect_light_main",
+      "gsc_collect_light_rationale_106",
+      "gsc_collect_light_rationale_190",
+      "gsc_collect_light_rationale_207",
+      "gsc_collect_light_rationale_279",
+      "gsc_collect_light_rationale_329",
+      "gsc_collect_light_rationale_82"
+    ],
+    "8": [
+      "gsc",
+      "gsc_cmd_dashboard",
+      "gsc_detectors_registry_get_detectors",
+      "gsc_detectors_registry_rationale_157",
+      "gsc_generate_dashboard_html",
+      "gsc_generate_pattern_rows",
+      "gsc_generate_project_rows",
+      "gsc_get_dashboard_stats",
+      "gsc_init_db",
+      "gsc_line_is_comment_or_docstring",
+      "gsc_list_patterns",
+      "gsc_rationale_1046",
+      "gsc_rationale_1250",
+      "gsc_rationale_262",
+      "gsc_rationale_30",
+      "gsc_rationale_956",
+      "gsc_rationale_987"
+    ],
+    "9": [
+      "corpus_gs007_bac_fastapi_support",
+      "corpus_gs007_bac_fastapi_support_download_attachment",
+      "corpus_gs007_bac_fastapi_support_get_current_org",
+      "corpus_gs007_bac_fastapi_support_get_current_user",
+      "corpus_gs007_bac_fastapi_support_get_db",
+      "corpus_gs007_bac_fastapi_support_get_org_ticket",
+      "corpus_gs007_bac_fastapi_support_get_support_ticket",
+      "corpus_gs007_bac_fastapi_support_rationale_1",
+      "corpus_gs007_bac_fastapi_support_rationale_30",
+      "corpus_gs007_bac_fastapi_support_rationale_37",
+      "corpus_gs007_bac_fastapi_support_rationale_44",
+      "corpus_gs007_bac_fastapi_support_secure_ticket",
+      "get",
+      "session"
+    ],
+    "10": [
+      "gsc_cmd_scan",
+      "gsc_detectors_llm_verify_rationale_169",
+      "gsc_detectors_llm_verify_verify_findings",
+      "gsc_export_sarif",
+      "gsc_export_to_obsidian",
+      "gsc_print_compliance",
+      "gsc_print_summary",
+      "gsc_rationale_661",
+      "gsc_rationale_67",
+      "gsc_rationale_713",
+      "gsc_rationale_741",
+      "gsc_rationale_781",
+      "gsc_rationale_892",
+      "gsc_save_findings"
+    ],
+    "11": [
+      "gsc_collector_gsc_collector_middlewares",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware_from_crawler",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware_process_exception",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware_process_request",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware_process_response",
+      "gsc_collector_gsc_collector_middlewares_gsccollectordownloadermiddleware_spider_opened",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_from_crawler",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_process_spider_exception",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_process_spider_input",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_process_spider_output",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_process_start",
+      "gsc_collector_gsc_collector_middlewares_gsccollectorspidermiddleware_spider_opened"
+    ],
+    "12": [
+      "gsc_cmd_db",
+      "gsc_cmd_explain",
+      "gsc_cmd_fix",
+      "gsc_cmd_init",
+      "gsc_cmd_revalidate",
+      "gsc_cmd_status",
+      "gsc_main",
+      "gsc_rationale_1270",
+      "gsc_rationale_1444",
+      "gsc_rationale_1482",
+      "gsc_rationale_1594",
+      "gsc_rationale_1644",
+      "gsc_rationale_912"
+    ],
+    "13": [
+      "gsc_detectors_gs009_supply_chain",
+      "gsc_detectors_gs009_supply_chain_detect",
+      "gsc_detectors_gs009_supply_chain_find_bumblebee",
+      "gsc_detectors_gs009_supply_chain_rationale_1",
+      "gsc_detectors_gs009_supply_chain_rationale_35",
+      "gsc_detectors_gs009_supply_chain_rationale_47",
+      "gsc_detectors_init",
+      "gsc_detectors_init_detector",
+      "gsc_detectors_init_detector_description",
+      "gsc_detectors_init_detector_detect",
+      "gsc_detectors_init_rationale_1",
+      "gsc_detectors_init_rationale_152",
+      "protocol"
+    ],
+    "14": [
+      "gsc_detectors_init_auditcontext_get_files",
+      "gsc_detectors_init_auditcontext_get_source_files",
+      "gsc_detectors_init_auditcontext_glob",
+      "gsc_detectors_init_auditcontext_is_non_code_file",
+      "gsc_detectors_init_auditcontext_is_test_file",
+      "gsc_detectors_init_auditcontext_read_file",
+      "gsc_detectors_init_py_path",
+      "gsc_detectors_init_rationale_103",
+      "gsc_detectors_init_rationale_113",
+      "gsc_detectors_init_rationale_120",
+      "gsc_detectors_init_rationale_124",
+      "gsc_detectors_init_rationale_138",
+      "gsc_detectors_init_rationale_144"
+    ],
+    "15": [
+      "scripts_db_encrypt",
+      "scripts_db_encrypt_decrypt_db",
+      "scripts_db_encrypt_decrypt_on_open",
+      "scripts_db_encrypt_encrypt_db",
+      "scripts_db_encrypt_encrypt_on_close",
+      "scripts_db_encrypt_get_key",
+      "scripts_db_encrypt_is_encrypted",
+      "scripts_db_encrypt_rationale_100",
+      "scripts_db_encrypt_rationale_24",
+      "scripts_db_encrypt_rationale_42",
+      "scripts_db_encrypt_rationale_47",
+      "scripts_db_encrypt_rationale_70",
+      "scripts_db_encrypt_rationale_93"
+    ],
+    "16": [
+      "tests_test_corpus",
+      "tests_test_corpus_check",
+      "tests_test_corpus_has_finding",
+      "tests_test_corpus_run_corpus",
+      "tests_test_corpus_scan_file",
+      "tests_test_corpus_test_assert_in_prod",
+      "tests_test_corpus_test_bare_except",
+      "tests_test_corpus_test_clean_code",
+      "tests_test_corpus_test_eval",
+      "tests_test_corpus_test_hardcoded_secret",
+      "tests_test_corpus_test_sql_injection",
+      "tests_test_corpus_test_unsafe_pickle",
+      "tests_test_corpus_test_world_readable_env"
+    ],
+    "17": [
+      "corpus_gs007_bac_batch_and_override",
+      "corpus_gs007_bac_batch_and_override_bulk_create_orders",
+      "corpus_gs007_bac_batch_and_override_bulk_update_tickets",
+      "corpus_gs007_bac_batch_and_override_parse_method",
+      "corpus_gs007_bac_batch_and_override_rationale_1",
+      "corpus_gs007_bac_batch_and_override_rationale_20",
+      "corpus_gs007_bac_batch_and_override_rationale_29",
+      "corpus_gs007_bac_batch_and_override_rationale_43",
+      "corpus_gs007_bac_batch_and_override_rationale_54",
+      "corpus_gs007_bac_batch_and_override_secure_bulk_update",
+      "corpus_gs007_bac_batch_and_override_ticket"
+    ],
+    "18": [
+      "corpus_gs007_bac_django_cross_org",
+      "corpus_gs007_bac_django_cross_org_admin_ticket_list",
+      "corpus_gs007_bac_django_cross_org_enumerate_tickets",
+      "corpus_gs007_bac_django_cross_org_rationale_1",
+      "corpus_gs007_bac_django_cross_org_rationale_18",
+      "corpus_gs007_bac_django_cross_org_rationale_24",
+      "corpus_gs007_bac_django_cross_org_rationale_30",
+      "corpus_gs007_bac_django_cross_org_rationale_37",
+      "corpus_gs007_bac_django_cross_org_secure_ticket_detail",
+      "corpus_gs007_bac_django_cross_org_ticket",
+      "corpus_gs007_bac_django_cross_org_ticket_detail"
+    ],
+    "19": [
+      "gsc_detectors_gs005_sql_injection",
+      "gsc_detectors_gs005_sql_injection_count_sql_keywords",
+      "gsc_detectors_gs005_sql_injection_detect",
+      "gsc_detectors_gs005_sql_injection_detect_line",
+      "gsc_detectors_gs005_sql_injection_has_user_input_nearby",
+      "gsc_detectors_gs005_sql_injection_py_path",
+      "gsc_detectors_gs005_sql_injection_rationale_1",
+      "gsc_detectors_gs005_sql_injection_rationale_303",
+      "gsc_detectors_gs005_sql_injection_rationale_309",
+      "gsc_detectors_gs005_sql_injection_rationale_318",
+      "gsc_detectors_gs005_sql_injection_rationale_387"
+    ],
+    "20": [
+      "dict",
+      "gsc_detectors_gs010_ssh_hardening",
+      "gsc_detectors_gs010_ssh_hardening_detect",
+      "gsc_detectors_gs010_ssh_hardening_rationale_1",
+      "gsc_detectors_gs013_graphql_security",
+      "gsc_detectors_gs013_graphql_security_detect",
+      "gsc_detectors_gs013_graphql_security_rationale_1",
+      "gsc_detectors_init_finding",
+      "gsc_detectors_init_finding_init",
+      "gsc_detectors_init_rationale_26"
+    ],
+    "21": [
+      "gsc_detectors_llm_verify",
+      "gsc_detectors_llm_verify_call_llm",
+      "gsc_detectors_llm_verify_extract_context",
+      "gsc_detectors_llm_verify_get_llm_client",
+      "gsc_detectors_llm_verify_rationale_1",
+      "gsc_detectors_llm_verify_rationale_110",
+      "gsc_detectors_llm_verify_rationale_19",
+      "gsc_detectors_llm_verify_rationale_51",
+      "gsc_detectors_llm_verify_rationale_89",
+      "gsc_detectors_llm_verify_verify_finding"
+    ],
+    "22": [
+      "gsc_github_dorks",
+      "gsc_github_dorks_get_token",
+      "gsc_github_dorks_list_dorks",
+      "gsc_github_dorks_rationale_103",
+      "gsc_github_dorks_rationale_132",
+      "gsc_github_dorks_rationale_172",
+      "gsc_github_dorks_rationale_88",
+      "gsc_github_dorks_scan_org",
+      "gsc_github_dorks_search_github"
+    ],
+    "23": [
+      "scripts_framework_aware",
+      "scripts_framework_aware_filter_findings",
+      "scripts_framework_aware_framework_filter",
+      "scripts_framework_aware_get_imports",
+      "scripts_framework_aware_rationale_136",
+      "scripts_framework_aware_rationale_62",
+      "scripts_framework_aware_rationale_79",
+      "scripts_framework_aware_rationale_96",
+      "scripts_framework_aware_should_skip_file"
+    ],
+    "24": [
+      "vscode_extension",
+      "vscode_extension_activate",
+      "vscode_extension_deactivate",
+      "vscode_extension_execsync",
+      "vscode_extension_fs",
+      "vscode_extension_getgscpath",
+      "vscode_extension_os",
+      "vscode_extension_path",
+      "vscode_extension_vscode"
+    ],
+    "25": [
+      "gsc_detectors_gs008_dead_code",
+      "gsc_detectors_gs008_dead_code_count_occurrences",
+      "gsc_detectors_gs008_dead_code_detect",
+      "gsc_detectors_gs008_dead_code_extract_constants",
+      "gsc_detectors_gs008_dead_code_rationale_1",
+      "gsc_detectors_gs008_dead_code_rationale_38",
+      "gsc_detectors_gs008_dead_code_rationale_63",
+      "gsc_detectors_gs008_dead_code_rationale_68"
+    ],
+    "26": [
+      "scripts_gsc_issue",
+      "scripts_gsc_issue_create_jira",
+      "scripts_gsc_issue_create_linear",
+      "scripts_gsc_issue_get_finding",
+      "scripts_gsc_issue_print_markdown",
+      "scripts_gsc_issue_rationale_131",
+      "scripts_gsc_issue_rationale_48",
+      "scripts_gsc_issue_rationale_83"
+    ],
+    "27": [
+      "controller",
+      "corpus_gs007_bac_laravel_tickets",
+      "corpus_gs007_bac_laravel_tickets_ticketcontroller",
+      "corpus_gs007_bac_laravel_tickets_ticketcontroller_addsubscriber",
+      "corpus_gs007_bac_laravel_tickets_ticketcontroller_show",
+      "corpus_gs007_bac_laravel_tickets_ticketcontroller_updatestatus",
+      "request"
+    ],
+    "28": [
+      "cron_collect",
+      "cron_collect_collect_github",
+      "cron_collect_collect_nvd",
+      "cron_collect_export_obsidian",
+      "cron_collect_main",
+      "cron_collect_rationale_54",
+      "cron_collect_save_pattern_and_finding"
+    ],
+    "29": [
+      "gsc_detectors_gs002_world_readable",
+      "gsc_detectors_gs002_world_readable_detect",
+      "gsc_detectors_gs002_world_readable_is_sensitive",
+      "gsc_detectors_gs002_world_readable_py_path",
+      "gsc_detectors_gs002_world_readable_rationale_1",
+      "gsc_detectors_gs002_world_readable_rationale_30",
+      "gsc_detectors_gs002_world_readable_rationale_40"
+    ],
+    "30": [
+      "gsc_detectors_gs003_debug_prints",
+      "gsc_detectors_gs003_debug_prints_detect",
+      "gsc_detectors_gs003_debug_prints_is_test_file",
+      "gsc_detectors_gs003_debug_prints_py_path",
+      "gsc_detectors_gs003_debug_prints_rationale_1",
+      "gsc_detectors_gs003_debug_prints_rationale_48",
+      "gsc_detectors_gs003_debug_prints_rationale_53"
+    ],
+    "31": [
+      "scripts_gsc_export_knowledge",
+      "scripts_gsc_export_knowledge_export_jsonl",
+      "scripts_gsc_export_knowledge_export_jsonl_simple",
+      "scripts_gsc_export_knowledge_export_markdown",
+      "scripts_gsc_export_knowledge_rationale_18",
+      "scripts_gsc_export_knowledge_rationale_67",
+      "scripts_gsc_export_knowledge_rationale_99"
+    ],
+    "32": [
+      "scripts_gsc_pr_comment",
+      "scripts_gsc_pr_comment_format_pr_comment",
+      "scripts_gsc_pr_comment_get_pr_findings",
+      "scripts_gsc_pr_comment_post_pr_comment",
+      "scripts_gsc_pr_comment_rationale_10",
+      "scripts_gsc_pr_comment_rationale_27",
+      "scripts_gsc_pr_comment_rationale_65"
+    ],
+    "33": [
+      "scripts_gsc_reachability",
+      "scripts_gsc_reachability_analyze_reachability",
+      "scripts_gsc_reachability_build_import_graph",
+      "scripts_gsc_reachability_is_reachable",
+      "scripts_gsc_reachability_rationale_40",
+      "scripts_gsc_reachability_rationale_65",
+      "scripts_gsc_reachability_rationale_9"
+    ],
+    "34": [
+      "gsc_check_source_driven",
+      "gsc_infer_lang_from_title",
+      "gsc_lang_to_rg_types",
+      "gsc_rationale_296",
+      "gsc_rationale_305",
+      "gsc_rationale_346"
+    ],
+    "35": [
+      "gsc_cmd_triage",
+      "gsc_rationale_1288",
+      "gsc_rationale_1368",
+      "gsc_rationale_1413",
+      "gsc_triage_bulk",
+      "gsc_triage_by_pattern"
+    ],
+    "36": [
+      "gsc_detectors_gs001_hardcoded_secret",
+      "gsc_detectors_gs001_hardcoded_secret_detect",
+      "gsc_detectors_gs001_hardcoded_secret_is_placeholder",
+      "gsc_detectors_gs001_hardcoded_secret_rationale_1",
+      "gsc_detectors_gs001_hardcoded_secret_rationale_63",
+      "gsc_detectors_gs001_hardcoded_secret_rationale_72"
+    ],
+    "37": [
+      "gsc_detectors_gs007_idor",
+      "gsc_detectors_gs007_idor_detect",
+      "gsc_detectors_gs007_idor_get_fix_suggestion",
+      "gsc_detectors_gs007_idor_rationale_1",
+      "gsc_detectors_gs007_idor_rationale_131",
+      "gsc_detectors_gs007_idor_rationale_185"
+    ],
+    "38": [
+      "gsc_detectors_gs014_credential_exposure",
+      "gsc_detectors_gs014_credential_exposure_detect",
+      "gsc_detectors_gs014_credential_exposure_match_glob",
+      "gsc_detectors_gs014_credential_exposure_py_path",
+      "gsc_detectors_gs014_credential_exposure_rationale_1",
+      "gsc_detectors_gs014_credential_exposure_rationale_100"
+    ],
+    "39": [
+      "gsc_detectors_gs016_linux_priv_esc",
+      "gsc_detectors_gs016_linux_priv_esc_check_line",
+      "gsc_detectors_gs016_linux_priv_esc_detect",
+      "gsc_detectors_gs016_linux_priv_esc_rationale_1",
+      "gsc_detectors_gs016_linux_priv_esc_rationale_117",
+      "gsc_detectors_gs016_linux_priv_esc_rationale_86"
+    ],
+    "40": [
+      "scripts_gsc_config",
+      "scripts_gsc_config_cmd_init",
+      "scripts_gsc_config_cmd_set",
+      "scripts_gsc_config_cmd_show",
+      "scripts_gsc_config_load",
+      "scripts_gsc_config_save"
+    ],
+    "41": [
+      "scripts_gsc_baseline",
+      "scripts_gsc_baseline_baseline_apply",
+      "scripts_gsc_baseline_baseline_save",
+      "scripts_gsc_baseline_rationale_10",
+      "scripts_gsc_baseline_rationale_51"
+    ],
+    "42": [
+      "gsc_cmd_patterns",
+      "gsc_cmd_patterns_review",
+      "gsc_rationale_1096",
+      "gsc_rationale_1154"
+    ],
+    "43": [
+      "gsc_detectors_registry_detectorentry",
+      "gsc_detectors_registry_detectorentry_init",
+      "gsc_detectors_registry_detectorentry_repr",
+      "gsc_detectors_registry_rationale_37"
+    ],
+    "44": [
+      "gsc_generate_seed_patterns",
+      "gsc_rationale_1167",
+      "gsc_rationale_1196",
+      "gsc_seed_patterns"
+    ],
+    "45": [
+      "corpus_gs007_bac_express_files",
+      "corpus_gs007_bac_express_files_app",
+      "corpus_gs007_bac_express_files_express"
+    ],
+    "46": [
+      "gsc_collector_gsc_collector",
+      "gsc_collector_gsc_collector_main",
+      "gsc_collector_gsc_collector_run_spider"
+    ],
+    "47": [
+      "scripts_gsc_pdf",
+      "scripts_gsc_pdf_export_pdf",
+      "scripts_gsc_pdf_rationale_6"
+    ],
+    "48": [
+      "corpus_corpus_gs005_python",
+      "corpus_corpus_gs005_python_rationale_1"
+    ],
+    "49": [
+      "cron_nvd",
+      "cron_nvd_main"
+    ],
+    "50": [
+      "pre_commit",
+      "pre_commit__entry"
+    ],
+    "51": [
+      "scripts_gsc_doctor",
+      "scripts_gsc_doctor_check"
+    ],
+    "52": [
+      "scripts_gsc_marketplace",
+      "scripts_gsc_marketplace_export_patterns"
+    ],
+    "53": [
+      "scripts_gsc_metrics",
+      "scripts_gsc_metrics_calc_metrics"
+    ],
+    "54": [
+      "scripts_gsc_report",
+      "scripts_gsc_report_export_html"
+    ],
+    "55": [
+      "corpus_corpus_gs005_javascript"
+    ],
+    "56": [
+      "corpus_corpus_gs005_php"
+    ],
+    "57": [
+      "corpus_corpus_gs005_ruby"
+    ],
+    "58": [
+      "gsc_collector_gsc_collector_init"
+    ],
+    "59": [
+      "gsc_collector_gsc_collector_settings"
+    ],
+    "60": [
+      "gsc_collector_gsc_collector_spiders_init"
+    ],
+    "61": [
+      "pkg_gsc"
+    ],
+    "62": [
+      "scripts_ci_report"
+    ]
+  },
+  "cohesion": {
+    "0": 0.050072568940493466,
+    "1": 0.05555555555555555,
+    "2": 0.0748663101604278,
+    "3": 0.08602150537634409,
+    "4": 0.14736842105263157,
+    "5": 0.16374269005847952,
+    "6": 0.15789473684210525,
+    "7": 0.1830065359477124,
+    "8": 0.14705882352941177,
+    "9": 0.17582417582417584,
+    "10": 0.14285714285714285,
+    "11": 0.14285714285714285,
+    "12": 0.15384615384615385,
+    "13": 0.16666666666666666,
+    "14": 0.19230769230769232,
+    "15": 0.21794871794871795,
+    "16": 0.38461538461538464,
+    "17": 0.21818181818181817,
+    "18": 0.18181818181818182,
+    "19": 0.21818181818181817,
+    "20": 0.24444444444444444,
+    "21": 0.26666666666666666,
+    "22": 0.25,
+    "23": 0.3055555555555556,
+    "24": 0.25,
+    "25": 0.32142857142857145,
+    "26": 0.25,
+    "27": 0.3333333333333333,
+    "28": 0.5238095238095238,
+    "29": 0.3333333333333333,
+    "30": 0.3333333333333333,
+    "31": 0.2857142857142857,
+    "32": 0.38095238095238093,
+    "33": 0.38095238095238093,
+    "34": 0.3333333333333333,
+    "35": 0.3333333333333333,
+    "36": 0.4,
+    "37": 0.4,
+    "38": 0.4,
+    "39": 0.4,
+    "40": 0.6,
+    "41": 0.4,
+    "42": 0.5,
+    "43": 0.5,
+    "44": 0.5,
+    "45": 0.6666666666666666,
+    "46": 1.0,
+    "47": 0.6666666666666666,
+    "48": 1.0,
+    "49": 1.0,
+    "50": 1.0,
+    "51": 1.0,
+    "52": 1.0,
+    "53": 1.0,
+    "54": 1.0,
+    "55": 1.0,
+    "56": 1.0,
+    "57": 1.0,
+    "58": 1.0,
+    "59": 1.0,
+    "60": 1.0,
+    "61": 1.0,
+    "62": 1.0
+  },
+  "gods": [
+    {
+      "id": "gsc_detectors_init_auditcontext",
+      "label": "AuditContext",
+      "degree": 42
+    },
+    {
+      "id": "gsc_detectors_init_finding",
+      "label": "Finding",
+      "degree": 40
+    },
+    {
+      "id": "gsc_resume_filestatemanager",
+      "label": "FileStateManager",
+      "degree": 21
+    },
+    {
+      "id": "gsc_collector_gsc_collector_items_vulnerabilityitem",
+      "label": "VulnerabilityItem",
+      "degree": 19
+    },
+    {
+      "id": "gsc_revalidate_revalidator",
+      "label": "Revalidator",
+      "degree": 18
+    },
+    {
+      "id": "gsc_cmd_scan",
+      "label": "cmd_scan()",
+      "degree": 14
+    },
+    {
+      "id": "gsc_run_audit_echelons",
+      "label": "run_audit_echelons()",
+      "degree": 12
+    },
+    {
+      "id": "gsc_main",
+      "label": "main()",
+      "degree": 12
+    },
+    {
+      "id": "gsc_collect_light_gsccollector",
+      "label": "GscCollector",
+      "degree": 12
+    },
+    {
+      "id": "scripts_e4_llm_analyze_finding",
+      "label": "analyze_finding()",
+      "degree": 11
+    }
+  ],
+  "surprises": [
+    {
+      "source": "cmd_scan()",
+      "target": "analyze_reachability()",
+      "source_files": [
+        "gsc.py",
+        "scripts/gsc_reachability.py"
+      ],
+      "confidence": "INFERRED",
+      "relation": "calls",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "cmd_scan()",
+      "target": "FileStateManager",
+      "source_files": [
+        "gsc.py",
+        "gsc_resume.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "check_plugin_detectors()",
+      "target": "AuditContext",
+      "source_files": [
+        "gsc.py",
+        "gsc_detectors/__init__.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "check_plugin_detectors()",
+      "target": "get_detectors()",
+      "source_files": [
+        "gsc.py",
+        "gsc_detectors/registry.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "check_deep()",
+      "target": "run_e4_scan()",
+      "source_files": [
+        "gsc.py",
+        "scripts/e4_llm.py"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "calls",
+      "why": "connects across different repos/directories; bridges separate communities"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `AuditContext` connect `AuditContext` to `gs001_hardcoded_secret.py`, `Path`, `gs007_idor.py`, `gs014_credential_exposure.py`, `gsc.py`, `gs016_linux_priv_esc.py`, `gs009_supply_chain.py`, `.get_source_files`, `gs005_sql_injection.py`, `Finding`, `gs008_dead_code.py`, `gs002_world_readable.py`, `gs003_debug_prints.py`?",
+      "why": "High betweenness centrality (0.077) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Finding` connect `Finding` to `gs001_hardcoded_secret.py`, `gs007_idor.py`, `AuditContext`, `gs014_credential_exposure.py`, `gsc.py`, `gs016_linux_priv_esc.py`, `gs009_supply_chain.py`, `gs005_sql_injection.py`, `gs008_dead_code.py`, `gs002_world_readable.py`, `gs003_debug_prints.py`?",
+      "why": "High betweenness centrality (0.069) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `FileStateManager` connect `FileStateManager` to `gsc.py`, `cmd_scan`, `main`?",
+      "why": "High betweenness centrality (0.054) - this node is a cross-community bridge."
+    },
+    {
+      "type": "verify_inferred",
+      "question": "Are the 6 inferred relationships involving `VulnerabilityItem` (e.g. with `GscDatabasePipeline` and `JsonExportPipeline`) actually correct?",
+      "why": "`VulnerabilityItem` has 6 INFERRED edges - model-reasoned connections that need verification."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `Ticket`, `express`, `app` to the rest of the system?",
+      "why": "33 weakly-connected nodes found - possible documentation gaps or missing edges."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `VulnerabilityItem` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.050072568940493466 - nodes in this community are weakly interconnected."
+    },
+    {
+      "type": "low_cohesion",
+      "question": "Should `package.json` be split into smaller, more focused modules?",
+      "why": "Cohesion score 0.05555555555555555 - nodes in this community are weakly interconnected."
+    }
+  ]
+}

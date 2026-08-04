@@ -1,11 +1,11 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — self-learning audit system.
-> Обновлено: 2026-07-28 (GS007 v2.0 — Meta $78K bounty inspired BAC patterns, 28 patterns, 5-project benchmark)
+> Обновлено: 2026-08-04 (v0.10 — GS020-GS023 Web Hacking 101 upgrade, 22 detectors, XSS/CSRF/SSRF/Open Redirect/Race Conditions)
 
 ## Что это
 
-Пятистадийный аудитор кода с самообучением. 350+ паттернов, 15 plugin-детекторов, SQLite DB, Obsidian-отчёты.
+Пятистадийный аудитор кода с самообучением. 400+ паттернов, 18 plugin-детекторов, SQLite DB, Obsidian-отчёты.
 Каждая находка становится паттерном для будущих аудитов.
 
 Архитектура вдохновлена Deepsec (Vercel Labs): scan → revalidate → export, per-file state, structured verdicts.
@@ -15,23 +15,31 @@
 ```
 gsc/
 ├── gsc.py                ← CLI entry point (15 команд)
-├── gsc_detectors/        ← Plugin detector system (v0.7, 15 детекторов)
+├── gsc_detectors/        ← Plugin detector system (v0.9, 18 детекторов)
 │   ├── __init__.py       ← AuditContext, Finding (noise_tier), Detector interface
 │   ├── registry.py       ← ALL_DETECTORS, get_detectors(), run_detectors()
-│   ├── gs001_hardcoded_secret.py   ← API keys, tokens, passwords
+│   ├── gs001_hardcoded_secret.py   ← API keys, tokens, passwords, PAN/CVV/Track/IBAN
 │   ├── gs002_world_readable.py     ← Sensitive files (perms)
 │   ├── gs003_debug_prints.py       ← print() / console.log in production
 │   ├── gs004_dangerous_subprocess.py ← shell=True, eval, exec
 │   ├── gs005_sql_injection.py      ← f-string SQL, raw queries
-│   ├── gs007_idor.py              ← BAC: IDOR + sequential enum + cross-tenant + admin panels + file downloads (28 patterns, v2.0)
+│   ├── gs007_idor.py              ← BAC: IDOR + fintech-IDOR (payment methods, transactions, statements) — 35 patterns, v2.2
 │   ├── gs008_dead_code.py         ← Constants never used
 │   ├── gs009_supply_chain.py      ← Bumblebee scanner (npm/PyPI/Go/MCP)
-│   ├── gs010_ssh_hardening.py     ← 🆕 sshd_config weakness
-│   ├── gs011_jwt_vulnerabilities.py ← 🆕 alg:none, weak secrets
+│   ├── gs010_ssh_hardening.py     ← sshd_config weakness
+│   ├── gs011_jwt_vulnerabilities.py ← alg:none, weak secrets
 │   ├── gs012_mass_assignment.py   ← 🆕 Django/FastAPI/Rails/GraphQL
 │   ├── gs013_graphql_security.py  ← 🆕 introspection, depth limiting
-│   ├── gs014_credential_exposure.py ← 🆕 SAM, DPAPI, unattend, sudoers
-│   └── gs015_entry_points.py      ← 🆕 Noisy matcher: all HTTP handlers
+│   ├── gs014_credential_exposure.py ← SAM, DPAPI, unattend, sudoers
+│   ├── gs015_entry_points.py      ← Noisy matcher: all HTTP handlers
+│   ├── gs016_linux_priv_esc.py    ← 🆕 SUID, cron hijack, capabilities, sudo NOPASSWD
+│   ├── gs017_weak_passwords.py    ← 🆕🆕 Default creds, Docker defaults, short passwords
+│   ├── gs018_payment_abuse.py     ← 🆕🆕 Payment logic, idempotency, promos, race conditions
+│   └── gs019_auth_session.py      ← 🆕🆕 Auth/session: SMS exhaustion, JWT, cookie flags, OTP
+│   ├── gs020_xss_injection.py     ← 🆕🆕🆕 XSS/HTML/SSTI: reflected, stored, DOM, template injection (Web Hacking 101)
+│   ├── gs021_csrf_ssrf.py         ← 🆕🆕🆕 CSRF/SSRF: missing tokens, internal URL fetches (Bug Hunting)
+│   ├── gs022_open_redirect.py     ← 🆕🆕🆕 Open Redirect: redirect params, URL bypass (Web Hacking 101)
+│   └── gs023_race_conditions.py   ← 🆕🆕🆕 Race Conditions: TOCTOU, double-spend, async races (Bug Hunting)
 ├── gsc_resume.py         ← 🆕 FileStateManager (per-file scan state)
 ├── gsc_revalidate.py     ← 🆕 Structured revalidator (TP/FP/Fixed/Uncertain)
 ├── patterns/             ← Seed patterns (OWASP, CWE, 7 languages)
@@ -106,24 +114,32 @@ gsc revalidate <project>  ← 🆕 Deepsec-inspired
        можно продолжить с места падения)
 ```
 
-### Plugin Detector System (v0.7)
+### Plugin Detector System (v0.9 — 18 detectors)
 
 | Rule | Tier | Category | Description |
 |------|:----:|----------|-------------|
-| GS001 | precise | CRITICAL | Hardcoded secrets (API keys, tokens, passwords) |
+| GS001 | precise | CRITICAL | Hardcoded secrets (API keys, tokens, passwords, PAN/CVV/Track/IBAN) |
 | GS002 | normal | HIGH | World-readable sensitive files |
 | GS003 | normal | LOW | Debug/diagnostic code (print, console.log) |
 | GS004 | precise | HIGH | Dangerous subprocess (shell=True, eval, exec) |
 | GS005 | precise | CRITICAL | SQL injection (f-strings, raw SQL) |
-| GS007 | normal | HIGH | Broken Access Control — IDOR, sequential enum, cross-tenant, admin panels, file downloads, ticket operations (28 patterns) |
+| GS007 | normal | HIGH | Broken Access Control — IDOR, fintech-IDOR, cross-tenant, admin panels, file downloads, ticket operations (35 patterns) |
 | GS008 | normal | LOW | Dead code — constants never used |
 | GS009 | normal | HIGH | Supply chain (Bumblebee scanner) |
-| GS010 🆕 | precise | CRITICAL | Weak SSH config (PermitRootLogin, LD_PRELOAD) |
-| GS011 🆕 | precise | CRITICAL | JWT vulnerabilities (alg:none, weak secrets) |
-| GS012 🆕 | normal | HIGH | Mass Assignment (Django/FastAPI/Rails/GraphQL) |
-| GS013 🆕 | normal | HIGH | GraphQL security (introspection, depth limiting) |
-| GS014 🆕 | precise | HIGH | Credential exposure (SAM, DPAPI, unattend, sudoers) |
-| GS015 🆕 | noisy | INFO | Entry-point coverage (all HTTP handlers → AI review) |
+| GS010 | precise | CRITICAL | Weak SSH config (PermitRootLogin, LD_PRELOAD) |
+| GS011 | precise | CRITICAL | JWT vulnerabilities (alg:none, weak secrets) |
+| GS012 | normal | HIGH | Mass Assignment (Django/FastAPI/Rails/GraphQL) |
+| GS013 | normal | HIGH | GraphQL security (introspection, depth limiting) |
+| GS014 | precise | HIGH | Credential exposure (SAM, DPAPI, unattend, sudoers) |
+| GS015 | noisy | INFO | Entry-point coverage (all HTTP handlers → AI review) |
+| GS016 | normal | CRITICAL | Linux privilege escalation (SUID, sudo NOPASSWD, cron hijack) |
+| GS017 🆕 | normal | CRITICAL | Weak/default passwords (admin:admin, Docker defaults, MD5/SHA1) |
+| GS018 🆕 | normal | CRITICAL | Payment logic abuse (idempotency, promo locking, balance races, webhook sigs) |
+| GS019 🆕 | normal | HIGH | Auth/session weaknesses (SMS exhaustion, session fixation, JWT, OTP brute-force) |
+| GS020 🆕🆕 | precise | CRITICAL | XSS/HTML/SSTI injection (reflected, stored, DOM, template) — 23 patterns |
+| GS021 🆕🆕 | normal | CRITICAL | CSRF/SSRF (missing tokens, internal URL fetches, metadata endpoints) — 20 patterns |
+| GS022 🆕🆕 | normal | HIGH | Open Redirect (redirect/url/next params, validation bypass) — 13 patterns |
+| GS023 🆕🆕 | noisy | HIGH | Race Conditions (TOCTOU, double-spend, async races, coupon abuse) — 16 patterns |
 
 ### Noise Tiers (Deepsec-inspired)
 

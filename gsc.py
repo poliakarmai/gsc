@@ -831,7 +831,7 @@ def export_to_obsidian(project: str, findings: list[dict], project_path: Path, q
             rule = f.get("rule_id", "?")
             lines.append(
                 f"| {f.get('category','')} | {rule} | {fname} | "
-                f"{f.get('line_number','?')} | {f.get('detail','')[:60]} |"
+                f"{f.get('line_number','?')} | {(f.get('detail') or '')[:60]} |"
             )
 
     # All findings table (compact)

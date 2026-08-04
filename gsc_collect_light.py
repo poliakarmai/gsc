@@ -103,19 +103,26 @@ class GscCollector:
     # ── NVD CVE Collector ───────────────────────────────────────────────────
 
     def collect_nvd(self, limit: int = 50):
-        """Collect recent CVEs from NVD with known exploits."""
-        print(f"\n📡 NVD CVE Collector — fetching {limit} CVEs...")
+        """Collect recent CVEs from NVD. Fetches the most recently published."""
+        print(f"\n📡 NVD CVE Collector — fetching {limit} recent CVEs...")
 
         url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-        from datetime import datetime as dt, timedelta
-        recent = (dt.now() - timedelta(days=120)).strftime("%Y-%m-%dT00:00:00.000")
-        params = {
-            "pubStartDate": recent,
-            "resultsPerPage": min(limit, 100),
-            "cvssV3Severity": "CRITICAL,HIGH",
-        }
 
         try:
+            # Step 1: get total count
+            resp = requests.get(url, headers=HEADERS, params={"resultsPerPage": 1}, timeout=30)
+            if resp.status_code != 200:
+                print(f"  ❌ NVD API returned {resp.status_code}")
+                return
+            total = resp.json().get("totalResults", 0)
+            print(f"  Total CVEs in NVD: {total}")
+
+            # Step 2: fetch most recent ones (API returns sorted by pub date ASC)
+            start_idx = max(0, total - min(limit, 100))
+            params = {
+                "startIndex": start_idx,
+                "resultsPerPage": min(limit, 100),
+            }
             resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
             if resp.status_code != 200:
                 print(f"  ❌ NVD API returned {resp.status_code}")
@@ -126,7 +133,7 @@ class GscCollector:
             return
 
         vulns = data.get("vulnerabilities", [])
-        print(f"  Found {len(vulns)} CVEs with known exploits")
+        print(f"  Fetched {len(vulns)} recent CVEs (offset {start_idx})")
 
         for vuln_data in vulns:
             cve = vuln_data.get("cve", {})
@@ -140,10 +147,13 @@ class GscCollector:
                 (d["value"] for d in descriptions if d.get("lang") == "en"), ""
             )
 
-            # Extract severity
+            # Extract severity (check V31 first, fall back to V30)
             metrics = cve.get("metrics", {})
-            cvss_v31 = metrics.get("cvssMetricV31", [{}])[0]
-            base_score = cvss_v31.get("cvssData", {}).get("baseScore", 0)
+            cvss_data = (metrics.get("cvssMetricV31", [{}])[0]
+                         or metrics.get("cvssMetricV30", [{}])[0])
+            if not cvss_data:
+                cvss_data = {}
+            base_score = cvss_data.get("cvssData", {}).get("baseScore", 0)
             severity = (
                 "CRITICAL" if base_score >= 9.0 else
                 "HIGH" if base_score >= 7.0 else

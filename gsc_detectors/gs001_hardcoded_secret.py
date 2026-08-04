@@ -54,6 +54,27 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
     # Bearer / auth tokens in source
     (r'Bearer\s+[A-Za-z0-9_\-]{20,}', "Hardcoded Bearer token"),
     (r'Authorization\s*[:=]\s*["\']\s*Bearer\s+[A-Za-z0-9_\-]{10,}', "Hardcoded Authorization header"),
+
+    # ── PCI-DSS: Card data patterns (2026 Fintech Pentest) ─────────────────
+    # PAN — Primary Account Number (13-19 digits with Luhn-checkable structure)
+    (r'\b(?:4[0-9]{12}(?:[0-9]{3})?|5[1-5][0-9]{14}|3[47][0-9]{13}|6(?:011|5[0-9]{2})[0-9]{12})\b',
+     "Potential PAN (Primary Account Number) — PCI-DSS violation"),
+
+    # CVV/CVC — 3-4 digit security code
+    (r'(?:cvv|cvc|cid|cvv2|cvc2|cvn)[\s:=-]*["\']?\s*(\d{3,4})',
+     "Potential CVV/CVC code — PCI-DSS violation"),
+
+    # Track data (magnetic stripe) — %B...^...^...?... format
+    (r'%[BDE][0-9]{1,19}\^[^^]{1,30}\^[0-9]{4}',
+     "Potential Track 1/2 magnetic stripe data — PCI-DSS violation"),
+
+    # Full card dump pattern (PAN|EXP|CVV in one block)
+    (r'["\'][0-9]{13,19}\|[0-9]{2}/[0-9]{2}\|[0-9]{3,4}["\']',
+     "Full card dump (PAN|EXP|CVV) — CRITICAL PCI-DSS violation"),
+
+    # IBAN / bank account numbers in plain text
+    (r'["\'][A-Z]{2}[0-9]{2}[A-Z0-9]{1,30}["\']',
+     "Potential IBAN/bank account number — financial data exposure"),
 ]
 
 

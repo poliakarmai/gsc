@@ -29,6 +29,13 @@ import gsc_detectors.gs013_graphql_security as _gs013
 import gsc_detectors.gs014_credential_exposure as _gs014
 import gsc_detectors.gs015_entry_points as _gs015
 import gsc_detectors.gs016_linux_priv_esc as _gs016
+import gsc_detectors.gs017_weak_passwords as _gs017
+import gsc_detectors.gs018_payment_abuse as _gs018
+import gsc_detectors.gs019_auth_session as _gs019
+import gsc_detectors.gs020_xss_injection as _gs020
+import gsc_detectors.gs021_csrf_ssrf as _gs021
+import gsc_detectors.gs022_open_redirect as _gs022
+import gsc_detectors.gs023_race_conditions as _gs023
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -140,6 +147,55 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         echelon=_gs016.ECHELON,
         detect_fn=_gs016.detect,
         description=_gs016.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs017.RULE_ID,
+        echelon=_gs017.ECHELON,
+        detect_fn=_gs017.detect,
+        description=_gs017.description,
+        noise_tier=getattr(_gs017, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs018.RULE_ID,
+        echelon=_gs018.ECHELON,
+        detect_fn=_gs018.detect,
+        description=_gs018.description,
+        noise_tier=getattr(_gs018, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs019.RULE_ID,
+        echelon=_gs019.ECHELON,
+        detect_fn=_gs019.detect,
+        description=_gs019.description,
+        noise_tier=getattr(_gs019, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs020.RULE_ID,
+        echelon=_gs020.ECHELON,
+        detect_fn=_gs020.detect,
+        description=_gs020.description,
+        noise_tier=getattr(_gs020, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs021.RULE_ID,
+        echelon=_gs021.ECHELON,
+        detect_fn=_gs021.detect,
+        description=_gs021.description,
+        noise_tier=getattr(_gs021, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs022.RULE_ID,
+        echelon=_gs022.ECHELON,
+        detect_fn=_gs022.detect,
+        description=_gs022.description,
+        noise_tier=getattr(_gs022, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs023.RULE_ID,
+        echelon=_gs023.ECHELON,
+        detect_fn=_gs023.detect,
+        description=_gs023.description,
+        noise_tier=getattr(_gs023, "NOISE_TIER", "noisy"),
     ),
 ]
 
