@@ -3,8 +3,7 @@
 
 rollout_phase: warn-only
 
-thresholds:
-  block_min_confidence: 0.80
+block_min_confidence: 0.80
 
-rules:
-  GS003: {enabled: false}  # debug prints — not relevant for PR gate
+disabled_rules:
+  - GS003   # debug prints — not relevant for PR gate

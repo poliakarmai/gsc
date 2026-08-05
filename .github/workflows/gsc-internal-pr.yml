@@ -2,7 +2,6 @@ name: GSC Internal PR Scan
 
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
@@ -19,7 +18,7 @@ jobs:
         with: {fetch-depth: 0}
       - uses: actions/setup-python@v5
         with: {python-version: "3.12"}
-      - run: pip install requests pyyaml || true
+      - run: pip install requests pyyaml
       - name: GSC Doctor
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,6 +35,12 @@ jobs:
             --post-comment \
             --create-check \
             --fail-on-blocking
+      - name: Collect SARIF
+        if: always()
+        run: |
+          mkdir -p reports/pr
+          SARIF=$(find ~/.gsc/external -name "report.sarif.json" -newer /tmp -print -quit 2>/dev/null)
+          if [ -n "$SARIF" ]; then cp "$SARIF" reports/pr/report.sarif.json; fi
       - name: Upload SARIF
         if: always()
         uses: github/codeql-action/upload-sarif@v3

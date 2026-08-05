@@ -305,9 +305,22 @@ def merge_policy(profile_name: str, policy: dict) -> dict:
     for key in ["llm_max_calls", "block_min_confidence", "warn_min_confidence"]:
         if key in policy:
             profile[key] = policy[key]
+    # Support nested thresholds block
+    if "thresholds" in policy and isinstance(policy["thresholds"], dict):
+        for key in ["block_min_confidence", "warn_min_confidence"]:
+            if key in policy["thresholds"]:
+                profile[key] = policy["thresholds"][key]
     for list_key in ["disabled_rules", "review_only_rules"]:
         if list_key in policy:
             profile[list_key] = list(set(profile.get(list_key, []) + policy[list_key]))
+    # Support nested rules block: GS003: {enabled: false} → disabled_rules
+    if "rules" in policy and isinstance(policy["rules"], dict):
+        for rule_id, rule_cfg in policy["rules"].items():
+            if isinstance(rule_cfg, dict) and rule_cfg.get("enabled") is False:
+                if "disabled_rules" not in profile:
+                    profile["disabled_rules"] = []
+                if rule_id not in profile["disabled_rules"]:
+                    profile["disabled_rules"].append(rule_id)
     if "exclude" in policy:
         profile["extra_exclude"] = policy["exclude"]
 
