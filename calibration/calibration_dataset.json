@@ -1,0 +1,172 @@
+{
+  "version": "2.0",
+  "scored_at": "2026-08-05T06:25:13.539305",
+  "projects": [
+    {
+      "name": "flask-jwt-auth",
+      "category": "vulnerable",
+      "url": "/tmp/gsc-calibration/flask-jwt-auth",
+      "total": 22,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 17,
+      "fp": 5,
+      "expected_vulns": [
+        "hardcoded_secret"
+      ]
+    },
+    {
+      "name": "dvpwa",
+      "category": "vulnerable",
+      "url": "/tmp/gsc-calibration/dvpwa",
+      "total": 56,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 46,
+      "fp": 10,
+      "expected_vulns": [
+        "sql_injection"
+      ]
+    },
+    {
+      "name": "vuln-flask",
+      "category": "vulnerable",
+      "url": "/tmp/gsc-calibration/vuln-flask",
+      "total": 74,
+      "confirmed": 3,
+      "likely": 0,
+      "uncertain": 36,
+      "fp": 35,
+      "expected_vulns": [
+        "sql_injection",
+        "xss"
+      ]
+    },
+    {
+      "name": "pygoat",
+      "category": "vulnerable",
+      "url": "/tmp/gsc-calibration/pygoat",
+      "total": 357,
+      "confirmed": 2,
+      "likely": 0,
+      "uncertain": 278,
+      "fp": 77,
+      "expected_vulns": [
+        "sql_injection",
+        "xss",
+        "idor",
+        "command_injection"
+      ]
+    },
+    {
+      "name": "flask-jwt-auth",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/flask-jwt-auth",
+      "total": 22,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 17,
+      "fp": 5,
+      "expected_vulns": []
+    },
+    {
+      "name": "click",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/click",
+      "total": 23,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 21,
+      "fp": 2,
+      "expected_vulns": []
+    },
+    {
+      "name": "rich",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/rich",
+      "total": 158,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 144,
+      "fp": 14,
+      "expected_vulns": []
+    },
+    {
+      "name": "jinja",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/jinja",
+      "total": 52,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 43,
+      "fp": 9,
+      "expected_vulns": []
+    },
+    {
+      "name": "werkzeug",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/werkzeug",
+      "total": 152,
+      "confirmed": 1,
+      "likely": 0,
+      "uncertain": 136,
+      "fp": 15,
+      "expected_vulns": []
+    },
+    {
+      "name": "markupsafe",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/markupsafe",
+      "total": 5,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 2,
+      "fp": 3,
+      "expected_vulns": []
+    },
+    {
+      "name": "itsdangerous",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/itsdangerous",
+      "total": 4,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 1,
+      "fp": 3,
+      "expected_vulns": []
+    },
+    {
+      "name": "httpx",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/httpx",
+      "total": 140,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 133,
+      "fp": 7,
+      "expected_vulns": []
+    },
+    {
+      "name": "starlette",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/starlette",
+      "total": 166,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 157,
+      "fp": 9,
+      "expected_vulns": []
+    },
+    {
+      "name": "uvicorn",
+      "category": "clean",
+      "url": "/tmp/gsc-calibration/uvicorn",
+      "total": 56,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 43,
+      "fp": 13,
+      "expected_vulns": []
+    }
+  ]
+}
