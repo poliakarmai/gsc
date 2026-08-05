@@ -1,312 +1,308 @@
 #!/usr/bin/env python3
 """
-GSC Exploit Chain Composer v1.0.
+GSC Exploit Chain Composer v0.18.
 
-Composes individual findings into attack chains.
-A chain of 3 LOW findings can be more dangerous than 1 HIGH.
-Chain severity may exceed max(individual severities).
+Composes isolated findings into multi-step attack chains.
+Chain is reported ONLY if composed_severity > max(individual severities).
+Requires LLM. Auto-disabled in fork-safe (--no-llm) mode.
 
-Key insight: scanners evaluate findings in isolation.
-Real attackers chain them. GSC bridges that gap.
-
-Usage:
-  python3 gsc_chain_composer.py scan.json            # analyze scan results
-  python3 gsc_chain_composer.py --project gsc         # from DB
+Candidate selection uses rule categories and heuristics before LLM
+to conserve budget. Chains are persisted in SQLite via gsc_db.py.
 """
 
-import json, hashlib, sys, os, sqlite3
-from itertools import combinations
+import hashlib, itertools, json, re, sys, os
 from pathlib import Path
+from dataclasses import dataclass, field, asdict
 from typing import Optional
 
-GSC_HOME = Path(__file__).resolve().parent
-DB_PATH = Path(os.path.expanduser("~/.hermes/state/gsc_audit.db"))
-API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
+SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+SEVERITY_NAMES = {1: "LOW", 2: "MEDIUM", 3: "HIGH", 4: "CRITICAL"}
 
-SEVERITY_ORDER = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
-SEVERITY_NAMES = {4: "CRITICAL", 3: "HIGH", 2: "MEDIUM", 1: "LOW", 0: "INFO"}
-
-CHAIN_BUDGETS = {
-    "developer-review": 5,
-    "pr-gate": 3,
-    "audit": 10,
-    "candidate-review": 3,
+RULE_CATEGORIES = {
+    "GS001": "injection", "GS004": "injection", "GS005": "injection",
+    "GS007": "authz", "GS012": "info-leak",
+    "GS014": "info-leak",
+    "GS019": "auth", "GS011": "auth",
+    "GS022": "ssrf", "GS021": "ssrf",
+    "GS020": "injection",
+    "GS024": "llm-injection",
+    "GS025-permissive_cors": "exposure",
+    "GS025-debug_mode": "exposure",
+    "GS025-wildcard_bind": "exposure",
+    "GS025-hardcoded_secret": "secret",
+    "GS025-eval_usage": "injection",
+    "GS010": "exposure", "GS016": "exposure",
 }
+DEFAULT_CATEGORY = "other"
+
+DEFAULTS = {
+    "confirm_threshold": 0.70,
+    "max_findings_per_chain": 3,
+    "max_candidates": 12,
+    "context_window": 15,
+}
+
+REDACT_PATTERNS = [
+    (r'sk-[a-zA-Z0-9]{20,}', "API key"),
+    (r'AKIA[A-Z0-9]{16}', "AWS key"),
+    (r'ghp_[a-zA-Z0-9]{36}', "GitHub token"),
+    (r'-----BEGIN.*PRIVATE KEY-----', "Private key"),
+    (r'password\s*[=:]\s*["\'][^\s"\']{8,}["\']', "Hardcoded credential"),
+]
 
 
 def _get_api_key() -> str:
-    if API_KEY:
-        return API_KEY
     for p in [Path(os.path.expanduser("~/.hermes/.env")),
               Path(os.path.expanduser("~/.hermes/env"))]:
         if p.exists():
             for line in p.read_text().splitlines():
                 if line.startswith("DEEPSEEK_API_KEY="):
                     return line.split("=", 1)[1].strip().strip("\"'")
-    return ""
+    return os.environ.get("DEEPSEEK_API_KEY", "")
 
 
-def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 600) -> Optional[str]:
+def _call_llm(system: str, user: str, max_tokens: int = 900) -> Optional[str]:
     import urllib.request as _req
     key = _get_api_key()
     if not key:
         return None
     body = json.dumps({
         "model": "deepseek-chat",
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.1,
+        "messages": [{"role": "system", "content": system},
+                     {"role": "user", "content": user}],
+        "max_tokens": max_tokens, "temperature": 0.1,
     }).encode()
-    r = _req.Request("https://api.deepseek.com/v1/chat/completions", data=body, headers={
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-    })
     try:
-        resp = json.loads(_req.urlopen(r, timeout=30).read())
+        resp = json.loads(_req.urlopen(_req.Request(
+            "https://api.deepseek.com/v1/chat/completions",
+            data=body,
+            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        ), timeout=30).read())
         return resp["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"[Chain] LLM call failed: {e}", file=sys.stderr)
+        print(f"[Chain] LLM error: {e}", file=sys.stderr)
         return None
 
 
-def _read_file(file_path: str, project_dir: str = ".") -> str:
-    """Read source file, try multiple base paths."""
-    p = Path(file_path)
-    if p.is_absolute() and p.exists():
-        return p.read_text(errors='replace')
-    for base in [Path(project_dir), GSC_HOME, Path.cwd()]:
-        candidate = base / file_path
-        if candidate.exists():
-            return candidate.read_text(errors='replace')
-    return "// [file not found]"
+def _redact_check(text: str) -> bool:
+    for pattern, label in REDACT_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            print(f"[Chain] REDACT: {label}", file=sys.stderr)
+            return False
+    return True
 
 
-def _chain_key(findings: list[dict]) -> str:
-    """Stable key: sha256(sorted finding keys)[:12]."""
-    keys = sorted(
-        f.get("finding_key", f.get("id", "")) for f in findings
-    )
-    return hashlib.sha256("+".join(str(k) for k in keys).encode()).hexdigest()[:12]
+@dataclass
+class AttackChain:
+    chain_key: str
+    finding_keys: list[str]
+    composed_severity: str
+    confidence: float
+    narrative: str
+    steps: list[dict] = field(default_factory=list)
+    preconditions: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
-def _max_severity(findings: list[dict]) -> int:
-    """Max severity value across findings."""
-    return max(
-        SEVERITY_ORDER.get(f.get("category", f.get("severity", "LOW")), 0)
-        for f in findings
-    )
+class ChainComposer:
+    """Composes individual findings into multi-step attack chains."""
 
+    def __init__(self, budget: int, config: Optional[dict] = None):
+        cfg = {**DEFAULTS, **(config or {})}
+        self.budget = budget
+        self.confirm_threshold = float(cfg.get("confirm_threshold", 0.70))
+        self.max_per_chain = int(cfg.get("max_findings_per_chain", 3))
+        self.max_candidates = int(cfg.get("max_candidates", 12))
+        self.context_window = int(cfg.get("context_window", 15))
 
-def _file_context(findings: list[dict], project_dir: str = ".", window: int = 15) -> str:
-    """Build combined context from source files."""
-    seen = set()
-    parts = []
-    for f in findings:
-        fp = f.get("file_path", "")
-        if fp in seen:
-            continue
-        seen.add(fp)
-        content = _read_file(fp, project_dir)
-        if not content.startswith("//"):
-            lines = content.splitlines()
-            ln = f.get("line", f.get("line_number", 1)) - 1
-            start = max(0, ln - window)
-            end = min(len(lines), ln + window + 1)
-            parts.append(f"── {fp}:{ln+1} ──\n")
-            for i in range(start, end):
-                marker = ">>>" if i == ln else "   "
-                parts.append(f"{marker} {i+1:4d}| {lines[i]}")
-            parts.append("")
-    return "\n".join(parts)
+    # ── Public API ───────────────────────────────────────────
 
+    def compose(self, findings: list[dict],
+                source_map: dict[str, str]) -> list[AttackChain]:
+        candidates = self._select_candidates(findings)
+        chains: list[AttackChain] = []
+        for candidate in candidates:
+            if self.budget <= 0:
+                break
+            self.budget -= 1
+            raw = _call_llm(
+                "You are a senior security analyst. Determine whether these "
+                "findings can be chained into a single multi-step exploit. "
+                "Use ONLY the provided code. Do not invent absent code.",
+                self._build_prompt(candidate, source_map),
+                max_tokens=900,
+            )
+            if not raw:
+                continue
+            chain = self._parse_and_validate(raw, candidate)
+            if chain:
+                chains.append(chain)
+        return self._dedupe_chains(chains)
 
-def _find_chain_candidates(findings: list[dict], max_chains: int = 20) -> list[list[dict]]:
-    """Group findings by file, generate pairs/triplets within same file."""
-    by_file: dict[str, list[dict]] = {}
-    for f in findings:
-        fp = f.get("file_path", f.get("file", ""))
-        by_file.setdefault(fp, []).append(f)
+    # ── Candidate selection (pre-LLM heuristics) ─────────────
 
-    candidates = []
-    for file_finds in by_file.values():
-        if len(file_finds) >= 2:
-            for pair in combinations(file_finds, 2):
-                candidates.append(list(pair))
-        if len(file_finds) >= 3:
-            for triple in combinations(file_finds, 3):
-                candidates.append(list(triple))
+    def _select_candidates(self, findings) -> list[list[dict]]:
+        active = [f for f in findings if f.get("confidence", 0) >= 0.35]
+        by_file: dict[str, list] = {}
+        for f in active:
+            fp = f.get("file", f.get("file_path", ""))
+            by_file.setdefault(fp, []).append(f)
 
-    # Sort by max severity desc, then by count desc
-    candidates.sort(key=lambda c: (-_max_severity(c), -len(c)))
-    return candidates[:max_chains]
+        candidates = []
+        for fs in by_file.values():
+            if len(fs) < 2:
+                continue
+            for n in range(2, self.max_per_chain + 1):
+                for combo in itertools.combinations(fs, n):
+                    if self._is_plausible(list(combo)):
+                        candidates.append(list(combo))
 
+        candidates.sort(key=self._priority, reverse=True)
+        return candidates[:self.max_candidates]
 
-def compose_chains(
-    findings: list[dict],
-    project_dir: str = ".",
-    budget: int = 5,
-) -> list[dict]:
-    """
-    Analyze findings for exploitable chains.
-    Returns list of chain dicts with: steps, composed_severity, confidence, narrative, chain_key.
-    """
-    if len(findings) < 2:
-        return []
+    def _is_plausible(self, combo: list[dict]) -> bool:
+        rule_ids = {f.get("rule_id", f.get("pattern_title", ""))
+                    for f in combo}
+        if len(rule_ids) < 2:
+            return False
+        cats = {self._category(f.get("rule_id", f.get("pattern_title", "")))
+                for f in combo}
+        return len(cats) >= 2
 
-    candidates = _find_chain_candidates(findings)
+    def _priority(self, combo: list[dict]) -> float:
+        cats = {self._category(f.get("rule_id", f.get("pattern_title", "")))
+                for f in combo}
+        score = len(cats) * 2.0
+        if "info-leak" in cats and ({"injection", "authz", "auth"} & cats):
+            score += 3.0
+        if "secret" in cats:
+            score += 2.0
+        sevs = [SEVERITY_ORDER.get(
+            f.get("severity", f.get("category", "LOW")), 1
+        ) for f in combo]
+        score += (max(sevs) - min(sevs)) * 1.5
+        score += sum(f.get("confidence", 0) for f in combo) / len(combo)
+        return score
 
-    system = """You are a security researcher analyzing whether multiple
-code-level weaknesses can be chained into a single exploit.
+    def _category(self, rule_id: str) -> str:
+        for prefix in sorted(RULE_CATEGORIES, key=len, reverse=True):
+            if rule_id.startswith(prefix):
+                return RULE_CATEGORIES[prefix]
+        return DEFAULT_CATEGORY
 
-For each chain candidate, determine:
-1. Can the weaknesses be composed? (A's output feeds B's input?)
-2. What is the combined severity? (may exceed max individual)
-3. What is the step-by-step attack narrative?
+    # ── LLM prompt ───────────────────────────────────────────
 
-Respond with JSON:
-{"exploitable": true/false, "severity": "LOW|MEDIUM|HIGH|CRITICAL",
- "confidence": 0.0-1.0, "narrative": "step-by-step"}"""
-
-    chains = []
-    used_budget = 0
-
-    for cand in candidates:
-        if used_budget >= budget:
-            break
-        used_budget += 1
-
-        # Skip candidates where all findings are INFO or LOW
-        if _max_severity(cand) < SEVERITY_ORDER["MEDIUM"]:
-            continue
-
-        findings_desc = "\n".join(
-            f"[{f.get('category', f.get('severity', '?'))}] "
-            f"{f.get('title', f.get('pattern_title', '?'))} "
-            f"({f.get('file_path','')}:{f.get('line', f.get('line_number', '?'))})"
-            for f in cand
+    def _build_prompt(self, candidate, source_map) -> str:
+        finding_lines = "\n".join(
+            f"- finding_key={f.get('finding_key','?')} "
+            f"rule={f.get('rule_id', f.get('pattern_title','?'))} "
+            f"severity={f.get('severity', f.get('category','?'))} "
+            f"file={f.get('file', f.get('file_path',''))}:{f.get('line', f.get('line_number','?'))} "
+            f"— {f.get('title', '')}"
+            for f in candidate
         )
-        context = _file_context(cand, project_dir)
+        ctx = self._combined_context(candidate, source_map)
+        return (
+            f"Determine whether these findings can be chained into "
+            f"a single multi-step exploit.\n\n"
+            f"Findings:\n{finding_lines}\n\n"
+            f"Code context:\n{ctx}\n\n"
+            f"Rules:\n"
+            f"- A chain is valid ONLY if combined impact exceeds max individual severity\n"
+            f"- Rely strictly on provided code; don't invent code that is absent\n"
+            f"- Consider data flow, trust boundaries, authentication dependencies\n"
+            f"Output JSON:\n"
+            f'{{"exploitable": true|false, "composed_severity": "LOW|MEDIUM|HIGH|CRITICAL",\n'
+            f' "confidence": 0.0-1.0, "narrative": "attack description",\n'
+            f' "steps": [{{"step": 1, "finding_key": "...", "action": "..."}}],\n'
+            f' "preconditions": ["..."],\n'
+            f'}}'
+        )
 
-        prompt = f"""Can these findings be chained into a single exploit?
+    def _combined_context(self, candidate, source_map) -> str:
+        parts = []
+        for f in candidate:
+            fp = f.get("file", f.get("file_path", ""))
+            src = source_map.get(fp, "// [source not available]")
+            lines = src.splitlines()
+            ln = f.get("line", f.get("line_number", 1)) - 1
+            start = max(0, ln - self.context_window)
+            end = min(len(lines), ln + self.context_window + 1)
+            parts.append(
+                f"### {fp}:{ln + 1}\n" +
+                "\n".join(lines[start:end])
+            )
+        return "\n\n".join(parts)
 
-Findings:
-{findings_desc}
+    # ── LLM response validation ──────────────────────────────
 
-Code context:
-```
-{context}
-```
+    def _parse_and_validate(self, raw: str,
+                            candidate: list[dict]) -> Optional[AttackChain]:
+        m = re.search(r"\{[^{}]*\"exploitable\"[^{}]*\}", raw, re.DOTALL)
+        if not m:
+            return None
+        try:
+            data = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            return None
 
-Respond with the JSON verdict."""
+        if not data.get("exploitable"):
+            return None
 
-        result = _call_llm(system, prompt)
-        if not result:
-            continue
+        sev = str(data.get("composed_severity", "")).upper()
+        if sev not in SEVERITY_ORDER:
+            return None
 
         try:
-            # Extract JSON from response
-            import re
-            m = re.search(r'\{[^{}]*"exploitable"[^{}]*\}', result, re.DOTALL)
-            if not m:
+            conf = float(data.get("confidence", 0))
+        except (TypeError, ValueError):
+            return None
+        if not (0.0 <= conf <= 1.0):
+            return None
+        if conf < self.confirm_threshold:
+            return None
+
+        # Rule: chain MUST upgrade severity
+        max_ind = max(
+            SEVERITY_ORDER.get(
+                f.get("severity", f.get("category", "LOW")), 1
+            ) for f in candidate
+        )
+        if SEVERITY_ORDER[sev] <= max_ind:
+            return None
+
+        narrative = str(data.get("narrative", ""))[:500]
+        if not _redact_check(narrative):
+            return None
+
+        fkeys = [f.get("finding_key", "") for f in candidate]
+        steps = data.get("steps", [])
+        valid_keys = set(fkeys)
+        steps = [s for s in steps
+                 if isinstance(s, dict) and s.get("finding_key") in valid_keys]
+
+        return AttackChain(
+            chain_key=self._chain_key(fkeys),
+            finding_keys=fkeys,
+            composed_severity=sev,
+            confidence=round(conf, 2),
+            narrative=narrative,
+            steps=steps,
+            preconditions=[str(p) for p in data.get("preconditions", [])][:5],
+        )
+
+    @staticmethod
+    def _chain_key(finding_keys: list[str]) -> str:
+        return hashlib.sha256("|".join(sorted(finding_keys)).encode()).hexdigest()[:12]
+
+    def _dedupe_chains(self, chains: list[AttackChain]) -> list[AttackChain]:
+        chains.sort(key=lambda c: (len(c.finding_keys), c.confidence), reverse=True)
+        kept: list[AttackChain] = []
+        for chain in chains:
+            keys = set(chain.finding_keys)
+            if any(keys < set(k.finding_keys) for k in kept):
                 continue
-            verdict = json.loads(m.group(0))
-        except (json.JSONDecodeError, KeyError):
-            continue
-
-        if verdict.get("exploitable"):
-            composed_sev = verdict.get("severity", "HIGH")
-            max_individual = SEVERITY_NAMES.get(_max_severity(cand), "LOW")
-
-            # Chain severity can be higher than max individual
-            if SEVERITY_ORDER.get(composed_sev, 0) <= SEVERITY_ORDER.get(max_individual, 0):
-                composed_sev = SEVERITY_NAMES.get(
-                    min(4, SEVERITY_ORDER.get(max_individual, 0) + 1), "HIGH"
-                )
-
-            chains.append({
-                "chain_key": _chain_key(cand),
-                "steps": [
-                    {
-                        "finding_key": f.get("finding_key",
-                            hashlib.sha256(
-                                f"{f.get('file_path','')}+{f.get('line',0)}+{f.get('title','')[:40]}".encode()
-                            ).hexdigest()[:12]
-                        ),
-                        "rule_id": f.get("pattern_title", f.get("rule_id", "?")),
-                        "severity": f.get("category", f.get("severity", "LOW")),
-                        "file": f.get("file_path", ""),
-                        "line": f.get("line", f.get("line_number", 0)),
-                    }
-                    for f in cand
-                ],
-                "composed_severity": composed_sev,
-                "max_individual_severity": max_individual,
-                "confidence": verdict.get("confidence", 0.7),
-                "narrative": verdict.get("narrative", ""),
-            })
-
-    return chains
-
-
-# ── CLI ───────────────────────────────────────────────────
-
-def _load_from_db(project: str, limit: int = 50) -> list[dict]:
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("""
-        SELECT * FROM findings
-        WHERE project = ?
-        ORDER BY CASE category
-            WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
-            WHEN 'MEDIUM' THEN 2 ELSE 3 END
-        LIMIT ?
-    """, (project, limit)).fetchall()
-    conn.close()
-    return [dict(r) for r in rows]
-
-
-if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser(description="GSC Exploit Chain Composer")
-    p.add_argument("input", nargs="?", help="scan.json or project name (with --project)")
-    p.add_argument("--project", help="Load findings from DB instead of JSON")
-    p.add_argument("--budget", type=int, default=5, help="Max LLM calls (default: 5)")
-    p.add_argument("--json", action="store_true", help="Output JSON")
-    args = p.parse_args()
-
-    if args.project:
-        findings = _load_from_db(args.project, limit=50)
-        print(f"Loaded {len(findings)} findings for '{args.project}'")
-        project_dir = str(GSC_HOME)
-    elif args.input:
-        with open(args.input) as f:
-            data = json.load(f)
-        findings = data.get("findings", data) if isinstance(data, dict) else data
-        project_dir = str(Path(args.input).parent)
-        print(f"Loaded {len(findings)} findings from {args.input}")
-    else:
-        p.print_help()
-        sys.exit(0)
-
-    if len(findings) < 2:
-        print("Need at least 2 findings for chain analysis.")
-        sys.exit(0)
-
-    chains = compose_chains(findings, project_dir, budget=args.budget)
-
-    if args.json:
-        print(json.dumps(chains, indent=2))
-    else:
-        if not chains:
-            print("No exploitable chains found.")
-        for c in chains:
-            print(f"\n🔗 Chain {c['chain_key']} — {c['composed_severity']} "
-                  f"(max individual: {c['max_individual_severity']}, "
-                  f"confidence: {c['confidence']:.0%})")
-            for s in c["steps"]:
-                print(f"  [{s['severity']}] {s['rule_id']} — {s['file']}:{s['line']}")
-            print(f"  ╰ {c['narrative'][:120]}")
-        print(f"\n📊 {len(chains)} chains found (budget: {args.budget} LLM calls)")
+            kept.append(chain)
+        return kept

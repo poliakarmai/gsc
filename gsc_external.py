@@ -1057,28 +1057,60 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         snippet = (f.get("detail") or f.get("title") or "")[:100]
         f["finding_key"] = hashlib.sha256(f"{rule}|{fp}|{snippet}".encode()).hexdigest()[:12]
 
-    # ── v0.17: PoC Auto-Generation (after V3 scoring, before classify) ──
-    poc_budget = policy.get("poc_budget", policy.get("chain_budget", 0))
+    # ── v0.17–v0.18: Build source_map first (needed by PoC + chains) ──
+    source_map = {}
+    for f in enriched:
+        fp = f.get("file_path", "")
+        if fp and fp not in source_map:
+            fp_abs = target_path / fp if not fp.startswith("/") else Path(fp)
+            if fp_abs.exists():
+                try:
+                    source_map[fp] = fp_abs.read_text(errors='replace')
+                except Exception:
+                    pass
+
+    # ── v0.17: PoC Auto-Generation ──
+    poc_budget = policy.get("poc_budget", 0)
     if poc_budget > 0 and any(f.get("confidence_score", 0) >= 0.80 for f in enriched):
         print(f"   Generating PoCs (budget: {poc_budget})...")
         try:
             from gsc_poc_generator import attach_pocs
-            source_map = {}
-            for f in enriched:
-                fp = f.get("file_path", "")
-                if fp and fp not in source_map:
-                    fp_abs = target_path / fp if not fp.startswith("/") else Path(fp)
-                    if fp_abs.exists():
-                        try:
-                            source_map[fp] = fp_abs.read_text(errors='replace')
-                        except Exception:
-                            pass
             enriched = attach_pocs(enriched, source_map, budget=poc_budget)
             poc_generated = sum(1 for f in enriched if f.get("metadata", {}).get("poc"))
             poc_failed = sum(1 for f in enriched if f.get("metadata", {}).get("poc_failed"))
             print(f"   PoCs: {poc_generated} generated, {poc_failed} failed (confidence penalized)")
             result.poc_generated = poc_generated
             result.poc_failed = poc_failed
+        except ImportError:
+            pass
+
+    # ── v0.18: Exploit Chain Composer (after PoC, before classify) ──
+    chain_budget = policy.get("chain_budget", 0)
+    chains = []
+    if chain_budget > 0 and len(enriched) >= 2:
+        print(f"   Composing attack chains (budget: {chain_budget})...")
+        try:
+            from gsc_chain_composer import ChainComposer
+            composer = ChainComposer(budget=chain_budget)
+            chains = composer.compose(enriched, source_map)
+            # Mark participant findings with chain metadata
+            by_key = {f.get("finding_key", ""): f for f in enriched}
+            for chain in chains:
+                for fk in chain.finding_keys:
+                    f = by_key.get(fk)
+                    if f:
+                        f.setdefault("metadata", {})["chain_key"] = chain.chain_key
+                        f["metadata"]["chain_severity"] = chain.composed_severity
+            # Persist chains to DB
+            try:
+                from gsc_db import GSCDatabase
+                with GSCDatabase() as db:
+                    for chain in chains:
+                        db.save_chain(chain, target=target, profile=profile_name)
+            except Exception:
+                pass
+            print(f"   Chains: {len(chains)} composed")
+            result.chains_found = len(chains)
         except ImportError:
             pass
 
