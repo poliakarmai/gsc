@@ -1,0 +1,188 @@
+{
+  "total": 14,
+  "passed": 0,
+  "failed": 14,
+  "clean": {
+    "total": 10,
+    "passed": 0
+  },
+  "vuln": {
+    "total": 4,
+    "passed": 4
+  },
+  "blocking_false_positives": 0,
+  "missed_expected": 0,
+  "redaction_leaks": 0,
+  "sarif_invalid": 0,
+  "duration_seconds": 0.682562,
+  "results": [
+    {
+      "project": "flask-jwt-auth",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "dvpwa",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "vuln-flask",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "pygoat",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "flask-jwt-auth",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "click",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "rich",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "jinja",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "werkzeug",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "markupsafe",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "itsdangerous",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "httpx",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "starlette",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    },
+    {
+      "project": "uvicorn",
+      "type": "clean",
+      "status": "FAIL",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [
+        "Scan error: No module named 'gsc_external'"
+      ]
+    }
+  ]
+}

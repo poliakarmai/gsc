@@ -1,0 +1,19 @@
+{
+  "total": 0,
+  "passed": 0,
+  "failed": 0,
+  "clean": {
+    "total": 0,
+    "passed": 0
+  },
+  "vuln": {
+    "total": 0,
+    "passed": 0
+  },
+  "blocking_false_positives": 0,
+  "missed_expected": 0,
+  "redaction_leaks": 0,
+  "sarif_invalid": 0,
+  "duration_seconds": 2.2e-05,
+  "results": []
+}

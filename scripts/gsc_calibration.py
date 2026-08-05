@@ -9,7 +9,10 @@ from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 
-GSC_EXTERNAL = Path(__file__).resolve().parent / "gsc_external.py"
+# Add parent to path for gsc_external import
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+GSC_EXTERNAL = Path(__file__).resolve().parent.parent / "gsc_external.py"
 CALIB_DIR = Path(__file__).resolve().parent / "calibration"
 
 
@@ -90,9 +93,14 @@ def run_calibration(dataset_path: str = None, fail_on_regression: bool = False,
     report.results = []
 
     projects = []
-    for category in ["vulnerable", "clean"]:
-        for p in dataset.get(category, []):
-            projects.append((p, category))
+    for p in dataset.get("projects", []):
+        projects.append((p, p.get("category", "unknown")))
+
+    if not projects:
+        # Fallback: old format with vulnerable/clean keys
+        for category in ["vulnerable", "clean"]:
+            for p in dataset.get(category, []):
+                projects.append((p, category))
 
     report.total = len(projects)
 
