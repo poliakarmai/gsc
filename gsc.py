@@ -1972,7 +1972,7 @@ def main():
                 rows = db.query("""
                     SELECT m.*, f.pattern_title, f.file_path, f.line_number
                     FROM mutation_alerts m
-                    LEFT JOIN findings f ON f.finding_key = m.finding_key
+                    LEFT JOIN findings f ON CAST(f.id AS TEXT) = m.finding_key
                     WHERE m.detected_at > datetime('now', ?)
                     ORDER BY m.detected_at DESC LIMIT ?
                 """, (f"-{args.days} days", args.limit)).fetchall()

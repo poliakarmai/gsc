@@ -120,7 +120,7 @@ class MutationTracker:
                      norm_snippet: str) -> Optional[MutationAlert]:
         rule_id = finding.get("rule_id", finding.get("pattern_title", ""))
         candidates = self.db.query("""
-            SELECT finding_key, file_path, detail, resolved_at
+            SELECT id AS finding_key, file_path, detail, resolved_at
             FROM findings
             WHERE pattern_title LIKE ?
               AND resolved_at IS NOT NULL
@@ -190,10 +190,22 @@ def auto_resolve(db, target: str, current_keys: set, scan_mode: str,
         rows = db.query("""
             SELECT DISTINCT s.finding_key
             FROM finding_sightings s
-            JOIN findings f ON f.finding_key = s.finding_key
             WHERE s.target = ? AND s.scan_mode = 'full'
-              AND f.resolved_at IS NULL
         """, (target,)).fetchall()
+        # Filter: only findings that exist and are unresolved
+        valid = []
+        for r in rows:
+            fk = r["finding_key"]
+            try:
+                exists = db.query(
+                    "SELECT id FROM findings WHERE id = ? AND resolved_at IS NULL",
+                    (fk,)).fetchone()
+            except Exception:
+                # Try matching by finding_key in metadata (computed hash)
+                exists = None
+            if exists:
+                valid.append(fk)
+        rows = [{"finding_key": k} for k in valid]
     except Exception:
         return 0
 
@@ -227,7 +239,7 @@ def auto_resolve(db, target: str, current_keys: set, scan_mode: str,
             db.execute("""
                 UPDATE findings
                 SET resolved_at = datetime('now'), resolved_by = 'auto'
-                WHERE finding_key = ? AND resolved_at IS NULL
+                WHERE id = ? AND resolved_at IS NULL
             """, (key,))
             db.commit()
             resolved += 1
