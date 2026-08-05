@@ -1,4 +1,4 @@
-# GSC Audit Policy v0.19
+# GSC Audit Policy v0.20
 # Phase 1: warn-only — post comments, never block PRs.
 
 rollout_phase: warn-only
@@ -43,3 +43,18 @@ mutation_tracking:
     grace_days: 7
     require_full_scan: true
   blocking: never
+
+# ── v0.20: Security Invariants ──
+# Add invariants in scanned repo's .gsc-audit.yml. Example:
+#
+# invariants:
+#   - id: INV-001
+#     name: "All DB queries are parameterized"
+#     type: dataflow
+#     severity: CRITICAL
+#     paths: ["app/", "src/"]
+#     exclude_paths: ["tests/", "fixtures/"]
+#     rule:
+#       source: "request\\.(?:args|form|json)"
+#       sink: "db\\.(?:query|execute)"
+#       must_pass_through: "sanitize|escape|parameterize"

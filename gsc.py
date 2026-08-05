@@ -191,6 +191,36 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     # Post-filter: inline suppression (# gsc:ignore / // gsc:ignore)
     findings = [f for f in findings if not _is_suppressed_inline(f)]
 
+    # ── v0.20: Security Invariant Engine (GS028) ──
+    if not echelons or "2" in echelons:
+        try:
+            from gsc_invariant_engine import InvariantEngine
+            from gsc_detectors.gs028_invariants import GS028Detector
+            config = path / ".gsc-audit.yml"
+            if config.exists():
+                engine = InvariantEngine(str(config))
+                if engine.invariants:
+                    det = GS028Detector(engine)
+                    for fp in path.rglob("*"):
+                        if not fp.is_file():
+                            continue
+                        if fp.suffix not in {'.py','.js','.ts','.tsx','.go','.rs','.java','.rb','.php'}:
+                            continue
+                        if any(d in fp.parts for d in {'node_modules','.git','__pycache__','venv','.venv'}):
+                            continue
+                        try:
+                            content = fp.read_text(errors='replace')
+                        except Exception:
+                            continue
+                        rel = str(fp.relative_to(path))
+                        inv_findings = det.detect(rel, content)
+                        for f in inv_findings:
+                            f["echelon"] = 2
+                            f["pattern_title"] = f"GS028-{f.get('metadata',{}).get('invariant_id','?')} (GS028 invariant)"
+                        findings.extend(inv_findings)
+        except Exception:
+            pass  # invariants are optional, don't crash the scan
+
     return findings
 
 
@@ -1797,6 +1827,12 @@ def main():
     mut_p.add_argument('--days', type=int, default=30)
     mut_p.add_argument('--limit', type=int, default=50)
 
+    # gsc invariants 🆕 v0.20
+    inv_p = sub.add_parser('invariants', help='Invariant engine (v0.20)')
+    inv_p.add_argument('inv_cmd', choices=['check', 'list'])
+    inv_p.add_argument('--repo', default='.')
+    inv_p.add_argument('--config')
+
     # gsc github-scan 🆕 v0.14
     gh = sub.add_parser('github-scan', help='GitHub PR scan with comment + check run')
     gh.add_argument('target', help='PR URL (https://github.com/org/repo/pull/123) or \".\" for local')
@@ -1965,6 +2001,22 @@ def main():
             import json as _json
             print(_json.dumps(db.mutation_stats(), indent=2))
         db.close()
+    elif args.command == "invariants":
+        from gsc_invariant_engine import InvariantEngine, InvariantLoadError
+        config = args.config or os.path.join(args.repo, ".gsc-audit.yml")
+        try:
+            engine = InvariantEngine(config)
+        except InvariantLoadError as e:
+            print(f"INVALID: {e}", file=sys.stderr)
+            sys.exit(2)
+        if args.inv_cmd == "check":
+            print(f"OK: {len(engine.invariants)} invariant(s) compiled "
+                  f"from {config}")
+        elif args.inv_cmd == "list":
+            for inv in engine.invariants:
+                state = "on " if inv.enabled else "off"
+                print(f"[{state}] {inv.id:10s} {inv.type:11s} "
+                      f"{inv.severity:9s} {inv.name}")
     else:
         parser.print_help()
 
