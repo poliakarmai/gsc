@@ -1758,6 +1758,27 @@ def main():
     dork.add_argument('--days', type=int, default=7, help='Scan repos updated in last N days (default: 7)')
     dork.add_argument('--list', action='store_true', help='List available dorks')
 
+    # gsc external-scan 🆕
+    ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
+    ext.add_argument('target', help='GitHub URL or local path')
+    ext.add_argument('--mode', choices=['full', 'pr', 'diff'], default='full')
+    ext.add_argument('--ref', default='main', help='Branch/tag')
+    ext.add_argument('--max-llm', type=int, default=50, help='Max LLM calls')
+    ext.add_argument('--output', '-o', help='Output file')
+    ext.add_argument('--format', choices=['json', 'markdown', 'sarif'], default='markdown')
+
+    # gsc report 🆕
+    rep = sub.add_parser('report', help='Generate report from scan JSON')
+    rep.add_argument('input_file', help='JSON scan result file')
+    rep.add_argument('--format', choices=['json', 'markdown', 'sarif'], required=True)
+    rep.add_argument('--output', '-o', help='Output file')
+
+    # gsc feedback 🆕
+    fb = sub.add_parser('feedback', help='Record TP/FP feedback on finding')
+    fb.add_argument('finding_id', help='Finding ID')
+    fb.add_argument('--verdict', choices=['tp', 'fp', 'ignore', 'fixed'], required=True)
+    fb.add_argument('--reason', help='Why')
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -1810,6 +1831,19 @@ def main():
             cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
+
+    elif args.command in ("external-scan", "report", "feedback"):
+        subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_external.py"),
+                        args.command.replace("external-scan", "scan"),
+                        *([args.target if hasattr(args, 'target') else args.input_file] if hasattr(args, 'input_file') else [args.target if hasattr(args, 'target') else '']),
+                        *(["--mode", args.mode] if hasattr(args, 'mode') else []),
+                        *(["--ref", args.ref] if hasattr(args, 'ref') else []),
+                        *(["--max-llm", str(args.max_llm)] if hasattr(args, 'max_llm') else []),
+                        *(["--format", args.format] if hasattr(args, 'format') else []),
+                        *(["--output", args.output] if hasattr(args, 'output') and args.output else []),
+                        *(["--verdict", args.verdict] if hasattr(args, 'verdict') else []),
+                        *(["--reason", args.reason] if hasattr(args, 'reason') and args.reason else []),
+                        ])
     else:
         parser.print_help()
 
