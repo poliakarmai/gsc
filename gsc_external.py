@@ -922,9 +922,17 @@ def _resolve_diff_base(repo_path: Path, base: str) -> str:
 
 def run_external_scan(target: str, profile_name: str = "developer-review",
                       mode: str = "full", ref: str = "main",
-                      base: str = "", head: str = "") -> ScanResult:
+                      base: str = "", head: str = "",
+                      dry_run: bool = False) -> ScanResult:
     policy = PROFILES.get(profile_name, PROFILES["developer-review"])
     mode = mode or policy.get("mode", "full")
+
+    # Phase 1: auto-degrade to regex-only on empty API key
+    use_llm_flag = True
+    if not os.environ.get("DEEPSEEK_API_KEY"):
+        print("⚠️  DEEPSEEK_API_KEY not set → LLM stages disabled (regex-only mode)",
+              file=sys.stderr)
+        use_llm_flag = False
 
     result = ScanResult(
         repo=target, profile=profile_name, scan_mode=mode,
