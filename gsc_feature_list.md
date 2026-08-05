@@ -21,7 +21,7 @@
 | 11 | **Corpus calibration CLI** — regression tests | ✅ | `scripts/gsc_calibration.py` — 14/14, `--fail-on-regression` |
 | 12 | **Policy-as-code profiles** — 4 профиля | ✅ | `gsc_external.py` `PROFILES`, `.gsc-audit.yml` |
 | 13 | **Auto-deactivation** — noisy rules below TP threshold | ✅ | `gsc_self_learn.py` — <30% TP при ≥10 вердиктах |
-| 14 | **Multi-language detectors** — Go, TS, Rust, Java | 🔜 | Планируется после rollout |
+| 14 | **Multi-language detectors** — Go, TS, Rust, Java | ✅ | `gsc_detectors/multi_lang.py` → Step 3.5 в `gsc_external.py` |
 | 15 | **VSCode extension hooks** | 📋 | Будущее |
 
 ---
