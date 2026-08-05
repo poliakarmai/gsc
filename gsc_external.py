@@ -51,6 +51,7 @@ PROFILES = {
         "show_uncertain": False,
         "disabled_rules": ["GS003", "GS008", "GS015"],
         "review_only_rules": ["GS007", "GS012", "GS013", "GS018", "GS019", "GS023"],
+        "chain_budget": 5,
     },
     "pr-gate": {
         "description": "PR проверка — только изменения, только блокирующее",
@@ -66,6 +67,7 @@ PROFILES = {
         "show_uncertain": False,
         "disabled_rules": ["GS003", "GS008", "GS015", "GS023"],
         "review_only_rules": ["GS007", "GS012", "GS013", "GS018", "GS019"],
+        "chain_budget": 3,
     },
     "audit": {
         "description": "Полный аудит — глубокий, все правила",
@@ -81,6 +83,7 @@ PROFILES = {
         "show_uncertain": True,
         "disabled_rules": [],
         "review_only_rules": [],
+        "chain_budget": 10,
     },
     "candidate-review": {
         "description": "Проверка тестового задания — мягкий режим",
@@ -96,6 +99,7 @@ PROFILES = {
         "show_uncertain": False,
         "disabled_rules": ["GS003", "GS008", "GS015", "GS023"],
         "review_only_rules": ["GS007", "GS012", "GS013", "GS018", "GS019", "GS021", "GS022"],
+        "chain_budget": 3,
     },
 }
 
