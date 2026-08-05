@@ -1,207 +1,212 @@
 # PROJECT.md — GSC: Git Security Checker
 
-> **Для:** внешнего AI-агента для аудита кодовой базы.  
-> **Автор:** Море (Hermes orchestrator, профиль `default`)  
-> **Дата:** 2026-08-05  
-> **Версия:** v0.16 — Production Rollout & Learning Loop  
+> **Для:** внешнего AI-агента для аудита кодовой базы
+> **Автор:** Море (Hermes orchestrator, профиль `default`)
+> **Дата:** 2026-08-05
+> **Версия:** v1.0 — Rollout Complete & Enterprise Track
 > **Репозиторий:** `github.com/poliakarmai/gsc`
-
----
 
 ## 1. Что это
 
-GSC — самообучающийся статический анализатор безопасности: 23 plugin-детектора + LLM (DeepSeek), SQLite, замкнутая петля self-learning. Ищет уязвимости, ревалидирует через LLM, авто-деактивирует шумные паттерны.
+GSC — самообучающийся статический анализатор безопасности:
+25 plugin-детекторов + GS024 LLM (DeepSeek), SQLite, замкнутая петля
+self-learning. Помимо классического SAST:
 
-### Версии за сегодня (17 коммитов)
+- **PoC Auto-Generation** — автогенерация эксплойта для подтверждённых находок
+- **AI-Code Provenance (GS025)** — небезопасные дефолты AI-сгенерированного кода
+- **Exploit Chain Composer** — композиция находок в цепочки атак (в т.ч. cross-file)
+- **Temporal Mutation Tracker** — рецидивы и мутации «починенных» уязвимостей
+- **Security Invariant Engine (GS028)** — policy-as-code инварианты, AST taint tracking
+- **Blocking Engine** — блокировка только детекторами с доказанной точностью
+
+Production rollout Phase 0–5: ✅ завершён (blocking-standard).
+
+## 2. Версии
 
 | v | Ключевая фича |
-|----|---------------|
+|---|---|
 | v0.11 | External Scanner MVP |
 | v0.12 | Profiles, V3 scoring, policy-as-code, report UX |
 | v0.13 | PR Gate: diff mode, fingerprinting, exit codes |
-| v0.14 | GitHub PR Adapter + Calibration CI (14/14) |
-| v0.15 | Real GitHub API, fork safe mode, redaction audit, CI workflows |
-| v0.16 | finding_key, rollout_phase, feedback loop, rollout metrics, REST API |
+| v0.14 | GitHub PR Adapter + Calibration CI |
+| v0.15 | Real GitHub API, fork safe mode, redaction audit |
+| v0.16 | finding_key, rollout_phase, feedback loop, REST API |
+| v0.17 | PoC Auto-Generation + GS025 AI-Code Provenance |
+| v0.18 | Exploit Chain Composer + chains feedback |
+| v0.19 | Temporal Mutation Tracker + auto-resolve |
+| v0.20 | Security Invariant Engine + GS028 |
+| v0.21 | Stabilization: AST taint, cross-file chains, hard calibration |
+| v0.22 | Phase 1: Dry-run CI |
+| v0.23 | Phase 2: Warn-only comments |
+| v0.24 | Phase 3: Feedback collection (/gsc-команды в PR) |
+| v0.25 | Phase 4: Blocking CRITICAL + overrides/bypass/shadow |
+| v0.26 | Phase 5: Blocking CRITICAL+HIGH + chain blocking + PoC-boost |
 
----
-
-## 2. Файловая структура
+## 3. Файловая структура
 
 ```
 ~/gsc/
-├── gsc.py                          ← CLI (22+ команд)
-├── gsc_external.py                 ← External Scanner v0.16
-├── gsc_github_adapter.py           ← GitHub Adapter v0.15 (570 строк)
-├── gsc_revalidate.py               ← Structured revalidator
-├── gsc_detectors/                  ← 23 детектора + GS024 LLM
-├── calibration/
-│   ├── calibration_dataset.json    ← 14 проектов
-│   ├── expected/*.json             ← Ожидаемые находки
-│   └── reports/                    ← Результаты
-├── scripts/
-│   ├── gsc_calibration.py          ← Calibration runner
-│   ├── gsc_rollout_metrics.py      ← 🆕 Rollout metrics
-│   ├── gsc_metrics.py gsc_self_learn.py ...
-├── .github/workflows/
-│   ├── gsc-internal-pr.yml         ← Internal PR
-│   ├── gsc-fork-safe.yml           ← Fork safe
-│   └── gsc-calibration.yml         ← Calibration CI
-├── tests/test_corpus.py            ← 8/8
-├── PROJECT.md AGENTS.md README.md
-└── LICENSE
-
-~/.hermes/scripts/gsc_self_learn.py ← Self-learning v2.0
-~/.hermes/state/gsc_audit.db        ← SQLite (400K находок)
+ ├── gsc.py                        ← CLI (30+ команд)
+ ├── gsc_external.py               ← External Scanner v0.26
+ ├── gsc_github_adapter.py         ← GitHub Adapter (priority truncation)
+ ├── gsc_revalidate.py             ← Structured revalidator
+ ├── gsc_blocking.py               ← v0.25/26 Blocking Engine
+ ├── gsc_poc_generator.py          ← v0.17 PoC generation
+ ├── gsc_chain_composer.py         ← v0.18/v0.21 chains
+ ├── gsc_mutation_tracker.py       ← v0.19 mutations
+ ├── gsc_invariant_engine.py       ← v0.20 invariants
+ ├── gsc_ast_dataflow.py           ← v0.21 Python taint tracking
+ ├── gsc_db.py                     ← SQLite wrapper, миграции до schema 23
+ ├── gsc_detectors/                ← 25 детекторов + GS024 LLM
+ │   ├── gs025_ai_provenance.py    ← v0.17
+ │   └── gs028_invariants.py       ← v0.20
+ ├── calibration/                  ← 17 проектов (11 clean + 6 vuln)
+ ├── scripts/
+ │   ├── gsc_calibration.py        ← hard chain assertion 2/3
+ │   ├── gsc_backfill_fingerprints.py
+ │   ├── gsc_dryrun_summary.py gsc_redact_report.py
+ │   ├── gsc_pr_feedback.py        ← парсер /gsc-команд
+ │   ├── gsc_report_dryrun.py gsc_rollout_metrics.py
+ │   └── gsc_self_learn.py gsc_reactions.py ...
+ ├── .github/workflows/
+ │   ├── gsc-internal-pr.yml       ← blocking-standard, fail-on-blocking
+ │   ├── gsc-fork-safe.yml         ← regex-only
+ │   ├── gsc-calibration.yml       ← 17/17 nightly
+ │   ├── gsc-dry-run.yml           ← Phase 1
+ │   └── gsc-feedback.yml          ← /gsc-команды (injection-safe)
+ ├── tests/test_corpus.py          ← 67/67
+ └── PROJECT.md AGENTS.md README.md LICENSE
 ```
 
----
+```
+~/.hermes/scripts/gsc_self_learn.py  ← 04:00, 50 LLM/день
+~/.hermes/scripts/gsc_reactions.py   ← 04:30, сбор реакций
+~/.hermes/state/gsc_audit.db         ← SQLite, schema 23
+```
 
-## 3. Все команды
+## 4. Команды
 
 ```bash
-# Full scan
-gsc external-scan https://github.com/user/repo --profile developer-review
+# Scan
+gsc external-scan <target> --profile <p> [--mode diff --base X --head HEAD]
+gsc external-scan ... --with-poc --with-chains [--dry-run] [--bypass]
 
-# PR diff scan
-gsc external-scan ./repo --profile pr-gate --mode diff --base main --head HEAD --fail-on-blocking
+# Feature results
+gsc poc list|show <finding_key> --report scan.json
+gsc chains list|show <chain_key> --report scan.json
+gsc mutations list|show <finding_key>|stats [--days 30]
+gsc invariants check|list [--repo .]
 
-# GitHub PR
+# GitHub
 gsc doctor --github
-gsc github-scan https://github.com/org/repo/pull/123 --dry-run
-gsc github-scan https://github.com/org/repo/pull/123 --post-comment --create-check --fail-on-blocking
-gsc github-scan . --github-context "$GITHUB_EVENT_PATH" --safe-mode --no-llm
+gsc github-scan <pr-url> --post-comment --create-check --fail-on-blocking
 
-# REST API 🆕
-gsc api --port 8766                                            # start API server
-curl -X POST localhost:8766/api/v1/scan -H "x-api-key: $KEY" \ # trigger scan
-  -d '{"target":"https://github.com/user/repo","profile":"pr-gate"}'
+# Feedback (key = finding_key or chain_key)
+gsc feedback <key> --verdict tp|fp|fixed --reason "..."
+# or in PR: /gsc fp <key> reason | /gsc override <key> reason
 
-# Reports + feedback
-gsc report scan.json --format markdown
-gsc report scan.json --format sarif -o report.sarif.json
-gsc feedback abc123def456 --verdict fp --reason "test fixture"
-
-# Quality
+# Metrics and reports
+gsc metrics --rollout | --detectors
+gsc rollout report                 ← итог Phase 0–5
 gsc calibration run --fail-on-regression
-gsc metrics --rollout                    # 🆕 v0.16
-cd ~/gsc && python3 tests/test_corpus.py  # 8/8
+python3 tests/test_corpus.py       ← 67/67
+
+# REST API (port 8766, auth x-api-key)
+# POST /api/v1/scan  POST /api/v1/feedback  POST /api/v1/overrides
+# POST /api/v1/dryrun  GET /api/v1/chains  GET /api/v1/feedback/stats
 ```
 
----
+## 5. Profiles + rollout_phase
 
-## 4. Profiles + rollout_phase
-
-| Профиль | LLM calls | Блокировка | Для чего |
-|---------|:---------:|:----------:|----------|
-| `developer-review` | 20 | ≥HIGH, 80% | Проверка проекта |
-| `pr-gate` | 10 | ≥HIGH, 80% | PR gate |
-| `audit` | 50 | ≥HIGH, 80% | Полный аудит |
-| `candidate-review` | 15 | CRITICAL, 85% | Тестовое задание |
-
-### Rollout phases (.gsc-audit.yml)
+| Profile | LLM | PoC | Chains | Blocking |
+|---|---|---|---|---|
+| developer-review | 20 | 5 | 5 | >=HIGH, 80% |
+| pr-gate | 10 | 3 | 3 | >=HIGH, 80% |
+| audit | 50 | 10 | 10 | >=HIGH, 80% |
+| candidate-review | 15 | 3 | 3 | CRITICAL, 85% |
 
 ```yaml
-rollout_phase: warn-only           # комментарии без блокировки
-rollout_phase: blocking-critical   # только CRITICAL ≥90%
-rollout_phase: blocking-standard   # HIGH ≥85%
+# .gsc-audit.yml
+rollout_phase: blocking-standard   # текущая (Phase 5)
+blocking:
+  shadow: false          # теневой режим для новых правил
+  poc_boost: true        # +0.05 к effective confidence при валидном PoC
+  bypass_label: gsc-bypass
+  invariants_enforce: false
+  policy: {mode: auto, min_verdicts: 10, min_tp_rate: 0.70}
 ```
 
----
+## 6. Blocking Engine (v0.25/26)
 
-## 5. PR Gate + GitHub Adapter
+Блокировка = фаза И порог И detector eligibility И нет override/bypass:
 
-```
-git diff base...head → changed files → diff scan → V3 score
-→ finding_key → redaction audit → comment upsert → check run → SARIF
-→ exit: 0=pass, 1=blocking, 2=error
-```
+- **blocking-critical**: CRITICAL >= 0.90
+- **blocking-standard**: + HIGH >= 0.85; цепочки CRITICAL >= 0.90
+- Детектор допускается при >=10 вердиктов и TP-rate >= 70% (auto policy)
+- Аварийные выходы: `/gsc override` (точечный, reason обязателен, TTL 30д),
+  лейбл `gsc-bypass` (аудит); всё видно ревьюерам в комментарии
 
-- **Comment:** idempotent (`<!-- gsc:pr-scan:v1 -->`), 60KB truncation
-- **Check run:** success/failure/neutral/action_required
-- **Fork safe:** авто no-LLM + no-blocking + limited comment
-- **Redaction audit:** 5 паттернов, проверка до публикации
-
----
-
-## 6. Confidence V3
-
-| Confidence | Status | Действие |
-|:----------:|--------|----------|
-| ≥ 0.80 | confirmed | Blocking (CRITICAL/HIGH) |
-| 0.55–0.79 | likely | Warning |
-| 0.35–0.54 | uncertain | Manual review |
-| < 0.35 | false-positive | Suppressed |
-
-### finding_key (v0.16)
-
-`sha256(rule+file+snippet)[:12]` — стабильный ID в PR comment для `gsc feedback <key>`.
-
----
-
-## 7. CI Workflows
-
-| Workflow | Trigger | Действие |
-|----------|---------|----------|
-| `gsc-internal-pr.yml` | same-repo PR | LLM + comment + check + SARIF |
-| `gsc-fork-safe.yml` | fork PR | regex-only + warn comment |
-| `gsc-calibration.yml` | PR paths + nightly | 14/14 calibration |
-
----
-
-## 8. Calibration: 14/14 ✅
-
-10 clean (0 blocking) + 4 vuln (все находки обнаружены).
-
----
-
-## 9. Production Readiness (v0.16)
+## 7. Confidence V3
 
 ```
-✅ 8/8 corpus tests
-✅ 14/14 calibration
-✅ DB backup created
-✅ finding_key + gsc feedback
-✅ rollout_phase policy
-✅ gsc metrics --rollout
-⚠️ Self-learning: 0 ревалидировано (первый цикл завтра 04:00)
+>=0.80 confirmed | 0.55–0.79 likely | 0.35–0.54 uncertain | <0.35 suppressed
+```
+`finding_key = sha256(rule+file+snippet)[:12]`
+`chain_key = sha256(sorted finding_keys)[:12]`
+
+## 8. CI Workflows
+
+| Workflow | Trigger | Action |
+|---|---|---|
+| gsc-internal-pr.yml | same-repo PR | blocking-standard + comment + check |
+| gsc-fork-safe.yml | fork PR | regex-only, no repo invariants |
+| gsc-calibration.yml | paths + nightly | 17/17, hard chains 2/3 |
+| gsc-dry-run.yml | all PRs | read-only dry-run + artifacts |
+| gsc-feedback.yml | issue_comment | /gsc commands (injection-safe) |
+
+## 9. Calibration: 17/17 ✅
+
+11 clean + 6 vuln: sqli-demo, ai-generated-demo (GS025), vuln-chain-demo
+(chain CRITICAL), vuln-invariant-demo (GS028) and others.
+Chain assertion: hard, retry 2 of 3, temperature 0.
+
+## 10. DB Schema (version 23)
+
+```
+findings (+pattern_fingerprint, resolved_at) | feedback (+source, actor)
+chains | mutation_alerts | finding_sightings | overrides
+published_comments | publication_events | comment_reactions
+dry_run_runs | schema_version
 ```
 
-### Rollout plan
+Миграции: автоматические, с backup `.bak-v0XX-*`, WAL.
 
-```
-Phase 0: ✅ Readiness check
-Phase 1: 🔜 Dry-run CI
-Phase 2: 🔜 Warn-only comments (rollout_phase: warn-only)
-Phase 3: 🔜 Feedback collection
-Phase 4: 🔜 Blocking CRITICAL (rollout_phase: blocking-critical)
-Phase 5: 🔜 Blocking CRITICAL+HIGH (rollout_phase: blocking-standard)
-```
+## 11. Self-Learning Engine v2
 
----
+04:00 MSK: 5 projects → scan → LLM revalidate (50/day) → update stats
+→ auto-deactivate (<30% TP at >=10 verdicts, detectors and chains).
+04:30: collect comment reactions (counts only, privacy).
 
-## 10. Self-Learning Engine v2
+## 12. Production Rollout — COMPLETE
 
-Ежедневно 04:00 МСК: 5 проектов → scan → LLM revalidate (50/день) → update stats → auto-deactivate (<30% TP при ≥10 вердиктах).
+| Phase | Status |
+|---|---|
+| Phase 0: Readiness | ✅ |
+| Phase 1: Dry-run CI | ✅ |
+| Phase 2: Warn-only | ✅ |
+| Phase 3: Feedback | ✅ |
+| Phase 4: Blocking CRITICAL | ✅ |
+| Phase 5: Blocking std | ✅ |
 
----
+Итог: `gsc rollout report`. Тесты 67/67, calibration 17/17, schema 23.
 
-## 11. Метрики
-
-- **БД:** 400K находок, 0 ревалидировано
-- **Corpus:** 8/8 ✅
-- **Calibration:** 14/14 ✅
-- **JWT secret:** 95% confidence
-
----
-
-## 12. Дорожная карта
+## 13. Дорожная карта
 
 | Фаза | Статус |
-|------|:-----:|
-| CLI, CI/CD, Self-learning v1, Deepsec, GS024 | ✅ |
-| v0.11–v0.16: full pipeline (5 версий за день) | ✅ |
-| Production rollout (warn-only) | 🔜 Phase 1 |
-| Multi-language (Go/TS/Rust/Java) | ✅ |
-| Blocking CRITICAL | 🔜 Phase 4 |
-| VSCode extension / Marketplace | 📋 |
+|---|---|
+| CLI, CI/CD, Self-learning, GS024, v0.11–v0.16 | ✅ |
+| v0.17–v0.21: уникальные фичи + stabilization | ✅ |
+| Production rollout Phase 0–5 | ✅ |
+| VSCode extension / Marketplace | 🔜 v0.27 |
 | Enterprise (Helm, SSO) | 📋 |
+| Cross-repo корреляция секретов | 📋 |
