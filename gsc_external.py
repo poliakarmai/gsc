@@ -373,6 +373,8 @@ class ScanResult:
     llm_calls: int = 0
     # Policy
     policy: dict = field(default_factory=dict)
+    # Phase 1
+    dry_run: bool = False
     findings: list[dict] = field(default_factory=list)
 
     def to_dict(self) -> dict:
