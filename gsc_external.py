@@ -990,6 +990,13 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         pass
     print(f"   Raw findings: {len(raw_findings)}")
 
+    # Step 3.5: Multi-language scan
+    from gsc_detectors.multi_lang import scan_multilang
+    ml_findings = scan_multilang(target_path)
+    if ml_findings:
+        print(f"   Multi-lang findings: {len(ml_findings)}")
+        raw_findings.extend(ml_findings)
+
     # Step 4: Filter + LLM revalidate (CRITICAL first)
     max_llm = policy.get("llm_max_calls", 20)
     llm_calls = 0
