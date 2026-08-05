@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 GSC_EXTERNAL = Path(__file__).resolve().parent.parent / "gsc_external.py"
-CALIB_DIR = Path(__file__).resolve().parent / "calibration"
+CALIB_DIR = Path(__file__).resolve().parent.parent / "calibration"
 
 
 @dataclass
