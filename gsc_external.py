@@ -117,6 +117,8 @@ def is_placeholder(text: str) -> bool:
 def compute_confidence(finding: dict, is_test_file: bool = False, is_config_file: bool = False) -> float:
     """
     Compute confidence score based on multiple signals.
+    V2: Cross-checks LLM reasoning vs verdict — if reasoning contradicts
+    'true-positive', confidence is downgraded.
     Returns 0.0–1.0.
     """
     confidence = 0.5  # Start neutral
@@ -133,6 +135,43 @@ def compute_confidence(finding: dict, is_test_file: bool = False, is_config_file
         confidence = 0.15
     elif finding.get("llm_confidence"):
         confidence = float(finding["llm_confidence"])
+
+    # ── V2: Reasoning-verdict consistency check ──
+    # KEY INSIGHT from calibration: LLM reasoning is usually correct,
+    # but verdict label is often wrong. Trust reasoning over verdict.
+    reasoning = (finding.get("revalidation_reasoning") or "").lower()
+    
+    # If no LLM revalidation was done → automatic downgrade
+    if not finding.get("revalidation_verdict") and not finding.get("llm_verified"):
+        confidence = 0.35  # Max "uncertain" — never "confirmed" without LLM
+    
+    fp_signals = [
+        "safe default", "not a vulnerability", "not a security",
+        "not a secret", "not a credential", "development default",
+        "standard default", "localhost", "loopback", "127.0.0.1",
+        "test code", "test file", "documentation", "example",
+        "false positive", "not exploitable", "intended behavior",
+        "correctly", "properly", "safely", "not production",
+        "not real", "mislabeled", "incorrectly identifies",
+        "non-issue", "by design", "expected behavior",
+        "not a file upload", "not a path traversal",
+        "configuration file", "not a secret", "build script",
+    ]
+    fp_hits = sum(1 for s in fp_signals if s in reasoning)
+    
+    if fp_hits >= 2:
+        confidence = 0.08  # Reasoning clearly describes a FP → override
+    elif fp_hits == 1 and finding.get("revalidation_verdict") == "true-positive":
+        confidence *= 0.4
+    elif fp_hits == 1:
+        confidence = 0.15
+
+    # Config files without secrets → downgrade
+    fp = finding.get("file_path", "")
+    if fp.endswith((".yaml", ".yml", ".toml", ".cfg", ".ini", ".json")):
+        title = (finding.get("title") or "").lower()
+        if not any(kw in title for kw in ["secret", "token", "password", "key", "credential"]):
+            confidence *= 0.5
 
     # Downgrades
     if is_test_file:
