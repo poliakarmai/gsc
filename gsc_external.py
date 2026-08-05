@@ -52,6 +52,7 @@ PROFILES = {
         "disabled_rules": ["GS003", "GS008", "GS015"],
         "review_only_rules": ["GS007", "GS012", "GS013", "GS018", "GS019", "GS023"],
         "chain_budget": 5,
+        "poc_budget": 5,
     },
     "pr-gate": {
         "description": "PR проверка — только изменения, только блокирующее",
@@ -1055,6 +1056,31 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         fp = f.get("file_path", "?")
         snippet = (f.get("detail") or f.get("title") or "")[:100]
         f["finding_key"] = hashlib.sha256(f"{rule}|{fp}|{snippet}".encode()).hexdigest()[:12]
+
+    # ── v0.17: PoC Auto-Generation (after V3 scoring, before classify) ──
+    poc_budget = policy.get("poc_budget", policy.get("chain_budget", 0))
+    if poc_budget > 0 and any(f.get("confidence_score", 0) >= 0.80 for f in enriched):
+        print(f"   Generating PoCs (budget: {poc_budget})...")
+        try:
+            from gsc_poc_generator import attach_pocs
+            source_map = {}
+            for f in enriched:
+                fp = f.get("file_path", "")
+                if fp and fp not in source_map:
+                    fp_abs = target_path / fp if not fp.startswith("/") else Path(fp)
+                    if fp_abs.exists():
+                        try:
+                            source_map[fp] = fp_abs.read_text(errors='replace')
+                        except Exception:
+                            pass
+            enriched = attach_pocs(enriched, source_map, budget=poc_budget)
+            poc_generated = sum(1 for f in enriched if f.get("metadata", {}).get("poc"))
+            poc_failed = sum(1 for f in enriched if f.get("metadata", {}).get("poc_failed"))
+            print(f"   PoCs: {poc_generated} generated, {poc_failed} failed (confidence penalized)")
+            result.poc_generated = poc_generated
+            result.poc_failed = poc_failed
+        except ImportError:
+            pass
 
     # Step 6: Classify
     result.findings = enriched

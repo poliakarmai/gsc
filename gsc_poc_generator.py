@@ -1,257 +1,190 @@
 #!/usr/bin/env python3
 """
-GSC PoC Auto-Generator v1.0.
+GSC PoC Auto-Generator v1.0 — class-based, redaction-audited.
 
-Generates proof-of-concept exploits for confirmed findings.
-- If PoC generation succeeds → confidence boost + PoC included in reports
-- If PoC generation fails → confidence reduction (finding likely FP)
-- Formats: curl, Python, pytest
+Generates minimal exploits (curl/python/pytest) for confirmed findings.
+Requires LLM → auto-disabled in fork-safe (--no-llm) mode.
+
+Key safety: PoC MUST pass redaction audit before being included.
+If PoC generation fails for finding with confidence < 0.85 →
+confidence is penalized (powerful FP filter).
 
 Usage:
-  python3 gsc_poc_generator.py <finding_id>              # single finding
-  python3 gsc_poc_generator.py --project gsc --min-sev HIGH  # batch
+  gsc poc list --report scan.json
+  gsc poc show abc123 --report scan.json
+  gsc external-scan ./repo --with-poc
 """
 
-import os, sys, json, sqlite3, textwrap
+import json, re, sys, os
 from pathlib import Path
+from dataclasses import dataclass
 from typing import Optional
 
-GSC_HOME = Path(__file__).resolve().parent
-DB_PATH = Path(os.path.expanduser("~/.hermes/state/gsc_audit.db"))
+POC_MIN_CONFIDENCE = 0.80
+POC_WINDOW_LINES = 30
+POC_FAIL_PENALTY = 0.90
 
-API_KEY = os.environ.get("DEEPSEEK_API_KEY", "")
-API_URL = "https://api.deepseek.com/v1/chat/completions"
-MODEL = "deepseek-chat"
+REDACT_PATTERNS = [
+    (r'sk-[a-zA-Z0-9]{20,}', "API key"),
+    (r'AKIA[A-Z0-9]{16}', "AWS key"),
+    (r'ghp_[a-zA-Z0-9]{36}', "GitHub token"),
+    (r'-----BEGIN.*PRIVATE KEY-----', "Private key"),
+    (r'password\s*[=:]\s*["\'][^\s"\']{8,}["\']', "Hardcoded credential"),
+]
+
+POC_RULES: dict[str, tuple[str, str]] = {
+    "GS001": ("sql_injection", "curl"),
+    "GS003": ("injection", "curl"),
+    "GS007": ("idor", "curl"),
+    "GS012": ("info_leak", "python"),
+    "GS019": ("auth_bypass", "curl"),
+    "GS022": ("ssrf", "curl"),
+    "GS024": ("prompt_injection", "python"),
+}
 
 
 def _get_api_key() -> str:
-    if API_KEY:
-        return API_KEY
-    env_paths = [
-        Path(os.path.expanduser("~/.hermes/.env")),
-        Path(os.path.expanduser("~/.hermes/env")),
-    ]
-    for p in env_paths:
+    for p in [Path(os.path.expanduser("~/.hermes/.env")),
+              Path(os.path.expanduser("~/.hermes/env"))]:
         if p.exists():
             for line in p.read_text().splitlines():
                 if line.startswith("DEEPSEEK_API_KEY="):
-                    return line.split("=", 1)[1].strip().strip('"\'')
-    return ""
+                    return line.split("=", 1)[1].strip().strip("\"'")
+    return os.environ.get("DEEPSEEK_API_KEY", "")
 
 
-def _call_llm(system_prompt: str, user_prompt: str, max_tokens: int = 800) -> Optional[str]:
-    """Call DeepSeek API for PoC generation."""
+def _call_llm(system: str, user: str, max_tokens: int = 800) -> Optional[str]:
     import urllib.request as _req
-
     key = _get_api_key()
     if not key:
         return None
-
     body = json.dumps({
-        "model": MODEL,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        "max_tokens": max_tokens,
-        "temperature": 0.1,
+        "model": "deepseek-chat",
+        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+        "max_tokens": max_tokens, "temperature": 0.1,
     }).encode()
-
-    r = _req.Request(API_URL, data=body, headers={
-        "Authorization": f"Bearer {key}",
-        "Content-Type": "application/json",
-    })
-
     try:
-        resp = json.loads(_req.urlopen(r, timeout=30).read())
+        resp = json.loads(_req.urlopen(_req.Request(
+            "https://api.deepseek.com/v1/chat/completions",
+            data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+        ), timeout=30).read())
         return resp["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"[PoC Gen] LLM call failed: {e}", file=sys.stderr)
+        print(f"[PoC] LLM error: {e}", file=sys.stderr)
         return None
 
 
-def _read_context(file_path: str, line: int, window: int = 30) -> str:
-    """Read ±window lines around the finding, with line numbers."""
-    p = Path(file_path)
-    if not p.is_absolute():
-        # Try relative to GSC home and cwd
-        for base in [GSC_HOME, Path.cwd()]:
-            candidate = base / file_path
-            if candidate.exists():
-                p = candidate
+def _redact_audit(text: str) -> bool:
+    """Return True if text is CLEAN (no secrets found)."""
+    for pattern, label in REDACT_PATTERNS:
+        if re.search(pattern, text, re.IGNORECASE):
+            print(f"[PoC] REDACT BLOCKED: {label}", file=sys.stderr)
+            return False
+    return True
+
+
+def _syntax_ok(code: str, fmt: str) -> bool:
+    if fmt == "python":
+        try:
+            compile(code, "<poc>", "exec")
+            return True
+        except SyntaxError:
+            return False
+    return bool(re.match(r"^(curl|http|pytest|python)\b", code.strip()))
+
+
+@dataclass
+class PoC:
+    code: str
+    impact: str
+    fmt: str
+    validated: bool = False
+
+
+class PoCGenerator:
+    def __init__(self, budget: int = 5):
+        self.budget = budget
+
+    def generate(self, finding: dict, source_code: str) -> Optional[PoC]:
+        if self.budget <= 0:
+            return None
+        if finding.get("confidence", 0) < POC_MIN_CONFIDENCE:
+            return None
+
+        rule_id = finding.get("rule_id", finding.get("pattern_title", ""))
+        # Match rule_id prefixes (e.g. "GS025-permissive_cors" → check GS025)
+        matched_kind = None
+        matched_fmt = "curl"
+        for prefix, (kind, fmt) in POC_RULES.items():
+            if rule_id.startswith(prefix):
+                matched_kind = kind
+                matched_fmt = fmt
                 break
+        if not matched_kind:
+            return None
 
-    if not p.exists():
-        return f"// [file not found: {file_path}]"
+        self.budget -= 1
+        prompt = self._build_prompt(finding, source_code, matched_kind, matched_fmt)
+        raw = _call_llm(
+            "You are a security researcher generating minimal PoC exploits. "
+            "Use ONLY placeholder values. Never include real secrets.",
+            prompt, max_tokens=800
+        )
+        if not raw:
+            return None
 
-    try:
-        lines = p.read_text(errors='replace').splitlines()
-    except Exception:
-        return f"// [cannot read: {file_path}]"
+        poc = self._parse(raw, matched_fmt)
+        if not poc:
+            return None
 
-    start = max(0, line - window - 1)
-    end = min(len(lines), line + window)
-    result = []
-    for i in range(start, end):
-        marker = ">>>" if i == line - 1 else "   "
-        result.append(f"{marker} {i+1:4d}| {lines[i]}")
-    return "\n".join(result)
+        # CRITICAL: PoC must pass redaction audit
+        if not _redact_audit(poc.code):
+            return None
 
+        poc.validated = _syntax_ok(poc.code, poc.fmt)
+        return poc
 
-def generate_poc(finding: dict, project_dir: str = ".") -> Optional[dict]:
-    """
-    Generate PoC for a single finding.
-    Returns None if generation fails (→ reduce confidence).
-    """
-    file_path = finding.get("file_path", "")
-    line = finding.get("line", finding.get("line_number", 0))
-    rule_id = finding.get("pattern_title", finding.get("rule_id", "?"))
-    title = finding.get("title", "")
-    detail = finding.get("detail", "")
+    def _build_prompt(self, f: dict, code: str, kind: str, fmt: str) -> str:
+        line = f.get("line", f.get("line_number", 1))
+        lines = code.splitlines()
+        start = max(0, line - 1 - POC_WINDOW_LINES // 2)
+        ctx = "\n".join(lines[start:start + POC_WINDOW_LINES])
+        return (
+            f"Generate a minimal proof-of-concept exploit.\n\n"
+            f"Rule: {f.get('rule_id', '?')} ({kind})\n"
+            f"File: {f.get('file_path', '?')}:{line}\n"
+            f"Code:\n{ctx}\n\n"
+            f"Format: {fmt}\n"
+            f"Use placeholder values ONLY. One request/script. No destructive actions.\n"
+            f'Output JSON: {{"code": "...", "impact": "one sentence"}}'
+        )
 
-    context = _read_context(file_path, line)
-
-    system = textwrap.dedent("""\
-    You are a security researcher generating minimal proof-of-concept exploits.
-    Your PoCs must be:
-    - SYNTAX-VALID (compilable/runnable code)
-    - MINIMAL (shortest possible demo of the vulnerability)
-    - SAFE (demonstrate impact without causing real harm)
-    - FORMATTED as a single fenced code block
-
-    If the finding is a FALSE POSITIVE (not actually exploitable), respond with:
-    ```
-    FALSE_POSITIVE: <reason>
-    ```
-
-    If exploitable, respond with:
-    ```
-    PoC:
-    <exploit code>
-    
-    Impact: <what happens>
-    Severity: <CRITICAL|HIGH|MEDIUM|LOW>
-    ```""")
-
-    user = f"""Finding: {rule_id} — {title}
-File: {file_path}, line {line}
-Detail: {detail}
-
-Code context:
-```
-{context}
-```
-
-Generate a minimal PoC. If this is a false positive, say so."""
-
-    result = _call_llm(system, user, max_tokens=600)
-    if not result:
-        return None
-
-    # Parse result
-    is_fp = "FALSE_POSITIVE" in result.upper()
-    if is_fp:
-        return {"poc": None, "is_false_positive": True, "reason": result}
-
-    # Extract code block if present
-    code = result
-    if "```" in result:
-        blocks = result.split("```")
-        if len(blocks) >= 2:
-            code = blocks[1]
-            # Strip language tag
-            if "\n" in code:
-                first_line, rest = code.split("\n", 1)
-                if first_line.strip().lower() in ("python", "bash", "curl", "sh", "pytest"):
-                    code = rest
-
-    return {
-        "poc": code.strip(),
-        "is_false_positive": False,
-        "full_response": result,
-    }
+    def _parse(self, raw: str, fmt: str) -> Optional[PoC]:
+        try:
+            m = re.search(r"\{[^{}]*\}", raw, re.DOTALL)
+            if not m:
+                return None
+            data = json.loads(m.group(0))
+            return PoC(code=str(data["code"]), impact=str(data.get("impact", "")), fmt=fmt)
+        except (json.JSONDecodeError, KeyError):
+            return None
 
 
-def generate_batch(project: str, min_severity: str = "HIGH", limit: int = 10) -> list[dict]:
-    """Generate PoCs for top findings in a project."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-
-    sev_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2}
-    min_idx = sev_order.get(min_severity, 1)
-
-    rows = conn.execute("""
-        SELECT * FROM findings
-        WHERE project = ? AND revalidation_verdict IS NULL
-        ORDER BY CASE category
-            WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END
-        LIMIT ?
-    """, (project, limit)).fetchall()
-    conn.close()
-
-    results = []
-    for r in rows:
-        finding = dict(r)
-        poc = generate_poc(finding)
-        finding["poc"] = poc
-        results.append(finding)
-        rule = finding.get("pattern_title", finding.get("rule_id", "?"))[:30]
-        if poc and not poc.get("is_false_positive"):
-            print(f"✅ {rule} — PoC generated")
-        elif poc and poc.get("is_false_positive"):
-            print(f"🔴 {rule} — FALSE POSITIVE: {poc.get('reason','')[:80]}")
-        else:
-            print(f"⚠️ {rule} — PoC generation failed")
-
-    return results
-
-
-def poc_confidence_adjust(finding: dict, poc_result: Optional[dict]) -> float:
-    """
-    Adjust confidence based on PoC generation result.
-    - PoC generated → +0.10 boost (max 0.95)
-    - False positive → -0.30 penalty (min 0.05)
-    - Generation failed → -0.10 penalty (uncertainty)
-    """
-    base = finding.get("confidence", 0.5)
-
-    if poc_result is None:
-        return max(0.05, base - 0.10)
-    if poc_result.get("is_false_positive"):
-        return max(0.05, base - 0.30)
-    if poc_result.get("poc"):
-        return min(0.95, base + 0.10)
-    return base
-
-
-# ── CLI ───────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import argparse
-
-    p = argparse.ArgumentParser(description="GSC PoC Auto-Generator")
-    p.add_argument("finding_id", nargs="?", help="Finding ID from DB")
-    p.add_argument("--project", help="Project name for batch generation")
-    p.add_argument("--min-sev", default="HIGH", choices=["CRITICAL", "HIGH", "MEDIUM"])
-    p.add_argument("--limit", type=int, default=10)
-    args = p.parse_args()
-
-    if args.project:
-        results = generate_batch(args.project, args.min_sev, args.limit)
-        generated = sum(1 for r in results if r.get("poc") and r["poc"].get("poc"))
-        fp = sum(1 for r in results if r.get("poc") and r["poc"].get("is_false_positive"))
-        failed = sum(1 for r in results if r.get("poc") is None)
-        print(f"\n📊 {len(results)} findings: {generated} PoCs, {fp} FP, {failed} failed")
-    elif args.finding_id:
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        r = conn.execute("SELECT * FROM findings WHERE id=?", (args.finding_id,)).fetchone()
-        conn.close()
-        if not r:
-            print(f"Finding {args.finding_id} not found")
-            sys.exit(1)
-        poc = generate_poc(dict(r))
-        if poc:
-            print(json.dumps(poc, indent=2))
-    else:
-        p.print_help()
+def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 5) -> list[dict]:
+    """Generate PoCs for confirmed findings. Mutates findings in-place. Returns findings."""
+    gen = PoCGenerator(budget=budget)
+    for f in findings:
+        if f.get("confidence", 0) < POC_MIN_CONFIDENCE:
+            continue
+        src = source_map.get(f.get("file_path", f.get("file", "")))
+        if not src:
+            continue
+        poc = gen.generate(f, src)
+        if poc and poc.validated:
+            f.setdefault("metadata", {})["poc"] = poc.code
+            f["metadata"]["poc_impact"] = poc.impact
+            f["metadata"]["poc_format"] = poc.fmt
+        elif poc is None and f.get("confidence", 0) < 0.85:
+            f["confidence"] = round(f["confidence"] * POC_FAIL_PENALTY, 2)
+            f.setdefault("metadata", {})["poc_failed"] = True
+    return findings
