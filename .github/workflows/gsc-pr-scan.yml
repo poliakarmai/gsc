@@ -1,0 +1,40 @@
+name: GSC PR Security Scan
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  gsc-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Need git history for --diff
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install GSC + ripgrep
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+          pip install pyyaml requests
+
+      - name: Clone GSC
+        run: |
+          git clone --depth 1 https://github.com/poliakarmai/gsc.git /tmp/gsc
+          echo "/tmp/gsc" >> $GITHUB_PATH
+          # Install gh CLI for PR comments
+          type -p gh || (curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null && sudo apt-get update -qq && sudo apt-get install -y -qq gh)
+
+      - name: Run GSC Scan + PR Comment
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python3 /tmp/gsc/scripts/gsc_pr_scanner.py

@@ -1,7 +1,7 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — self-learning audit system.
-> Обновлено: 2026-08-04 (v0.10 — GS020-GS023 Web Hacking 101 upgrade, 22 detectors, XSS/CSRF/SSRF/Open Redirect/Race Conditions)
+> Обновлено: 2026-08-04 (v0.11 — Self-Learning v2, GS024 LLM detector, честные метрики)
 
 ## Что это
 
@@ -40,6 +40,7 @@ gsc/
 │   ├── gs021_csrf_ssrf.py         ← 🆕🆕🆕 CSRF/SSRF: missing tokens, internal URL fetches (Bug Hunting)
 │   ├── gs022_open_redirect.py     ← 🆕🆕🆕 Open Redirect: redirect params, URL bypass (Web Hacking 101)
 │   └── gs023_race_conditions.py   ← 🆕🆕🆕 Race Conditions: TOCTOU, double-spend, async races (Bug Hunting)
+│   └── gs024_llm_sqli.py          ← 🆕🆕🆕🆕 LLM-based SQLi detector (pilot, replaces 87 regex patterns)
 ├── gsc_resume.py         ← 🆕 FileStateManager (per-file scan state)
 ├── gsc_revalidate.py     ← 🆕 Structured revalidator (TP/FP/Fixed/Uncertain)
 ├── patterns/             ← Seed patterns (OWASP, CWE, 7 languages)

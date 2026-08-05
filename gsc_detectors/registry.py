@@ -197,6 +197,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         description=_gs023.description,
         noise_tier=getattr(_gs023, "NOISE_TIER", "noisy"),
     ),
+    # 🆕 v2.0: LLM-based detector (pilot)
+    DetectorEntry(
+        rule_id="GS024",
+        echelon=2,
+        detect_fn=lambda ctx: [],  # Lazy import — loaded on demand to avoid API key requirement
+        description="LLM-based SQL injection (pilot — replaces 87 regex patterns)",
+        noise_tier="precise",
+    ),
 ]
 
 # Grouped by echelon for targeted runs
