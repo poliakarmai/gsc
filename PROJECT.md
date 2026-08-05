@@ -421,7 +421,8 @@ python3 gsc.py db "SELECT revalidation_verdict, COUNT(*) FROM findings WHERE rev
 | Deepsec upgrade (15→23 детекторов, noise tiers, resume, revalidate) | ✅ |
 | **Self-learning v2** (замкнутая петля, LLM-ревалидация) | ✅ |
 | **GS024 LLM detector** (пилот) | ✅ |
-| Ground truth / precision tracking | 🔜 |
+| **External Scanner MVP** (clone→scan→revalidate→score→report) | ✅ |
+| Calibration set (20 репозиториев: 10 vuln + 10 clean) | 🔜 |
 | Мультиязычность (Go/TS/Rust/Java) | 🔜 |
 | VSCode extension / Pattern marketplace | 📋 |
 | Enterprise (Helm, SSO, Compliance) | 📋 |
