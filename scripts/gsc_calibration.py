@@ -134,18 +134,26 @@ def run_calibration(dataset_path: str = None, fail_on_regression: bool = False,
             r = subprocess.run(
                 [sys.executable, str(GSC_EXTERNAL), "scan", target,
                  "--profile", "developer-review",
-                 "--format", "markdown"],
+                 "--format", "json"],
                 capture_output=True, text=True, timeout=180
             )
 
             # Find generated report
-            from gsc_external import EXTERNAL_DIR
+            from gsc_external import EXTERNAL_DIR, generate_sarif
             reports = sorted(Path(EXTERNAL_DIR).glob(f"{name}/*/scan.json"),
                            key=lambda p: p.stat().st_mtime, reverse=True)
             if reports:
                 out_dir = reports[0].parent
                 scan_data = json.loads(reports[0].read_text())
                 scan_ok = True
+
+                # Generate SARIF from scan data
+                from gsc_external import ScanResult
+                result = ScanResult(**{k: v for k, v in scan_data.items() if k != "findings"})
+                result.findings = scan_data.get("findings", [])
+                sarif_data = generate_sarif(result)
+                sarif_path = out_dir / "report.sarif.json"
+                sarif_path.write_text(json.dumps(sarif_data, indent=2))
 
                 result_entry["blocking"] = scan_data.get("findings_blocking", 0)
                 result_entry["confirmed"] = scan_data.get("findings_confirmed", 0)
