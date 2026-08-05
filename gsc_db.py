@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
-TARGET_VERSION = 21
+TARGET_VERSION = 22
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -116,6 +116,19 @@ CREATE TABLE IF NOT EXISTS comment_reactions (
 );
 """
 
+ALTERS_V022 = [
+    "ALTER TABLE feedback ADD COLUMN source TEXT DEFAULT 'cli'",
+    "ALTER TABLE feedback ADD COLUMN actor TEXT DEFAULT ''",
+    "ALTER TABLE feedback ADD COLUMN pr_number INTEGER",
+]
+
+INDEXES_V022 = [
+    "CREATE INDEX IF NOT EXISTS idx_feedback_key "
+    "ON feedback(finding_key)",
+    "CREATE INDEX IF NOT EXISTS idx_feedback_verdict "
+    "ON feedback(verdict)",
+]
+
 
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
@@ -139,6 +152,8 @@ class GSCDatabase:
             self._apply_v019()
         if version < 21:
             self._apply_v021()
+        if version < 22:
+            self._apply_v022()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -163,6 +178,20 @@ class GSCDatabase:
 
     def _apply_v021(self):
         self.conn.executescript(SCHEMA_V021)
+
+    def _apply_v022(self):
+        for alter in ALTERS_V022:
+            try:
+                self.conn.execute(alter)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
+        for idx in INDEXES_V022:
+            try:
+                self.conn.execute(idx)
+            except sqlite3.OperationalError:
+                pass
+
 
     def _schema_version(self) -> int:
         try:
@@ -410,6 +439,59 @@ class GSCDatabase:
                           "confused": react["confused"]},
             "negative_rate": round(neg / total_r, 3) if total_r else None,
         }
+
+
+    # ── v0.24 Phase 3: Feedback with source tracking ──────────
+
+    def record_feedback(self, finding_key: str, verdict: str, reason: str = "",
+                        source: str = "cli", actor: str = "",
+                        pr_number: int = None):
+        """Upsert: latest verdict per (finding_key, actor) wins."""
+        with self.conn:  # transaction: delete+insert are atomic
+            self.conn.execute(
+                "DELETE FROM feedback WHERE finding_key = ? AND actor = ?",
+                (finding_key, actor))
+            self.conn.execute("""
+                INSERT INTO feedback
+                    (finding_key, verdict, reason, source, actor, pr_number,
+                     created_at)
+                VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
+            """, (finding_key, verdict, reason[:500], source, actor,
+                  pr_number))
+
+    def detector_tp_rates(self) -> list[dict]:
+        """TP-rate per detector. fixed counts as positive signal."""
+        try:
+            rows = self.query("""
+                SELECT f.pattern_title AS rule_id, fb.verdict, COUNT(*) AS n
+                FROM feedback fb
+                JOIN findings f ON f.id = fb.finding_key
+                GROUP BY f.pattern_title, fb.verdict
+            """).fetchall()
+        except sqlite3.OperationalError:
+            return []
+        agg: dict = {}
+        for r in rows:
+            rid = str(r["rule_id"] or "").split()[0] if r["rule_id"] else "?"
+            det = rid.split("-")[0] if "-" in rid else rid
+            a = agg.setdefault(det, {"tp": 0, "fp": 0, "fixed": 0})
+            v = r["verdict"]
+            if v in a:
+                a[v] += r["n"]
+        out = []
+        for det, a in sorted(agg.items()):
+            verdicts = a["tp"] + a["fp"] + a["fixed"]
+            positive = a["tp"] + a["fixed"]
+            rate = positive / verdicts if verdicts else None
+            out.append({
+                "detector": det,
+                "verdicts": verdicts,
+                **a,
+                "tp_rate": round(rate, 3) if rate is not None else None,
+                "blocking_ready": bool(
+                    verdicts >= 10 and rate is not None and rate >= 0.70),
+            })
+        return out
 
     # ── Close ──────────────────────────────────────────────────
 
