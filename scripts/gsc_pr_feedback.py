@@ -10,7 +10,7 @@ SAFETY:
 import json, os, re, sys, urllib.error, urllib.request
 
 COMMAND_RE = re.compile(
-    r"^\s*/gsc\s+(tp|fp|fixed)\s+([a-f0-9]{12})(?:\s+(.*))?$",
+    r"^\s*/gsc\s+(tp|fp|fixed|override)\s+([a-f0-9]{12})(?:\s+(.*))?$",
     re.IGNORECASE)
 ALLOWED = {"OWNER", "MEMBER", "COLLABORATOR"}
 MAX_REASON = 500
@@ -67,11 +67,17 @@ def main() -> int:
 
     ok, failed = 0, []
     for cmd in cmds:
-        payload = {**cmd, "source": "pr-reply", "actor": actor,
-                   "pr_number": pr_number}
+        if cmd["verdict"] == "override":
+            endpoint = f"{api_url.rstrip('/')}/api/v1/overrides"
+            payload = {"finding_key": cmd["finding_key"],
+                       "reason": cmd["reason"], "repo": repo,
+                       "pr_number": pr_number, "actor": actor}
+        else:
+            endpoint = f"{api_url.rstrip('/')}/api/v1/feedback"
+            payload = {**cmd, "source": "pr-reply", "actor": actor,
+                       "pr_number": pr_number}
         try:
-            _post(f"{api_url.rstrip('/')}/api/v1/feedback", payload,
-                  {"x-api-key": api_key})
+            _post(endpoint, payload, {"x-api-key": api_key})
             ok += 1
         except urllib.error.HTTPError as e:
             failed.append(f"{cmd['finding_key']} -> HTTP {e.code}")

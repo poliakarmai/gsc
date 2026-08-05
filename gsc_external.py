@@ -1145,6 +1145,22 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     except ImportError:
         pass
 
+    # ── v0.25 Phase 4: Blocking Engine (replaces _apply_rollout_phase) ──
+    blocking_summary = {"blocked": [], "shadow": False}
+    try:
+        from gsc_blocking import BlockingEngine
+        from gsc_db import GSCDatabase
+        with GSCDatabase() as db:
+            engine = BlockingEngine(db, policy.get("rollout_phase", "warn-only"),
+                                     github_context=False)
+            overrides_set = set()
+            blocking_summary = engine.apply(enriched, overrides=overrides_set,
+                                            bypass=policy.get("bypass", False))
+            result.bypass = blocking_summary.get("bypass", False)
+            result.findings_blocking = len(blocking_summary.get("blocked", []))
+    except ImportError:
+        pass
+
     # Step 6: Classify
     result.findings = enriched
     result.findings_total = len(enriched)

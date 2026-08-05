@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
-TARGET_VERSION = 22
+TARGET_VERSION = 23
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -130,6 +130,24 @@ INDEXES_V022 = [
 ]
 
 
+SCHEMA_V023 = """
+CREATE TABLE IF NOT EXISTS overrides (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    finding_key TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    UNIQUE(repo, pr_number, finding_key)
+);
+CREATE INDEX IF NOT EXISTS idx_overrides_pr
+    ON overrides(repo, pr_number);
+"""
+
+
+
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
 
@@ -154,6 +172,8 @@ class GSCDatabase:
             self._apply_v021()
         if version < 22:
             self._apply_v022()
+        if version < 23:
+            self._apply_v023()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -178,6 +198,9 @@ class GSCDatabase:
 
     def _apply_v021(self):
         self.conn.executescript(SCHEMA_V021)
+
+    def _apply_v023(self):
+        self.conn.executescript(SCHEMA_V023)
 
     def _apply_v022(self):
         for alter in ALTERS_V022:
@@ -492,6 +515,35 @@ class GSCDatabase:
                     verdicts >= 10 and rate is not None and rate >= 0.70),
             })
         return out
+
+
+    # ── v0.25 Phase 4: Overrides ────────────────────────────
+
+    def upsert_override(self, repo, pr_number, finding_key, actor, reason,
+                        ttl_days: int = 30):
+        with self.conn:
+            self.conn.execute("""
+                INSERT INTO overrides
+                    (repo, pr_number, finding_key, actor, reason, expires_at)
+                VALUES (?, ?, ?, ?, ?, datetime('now', ?))
+                ON CONFLICT(repo, pr_number, finding_key) DO UPDATE SET
+                    actor = excluded.actor,
+                    reason = excluded.reason,
+                    created_at = datetime('now'),
+                    expires_at = excluded.expires_at
+            """, (repo, pr_number, finding_key, actor, reason[:300],
+                  f"+{ttl_days} days"))
+
+    def active_overrides(self, repo, pr_number) -> set:
+        try:
+            rows = self.query("""
+                SELECT finding_key FROM overrides
+                WHERE repo = ? AND pr_number = ?
+                  AND expires_at > datetime('now')
+            """, (repo, pr_number)).fetchall()
+            return {r["finding_key"] for r in rows}
+        except sqlite3.OperationalError:
+            return set()
 
     # ── Close ──────────────────────────────────────────────────
 
