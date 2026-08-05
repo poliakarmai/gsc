@@ -1758,6 +1758,11 @@ def main():
     dork.add_argument('--days', type=int, default=7, help='Scan repos updated in last N days (default: 7)')
     dork.add_argument('--list', action='store_true', help='List available dorks')
 
+    # gsc api 🆕
+    api = sub.add_parser('api', help='Start REST API server')
+    api.add_argument('--port', type=int, default=8766, help='Port (default: 8766)')
+    api.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
+
     # gsc external-scan 🆕
     ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
     ext.add_argument('target', help='GitHub URL or local path')
@@ -1846,6 +1851,13 @@ def main():
             cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
+
+    elif args.command == "api":
+        import uvicorn
+        from gsc_api import app
+        print(f"🔒 GSC API v1.0 — http://{args.host}:{args.port}")
+        print(f"   Docs: http://{args.host}:{args.port}/docs")
+        uvicorn.run(app, host=args.host, port=args.port, log_level="info")
 
     elif args.command in ("external-scan", "report", "feedback"):
         ext_args = [sys.executable, str(Path(__file__).parent / "gsc_external.py"),
