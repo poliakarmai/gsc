@@ -1114,6 +1114,27 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         except ImportError:
             pass
 
+    # ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
+    mutation_alerts = []
+    try:
+        from gsc_mutation_tracker import MutationTracker, auto_resolve
+        from gsc_db import GSCDatabase
+        with GSCDatabase() as db:
+            tracker = MutationTracker(db)
+            mutation_alerts = tracker.process(enriched, target=target, scan_mode=mode)
+            if mode == "full":
+                current = {f.get("finding_key", "") for f in enriched}
+                resolved = auto_resolve(db, target, current, "full")
+                if resolved:
+                    print(f"   Auto-resolved: {resolved} disappeared findings")
+        if mutation_alerts:
+            print(f"   Mutations: {len(mutation_alerts)} alerts "
+                  f"({sum(1 for a in mutation_alerts if a.kind == 'recurrence')} recurrences, "
+                  f"{sum(1 for a in mutation_alerts if a.kind == 'mutation')} mutations)")
+            result.mutation_alerts = len(mutation_alerts)
+    except ImportError:
+        pass
+
     # Step 6: Classify
     result.findings = enriched
     result.findings_total = len(enriched)

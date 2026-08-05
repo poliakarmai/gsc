@@ -1,243 +1,237 @@
 #!/usr/bin/env python3
 """
-GSC Temporal Mutation Tracker v1.0.
+GSC Temporal Mutation Tracker v0.19.
 
-Detects resurgence of 'fixed' vulnerability patterns in mutated form.
-"If you fixed it once, it shouldn't come back in a copy-pasted variant."
+Tracks return of "fixed" vulnerabilities:
+  - recurrence: identical pattern came back (sim >= 0.95)
+  - mutation:   pattern returned in modified form (0.50 <= sim < 0.95)
 
-Uses normalized fingerprinting: strip identifiers, keep structure.
-Compares against DB of previously-fixed findings.
-Alerts when similarity is in [0.5, 0.95] range (mutation, not duplicate).
-
-Usage:
-  python3 gsc_mutation_tracker.py check <finding_id>
-  python3 gsc_mutation_tracker.py --project gsc --scan
-  python3 gsc_mutation_tracker.py migrate   # run DB migration
+Parent = only resolved finding within lookback_days.
+Alerts are always warn-only — never affect PR gate exit code.
 """
 
-import hashlib, os, sys, sqlite3, json
-from pathlib import Path
+import hashlib, re
+from dataclasses import dataclass, asdict
 from difflib import SequenceMatcher
-from datetime import datetime, timezone, timedelta
+from typing import Optional
 
-DB_PATH = Path(os.path.expanduser("~/.hermes/state/gsc_audit.db"))
-MUTATION_SIM_MIN = 0.50
-MUTATION_SIM_MAX = 0.95
-LOOKBACK_DAYS = 90
+DEFAULTS = {
+    "lookback_days": 90,
+    "similarity_min": 0.50,
+    "similarity_recurrence": 0.95,
+    "min_confidence": 0.55,
+    "max_findings_per_scan": 50,
+    "max_parent_candidates": 20,
+    "auto_resolve_grace_days": 7,
+}
+
+
+def normalize_snippet(snippet: str) -> str:
+    """Collapse cosmetic differences: comments, strings, numbers, variable names at assignment position."""
+    if not snippet:
+        return ""
+    norm = re.sub(r"#.*$|//.*$", "", snippet, flags=re.MULTILINE)
+    norm = re.sub(r'"[^"\n]*"|\'[^\'\n]*\'', '"STR"', norm)
+    norm = re.sub(r"\b\d+(?:\.\d+)?\b", "NUM", norm)
+    norm = re.sub(r"\b[a-zA-Z_]\w*(?=\s*=[^=])", "VAR", norm)
+    norm = re.sub(r"\s+", " ", norm).strip().lower()
+    return norm
 
 
 def fingerprint(snippet: str) -> str:
-    """Normalize snippet: strip identifiers, keep structure."""
-    import re
-    norm = re.sub(r'"[^"]*"', '"STR"', snippet)
-    norm = re.sub(r"'[^']*'", "'STR'", norm)
-    norm = re.sub(r'\b[a-z_]\w*(?=\s*=)', "VAR", norm)
-    norm = re.sub(r'\b\d+\b', "N", norm)
-    norm = re.sub(r'\s+', " ", norm).strip().lower()
+    """sha256(normalized)[:16]. Fallback for empty snippets: rule_id+file."""
+    norm = normalize_snippet(snippet)
+    if not norm:
+        return ""
     return hashlib.sha256(norm.encode()).hexdigest()[:16]
 
 
-def run_migration():
-    """Add mutation tracking columns to findings table."""
-    conn = sqlite3.connect(str(DB_PATH))
-    try:
-        conn.execute("ALTER TABLE findings ADD COLUMN pattern_fingerprint TEXT")
-    except sqlite3.OperationalError:
-        pass  # already exists
-    try:
-        conn.execute("ALTER TABLE findings ADD COLUMN resolved_at TEXT")
-    except sqlite3.OperationalError:
-        pass
-    try:
-        conn.execute("ALTER TABLE findings ADD COLUMN mutation_parent TEXT")
-    except sqlite3.OperationalError:
-        pass
+@dataclass
+class MutationAlert:
+    finding_key: str
+    parent_key: str
+    parent_file: str
+    parent_resolved_at: str
+    kind: str       # "mutation" | "recurrence"
+    similarity: float
+    message: str
 
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS mutation_alerts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            mutated_finding_key TEXT NOT NULL,
-            parent_finding_key TEXT NOT NULL,
-            similarity REAL NOT NULL,
-            detected_at TEXT DEFAULT (datetime('now')),
-            UNIQUE(mutated_finding_key, parent_finding_key)
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+
+class MutationTracker:
+    """Tracks return of resolved vulnerability patterns."""
+
+    def __init__(self, db, config: Optional[dict] = None):
+        cfg = {**DEFAULTS, **(config or {})}
+        self.db = db
+        self.lookback_days = int(cfg["lookback_days"])
+        self.sim_min = float(cfg["similarity_min"])
+        self.sim_recurrence = float(cfg["similarity_recurrence"])
+        self.min_confidence = float(cfg["min_confidence"])
+        self.max_per_scan = int(cfg["max_findings_per_scan"])
+        self.max_candidates = int(cfg["max_parent_candidates"])
+
+    # ── Public API ─────────────────────────────────────────
+
+    def process(self, findings: list[dict], target: str,
+                scan_mode: str) -> list[MutationAlert]:
+        """Called after dedup+scoring. Fingerprints all findings,
+        searches for resolved parents."""
+        alerts: list[MutationAlert] = []
+        tracked = 0
+
+        for f in findings:
+            snippet = f.get("snippet", f.get("detail", ""))
+            fp = fingerprint(snippet)
+            norm = normalize_snippet(snippet)
+            f.setdefault("metadata", {})["pattern_fingerprint"] = fp
+
+            # Record sighting for auto-resolve
+            fk = f.get("finding_key", "")
+            if fk:
+                try:
+                    self.db.record_sighting(fk, target, scan_mode)
+                except Exception:
+                    pass
+
+            if not fp or f.get("confidence", 0) < self.min_confidence:
+                continue
+            if tracked >= self.max_per_scan:
+                continue
+            tracked += 1
+
+            alert = self._find_parent(f, norm)
+            if alert:
+                alerts.append(alert)
+                f["metadata"]["mutation_alert"] = alert.kind
+                f["metadata"]["mutation_parent"] = alert.parent_key
+                try:
+                    self.db.save_alert(alert)
+                except Exception:
+                    pass
+
+        return alerts
+
+    # ── Parent search ──────────────────────────────────────
+
+    def _find_parent(self, finding: dict,
+                     norm_snippet: str) -> Optional[MutationAlert]:
+        rule_id = finding.get("rule_id", finding.get("pattern_title", ""))
+        candidates = self.db.query("""
+            SELECT finding_key, file_path, detail, resolved_at
+            FROM findings
+            WHERE pattern_title LIKE ?
+              AND resolved_at IS NOT NULL
+              AND resolved_at > datetime('now', ?)
+            ORDER BY resolved_at DESC
+            LIMIT ?
+        """, (f"%{rule_id}%", f"-{self.lookback_days} days",
+              self.max_candidates)).fetchall()
+
+        best = None  # (sim, kind, row)
+        for row in candidates:
+            parent_snippet = row["detail"] or ""
+            parent_norm = normalize_snippet(parent_snippet)
+            if not parent_norm or not norm_snippet:
+                continue
+            sim = SequenceMatcher(None, norm_snippet, parent_norm).ratio()
+
+            if sim >= self.sim_recurrence:
+                kind = "recurrence"
+            elif sim >= self.sim_min:
+                kind = "mutation"
+            else:
+                continue
+
+            if best is None or sim > best[0]:
+                best = (sim, kind, row)
+
+        if best is None:
+            return None
+        sim, kind, row = best
+
+        if kind == "recurrence":
+            msg = (f"Pattern {rule_id} was fixed {row['resolved_at']} "
+                   f"in {row['file_path']}, but returned identical "
+                   f"(similarity {sim:.0%})")
+        else:
+            msg = (f"Pattern {rule_id} was fixed {row['resolved_at']} "
+                   f"in {row['file_path']}, but returned in mutated form "
+                   f"(similarity {sim:.0%}). Likely copy-paste debt")
+
+        return MutationAlert(
+            finding_key=finding.get("finding_key", ""),
+            parent_key=row.get("finding_key", "?"),
+            parent_file=row.get("file_path", "?"),
+            parent_resolved_at=row["resolved_at"],
+            kind=kind,
+            similarity=round(sim, 2),
+            message=msg,
         )
-    """)
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_fp ON findings(pattern_fingerprint)")
-    conn.execute("CREATE INDEX IF NOT EXISTS idx_findings_resolved ON findings(resolved_at)")
-    conn.commit()
-    conn.close()
-    print("✅ Migration complete — mutation tracking ready")
 
 
-def check_finding(finding: dict) -> dict | None:
-    """Check if a finding is a mutation of a previously-fixed one."""
-    snippet = finding.get("detail", finding.get("snippet", ""))
-    if not snippet:
-        snippet = f"{finding.get('title','')} {finding.get('file_path','')}"
+# ── Auto-resolve ──────────────────────────────────────────
 
-    fp = fingerprint(snippet)
-    finding["pattern_fingerprint"] = fp
+def auto_resolve(db, target: str, current_keys: set, scan_mode: str,
+                 grace_days: int = 7) -> int:
+    """Mark findings as resolved when they disappear from full scans.
 
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
+    Rules:
+      - Only for scan_mode == 'full' (diff proves nothing)
+      - Finding must have been seen in full scans of this target
+      - Not seen for grace_days (branch flapping protection)
+    """
+    if scan_mode != "full":
+        return 0
 
-    cutoff = (datetime.now(timezone.utc) - timedelta(days=LOOKBACK_DAYS)).isoformat()
-    rows = conn.execute("""
-        SELECT id, title, file_path, line_number, detail, resolved_at, pattern_fingerprint
-        FROM findings
-        WHERE pattern_fingerprint IS NOT NULL
-          AND substr(pattern_fingerprint, 1, 8) = ?
-          AND resolved_at IS NOT NULL
-          AND resolved_at > ?
-        ORDER BY resolved_at DESC
-        LIMIT 10
-    """, (fp[:8], cutoff)).fetchall()
-    conn.close()
+    try:
+        rows = db.query("""
+            SELECT DISTINCT s.finding_key
+            FROM finding_sightings s
+            JOIN findings f ON f.finding_key = s.finding_key
+            WHERE s.target = ? AND s.scan_mode = 'full'
+              AND f.resolved_at IS NULL
+        """, (target,)).fetchall()
+    except Exception:
+        return 0
 
+    resolved = 0
     for row in rows:
-        old_snippet = row["detail"] or ""
-        if not old_snippet:
+        key = row["finding_key"]
+        if key in current_keys:
+            continue
+        try:
+            last_seen = db.query("""
+                SELECT MAX(seen_at) AS t FROM finding_sightings
+                WHERE finding_key = ? AND target = ?
+            """, (key, target)).fetchone()
+            if not last_seen or not last_seen["t"]:
+                continue
+        except Exception:
             continue
 
-        sim = SequenceMatcher(None, snippet.lower(), old_snippet.lower()).ratio()
-        if MUTATION_SIM_MIN < sim < MUTATION_SIM_MAX:
-            conn2 = sqlite3.connect(str(DB_PATH))
-            finding_key = hashlib.sha256(
-                f"{finding.get('file_path','')}+{finding.get('line_number',0)}+{snippet[:40]}".encode()
-            ).hexdigest()[:12]
-            parent_key = hashlib.sha256(
-                f"{row['file_path']}+{row['line_number']}+{old_snippet[:40]}".encode()
-            ).hexdigest()[:12]
+        # Check grace period
+        try:
+            ok = db.query(
+                "SELECT datetime('now', ?) <= ?",
+                (f"-{grace_days} days", last_seen["t"])
+            ).fetchone()
+            if not ok:
+                continue
+        except Exception:
+            continue
 
-            try:
-                conn2.execute(
-                    "INSERT OR IGNORE INTO mutation_alerts "
-                    "(mutated_finding_key, parent_finding_key, similarity) VALUES (?,?,?)",
-                    (finding_key, parent_key, round(sim, 2))
-                )
-                conn2.commit()
-            except Exception:
-                pass
-            conn2.close()
+        try:
+            db.execute("""
+                UPDATE findings
+                SET resolved_at = datetime('now'), resolved_by = 'auto'
+                WHERE finding_key = ? AND resolved_at IS NULL
+            """, (key,))
+            db.commit()
+            resolved += 1
+        except Exception:
+            pass
 
-            return {
-                "mutation_detected": True,
-                "parent_file": row["file_path"],
-                "parent_line": row["line_number"],
-                "resolved_at": row["resolved_at"] or "unknown",
-                "similarity": round(sim, 2),
-                "mutated_key": finding_key,
-                "parent_key": parent_key,
-            }
-
-    return None
-
-
-def scan_project(project: str, limit: int = 100):
-    """Batch-check all findings in a project for mutations."""
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.row_factory = sqlite3.Row
-    rows = conn.execute("""
-        SELECT * FROM findings
-        WHERE project = ? AND status = 'open'
-        ORDER BY CASE category WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END
-        LIMIT ?
-    """, (project, limit)).fetchall()
-    conn.close()
-
-    alerts = []
-    for r in rows:
-        finding = dict(r)
-        result = check_finding(finding)
-        if result:
-            alerts.append({
-                "finding_id": r["id"],
-                "title": r["title"],
-                "file": r["file_path"],
-                "line": r["line_number"],
-                **result,
-            })
-
-    return alerts
-
-
-# ── CLI ───────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    import argparse
-    p = argparse.ArgumentParser(description="GSC Temporal Mutation Tracker")
-    sub = p.add_subparsers(dest="command")
-
-    migrate = sub.add_parser("migrate", help="Run DB migration for mutation tracking")
-    check = sub.add_parser("check", help="Check if finding is a mutation")
-    check.add_argument("finding_id", type=int)
-    scan = sub.add_parser("scan", help="Batch scan project for mutations")
-    scan.add_argument("--project", required=True)
-    scan.add_argument("--limit", type=int, default=100)
-    list_cmd = sub.add_parser("list", help="List recent mutation alerts")
-    list_cmd.add_argument("--days", type=int, default=30)
-    show = sub.add_parser("show", help="Show mutation details")
-    show.add_argument("finding_key")
-
-    args = p.parse_args()
-
-    if args.command == "migrate":
-        run_migration()
-
-    elif args.command == "check":
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        r = conn.execute("SELECT * FROM findings WHERE id=?", (args.finding_id,)).fetchone()
-        conn.close()
-        if not r:
-            print(f"Finding {args.finding_id} not found")
-            sys.exit(1)
-        result = check_finding(dict(r))
-        if result:
-            print(f"🔴 MUTATION DETECTED (similarity: {result['similarity']:.0%})")
-            print(f"   Original: {result['parent_file']}:{result['parent_line']}")
-            print(f"   Fixed at: {result['resolved_at']}")
-        else:
-            print("✅ No mutation detected")
-
-    elif args.command == "scan":
-        alerts = scan_project(args.project, args.limit)
-        if not alerts:
-            print(f"No mutations found in {args.project}")
-        for a in alerts:
-            print(f"🔴 [{a['finding_id']}] {a['title'][:60]}")
-            print(f"   Similarity: {a['similarity']:.0%} — originally fixed at {a['resolved_at']}")
-            print(f"   Parent: {a['parent_file']}:{a['parent_line']}")
-        print(f"\n📊 {len(alerts)} mutations found")
-
-    elif args.command == "list":
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=args.days)).isoformat()
-        rows = conn.execute(
-            "SELECT * FROM mutation_alerts WHERE detected_at > ? ORDER BY detected_at DESC LIMIT 50",
-            (cutoff,)
-        ).fetchall()
-        conn.close()
-        if not rows:
-            print(f"No mutation alerts in last {args.days} days")
-        for r in rows:
-            print(f"  {r['mutated_finding_key']} ← {r['parent_finding_key']} "
-                  f"({r['similarity']:.0%} sim) {r['detected_at']}")
-
-    elif args.command == "show":
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        r = conn.execute(
-            "SELECT * FROM mutation_alerts WHERE mutated_finding_key=? OR parent_finding_key=?",
-            (args.finding_key, args.finding_key)
-        ).fetchone()
-        conn.close()
-        if r:
-            print(json.dumps(dict(r), indent=2, default=str))
-        else:
-            print(f"No mutation data for {args.finding_key}")
-
-    else:
-        p.print_help()
+    return resolved

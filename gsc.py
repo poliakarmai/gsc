@@ -1790,6 +1790,13 @@ def main():
     chains_p.add_argument('chain_key', nargs='?', help='Chain key for show')
     chains_p.add_argument('--report', default='scan.json', help='Scan report JSON')
 
+    # gsc mutations 🆕 v0.19
+    mut_p = sub.add_parser('mutations', help='Mutation tracking (v0.19)')
+    mut_p.add_argument('mut_cmd', choices=['list', 'show', 'stats'])
+    mut_p.add_argument('finding_key', nargs='?', help='Finding key for show')
+    mut_p.add_argument('--days', type=int, default=30)
+    mut_p.add_argument('--limit', type=int, default=50)
+
     # gsc github-scan 🆕 v0.14
     gh = sub.add_parser('github-scan', help='GitHub PR scan with comment + check run')
     gh.add_argument('target', help='PR URL (https://github.com/org/repo/pull/123) or \".\" for local')
@@ -1921,6 +1928,43 @@ def main():
                     break
             else:
                 print(f"Chain {args.chain_key} not found")
+    elif args.command == "mutations":
+        from gsc_db import GSCDatabase
+        db = GSCDatabase()
+        if args.mut_cmd == "list":
+            try:
+                rows = db.query("""
+                    SELECT m.*, f.pattern_title, f.file_path, f.line_number
+                    FROM mutation_alerts m
+                    LEFT JOIN findings f ON f.finding_key = m.finding_key
+                    WHERE m.detected_at > datetime('now', ?)
+                    ORDER BY m.detected_at DESC LIMIT ?
+                """, (f"-{args.days} days", args.limit)).fetchall()
+            except Exception:
+                print("No mutation data yet — run a scan first")
+                sys.exit(0)
+            if not rows:
+                print("No mutation alerts in this period")
+            for r in rows:
+                icon = "R" if r["kind"] == "recurrence" else "M"
+                print(f"[{icon}] {r['finding_key']}  "
+                      f"{(r['pattern_title'] or '?')[:20]:20s}  "
+                      f"{r['file_path'] or '?'}:{r['line_number'] or '?'}  "
+                      f"parent={r['parent_key']}  sim={r['similarity']:.0%}  "
+                      f"{r['detected_at']}")
+        elif args.mut_cmd == "show" and args.finding_key:
+            alert = db.query(
+                "SELECT * FROM mutation_alerts WHERE finding_key=?",
+                (args.finding_key,)).fetchone()
+            if not alert:
+                print("No mutation alert for this finding")
+                sys.exit(1)
+            import json as _json
+            print(_json.dumps(dict(alert), indent=2, default=str))
+        elif args.mut_cmd == "stats":
+            import json as _json
+            print(_json.dumps(db.mutation_stats(), indent=2))
+        db.close()
     else:
         parser.print_help()
 

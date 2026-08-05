@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
-TARGET_VERSION = 18
+TARGET_VERSION = 19
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -40,6 +40,46 @@ CREATE INDEX IF NOT EXISTS idx_chains_status ON chains(status);
 CREATE INDEX IF NOT EXISTS idx_chains_target ON chains(target);
 """
 
+SCHEMA_V019 = """
+CREATE TABLE IF NOT EXISTS mutation_alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    finding_key TEXT NOT NULL,
+    parent_key TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    similarity REAL NOT NULL,
+    detected_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(finding_key, parent_key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_mutation_finding
+    ON mutation_alerts(finding_key);
+
+CREATE TABLE IF NOT EXISTS finding_sightings (
+    finding_key TEXT NOT NULL,
+    target TEXT NOT NULL,
+    scan_mode TEXT NOT NULL,
+    seen_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_sightings_key
+    ON finding_sightings(finding_key);
+CREATE INDEX IF NOT EXISTS idx_sightings_target
+    ON finding_sightings(target, seen_at);
+"""
+
+ALTERS_V019 = [
+    "ALTER TABLE findings ADD COLUMN pattern_fingerprint TEXT",
+    "ALTER TABLE findings ADD COLUMN resolved_at TEXT",
+    "ALTER TABLE findings ADD COLUMN resolved_by TEXT",
+]
+
+INDEXES_V019 = [
+    "CREATE INDEX IF NOT EXISTS idx_findings_resolved "
+    "ON findings(resolved_at)",
+    "CREATE INDEX IF NOT EXISTS idx_findings_fp "
+    "ON findings(pattern_fingerprint)",
+]
+
 
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
@@ -57,13 +97,31 @@ class GSCDatabase:
         if version >= TARGET_VERSION:
             return
         self._backup()
-        self.conn.executescript(SCHEMA_V018)
+        if version < 18:
+            self.conn.executescript(SCHEMA_V018)
+        if version < 19:
+            self._apply_v019()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
             (TARGET_VERSION,)
         )
         self.conn.commit()
+
+    def _apply_v019(self):
+        self.conn.execute("PRAGMA journal_mode=WAL")
+        for alter in ALTERS_V019:
+            try:
+                self.conn.execute(alter)
+            except sqlite3.OperationalError as e:
+                if "duplicate column" not in str(e).lower():
+                    raise
+        self.conn.executescript(SCHEMA_V019)
+        for idx in INDEXES_V019:
+            try:
+                self.conn.execute(idx)
+            except sqlite3.OperationalError:
+                pass
 
     def _schema_version(self) -> int:
         try:
@@ -183,6 +241,72 @@ class GSCDatabase:
             ).fetchone()["c"]
         except sqlite3.OperationalError:
             return 0
+
+    # ── Generic query / execute (used by mutation tracker) ──
+
+    def query(self, sql: str, params=()):
+        """Return cursor for read queries."""
+        return self.conn.execute(sql, params)
+
+    def execute(self, sql: str, params=()):
+        """Execute write SQL."""
+        self.conn.execute(sql, params)
+
+    def commit(self):
+        self.conn.commit()
+
+    # ── v0.19: Mutation tracking ──────────────────────────────
+
+    def record_sighting(self, finding_key: str, target: str, scan_mode: str):
+        self.conn.execute(
+            "INSERT INTO finding_sightings(finding_key, target, scan_mode) "
+            "VALUES (?, ?, ?)", (finding_key, target, scan_mode))
+
+    def save_alert(self, alert):
+        """alert is MutationAlert dataclass or dict."""
+        fk = alert.finding_key if hasattr(alert, 'finding_key') else alert["finding_key"]
+        pk = alert.parent_key if hasattr(alert, 'parent_key') else alert["parent_key"]
+        kd = alert.kind if hasattr(alert, 'kind') else alert["kind"]
+        sm = alert.similarity if hasattr(alert, 'similarity') else alert["similarity"]
+        self.conn.execute("""
+            INSERT OR IGNORE INTO mutation_alerts
+                (finding_key, parent_key, kind, similarity)
+            VALUES (?, ?, ?, ?)
+        """, (fk, pk, kd, sm))
+        self.conn.commit()
+
+    def mutation_stats(self) -> dict:
+        def _count(table, where=""):
+            try:
+                sql = f"SELECT COUNT(*) c FROM {table}"
+                if where:
+                    sql += f" WHERE {where}"
+                return self.conn.execute(sql).fetchone()["c"]
+            except sqlite3.OperationalError:
+                return 0
+        return {
+            "alerts_total": _count("mutation_alerts"),
+            "mutations": _count("mutation_alerts", "kind='mutation'"),
+            "recurrences": _count("mutation_alerts", "kind='recurrence'"),
+            "resolved_90d": _count("findings",
+                "resolved_at > datetime('now', '-90 days')"),
+            "auto_resolved_7d": _count("findings",
+                "resolved_by='auto' AND resolved_at > datetime('now', '-7 days')"),
+        }
+
+    def backfill_progress(self) -> dict:
+        total = self.count_findings()
+        done = 0
+        try:
+            done = self.conn.execute(
+                "SELECT COUNT(*) c FROM findings "
+                "WHERE pattern_fingerprint IS NOT NULL").fetchone()["c"]
+        except sqlite3.OperationalError:
+            pass
+        return {
+            "total": total, "done": done,
+            "pct": round(done / total * 100, 1) if total else 100.0,
+        }
 
     # ── Close ──────────────────────────────────────────────────
 
