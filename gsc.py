@@ -1779,10 +1779,16 @@ def main():
     rep.add_argument('--output', '-o', help='Output file')
 
     # gsc feedback 🆕
-    fb = sub.add_parser('feedback', help='Record TP/FP feedback on finding')
-    fb.add_argument('finding_id', help='Finding ID')
+    fb = sub.add_parser('feedback', help='Record TP/FP feedback on finding or chain')
+    fb.add_argument('key', help='Finding key or chain key')
     fb.add_argument('--verdict', choices=['tp', 'fp', 'ignore', 'fixed'], required=True)
     fb.add_argument('--reason', help='Why')
+
+    # gsc chains 🆕 v0.18
+    chains_p = sub.add_parser('chains', help='Attack chains (v0.18)')
+    chains_p.add_argument('cmd', choices=['list', 'show'], help='list or show chain')
+    chains_p.add_argument('chain_key', nargs='?', help='Chain key for show')
+    chains_p.add_argument('--report', default='scan.json', help='Scan report JSON')
 
     # gsc github-scan 🆕 v0.14
     gh = sub.add_parser('github-scan', help='GitHub PR scan with comment + check run')
@@ -1893,6 +1899,28 @@ def main():
                         *(["--dataset", args.dataset] if hasattr(args, "dataset") else []),
                         *(["--fail-on-regression"] if hasattr(args, "fail_on_regression") and args.fail_on_regression else []),
                         ])
+    elif args.command == "chains":
+        import json as _json
+        try:
+            report = _json.loads(Path(args.report).read_text())
+        except Exception:
+            print(f"Cannot read report: {args.report}")
+            sys.exit(1)
+        chains_list = report.get("chains", [])
+        if args.cmd == "list":
+            if not chains_list:
+                print("No chains in this report")
+            for c in chains_list:
+                print(f"{c['chain_key']}  {c['composed_severity']:9s}  "
+                      f"conf={c['confidence']:.2f}  "
+                      f"findings={','.join(c.get('finding_keys',[]))}")
+        elif args.cmd == "show" and args.chain_key:
+            for c in chains_list:
+                if c["chain_key"] == args.chain_key:
+                    print(_json.dumps(c, indent=2, ensure_ascii=False))
+                    break
+            else:
+                print(f"Chain {args.chain_key} not found")
     else:
         parser.print_help()
 
