@@ -1,0 +1,176 @@
+{
+  "total": 14,
+  "passed": 14,
+  "failed": 0,
+  "clean": {
+    "total": 10,
+    "passed": 10
+  },
+  "vuln": {
+    "total": 4,
+    "passed": 4
+  },
+  "blocking_false_positives": 0,
+  "missed_expected": 0,
+  "redaction_leaks": 0,
+  "sarif_invalid": 0,
+  "duration_seconds": 179.493989,
+  "results": [
+    {
+      "project": "flask-jwt-auth",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "dvpwa",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "vuln-flask",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0,
+      "redaction_notes": "1 expected redaction hits (vuln project)"
+    },
+    {
+      "project": "pygoat",
+      "type": "vulnerable",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0,
+      "redaction_notes": "4 expected redaction hits (vuln project)"
+    },
+    {
+      "project": "flask-jwt-auth",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "click",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "rich",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "jinja",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "werkzeug",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "markupsafe",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "itsdangerous",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "httpx",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "starlette",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    },
+    {
+      "project": "uvicorn",
+      "type": "clean",
+      "status": "PASS",
+      "blocking": 0,
+      "confirmed": 0,
+      "expected_found": 0,
+      "expected_missed": 0,
+      "errors": [],
+      "likely": 0
+    }
+  ]
+}
