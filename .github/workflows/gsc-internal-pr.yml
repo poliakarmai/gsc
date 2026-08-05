@@ -1,48 +1,53 @@
-name: GSC Internal PR Scan
+name: GSC Internal PR (Phase 5 — blocking-standard)
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened]
 
 permissions:
   contents: read
   pull-requests: write
   checks: write
-  security-events: write
+
+concurrency:
+  group: gsc-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
-  gsc:
-    runs-on: ubuntu-latest
+  scan:
     if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 0}
-      - uses: actions/setup-python@v5
-        with: {python-version: "3.12"}
-      - run: pip install requests pyyaml
-      - name: GSC Doctor
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: python3 gsc_github_adapter.py doctor --github-context "$GITHUB_EVENT_PATH"
-      - name: GSC PR Scan
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          python3 gsc_github_adapter.py scan . \
-            --github-context "$GITHUB_EVENT_PATH" \
-            --profile pr-gate \
-            --post-comment \
-            --create-check \
-            --fail-on-blocking
-      - name: Collect SARIF
-        if: always()
-        run: |
-          mkdir -p reports/pr
-          SARIF=$(find ~/.gsc/external -name "report.sarif.json" -newer /tmp -print -quit 2>/dev/null)
-          if [ -n "$SARIF" ]; then cp "$SARIF" reports/pr/report.sarif.json; fi
-      - name: Upload SARIF
-        if: always()
-        uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: reports/pr/report.sarif.json
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GSC
+        run: pip install -r requirements.txt
+
+      - name: GSC PR scan (blocking-standard)
+        run: |
+          gsc external-scan . \
+            --profile pr-gate \
+            --mode diff --base "origin/${{ github.base_ref }}" --head HEAD \
+            --post-comment --create-check \
+            --fail-on-blocking \
+            ${GSC_BYPASS:+--bypass} \
+            -o scan.json
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GSC_BYPASS: >-
+            ${{ contains(github.event.pull_request.labels.*.name,
+                'gsc-bypass') && '1' || '' }}
+
+      - name: Upload scan artifacts (debug)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-pr-${{ github.run_id }}
+          path: scan.json
+          retention-days: 14

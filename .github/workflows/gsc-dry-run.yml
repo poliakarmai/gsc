@@ -1,0 +1,64 @@
+name: GSC Dry-Run (Phase 1)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: gsc-dry-run-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GSC
+        run: pip install -r requirements.txt
+
+      - name: GSC dry-run scan
+        run: |
+          gsc external-scan . \
+            --profile pr-gate \
+            --mode diff --base "origin/${{ github.base_ref }}" --head HEAD \
+            --dry-run \
+            -o dryrun_scan.json
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+
+      - name: Render reports
+        run: |
+          gsc report dryrun_scan.json --format markdown -o dryrun_report.md
+          gsc report dryrun_scan.json --format sarif -o dryrun_report.sarif.json
+
+      - name: Redact reports
+        run: python3 scripts/gsc_redact_report.py dryrun_scan.json dryrun_report.md
+
+      - name: Step summary
+        run: python3 scripts/gsc_dryrun_summary.py dryrun_scan.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-dryrun-${{ github.run_id }}
+          path: |
+            dryrun_scan.json
+            dryrun_report.md
+            dryrun_report.sarif.json
+          retention-days: 14
+
+      - name: Report metrics (best-effort)
+        run: python3 scripts/gsc_report_dryrun.py dryrun_scan.json || true
+        env:
+          GSC_API_URL: ${{ vars.GSC_API_URL }}
+          GSC_API_KEY: ${{ secrets.GSC_API_KEY }}

@@ -1,0 +1,32 @@
+name: GSC Feedback (Phase 3)
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  feedback:
+    if: |
+      github.event.issue.pull_request &&
+      startsWith(github.event.comment.body, '/gsc ')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: scripts
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Process /gsc command
+        run: python3 scripts/gsc_pr_feedback.py
+        env:
+          GITHUB_EVENT_PATH: ${{ github.event_path }}
+          GSC_API_URL: ${{ vars.GSC_API_URL }}
+          GSC_API_KEY: ${{ secrets.GSC_API_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

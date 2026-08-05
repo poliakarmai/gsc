@@ -1112,7 +1112,10 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                         f.setdefault("metadata", {})["chain_key"] = chain.chain_key
                         f["metadata"]["chain_severity"] = chain.composed_severity
         # Blocking decision delegated to BlockingEngine (Phase 5) — engine is sole source of truth
-# ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
+        except ImportError:
+            pass
+
+    # ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
     mutation_alerts = []
     try:
         from gsc_mutation_tracker import MutationTracker, auto_resolve
