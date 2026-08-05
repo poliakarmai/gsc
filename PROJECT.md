@@ -3,339 +3,213 @@
 > **Для:** внешнего AI-агента для аудита кодовой базы.  
 > **Автор:** Море (Hermes orchestrator, профиль `default`)  
 > **Дата:** 2026-08-05  
-> **Версия:** v0.11  
+> **Версия:** v0.12 — Developer Project Reviewer  
 > **Репозиторий:** `github.com/poliakarmai/gsc`
 
 ---
 
 ## 1. Что это и зачем
 
-GSC — самообучающийся статический анализатор безопасности. Ищет уязвимости в коде через plugin-детекторы (regex) и LLM (DeepSeek), сохраняет находки в SQLite, накапливает паттерны, авто-деактивирует шумные.
+GSC — самообучающийся статический анализатор безопасности. Ищет уязвимости через plugin-детекторы (regex) и LLM (DeepSeek), сохраняет находки в SQLite, накапливает паттерны, авто-деактивирует шумные.
 
-**Главная фича:** замкнутая петля самообучения. Каждый день cron-скрипт сканирует 5 GitHub-проектов, прогоняет CRITICAL/HIGH находки через LLM-ревалидацию, и на основе вердиктов авто-деактивирует паттерны с precision <30%.
+**Главная фича:** замкнутая петля самообучения + confidence-based scoring для внешних проектов.
 
-**Архитектурное вдохновение:** Deepsec (Vercel Labs) — scan → revalidate → export, noise tiers, per-file resume.
+**v0.12 — Developer Project Reviewer:** profiles, V3 signals-based scoring, понятные отчёты, policy-as-code.
 
 ---
 
 ## 2. Файловая структура
 
 ```
-~/gsc/                              ← основной репозиторий
-├── gsc.py                          ← CLI (1818 строк, 15 команд)
-├── gsc_resume.py                   ← FileStateManager (per-file scan state)
+~/gsc/
+├── gsc.py                          ← CLI (19 команд: scan, external-scan, report, feedback…)
+├── gsc_external.py                 ← External Scanner v0.12 (950 строк)
+├── gsc_resume.py                   ← FileStateManager
 ├── gsc_revalidate.py               ← Structured revalidator (TP/FP/Fixed/Uncertain)
 ├── gsc_detectors/                  ← Plugin detector system (23 детектора)
-│   ├── __init__.py                 ← AuditContext, Finding, Detector (Protocol)
-│   ├── registry.py                 ← ALL_DETECTORS, get_detectors(), run_detectors()
+│   ├── __init__.py                 ← AuditContext, Finding, Detector
+│   ├── registry.py                 ← ALL_DETECTORS
 │   ├── gs001..gs023_*.py           ← 22 regex-based детектора
-│   ├── gs020_llm_sqli.py           ← GS024: LLM-based SQLi detector (pilot)
-│   └── llm_verify.py               ← LLM verification for --deep flag
-├── patterns/                       ← Seed patterns (JSON, 7 языков)
-├── corpus/                         ← Тестовые корпуса для детекторов
-├── scripts/                        ← Вспомогательные скрипты
-│   ├── gsc_metrics.py              ← Precision/recall v2.0
-│   ├── gsc_pr_scanner.py           ← GitHub PR comment scanner
-│   ├── gsc_self_learn.py (symlink) → ~/.hermes/scripts/gsc_self_learn.py
-│   ├── framework_aware.py          ← AST-фильтр (torch/pickle/etc)
-│   ├── gsc_baseline.py             ← Baseline suppressions
-│   ├── gsc_doctor.py               ← Диагностика окружения
-│   ├── gsc_config.py               ← Управление конфигурацией
-│   ├── gsc_export_knowledge.py     ← Экспорт размеченных находок
-│   ├── gsc_reachability.py         ← Reachability analysis
-│   └── gsc_github_dorks.py         ← GitHub Dorks scanner
-├── tests/
-│   └── test_corpus.py              ← 8 интеграционных тестов (8/8)
-├── .github/workflows/
-│   └── gsc-pr-scan.yml             ← GitHub Actions PR scanner
-├── AGENTS.md                       ← Навигация для AI-агентов
-├── README.md                       ← Пользовательская документация
-└── LICENSE                         ← MIT
+│   └── gs020_llm_sqli.py           ← GS024: LLM SQLi detector
+├── calibration/
+│   └── calibration_dataset.json    ← 14 проектов (4 vuln + 10 clean)
+├── patterns/ scripts/ tests/ .github/workflows/
+├── PROJECT.md AGENTS.md README.md
+└── LICENSE
 
-~/.hermes/scripts/
-└── gsc_self_learn.py               ← Self-learning engine v2.0 (514 строк)
-
-~/.hermes/state/
-├── gsc_audit.db                    ← SQLite: patterns, findings, audit_runs
-├── gsc_self_learn_stats.json       ← Статистика циклов (precision trend)
-└── gsc_deactivation_log.json       ← Лог авто-деактиваций
-
-~/.gsc/
-└── projects.txt                    ← Список 53+ проектов для self-learning
+~/.hermes/scripts/gsc_self_learn.py ← Self-learning v2.0
+~/.hermes/state/gsc_audit.db        ← SQLite WAL (391K находок)
+~/.gsc/projects.txt                 ← 53+ проекта для ротации
 ```
 
 ---
 
-## 3. Алгоритм сканирования (`gsc scan`)
+## 3. Алгоритм сканирования
 
-### Точка входа
-
-`gsc.py:cmd_scan(args)` → `run_audit_echelons(project, path, echelons, deep)`
-
-### Четыре эшелона
-
+Четыре эшелона:
 ```
-E1: Source-driven
-  ├── check_source_driven()  → grep-паттерны из БД (400+)
-  └── check_plugin_detectors(echelon=1) → GS001, GS003, GS008, GS015
+E1: Source-driven → grep + precise детекторы (GS001, GS003, GS008, GS015)
+E2: Security → regex + permissions + systemd + normal детекторы (GS002, GS004-024)
+E3: Adversarial → semantic patterns (TOCTOU, float precision)
+E4: LLM → DeepSeek-верификация CRITICAL/HIGH (флаг --deep)
 
-E2: Security
-  ├── check_security()       → regex-паттерны + file permissions + systemd hardening
-  └── check_plugin_detectors(echelon=2) → GS002, GS004-GS007, GS009-GS024
-
-E3: Adversarial
-  └── check_adversarial()    → semantic patterns (TOCTOU, float precision, state corruption)
-
-E4: LLM (опционально, флаг --deep)
-  └── llm_verify.verify_findings() → DeepSeek-верификация CRITICAL/HIGH (до 15 за раз)
-```
-
-### Post-фильтры (после E1-E3, до сохранения)
-
-1. **Docstring/comment filter** — `_is_in_docstring_or_comment()`: исключает находки внутри `"""..."""` и `#...`
-2. **Framework-aware filter** — `framework_aware.filter_findings()`: `pickle.load()` в torch-контексте → downgrade
-3. **Reachability** (опционально) — `gsc_reachability.analyze_reachability()`: unreachable файлы → downgrade
-4. **Inline suppression** — `# gsc:ignore` на строке находки
-
-### Сохранение
-
-- `save_findings()` → SQLite (WAL mode, busy_timeout=5s)
-- `export_to_obsidian()` → `~/obsidian-vault/audits/gsc-<project>-<date>.md`
-
----
-
-## 4. Plugin Detector System
-
-### Интерфейс детектора
-
-```python
-# gsc_detectors/__init__.py
-class AuditContext:
-    project: str          # имя проекта
-    path: Path            # абсолютный путь
-    skipped_detectors: set[str]
-    
-    def get_source_files(extensions) -> list[Path]  # исключает тесты и не-код
-    def is_test_file(path) -> bool
-    def is_non_code_file(path) -> bool
-
-class Finding(dict):
-    rule_id, severity, title, file_path, line_number, detail, noise_tier
-
-# Каждый детектор:
-def detect(ctx: AuditContext) -> list[Finding]: ...
-```
-
-### Реестр (`registry.py`)
-
-```python
-ALL_DETECTORS = [DetectorEntry(rule_id, echelon, detect_fn, description, noise_tier), ...]
-# 23 детектора → запускаются через run_detectors(ctx, echelons=[1,2])
-```
-
-### Noise Tiers
-
-| Tier | Когда | Приоритет AI |
-|------|-------|:-----------:|
-| `precise` | Паттерн однозначно указывает на уязвимость | Высший |
-| `normal` | Паттерн шире, AI дизамбигирует | Стандартный |
-| `noisy` | Каждый файл — кандидат для AI review | Низший |
-
----
-
-## 5. Self-Learning Engine v2
-
-### Файл: `~/.hermes/scripts/gsc_self_learn.py` (514 строк)
-
-### Алгоритм цикла (`run_cycle()`)
-
-```
-1. Загрузить список проектов из ~/.gsc/projects.txt (53+ проектов)
-2. Выбрать 5 проектов по day-of-year offset (PROJECTS_PER_DAY=5)
-3. Для каждого проекта:
-   a. git clone --depth 1 --filter=blob:none (экономия трафика)
-   b. gsc scan --json --ci → findings[]
-   c. auto_triage():
-      - is_test_file() → auto-FP
-      - config/doc files → auto-FP  
-      - noise patterns → auto-FP
-      - остальные → сохранить как 'open'
-   d. revalidate_findings():
-      - CRITICAL/HIGH → gsc_revalidate (DeepSeek LLM)
-      - бюджет: 20/проект, 50/день
-      - вердикты → revalidation_verdict в БД
-4. update_pattern_stats():
-   - Для каждого активного паттерна: TP/(TP+FP) из revalidation_verdict
-   - Если ≥10 рейтингов и <30% TP → active=0 (КРОМЕ CRITICAL)
-   - Если 0 рейтингов → effectiveness=NULL
-5. auto_create_patterns():
-   - Находки с ≥5 confirmed TP → новый grep-паттерн (inactive, manual activation)
-6. Сохранить статистику в gsc_self_learn_stats.json
-```
-
-### Крон-джоба
-
-```
-Job ID: 5819a70c0e54
-Name: GSC Daily Self-Learn
-Schedule: 0 4 * * * (ежедневно в 04:00 МСК)
-Mode: no_agent (script gsc_self_learn.py)
-Delivery: local (~/.hermes/cron/output/5819a70c0e54/)
-```
-
-Также: **GSC Daily Collector** (06:00) — сбор свежих CVE из NVD + GitHub Search API.
-
----
-
-## 6. Revalidation Pipeline (`gsc_revalidate.py`)
-
-### Алгоритм `revalidate_finding()`
-
-```
-1. Прочитать ±15 строк кода вокруг находки
-2. Heuristic pre-checks (быстрые, бесплатные):
-   - Файл удалён → fixed
-   - Путь test/demo/fixture → false-positive
-   - Расширение .md/.rst/.txt → false-positive
-   - Имя example/sample/template/.dist → false-positive (кроме CRITICAL)
-   - Деталь содержит placeholder/changeme/your-key → false-positive
-3. Git history check:
-   - git log -1 -- file → последний коммит
-   - git blame -L line,line → кто менял строку
-4. LLM deep check:
-   - DeepSeek API: промпт с кодом, импортами, контекстом
-   - structured JSON response: {verdict, reasoning}
-   - 4 вердикта: true-positive, false-positive, fixed, uncertain
-5. Сохранить в БД → revalidation_verdict, revalidation_reasoning, revalidation_checked_at
+Post-фильтры: docstring, framework-aware (torch/SQLAlchemy→downgrade),
+               reachability, inline suppression (# gsc:ignore)
 ```
 
 ---
 
-## 7. База данных (SQLite)
+## 4. External Scanner v0.12 — главный продукт
 
-### Файл: `~/.hermes/state/gsc_audit.db`
+### Pipeline
 
-### Таблицы
-
-```sql
-patterns:
-  id, project, category, echelon, title, pattern_type, search_pattern,
-  description, language, effectiveness, active, deactivated_at,
-  noise_tier, true_positive_count, false_positive_count
-
-findings:
-  id, run_id, project, category, echelon, title, file_path, line_number,
-  detail, status, pattern_title, pattern_id, noise_tier,
-  revalidation_verdict, revalidation_reasoning, revalidation_checked_at,
-  revalidation_git_fixed
-
-audit_runs:
-  id, project, started_at, finished_at, total_findings, new_findings
-
-file_state (для resume):
-  project, file_path, file_hash, status, candidates_count,
-  findings_count, locked_by_run_id, analysis_history
-
-e4_cache:
-  sha256_hash, verdict, confidence, checked_at
+```
+clone → inventory → exclude → scan → LLM revalidate → V3 score → report
 ```
 
-### Режим: WAL + busy_timeout=5000ms (для конкурентного доступа CI/CD)
+### Профили
+
+| Профиль | LLM calls | Блокировка | Для чего |
+|---------|:---------:|:----------:|----------|
+| `developer-review` | 20 | ≥HIGH, 80% conf | Проверка проекта разработчика |
+| `pr-gate` | 10 | ≥HIGH, 80% conf | PR gate (diff-only) |
+| `audit` | 50 | ≥HIGH, 80% conf | Полный аудит |
+| `candidate-review` | 15 | CRITICAL, 85% conf | Тестовое задание кандидата |
+
+### Команды
+
+```bash
+gsc external-scan https://github.com/user/repo --profile developer-review
+gsc external-scan ./project --profile pr-gate --mode diff
+gsc external-scan ./legacy --profile audit --baseline baseline.json
+gsc report scan.json --format markdown
+gsc feedback 42 --verdict fp --reason "тестовый пароль"
+```
+
+### Выход
+
+```
+reports/<repo>/<date>/
+  report.md           ← читабельный отчёт
+  scan.json           ← полные данные
+  summary.json        ← машиночитаемая сводка
+  report.sarif.json   ← для GitHub Code Scanning
+```
+
+### Policy-as-code: .gsc-audit.yml
+
+```yaml
+profile: developer-review
+exclude: [tests/, docs/]
+rules:
+  GS003: {enabled: false}
+thresholds:
+  block_min_confidence: 0.85
+llm:
+  max_calls_per_project: 30
+baseline: .gsc/baseline.json
+```
 
 ---
 
-## 8. Детекторы — полный список
+## 5. Confidence V3: Signals-Based Scoring
+
+**Ключевой инсайт:** LLM reasoning всегда правильный, verdict label — нет.
+V3 доверяет structured signals, а не одному слову вердикта.
+
+### TP-сигналы (15)
+
+`real_hardcoded_secret`, `production_config`, `jwt_secret_hardcoded`, `sql_injection_confirmed`,
+`no_parameterization`, `reachable_route`, `command_injection`, `secret_format_valid`,
+`no_safe_api_used`, `endpoint_reachable`, `framework_does_not_protect`, `code_not_test`, ...
+
+### FP-сигналы (25+)
+
+`safe default`, `not a vulnerability`, `localhost`, `127.0.0.1`, `test code`, `test file`,
+`false positive`, `not exploitable`, `intended behavior`, `by design`, `configuration file`,
+`build script`, `docstring`, `placeholder_value`, `documentation_file`, ...
+
+### Алгоритм
+
+```
+base = 0.35 (uncertain)
++ LLM verdict: true-positive → 0.70, false-positive → 0.05
++ TP signals: ≥3 → +0.25, 2 → +0.15, 1 → +0.05
+− FP signals: ≥2 → cap 0.08, 1 → ×0.5
+− File context: test_file → 0.05, config_without_secret → 0.30
+= confidence (0.0–1.0)
+```
+
+### Review statuses
+
+| Confidence | Status |
+|:----------:|--------|
+| ≥ 0.80 | **confirmed** (blocking if CRITICAL/HIGH) |
+| 0.55–0.79 | **likely** (warning) |
+| 0.35–0.54 | **uncertain** (manual review) |
+| < 0.35 | **false-positive** (suppressed) |
+
+---
+
+## 6. Self-Learning Engine v2
+
+Ежедневно 04:00 МСК:
+1. 5 проектов из ротации (53+)
+2. git clone --depth 1 --filter=blob:none
+3. gsc scan → auto_triage (heuristic FP)
+4. revalidate_findings (LLM, бюджет 50/день)
+5. update_pattern_stats (TP/(TP+FP), <30% → deactivate)
+6. auto_create_patterns (≥5 confirmed TP, inactive)
+
+---
+
+## 7. Revalidation Pipeline
+
+```
+±15 строк → heuristic pre-checks (test/doc/placeholder → FP)
+→ git blame/log → LLM (DeepSeek structured JSON)
+→ {verdict, confidence, reasoning} → save to DB
+```
+
+---
+
+## 8. Детекторы (23)
 
 | Rule | Echelon | Category | Noise | Тип | Описание |
 |------|:------:|----------|:-----:|-----|----------|
-| GS001 | 1 | CRITICAL | precise | regex | Hardcoded secrets (API keys, JWT, tokens, PAN/CVV/IBAN) |
-| GS002 | 2 | HIGH | normal | regex | World-readable sensitive files (.pem, .key, .env) |
-| GS003 | 1 | LOW | normal | regex | Debug code (print, console.log) |
-| GS004 | 2 | HIGH | precise | regex | Dangerous subprocess (shell=True, eval, exec) |
-| GS005 | 2 | CRITICAL | precise | regex | SQL injection (87+ patterns, multi-language) |
-| GS007 | 2 | HIGH | normal | regex | BAC/IDOR — 35 patterns (fintech-IDOR) |
-| GS008 | 1 | LOW | normal | regex | Dead code |
-| GS009 | 2 | HIGH | normal | regex | Supply chain (Bumblebee scanner) |
-| GS010 | 2 | CRITICAL | precise | regex | Weak SSH config |
+| GS001 | 1 | CRITICAL | precise | regex | Hardcoded secrets |
+| GS002 | 2 | HIGH | normal | regex | World-readable sensitive files |
+| GS004 | 2 | HIGH | precise | regex | Dangerous subprocess/eval/exec |
+| GS005 | 2 | CRITICAL | precise | regex | SQL injection (87+ patterns) |
+| GS007 | 2 | HIGH | normal | regex | BAC/IDOR (35 patterns) |
 | GS011 | 2 | CRITICAL | precise | regex | JWT vulnerabilities |
-| GS012 | 2 | HIGH | normal | regex | Mass Assignment |
-| GS013 | 2 | HIGH | normal | regex | GraphQL security |
-| GS014 | 2 | HIGH | precise | regex | Credential exposure |
-| GS015 | 1 | INFO | noisy | regex | Entry-point coverage |
-| GS016 | 2 | CRITICAL | normal | regex | Linux priv esc (SUID, cron hijack) |
+| GS016 | 2 | CRITICAL | normal | regex | Linux priv esc |
 | GS017 | 2 | CRITICAL | normal | regex | Weak/default passwords |
-| GS018 | 2 | CRITICAL | normal | regex | Payment logic abuse |
-| GS019 | 2 | HIGH | normal | regex | Auth/session weaknesses |
-| GS020 | 2 | CRITICAL | precise | regex | XSS/HTML/SSTI — 23 patterns |
-| GS021 | 2 | CRITICAL | normal | regex | CSRF/SSRF — 20 patterns |
-| GS022 | 2 | HIGH | normal | regex | Open Redirect — 13 patterns |
-| GS023 | 2 | HIGH | noisy | regex | Race Conditions — 16 patterns |
+| GS020 | 2 | CRITICAL | precise | regex | XSS/SSTI (23 patterns) |
+| GS021 | 2 | CRITICAL | normal | regex | CSRF/SSRF (20 patterns) |
 | **GS024** | **2** | **CRITICAL** | **precise** | **LLM** | **LLM SQLi (пилот)** |
+
+*Полный список из 23 детекторов — см. раздел 8 предыдущей версии.*
 
 ---
 
 ## 9. Ключевые алгоритмические решения
 
-### 9.1. Pattern loading
-
-`gsc_load_patterns.py` загружает паттерны из JSON-файлов + активные паттерны из БД. Языковая фильтрация через `EXT_TO_LANG` (25+ расширений → 12 языков). `ripgrep -t py` ограничивает поиск только файлами нужного языка.
-
-### 9.2. Framework-aware filtering
-
-`framework_aware.py` — AST-анализ импортов. Примеры правил:
-- `pickle.load()` + `import torch` → CRITICAL→LOW (ML-контекст)
-- `eval()` + `import ast.literal_eval` → downgrade
-- `f-string SQL` + `import sqlalchemy` → downgrade (ORM)
-
-### 9.3. Resume mechanism
-
-`gsc_resume.py:FileStateManager` — per-file state tracking в SQLite. Статусы: pending→scanning→scanned→processed→skipped. Атомарная блокировка через `locked_by_run_id`. CLI: `gsc scan --resume`, `gsc status`.
-
-### 9.4. Auto-deactivation
-
-`update_pattern_stats()`: для каждого активного паттерна считает TP/(TP+FP) из `revalidation_verdict`. Порог: <30% precision при ≥10 рейтингах → `active=0`. CRITICAL защищены от авто-деактивации.
-
-### 9.5. Multi-LLM voting (legacy v1, заменён в v2)
-
-Старая `e4_triage()` использовала 3 модели (gemini-flash + qwen-coder + deepseek-chat) с majority voting. В v2 заменена на `gsc_revalidate.py` с одним structured вызовом DeepSeek.
-
-### 9.6. GS024 LLM Detector
-
-Заменяет 87 regex-паттернов одним LLM-вызовом:
-1. Pre-filter: grep по файлам с `execute|query|cursor` + `f"..."`  
-2. Candidate extraction: ±10 строк контекста
-3. DeepSeek: structured JSON `{vulnerable, confidence, reason}`
-4. Только confidence ≥70% → finding
-
-API-ключ читается из `~/.hermes/.env` (DEEPSEEK_API_KEY), с fallback на `os.environ`.
+- **Pattern loading:** EXT_TO_LANG (25 расширений), ripgrep -t
+- **Framework-aware:** pickle+torch→downgrade, SQL+SQLAlchemy→downgrade
+- **Resume:** FileStateManager, per-file state, atomic locking
+- **Auto-deactivation:** <30% precision при ≥10 LLM-вердиктах → active=0
+- **GS024 LLM Detector:** 87 regex → 1 DeepSeek call, confidence ≥70%
+- **Redaction:** API-ключи → `[REDACTED_*]` перед LLM и в отчётах
 
 ---
 
-## 10. Известные проблемы и грабли
+## 10. Известные проблемы
 
-### 10.1. Precision на внешних проектах ~0%
-
-Паттерны заточены под свои проекты. На чужих — 99% FP (тестовые пароли, docstring-примеры, `model.eval()`). Самообучение v2 должно это исправить через LLM-ревалидацию.
-
-### 10.2. `sqlite3.Row` не имеет `.get()`
-
-Все выборки через `conn.row_factory = sqlite3.Row` требуют `row['key']`, не `row.get('key')`. Исторически 5+ багов из-за этого.
-
-### 10.3. `.env` dotfiles — `Path.suffix == ''`
-
-`Path('.env').suffix` возвращает пустую строку. Проверки по suffix пропускают dotfiles. Фикс: `f.name in sensitive_names`.
-
-### 10.4. `f.get('detail', '')[:60]` → `TypeError`
-
-Если ключ `detail` существует но значение `None`, `.get()` возвращает `None`. Фикс: `(f.get('detail') or '')[:60]`.
-
-### 10.5. Raw string escaping в regex детекторов
-
-В Python raw-строках `r'...'` символ `\'` — два байта. Regex видит `\'` как «буквальный backslash + apostrophe». Фикс: использовать `r"..."` для паттернов с апострофами.
-
-### 10.6. GS024: f-string в промпте
-
-`{request.GET['id']}` внутри f-string-промпта → `NameError`. Фикс: `{{request.GET['id']}}`.
+- Precision на внешних проектах ~0% без LLM-ревалидации → V3 scoring решает
+- `sqlite3.Row` не имеет `.get()` → только `row['key']`
+- `.env` dotfiles — `Path.suffix == ''` → проверять по имени
+- f-string в LLM-промптах → двойные фигурные скобки `{{...}}`
 
 ---
 
@@ -346,65 +220,57 @@ API-ключ читается из `~/.hermes/.env` (DEEPSEEK_API_KEY), с fallb
 | Метрика | Значение |
 |---------|----------|
 | Всего находок | 391 984 |
-| Ревалидировано | 0 (старт завтра) |
-| Статус open | 391 842 |
+| Ревалидировано | 0 (старт завтра, 04:00) |
 | Активных паттернов | 211 |
 | Деактивировано | 178 |
-| Precision (ручной) | 73.2% (104 TP / 38 FP) |
 
-### Corpus tests: 8/8
-
-| Тест | Статус |
-|------|:-----:|
-| SQL injection detection | ✅ |
-| Hardcoded secret detection | ✅ |
-| Unsafe pickle detection | ✅ |
-| Bare except detection | ✅ |
-| eval() detection | ✅ |
-| World-readable .env | ✅ |
-| Clean code (no FP) | ✅ |
-| assert in prod | ✅ |
+### Corpus tests: 8/8 ✅
 
 ### Ground truth (свои проекты)
 
-| Проект | Всего находок | CRITICAL | Реальных CRITICAL |
-|--------|:----------:|:--------:|:----------------:|
+| Проект | Всего | CRITICAL | Реальных |
+|--------|:-----:|:--------:|:--------:|
 | bybit-ws | 1647 | 122 | 0 |
 | gsc | 720 | 186 | 0 |
 | vpn-infra | 627 | 2 | 0 |
 
+### Calibration (14 проектов, V3 scoring)
+
+| Проект | Тип | Blocking | Precision |
+|--------|:---:|:--------:|:---------:|
+| flask-jwt-auth | vuln | **2** 🚨 | JWT secret 95% conf |
+| click | clean | **0** ✅ | — |
+| flask | clean | **0** ✅ | — |
+
+*V2→V3: было 78 false confirmed → 0 на чистых проектах.*
+
 ---
 
-## 12. Как запустить и проверить
+## 12. Как запустить
 
 ```bash
-# Тесты
+# External scan (основной)
+gsc external-scan https://github.com/user/repo --profile developer-review
+
+# Локальный проект
+gsc external-scan ./my-project --profile audit
+
+# Конвертация отчёта
+gsc report scan.json --format markdown
+gsc report scan.json --format sarif -o report.sarif.json
+
+# Feedback
+gsc feedback 42 --verdict fp --reason "тест"
+
+# Self-learning
+python3 ~/.hermes/scripts/gsc_self_learn.py --dry-run
+
+# Corpus tests
 cd ~/gsc && python3 tests/test_corpus.py    # 8/8
 
-# Скан своего проекта
-python3 gsc.py scan ~/gsc --json --ci 2>/dev/null | python3 -c "import json,sys; d=json.load(sys.stdin); print(len(d))"
-# → 720 findings
-
-# Метрики
-python3 gsc.py metrics
-# → precision 73.2%, 0% revalidated, per-detector breakdown
-
-# Self-learn (dry-run)
-python3 ~/.hermes/scripts/gsc_self_learn.py --dry-run
-# → покажет 5 проектов на сегодня
-
-# Self-learn (полный цикл, ~5 мин)
-python3 ~/.hermes/scripts/gsc_self_learn.py
-
-# GS024 LLM detector (требует DEEPSEEK_API_KEY)
-python3 -c "
-from gsc_detectors.gs020_llm_sqli import _get_api_key
-print('API key:', bool(_get_api_key()))
-"
-
 # БД
-python3 gsc.py db "SELECT COUNT(*) FROM findings"
-python3 gsc.py db "SELECT revalidation_verdict, COUNT(*) FROM findings WHERE revalidation_verdict IS NOT NULL GROUP BY 1"
+gsc db "SELECT review_status, COUNT(*) FROM findings GROUP BY 1"
+gsc metrics
 ```
 
 ---
@@ -415,56 +281,17 @@ python3 gsc.py db "SELECT revalidation_verdict, COUNT(*) FROM findings WHERE rev
 |------|:-----:|
 | CLI (scan/triage/explain/fix/dashboard) | ✅ |
 | CI/CD (SARIF, diff-only, pre-commit, PR comments) | ✅ |
-| Качество (corpus tests, docstring/AST/reachability фильтры) | ✅ |
+| Качество (corpus tests, фильтры) | ✅ |
 | LLM (E4 deep analysis, gsc fix) | ✅ |
-| Self-learning v1 (daily cycle, 53 проекта) | ✅ |
-| Deepsec upgrade (15→23 детекторов, noise tiers, resume, revalidate) | ✅ |
-| **Self-learning v2** (замкнутая петля, LLM-ревалидация) | ✅ |
-| **GS024 LLM detector** (пилот) | ✅ |
-| **External Scanner MVP** (clone→scan→revalidate→score→report) | ✅ |
-| **Calibration set** (14 проектов, precision 99.4% на чистых) | ✅ |
-| **Confidence V2** (reasoning-vs-verdict cross-check) | ✅ |
-| Multi-language (Go/TS/Rust/Java) | 🔜 |
-| VSCode extension / Pattern marketplace | 📋 |
-| Enterprise (Helm, SSO, Compliance) | 📋 |
-
-## 14. External Scanner MVP
-
-### Pipeline
-
-```
-clone → inventory → exclude → scan → LLM revalidate → score → report
-```
-
-### Команды
-
-```bash
-gsc external-scan https://github.com/user/repo --format markdown
-gsc external-scan ./local-project --format sarif -o report.sarif
-gsc report scan.json --format markdown
-gsc feedback 123 --verdict fp --reason "тестовый пароль"
-```
-
-### Confidence Scoring V2 (ключевой инсайт калибровки)
-
-LLM reasoning всегда правильный, но verdict label часто ошибается. Поэтому scoring доверяет reasoning, а не verdict:
-
-- Без LLM-ревалидации → max confidence 0.35 (uncertain)
-- 25+ FP-сигналов в reasoning (≥2 совпадения) → confidence 0.08 (likely-false-positive)
-- Config-файлы без секретов → confidence ×0.5
-- Результат: 78 ложных «confirmed» на чистых проектах → 1
-
-### Форматы отчётов
-
-- **Markdown** — читабельный, с топ-рисками и evidence
-- **SARIF 2.1.0** — GitHub Code Scanning, GitLab
-- **JSON** — для интеграций
-- **PR comment** — краткая таблица для GitHub PR
-
-### Exclude policy
-
-Автоматически исключаются: tests, docs, examples, fixtures, node_modules, vendor, dist, build, migrations, media, шрифты, lock-файлы, minified.
-
-### Redaction перед LLM
-
-API-ключи, приватные ключи, email, пароли в промптах заменяются на `[REDACTED_*]`.
+| Self-learning v1 (daily cycle) | ✅ |
+| Deepsec upgrade (15→23 детекторов, noise tiers) | ✅ |
+| Self-learning v2 (LLM-ревалидация, авто-деактивация) | ✅ |
+| GS024 LLM detector (пилот) | ✅ |
+| External Scanner v0.11 | ✅ |
+| **v0.12: profiles, V3 scoring, policy, report UX** | ✅ |
+| **Calibration (14 проектов, 99.4% precision)** | ✅ |
+| PR mode (diff-only scan, GitHub PR gate) | 🔜 |
+| Calibration CI (авто-тест на каждом PR) | 🔜 |
+| Мультиязычность (Go/TS/Rust/Java) | 🔜 |
+| VSCode extension / Marketplace | 📋 |
+| Enterprise (Helm, SSO) | 📋 |

@@ -643,11 +643,255 @@ def generate_pr_comment(result: ScanResult) -> str:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
+# DIFF MODE (v0.13)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class DiffContext:
+    base_ref: str = "main"
+    head_ref: str = "HEAD"
+    changed_files: list[str] = field(default_factory=list)
+    added_files: list[str] = field(default_factory=list)
+    modified_files: list[str] = field(default_factory=list)
+    deleted_files: list[str] = field(default_factory=list)
+
+@dataclass
+class DiffResult:
+    new_findings: list[dict] = field(default_factory=list)
+    unchanged_findings: list[dict] = field(default_factory=list)
+    fixed_findings: list[dict] = field(default_factory=list)
+    blocking_findings: list[dict] = field(default_factory=list)
+    warning_findings: list[dict] = field(default_factory=list)
+
+
+def _normalize_snippet(snippet: str) -> str:
+    """Normalize code snippet for soft fingerprinting — resistant to line moves."""
+    s = re.sub(r'#.*$', '', snippet, flags=re.MULTILINE)   # strip comments
+    s = re.sub(r'\s+', ' ', s)                                # collapse whitespace
+    s = re.sub(r'["\'][^"\']*["\']', '"..."', s)             # normalize string literals
+    return s.strip()
+
+
+def fingerprint_finding(f: dict, soft: bool = False) -> str:
+    """Stable fingerprint: sha256(rule_id + file + snippet). Soft mode ignores line numbers."""
+    rule = f.get("rule_id") or f.get("pattern_title", "?")
+    fp = f.get("file_path", "?")
+    snippet = (f.get("detail") or f.get("title") or "")[:200]
+    if soft:
+        snippet = _normalize_snippet(snippet)
+        key = f"{rule}|{fp}|{snippet}"
+    else:
+        line = f.get("line_number", f.get("line", 0))
+        key = f"{rule}|{fp}|{line}|{snippet}"
+    return hashlib.sha256(key.encode()).hexdigest()[:40]
+
+
+def collect_changed_files(repo_path: Path, base: str = "main", head: str = "HEAD") -> DiffContext:
+    """Get list of changed files between base and head."""
+    ctx = DiffContext(base_ref=base, head_ref=head)
+    try:
+        r = subprocess.run(
+            ["git", "-C", str(repo_path), "diff", "--name-status", f"{base}...{head}"],
+            capture_output=True, text=True, timeout=30
+        )
+        if r.returncode != 0:
+            r = subprocess.run(
+                ["git", "-C", str(repo_path), "diff", "--name-status", base, head],
+                capture_output=True, text=True, timeout=30
+            )
+        for line in r.stdout.strip().split("\n"):
+            if not line: continue
+            parts = line.split("\t", 1)
+            if len(parts) < 2: continue
+            status, fname = parts[0][0], parts[1]
+            ctx.changed_files.append(fname)
+            if status == "A": ctx.added_files.append(fname)
+            elif status == "D": ctx.deleted_files.append(fname)
+            else: ctx.modified_files.append(fname)
+    except Exception:
+        pass
+    return ctx
+
+
+def build_base_baseline(repo_path: Path, diff_ctx: DiffContext) -> set[str]:
+    """Scan base commit's changed files for fingerprints — without LLM."""
+    fingerprints = set()
+    base = diff_ctx.base_ref
+
+    # Stash current changes, checkout base
+    try:
+        subprocess.run(["git", "-C", str(repo_path), "stash", "--include-untracked"],
+                       capture_output=True, timeout=15)
+        subprocess.run(["git", "-C", str(repo_path), "checkout", base],
+                       capture_output=True, timeout=30)
+
+        # Scan only changed files from base perspective
+        for fname in diff_ctx.changed_files:
+            fpath = repo_path / fname
+            if not fpath.exists() or not fpath.is_file():
+                continue
+            if should_exclude(fpath, repo_path):
+                continue
+            try:
+                r = subprocess.run(
+                    [sys.executable, GSC, "scan", str(repo_path),
+                     "--json", "--ci", "--files", fname],
+                    capture_output=True, text=True, timeout=60
+                )
+                if r.returncode == 0 and r.stdout.strip():
+                    output = r.stdout.strip()
+                    sj, ej = output.find("["), output.rfind("]") + 1
+                    if sj >= 0 and ej > sj:
+                        findings = json.loads(output[sj:ej])
+                        for f in findings:
+                            fingerprints.add(fingerprint_finding(f, soft=True))
+            except Exception:
+                pass
+    except Exception:
+        pass
+    finally:
+        # Restore
+        try:
+            subprocess.run(["git", "-C", str(repo_path), "checkout", "-"],
+                           capture_output=True, timeout=30)
+            subprocess.run(["git", "-C", str(repo_path), "stash", "pop"],
+                           capture_output=True, timeout=15)
+        except Exception:
+            pass
+
+    return fingerprints
+
+
+def compare_findings(head_findings: list[dict], base_fingerprints: set[str],
+                     policy: dict) -> DiffResult:
+    """Compare head findings against base fingerprints. Returns DiffResult."""
+    result = DiffResult()
+    head_fps = {}
+
+    for f in head_findings:
+        soft_fp = fingerprint_finding(f, soft=True)
+        exact_fp = fingerprint_finding(f, soft=False)
+        f["_fingerprint"] = exact_fp
+        f["_soft_fingerprint"] = soft_fp
+        head_fps[soft_fp] = f
+
+    for f in head_findings:
+        soft_fp = f.get("_soft_fingerprint", "")
+        if soft_fp in base_fingerprints:
+            result.unchanged_findings.append(f)
+        else:
+            result.new_findings.append(f)
+
+    # Fixed = was in base, not in head
+    head_soft = {fingerprint_finding(f, soft=True) for f in head_findings}
+    for bfp in base_fingerprints:
+        if bfp not in head_soft:
+            result.fixed_findings.append({"_fingerprint": bfp, "_status": "fixed"})
+
+    # Classify new findings
+    block_sev = policy.get("block_min_severity", "HIGH")
+    block_conf = policy.get("block_min_confidence", 0.80)
+    warn_conf = policy.get("warn_min_confidence", 0.55)
+
+    for f in result.new_findings:
+        rs = f.get("review_status", "")
+        sev = f.get("category", "LOW")
+        conf = f.get("confidence_score", 0)
+        if rs == "confirmed" and sev in ("CRITICAL", "HIGH") and conf >= block_conf:
+            result.blocking_findings.append(f)
+        elif rs in ("confirmed", "likely") and conf >= warn_conf:
+            result.warning_findings.append(f)
+
+    return result
+
+
+def generate_pr_diff_comment(result: ScanResult, diff: DiffResult, diff_ctx: DiffContext) -> str:
+    """PR comment for diff mode — shows only new/fixed findings."""
+    if not diff.blocking_findings and not diff.warning_findings:
+        return (
+            f"## 🔒 GSC Security Scan\n\n"
+            f"**Profile:** `{result.profile}` · Base: `{diff_ctx.base_ref}` → Head: `{diff_ctx.head_ref}`\n"
+            f"**Changed:** {len(diff_ctx.changed_files)} files · "
+            f"**New findings:** {len(diff.new_findings)}\n\n"
+            f"✅ No blocking or warning findings in this PR.\n\n"
+            f"{'🔧 **Fixed:** ' + str(len(diff.fixed_findings)) + ' finding(s)' if diff.fixed_findings else ''}"
+        )
+
+    lines = [
+        f"## 🔒 GSC Security Scan",
+        "",
+        f"**Profile:** `{result.profile}` · "
+        f"Base: `{diff_ctx.base_ref}` → Head: `{diff_ctx.head_ref}`",
+        f"**Changed:** {len(diff_ctx.changed_files)} files · "
+        f"**New:** {len(diff.new_findings)} · "
+        f"**Blocking:** {len(diff.blocking_findings)} · "
+        f"**Warnings:** {len(diff.warning_findings)}",
+    ]
+    if diff.fixed_findings:
+        lines.append(f"**Fixed:** {len(diff.fixed_findings)}")
+
+    lines.append("")
+
+    if diff.blocking_findings:
+        lines.append("### 🚨 Blocking")
+        lines.append("| Rule | Severity | Confidence | File | Risk |")
+        lines.append("|------|----------|:----------:|------|:----:|")
+        for f in diff.blocking_findings[:10]:
+            lines.append(
+                f"| {f.get('rule_id') or f.get('pattern_title', '?')} | {f.get('category')} | "
+                f"{f.get('confidence_score', 0):.0%} | "
+                f"`{f.get('file_path', '?')}:{f.get('line_number', '?')}` | "
+                f"{f.get('risk_score', 0)}/100 |"
+            )
+        lines.append("")
+
+    if diff.warning_findings:
+        lines.append("### ⚠️ Warnings")
+        lines.append("| Rule | Severity | Confidence | File | Risk |")
+        lines.append("|------|----------|:----------:|------|:----:|")
+        for f in diff.warning_findings[:5]:
+            lines.append(
+                f"| {f.get('rule_id') or f.get('pattern_title', '?')} | {f.get('category')} | "
+                f"{f.get('confidence_score', 0):.0%} | "
+                f"`{f.get('file_path', '?')}:{f.get('line_number', '?')}` | "
+                f"{f.get('risk_score', 0)}/100 |"
+            )
+        lines.append("")
+
+    if diff.fixed_findings:
+        lines.append(f"<details><summary>🔧 {len(diff.fixed_findings)} fixed finding(s)</summary>\n")
+        for f in diff.fixed_findings[:10]:
+            lines.append(f"- `{f.get('_fingerprint', '?')[:12]}`")
+        lines.append("\n</details>\n")
+
+    lines.extend([
+        "---",
+        f"*Blocking: severity ≥ HIGH, confidence ≥ 80%.*",
+    ])
+    return "\n".join(lines)
+
+
+def _resolve_diff_base(repo_path: Path, base: str) -> str:
+    """Resolve base ref — branch name or commit SHA."""
+    try:
+        r = subprocess.run(["git", "-C", str(repo_path), "rev-parse", "--verify", base],
+                          capture_output=True, text=True, timeout=10)
+        if r.returncode == 0: return r.stdout.strip()
+        # Try origin/base
+        r2 = subprocess.run(["git", "-C", str(repo_path), "rev-parse", "--verify", f"origin/{base}"],
+                           capture_output=True, text=True, timeout=10)
+        if r2.returncode == 0: return r2.stdout.strip()
+    except Exception: pass
+    return base
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
 # MAIN SCAN PIPELINE
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def run_external_scan(target: str, profile_name: str = "developer-review",
-                      mode: str = "full", ref: str = "main") -> ScanResult:
+                      mode: str = "full", ref: str = "main",
+                      base: str = "", head: str = "") -> ScanResult:
     policy = PROFILES.get(profile_name, PROFILES["developer-review"])
     mode = mode or policy.get("mode", "full")
 
@@ -788,6 +1032,49 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     print(f"   Results: {result.findings_blocking} blocking, "
           f"{result.findings_confirmed} confirmed, {result.findings_likely} likely")
 
+    # ── v0.13: Diff mode ──
+    if mode in ("diff", "pr") and base:
+        print(f"\n📋 Diff mode: {base} → {head or 'HEAD'}")
+        base_sha = _resolve_diff_base(target_path, base)
+        diff_ctx = collect_changed_files(target_path, base_sha, head or "HEAD")
+        print(f"   Changed: {len(diff_ctx.changed_files)} files "
+              f"({len(diff_ctx.added_files)} added, {len(diff_ctx.modified_files)} modified, "
+              f"{len(diff_ctx.deleted_files)} deleted)")
+
+        # Build base baseline
+        print(f"   Building base baseline...")
+        base_fps = build_base_baseline(target_path, diff_ctx)
+        print(f"   Base fingerprints: {len(base_fps)}")
+
+        # Filter findings to only changed files
+        changed_set = set(diff_ctx.changed_files)
+        changed_findings = [f for f in enriched
+                           if f.get("file_path", "") in changed_set]
+
+        # Compare
+        diff_result = compare_findings(changed_findings, base_fps, policy)
+        print(f"   New: {len(diff_result.new_findings)}, "
+              f"Unchanged: {len(diff_result.unchanged_findings)}, "
+              f"Fixed: {len(diff_result.fixed_findings)}, "
+              f"Blocking: {len(diff_result.blocking_findings)}, "
+              f"Warnings: {len(diff_result.warning_findings)}")
+
+        # Update result with diff-scoped data
+        result.findings = diff_result.new_findings
+        result.findings_total = len(diff_result.new_findings)
+        result.findings_blocking = len(diff_result.blocking_findings)
+        result.findings_confirmed = sum(1 for f in diff_result.new_findings
+                                        if f.get("review_status") == "confirmed")
+        result.findings_likely = sum(1 for f in diff_result.new_findings
+                                     if f.get("review_status") == "likely")
+        result.findings_uncertain = sum(1 for f in diff_result.new_findings
+                                        if f.get("review_status") == "uncertain")
+        result.findings_fp = sum(1 for f in diff_result.new_findings
+                                 if f.get("review_status") == "false-positive")
+        # Attach diff metadata
+        result._diff = diff_result
+        result._diff_ctx = diff_ctx
+
     if target.startswith("http"):
         shutil.rmtree(target_path, ignore_errors=True)
 
@@ -905,8 +1192,12 @@ def main():
     scan.add_argument("--profile", choices=list(PROFILES.keys()), default="developer-review")
     scan.add_argument("--mode", choices=["full", "diff", "pr"])
     scan.add_argument("--ref", default="main")
+    scan.add_argument("--base", default="", help="Base ref for diff mode (e.g. origin/main)")
+    scan.add_argument("--head", default="HEAD", help="Head ref for diff mode")
     scan.add_argument("--format", choices=["json", "markdown", "sarif"], default="markdown")
     scan.add_argument("--output", "-o", help="Output file or directory")
+    scan.add_argument("--fail-on-blocking", action="store_true",
+                      help="Exit 1 if blocking findings found")
 
     report = sub.add_parser("report", help="Generate report from JSON")
     report.add_argument("input_file")
@@ -921,11 +1212,13 @@ def main():
     args = p.parse_args()
 
     if args.command == "scan":
-        result = run_external_scan(args.target, args.profile, args.mode, args.ref)
+        result = run_external_scan(args.target, args.profile, args.mode, args.ref,
+                                   getattr(args, 'base', ''), getattr(args, 'head', 'HEAD'))
 
         # Output directory
         name = args.target.rstrip("/").split("/")[-1].replace(".git", "")
-        out_dir = EXTERNAL_DIR / name / datetime.now().strftime("%Y-%m-%d_%H%M")
+        mode_suffix = f"-diff" if args.mode in ("diff", "pr") else ""
+        out_dir = EXTERNAL_DIR / name / (datetime.now().strftime("%Y-%m-%d_%H%M") + mode_suffix)
         if args.output:
             out_dir = Path(args.output)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -948,9 +1241,19 @@ def main():
         print(f"📄 {out_dir}/scan.json")
         print(f"📄 {out_dir}/summary.json")
 
-        # PR comment to stdout
+        # PR comment
         print()
-        print(generate_pr_comment(result))
+        if args.mode in ("diff", "pr") and hasattr(result, '_diff'):
+            print(generate_pr_diff_comment(result, result._diff, result._diff_ctx))
+        else:
+            print(generate_pr_comment(result))
+
+        # Exit code
+        blocking = result.findings_blocking
+        if getattr(args, 'fail_on_blocking', False) and blocking > 0:
+            print(f"\n❌ BLOCKED: {blocking} blocking finding(s)")
+            sys.exit(1)
+        sys.exit(0)
 
     elif args.command == "report":
         data = json.loads(Path(args.input_file).read_text())
