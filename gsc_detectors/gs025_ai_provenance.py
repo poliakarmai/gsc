@@ -115,3 +115,29 @@ class GS025Detector:
         start = max(0, line_no - 1 - window)
         end = min(len(lines), line_no + window)
         return "\n".join(lines[start:end])
+
+
+# ── Registry bridge (module-level interface expected by DetectorEntry) ──
+RULE_ID = "GS025"
+ECHELON = 2
+NOISE_TIER = "normal"
+description = "GS025: AI-Code Provenance — detect AI-favored insecure defaults"
+
+
+def detect(ctx) -> list[dict]:
+    """Bridge function for registry compatibility."""
+    det = GS025Detector()
+    findings = []
+    files = ctx.files if ctx.files else list(ctx.path.rglob("*"))
+    for fp in files:
+        if not fp.is_file():
+            continue
+        if fp.suffix not in {'.py', '.js', '.ts', '.tsx', '.go', '.rs', '.java', '.rb', '.php'}:
+            continue
+        try:
+            content = ctx.file_contents.get(str(fp), fp.read_text(errors='replace'))
+        except Exception:
+            continue
+        rel = str(fp.relative_to(ctx.path)) if ctx.path in fp.parents else str(fp)
+        findings.extend(det.detect(rel, content))
+    return findings

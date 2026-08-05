@@ -37,7 +37,6 @@ import gsc_detectors.gs021_csrf_ssrf as _gs021
 import gsc_detectors.gs022_open_redirect as _gs022
 import gsc_detectors.gs023_race_conditions as _gs023
 import gsc_detectors.gs025_ai_provenance as _gs025
-import gsc_detectors.gs025_ai_code as _gs025_code
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -211,11 +210,11 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         noise_tier=_gs023.NOISE_TIER,
     ),
     DetectorEntry(
-        rule_id=_gs025_code.RULE_ID,
-        echelon=_gs025_code.ECHELON,
-        detect_fn=_gs025_code.detect,
-        description=_gs025_code.description,
-        noise_tier=_gs025_code.NOISE_TIER,
+        rule_id=_gs025.RULE_ID,
+        echelon=_gs025.ECHELON,
+        detect_fn=_gs025.detect,
+        description=_gs025.description,
+        noise_tier=_gs025.NOISE_TIER,
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
