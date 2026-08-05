@@ -1827,6 +1827,10 @@ def main():
     mut_p.add_argument('--days', type=int, default=30)
     mut_p.add_argument('--limit', type=int, default=50)
 
+    # gsc rollout 🆕 v0.26
+    rpt = sub.add_parser('rollout', help='Rollout report (Phase 5)')
+    rpt.add_argument('cmd', choices=['report'])
+
     # gsc invariants 🆕 v0.20
     inv_p = sub.add_parser('invariants', help='Invariant engine (v0.20)')
     inv_p.add_argument('inv_cmd', choices=['check', 'list'])
@@ -2001,6 +2005,70 @@ def main():
             import json as _json
             print(_json.dumps(db.mutation_stats(), indent=2))
         db.close()
+    elif args.command == "rollout" and args.cmd == "report":
+        from gsc_db import GSCDatabase
+        from datetime import datetime
+        db = GSCDatabase()
+        cfg = {}
+        try:
+            import yaml
+            with open(".gsc-audit.yml") as f:
+                cfg = yaml.safe_load(f) or {}
+        except Exception:
+            pass
+        now = datetime.now().isoformat()[:19]
+        print(f"# GSC Rollout Report")
+        print(f"_Generated: {now}_")
+        print()
+        print("## Phases")
+        print()
+        print("| Phase | Status |")
+        print("|---|---|")
+        print("| 0 Readiness | OK |")
+        print("| 1 Dry-run CI | OK |")
+        print("| 2 Warn-only | OK |")
+        print("| 3 Feedback | OK |")
+        print("| 4 Blocking CRITICAL | OK |")
+        phase_ok = cfg.get("rollout_phase") == "blocking-standard"
+        print(f"| 5 Blocking standard | {'OK' if phase_ok else 'PENDING'} |")
+        print()
+        dr = db.dry_run_stats(days=90)
+        p2 = db.phase2_stats(days=90)
+        p5 = db.phase5_stats(days=90)
+        ms = db.mutation_stats()
+        print("## Metrics")
+        print(f"- Dry-run runs (90d): {dr.get('runs',0)}")
+        print(f"- Comments: {p2.get('comments_published',0)}")
+        print(f"- Verdicts: {db.count_feedback()}")
+        print(f"- Blocks: {p5.get('blocks',0)} (chain: {p5.get('chain_blocks',0)})")
+        print(f"- Overrides: {p5.get('overrides',0)}")
+        print(f"- Mutations: {ms.get('alerts_total',0)}")
+        print()
+        print("## Detectors")
+        print("| Detector | verdicts | TP-rate | status |")
+        print("|---|---|---|---|")
+        det = db.detector_tp_rates()
+        for r in det:
+            rate = f"{r['tp_rate']:.1%}" if r.get('tp_rate') is not None else "-"
+            status = "blocking-ready" if r.get('blocking_ready') else "-"
+            print(f"| {r['detector']} | {r['verdicts']} | {rate} | {status} |")
+        print()
+        weak = [d for d in det if d['verdicts'] >= 10 and (d.get('tp_rate') or 0) < 0.30]
+        ready = [d for d in det if d.get('blocking_ready')]
+        ov = db.count_events('override')
+        bl = db.count_events('blocking') or 1
+        print("## Recommendations")
+        if weak:
+            ids = ', '.join(d['detector'] for d in weak)
+            print(f"- Auto-deactivate candidates: {ids}")
+        if len(ready) < 5:
+            print("- Few blocking-ready detectors: encourage verdicts")
+        if ov / bl > 0.20:
+            print("- Override rate > 20%: review thresholds")
+        if not weak and len(ready) >= 5 and ov / bl <= 0.20:
+            print("- Rollout stable. Next: Enterprise (VSCode, Helm/SSO).")
+        db.close()
+
     elif args.command == "invariants":
         from gsc_invariant_engine import InvariantEngine, InvariantLoadError
         config = args.config or os.path.join(args.repo, ".gsc-audit.yml")

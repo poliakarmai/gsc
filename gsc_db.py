@@ -545,6 +545,52 @@ class GSCDatabase:
         except sqlite3.OperationalError:
             return set()
 
+
+    # ── v0.26 Phase 5: Blocking stats ──────────────────────
+
+    def phase5_stats(self, days: int = 14) -> dict:
+        window = f"-{days} days"
+        fb = self.query("""
+            SELECT COUNT(*) AS total,
+                   SUM(CASE WHEN verdict = 'fp' THEN 1 ELSE 0 END) AS fp
+            FROM feedback
+            WHERE created_at > datetime('now', ?)
+        """, (window,)).fetchone()
+        from . import phase5_stats as _ps
+        events = {}
+        try:
+            rows = self.query("""
+                SELECT event, COUNT(*) AS n FROM publication_events
+                WHERE created_at > datetime('now', ?)
+                GROUP BY event
+            """, (window,)).fetchall()
+            events = {r["event"]: r["n"] for r in rows}
+        except Exception:
+            pass
+        return {
+            "blocks": events.get("blocking", 0),
+            "chain_blocks": events.get("chain_block", 0),
+            "overrides": events.get("override", 0),
+            "fp_on_recent": fb["fp"] or 0,
+            "verdicts_recent": fb["total"] or 0,
+        }
+
+    def count_events(self, event_type: str) -> int:
+        try:
+            row = self.query(
+                "SELECT COUNT(*) AS n FROM publication_events WHERE event = ?",
+                (event_type,)).fetchone()
+            return row["n"] if row else 0
+        except Exception:
+            return 0
+
+    def count_feedback(self) -> int:
+        try:
+            return self.query(
+                "SELECT COUNT(*) AS n FROM feedback").fetchone()["n"] or 0
+        except Exception:
+            return 0
+
     # ── Close ──────────────────────────────────────────────────
 
     def close(self):

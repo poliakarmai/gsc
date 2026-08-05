@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """
-GSC Blocking Engine (Phase 4).
+GSC Blocking Engine (Phase 5 — v0.26).
 
 Phase rules (PROJECT.md 4):
-  blocking-critical:  CRITICAL 0.90
-  blocking-standard:  CRITICAL 0.90 + HIGH 0.85
+  blocking-critical:  CRITICAL >= 0.90
+  blocking-standard:  CRITICAL >= 0.90, HIGH >= 0.85
+  + chain CRITICAL >= 0.90 in blocking-standard ONLY
 
-Blocking = phase AND threshold AND detector allowed AND no override.
-Shadow mode: decision computed but blocking=False (dry-run for Phase 4).
+Blocking = phase AND threshold AND detector_allowed AND no override.
+Shadow mode: compute but set blocking=False.
+PoC boost: +0.05 effective confidence for PoC-validated findings.
 """
 from __future__ import annotations
 from typing import Any, Optional
@@ -16,10 +18,14 @@ PHASE_THRESHOLDS: dict = {
     "blocking-critical": [("CRITICAL", 0.90)],
     "blocking-standard": [("CRITICAL", 0.90), ("HIGH", 0.85)],
 }
+SEVERITY_ORDER: dict = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}
+CHAIN_BLOCK_CONFIDENCE: float = 0.90
+POC_BOOST: float = 0.05
+POC_BOOST_CAP: float = 0.95
 
 
 class BlockingEngine:
-    """Single point of blocking decisions. Replaces _apply_rollout_phase."""
+    """Single source of blocking truth for all phases."""
 
     def __init__(self, db, phase: str, config: dict | None = None,
                  github_context: bool = False):
@@ -30,9 +36,10 @@ class BlockingEngine:
         self.github_context = github_context
         self.shadow = bool(
             self.config.get("shadow", False)) and github_context
+        self.poc_boost = bool(self.config.get("poc_boost", False))
         self._tp_cache: Optional[list] = None
 
-    # ── Detector policy ──────────────────────────────────────
+    # ── Detector policy (Phase 3 auto-mode) ──────────────────
 
     def _tp_stats(self) -> list[dict]:
         if self._tp_cache is None:
@@ -41,21 +48,15 @@ class BlockingEngine:
 
     def detector_allowed(self, rule_id: str) -> tuple[bool, str]:
         det = rule_id.split("-")[0]
-
-        # GS028: invariants only block with explicit repo opt-in
         if det == "GS028":
             if self.config.get("invariants_enforce"):
                 return True, "invariants enforce opt-in"
             return False, "invariants_enforce disabled"
-
         overrides = self.policy.get("overrides", {})
         if det in overrides:
-            ok = overrides[det] == "allow"
-            return ok, "manual policy override"
-
+            return overrides[det] == "allow", "manual policy override"
         if self.policy.get("mode", "auto") == "manual":
-            return False, "manual mode: no explicit allow"
-
+            return False, "manual mode"
         min_verdicts = int(self.policy.get("min_verdicts", 10))
         min_tp = float(self.policy.get("min_tp_rate", 0.70))
         stats = next(
@@ -68,18 +69,30 @@ class BlockingEngine:
             return False, f"tp_rate {stats['tp_rate']:.0%} < {min_tp:.0%}"
         return True, "auto policy"
 
+    # ── Effective confidence (PoC boost) ─────────────────────
+
+    def _effective_confidence(self, f: dict) -> float:
+        conf = f.get("confidence", 0.0)
+        meta = f.get("metadata", {})
+        if self.poc_boost and meta.get("poc") and not meta.get("poc_failed"):
+            boosted = min(POC_BOOST_CAP, conf + POC_BOOST)
+            if boosted > conf:
+                f.setdefault("metadata", {})["poc_boost_applied"] = True
+            return boosted
+        return conf
+
     # ── Core logic ───────────────────────────────────────────
 
     def apply(self, findings: list[dict], overrides: set[str],
-              bypass: bool) -> dict:
+              bypass: bool, chains: list[dict] | None = None) -> dict:
         """Mutate findings; return summary for comment/metrics."""
-        # Reset: engine is sole source of blocking truth
+
         for f in findings:
             f["blocking"] = False
 
         summary: dict[str, Any] = {
             "blocked": [], "shadow_blocked": [], "skipped": [],
-            "shadow": self.shadow, "bypass": bypass,
+            "chain_blocked": [], "shadow": self.shadow, "bypass": bypass,
         }
         if bypass:
             summary["bypass_reason"] = "label bypass"
@@ -89,10 +102,12 @@ class BlockingEngine:
         if not thresholds:
             return summary
 
+        # ── Individual findings (Phase 4 core) ──
         for f in findings:
             if f.get("confidence", 0.0) < 0.35:
                 continue
-            if not self._meets_threshold(f, thresholds):
+            if not self._meets_threshold(f, thresholds,
+                                         self._effective_confidence(f)):
                 continue
             allowed, why = self.detector_allowed(
                 f.get("rule_id", f.get("pattern_title", "")))
@@ -104,23 +119,85 @@ class BlockingEngine:
             if f.get("finding_key") in overrides:
                 f["metadata"] = f.get("metadata", {})
                 f["metadata"]["overridden"] = True
-                summary["skipped"].append(
-                    (f["finding_key"], "override"))
+                summary["skipped"].append((f["finding_key"], "override"))
                 continue
-            f["metadata"] = f.get("metadata", {})
-            f["metadata"]["blocking_reason"] = (
-                f"phase:{self.phase} sev:{f.get('severity')} "
-                f"conf:{f.get('confidence', 0):.2f}")
-            if self.shadow:
-                f["metadata"]["shadow_block"] = True
-                summary["shadow_blocked"].append(f["finding_key"])
-            else:
-                f["blocking"] = True
-                summary["blocked"].append(f["finding_key"])
+            self._mark_blocking(f, summary)
+
+        # ── Chain blocking (Phase 5) ──
+        if self.phase == "blocking-standard":
+            self._apply_chain_blocking(findings, chains or [],
+                                       overrides, summary)
         return summary
 
+    def _mark_blocking(self, f: dict, summary: dict) -> None:
+        f["metadata"] = f.get("metadata", {})
+        f["metadata"]["blocking_reason"] = (
+            f"phase:{self.phase} sev:{f.get('severity')} "
+            f"conf:{f.get('confidence', 0):.2f}")
+        if self.shadow:
+            f["metadata"]["shadow_block"] = True
+            summary["shadow_blocked"].append(f["finding_key"])
+        else:
+            f["blocking"] = True
+            summary["blocked"].append(f["finding_key"])
+
+    # ── Chain blocking (Phase 5) ─────────────────────────────
+
+    def _apply_chain_blocking(self, findings: list[dict],
+                               chains: list[dict], overrides: set[str],
+                               summary: dict):
+        by_key = {f["finding_key"]: f for f in findings}
+        for chain in chains:
+            ckey = chain.get("chain_key", "")
+            if chain.get("composed_severity") != "CRITICAL":
+                continue
+            if chain.get("confidence", 0.0) < CHAIN_BLOCK_CONFIDENCE:
+                continue
+            # Community verdict: fp chain never blocks
+            if self._chain_status(ckey) == "fp":
+                summary["skipped"].append((ckey, "chain verdict: fp"))
+                continue
+
+            members = [by_key[k] for k in chain.get("finding_keys", [])
+                       if k in by_key]
+            if not members:
+                continue
+            top = max(members, key=lambda f: SEVERITY_ORDER.get(
+                f.get("severity", f.get("category", "LOW")), 1))
+
+            if top.get("finding_key") in overrides:
+                summary["skipped"].append(
+                    (ckey, "top member overridden"))
+                continue
+            allowed, why = self.detector_allowed(
+                top.get("rule_id", top.get("pattern_title", "")))
+            if not allowed:
+                summary["skipped"].append(
+                    (ckey, f"top detector: {why}"))
+                continue
+
+            top["metadata"] = top.get("metadata", {})
+            top["metadata"]["blocking_reason"] = f"chain:{ckey}"
+            if self.shadow:
+                top["metadata"]["shadow_block"] = True
+                summary["shadow_blocked"].append(top["finding_key"])
+            else:
+                top["blocking"] = True
+                summary["chain_blocked"].append(ckey)
+
+    def _chain_status(self, chain_key: str) -> str:
+        try:
+            row = self.db.get_chain(chain_key)
+            return row["status"] if row else "open"
+        except Exception:
+            return "open"
+
+    # ── Threshold helpers ────────────────────────────────────
+
     @staticmethod
-    def _meets_threshold(f: dict, thresholds: list) -> bool:
+    def _meets_threshold(f: dict, thresholds: list,
+                         conf: float | None = None) -> bool:
         sev = f.get("severity", f.get("category", ""))
-        conf = f.get("confidence", 0.0)
+        if conf is None:
+            conf = f.get("confidence", 0.0)
         return any(sev == s and conf >= c for s, c in thresholds)

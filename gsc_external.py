@@ -1111,20 +1111,8 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                     if f:
                         f.setdefault("metadata", {})["chain_key"] = chain.chain_key
                         f["metadata"]["chain_severity"] = chain.composed_severity
-            # Persist chains to DB
-            try:
-                from gsc_db import GSCDatabase
-                with GSCDatabase() as db:
-                    for chain in chains:
-                        db.save_chain(chain, target=target, profile=profile_name)
-            except Exception:
-                pass
-            print(f"   Chains: {len(chains)} composed")
-            result.chains_found = len(chains)
-        except ImportError:
-            pass
-
-    # ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
+        # Blocking decision delegated to BlockingEngine (Phase 5) — engine is sole source of truth
+# ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
     mutation_alerts = []
     try:
         from gsc_mutation_tracker import MutationTracker, auto_resolve
