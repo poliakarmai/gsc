@@ -54,6 +54,17 @@ class DetectorEntry:
         return f"DetectorEntry({self.rule_id}, echelon={self.echelon})"
 
 
+# ── Lazy imports (must be defined BEFORE ALL_DETECTORS) ─────────────────────
+
+def _lazy_gs024(ctx):
+    """Lazy-load LLM SQLi detector — avoids API key requirement at import time."""
+    try:
+        import gsc_detectors.gs020_llm_sqli as _gs024
+        return _gs024.detect(ctx)
+    except Exception:
+        return []
+
+
 # ── Registry ─────────────────────────────────────────────────────────────────
 
 ALL_DETECTORS: Sequence[DetectorEntry] = [
@@ -197,11 +208,11 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         description=_gs023.description,
         noise_tier=getattr(_gs023, "NOISE_TIER", "noisy"),
     ),
-    # 🆕 v2.0: LLM-based detector (pilot)
+    # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
         rule_id="GS024",
         echelon=2,
-        detect_fn=lambda ctx: [],  # Lazy import — loaded on demand to avoid API key requirement
+        detect_fn=_lazy_gs024,
         description="LLM-based SQL injection (pilot — replaces 87 regex patterns)",
         noise_tier="precise",
     ),

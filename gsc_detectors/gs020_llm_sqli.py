@@ -169,37 +169,42 @@ def detect(ctx) -> list:
     # Check if we have an API key
     api_key = _get_api_key()
     if not api_key:
-        # Fallback: skip silently (no API key = can't run LLM detector)
         return findings
 
     source_files = ctx.get_source_files(extensions=(".py", ".go", ".ts", ".js", ".java", ".rb", ".php"))
     if not source_files:
         return findings
 
-    # Phase 1: Quick grep pre-filter
-    candidates = []
+    # Phase 1: Quick grep pre-filter → extract candidates per file
+    file_candidates: list[tuple[Path, list[dict]]] = []
+    total_candidates = 0
     for fp in source_files:
+        if total_candidates >= 30:
+            break
         if _quick_grep_filter(fp):
-            candidates.extend(_extract_candidates(fp, max_per_file=3))
+            cands = _extract_candidates(fp, max_per_file=3)
+            if cands:
+                file_candidates.append((fp, cands))
+                total_candidates += len(cands)
 
-    if not candidates:
+    if not file_candidates:
         return findings
 
     # Phase 2: LLM analysis (limited to 30 candidates per scan for cost control)
-    for c in candidates[:30]:
-        result = _call_llm(c["snippet"], str(candidates[0] if candidates else ""))
-
-        if result.get("vulnerable") and result.get("confidence", 0) >= 0.7:
-            findings.append({
-                "rule_id": RULE_ID,
-                "title": "LLM: SQL injection detected",
-                "category": "CRITICAL",
-                "echelon": ECHELON,
-                "file_path": str(candidates[0]) if candidates else "",
-                "line_number": c["line_number"],
-                "detail": f"LLM confidence: {result['confidence']:.0%}. {result['reason']}",
-                "noise_tier": "precise",
-            })
+    for fp, cands in file_candidates:
+        for c in cands:
+            result = _call_llm(c["snippet"], str(fp))
+            if result.get("vulnerable") and result.get("confidence", 0) >= 0.7:
+                findings.append({
+                    "rule_id": RULE_ID,
+                    "title": "LLM: SQL injection detected",
+                    "category": "CRITICAL",
+                    "echelon": ECHELON,
+                    "file_path": str(fp),
+                    "line_number": c["line_number"],
+                    "detail": f"LLM confidence: {result['confidence']:.0%}. {result['reason']}",
+                    "noise_tier": "precise",
+                })
 
     return findings
 
