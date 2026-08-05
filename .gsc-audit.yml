@@ -1,0 +1,10 @@
+# GSC Audit Policy — rollout v0.16
+# Phase 1: warn-only — post comments, never block PRs.
+
+rollout_phase: warn-only
+
+thresholds:
+  block_min_confidence: 0.80
+
+rules:
+  GS003: {enabled: false}  # debug prints — not relevant for PR gate

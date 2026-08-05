@@ -195,7 +195,8 @@ Phase 5: 🔜 Blocking CRITICAL+HIGH (rollout_phase: blocking-standard)
 |------|:-----:|
 | CLI, CI/CD, Self-learning v1, Deepsec, GS024 | ✅ |
 | v0.11–v0.16: full pipeline (5 версий за день) | ✅ |
-| Production rollout (warn-only → blocking) | 🔜 |
-| Multi-language (Go/TS/Rust/Java) | 🔜 |
+| Production rollout (warn-only) | 🔜 Phase 1 |
+| Multi-language (Go/TS/Rust/Java) | ✅ |
+| Blocking CRITICAL | 🔜 Phase 4 |
 | VSCode extension / Marketplace | 📋 |
 | Enterprise (Helm, SSO) | 📋 |
