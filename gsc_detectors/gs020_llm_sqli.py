@@ -36,18 +36,26 @@ PRE_FILTER_PATTERNS = [
 
 
 def _get_api_key() -> str | None:
-    """Get DeepSeek API key from config."""
+    """Get DeepSeek API key from env or .env file."""
     api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        try:
-            import yaml
-            cfg_path = os.path.expanduser("~/.hermes/config.yaml")
-            if os.path.exists(cfg_path):
-                with open(cfg_path) as f:
-                    cfg = yaml.safe_load(f)
-                api_key = cfg.get("providers", {}).get("deepseek", {}).get("api_key", "")
-        except Exception:
-            pass
+        # Try .env file (Hermes stores keys here, not in config.yaml)
+        for env_path in [
+            os.path.expanduser("~/.hermes/.env"),
+            os.path.expanduser("~/.hermes/env"),
+            ".env",
+        ]:
+            if os.path.exists(env_path):
+                try:
+                    with open(env_path) as f:
+                        for line in f:
+                            line = line.strip()
+                            if line.startswith("DEEPSEEK_API_KEY="):
+                                api_key = line.split("=", 1)[1].strip().strip('"').strip("'")
+                                if api_key:
+                                    return api_key
+                except Exception:
+                    pass
     return api_key or None
 
 
@@ -111,7 +119,7 @@ SAFE patterns (NOT vulnerabilities):
 - Test fixtures, documentation examples
 
 REAL vulnerabilities:
-- f-string with user-controlled input: cursor.execute(f"SELECT ... WHERE id={request.GET['id']}")
+- f-string with user-controlled input: cursor.execute(f"SELECT ... WHERE id={{request.GET['id']}}")
 - String formatting with external data: cursor.execute("SELECT ..." % user_input)
 - Raw SQL concatenation with request params
 
