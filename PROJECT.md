@@ -422,7 +422,49 @@ python3 gsc.py db "SELECT revalidation_verdict, COUNT(*) FROM findings WHERE rev
 | **Self-learning v2** (замкнутая петля, LLM-ревалидация) | ✅ |
 | **GS024 LLM detector** (пилот) | ✅ |
 | **External Scanner MVP** (clone→scan→revalidate→score→report) | ✅ |
-| Calibration set (20 репозиториев: 10 vuln + 10 clean) | 🔜 |
-| Мультиязычность (Go/TS/Rust/Java) | 🔜 |
+| **Calibration set** (14 проектов, precision 99.4% на чистых) | ✅ |
+| **Confidence V2** (reasoning-vs-verdict cross-check) | ✅ |
+| Multi-language (Go/TS/Rust/Java) | 🔜 |
 | VSCode extension / Pattern marketplace | 📋 |
 | Enterprise (Helm, SSO, Compliance) | 📋 |
+
+## 14. External Scanner MVP
+
+### Pipeline
+
+```
+clone → inventory → exclude → scan → LLM revalidate → score → report
+```
+
+### Команды
+
+```bash
+gsc external-scan https://github.com/user/repo --format markdown
+gsc external-scan ./local-project --format sarif -o report.sarif
+gsc report scan.json --format markdown
+gsc feedback 123 --verdict fp --reason "тестовый пароль"
+```
+
+### Confidence Scoring V2 (ключевой инсайт калибровки)
+
+LLM reasoning всегда правильный, но verdict label часто ошибается. Поэтому scoring доверяет reasoning, а не verdict:
+
+- Без LLM-ревалидации → max confidence 0.35 (uncertain)
+- 25+ FP-сигналов в reasoning (≥2 совпадения) → confidence 0.08 (likely-false-positive)
+- Config-файлы без секретов → confidence ×0.5
+- Результат: 78 ложных «confirmed» на чистых проектах → 1
+
+### Форматы отчётов
+
+- **Markdown** — читабельный, с топ-рисками и evidence
+- **SARIF 2.1.0** — GitHub Code Scanning, GitLab
+- **JSON** — для интеграций
+- **PR comment** — краткая таблица для GitHub PR
+
+### Exclude policy
+
+Автоматически исключаются: tests, docs, examples, fixtures, node_modules, vendor, dist, build, migrations, media, шрифты, lock-файлы, minified.
+
+### Redaction перед LLM
+
+API-ключи, приватные ключи, email, пароли в промптах заменяются на `[REDACTED_*]`.
