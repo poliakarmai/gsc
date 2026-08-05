@@ -297,7 +297,7 @@ def load_policy(project_path: Path) -> dict:
 
 
 def merge_policy(profile_name: str, policy: dict) -> dict:
-    """Merge .gsc-audit.yml overrides into profile defaults."""
+    """Merge .gsc-audit.yml overrides into profile defaults. Supports rollout_phase."""
     profile = dict(PROFILES.get(profile_name, PROFILES["developer-review"]))
     if not policy:
         return profile
@@ -310,6 +310,19 @@ def merge_policy(profile_name: str, policy: dict) -> dict:
             profile[list_key] = list(set(profile.get(list_key, []) + policy[list_key]))
     if "exclude" in policy:
         profile["extra_exclude"] = policy["exclude"]
+
+    # Rollout phase overrides
+    phase = policy.get("rollout_phase", profile.get("rollout_phase", "standard"))
+    profile["rollout_phase"] = phase
+    if phase == "warn-only":
+        profile["fail_on_blocking"] = False
+    elif phase == "blocking-critical":
+        profile["block_min_severity"] = "CRITICAL"
+        profile["block_min_confidence"] = max(profile.get("block_min_confidence", 0.80), 0.90)
+    elif phase == "blocking-standard":
+        profile["block_min_severity"] = "HIGH"
+        profile["block_min_confidence"] = max(profile.get("block_min_confidence", 0.80), 0.85)
+
     return profile
 
 
@@ -834,12 +847,12 @@ def generate_pr_diff_comment(result: ScanResult, diff: DiffResult, diff_ctx: Dif
 
     if diff.blocking_findings:
         lines.append("### 🚨 Blocking")
-        lines.append("| Rule | Severity | Confidence | File | Risk |")
-        lines.append("|------|----------|:----------:|------|:----:|")
+        lines.append("| ID | Rule | Severity | Confidence | File | Risk |")
+        lines.append("|----|------|----------|:----------:|------|:----:|")
         for f in diff.blocking_findings[:10]:
             lines.append(
-                f"| {f.get('rule_id') or f.get('pattern_title', '?')} | {f.get('category')} | "
-                f"{f.get('confidence_score', 0):.0%} | "
+                f"| `{f.get('finding_key', '?')}` | {f.get('rule_id') or f.get('pattern_title', '?')} | "
+                f"{f.get('category')} | {f.get('confidence_score', 0):.0%} | "
                 f"`{f.get('file_path', '?')}:{f.get('line_number', '?')}` | "
                 f"{f.get('risk_score', 0)}/100 |"
             )
@@ -847,12 +860,12 @@ def generate_pr_diff_comment(result: ScanResult, diff: DiffResult, diff_ctx: Dif
 
     if diff.warning_findings:
         lines.append("### ⚠️ Warnings")
-        lines.append("| Rule | Severity | Confidence | File | Risk |")
-        lines.append("|------|----------|:----------:|------|:----:|")
+        lines.append("| ID | Rule | Severity | Confidence | File | Risk |")
+        lines.append("|----|------|----------|:----------:|------|:----:|")
         for f in diff.warning_findings[:5]:
             lines.append(
-                f"| {f.get('rule_id') or f.get('pattern_title', '?')} | {f.get('category')} | "
-                f"{f.get('confidence_score', 0):.0%} | "
+                f"| `{f.get('finding_key', '?')}` | {f.get('rule_id') or f.get('pattern_title', '?')} | "
+                f"{f.get('category')} | {f.get('confidence_score', 0):.0%} | "
                 f"`{f.get('file_path', '?')}:{f.get('line_number', '?')}` | "
                 f"{f.get('risk_score', 0)}/100 |"
             )
@@ -1007,12 +1020,17 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     result.llm_calls = llm_calls
     print(f"   LLM revalidated: {llm_calls}")
 
-    # Step 5: V3 Scoring
+    # Step 5: V3 Scoring + finding_key
     for f in enriched:
         conf = compute_confidence_v3(f)
         f["confidence_score"] = conf
         f["review_status"] = review_status(conf)
         f["risk_score"] = risk_score(f.get("category", "LOW"), conf)
+        # Stable finding key for PR feedback
+        rule = f.get("rule_id") or f.get("pattern_title", "?")
+        fp = f.get("file_path", "?")
+        snippet = (f.get("detail") or f.get("title") or "")[:100]
+        f["finding_key"] = hashlib.sha256(f"{rule}|{fp}|{snippet}".encode()).hexdigest()[:12]
 
     # Step 6: Classify
     result.findings = enriched
