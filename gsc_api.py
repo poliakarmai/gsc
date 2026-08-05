@@ -313,8 +313,20 @@ async def get_metrics():
         "last_scan": last_scan[0].stem if last_scan else None,
     }
 
-# ── Main ──────────────────────────────────────────────────
 
+@app.get("/api/v1/chains")
+async def get_chains(target: Optional[str] = None, status: Optional[str] = None, limit: int = Query(100, le=500)):
+    """Query chain history from SQLite (not from last report)."""
+    try:
+        from gsc_db import GSCDatabase
+        with GSCDatabase() as db:
+            rows = db.query_chains(target=target, status=status, limit=limit)
+        return {"chains": rows, "total": len(rows)}
+    except Exception as e:
+        return {"chains": [], "total": 0, "error": str(e)}
+
+
+# ── Main ──────────────────────────────────────────────────
 if __name__ == "__main__":
     import argparse, uvicorn
     p = argparse.ArgumentParser(description="GSC REST API")
