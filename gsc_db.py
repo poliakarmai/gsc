@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
-TARGET_VERSION = 19
+TARGET_VERSION = 21
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -80,6 +80,42 @@ INDEXES_V019 = [
     "ON findings(pattern_fingerprint)",
 ]
 
+SCHEMA_V021 = """
+CREATE TABLE IF NOT EXISTS published_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    comment_id INTEGER NOT NULL,
+    head_sha TEXT,
+    finding_keys TEXT,
+    rollout_phase TEXT,
+    truncated INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(repo, pr_number)
+);
+
+CREATE TABLE IF NOT EXISTS publication_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    repo TEXT,
+    pr_number INTEGER,
+    event TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_pub_events_created
+    ON publication_events(created_at);
+
+CREATE TABLE IF NOT EXISTS comment_reactions (
+    comment_id INTEGER PRIMARY KEY,
+    repo TEXT NOT NULL,
+    pr_number INTEGER NOT NULL,
+    thumbs_up INTEGER NOT NULL DEFAULT 0,
+    thumbs_down INTEGER NOT NULL DEFAULT 0,
+    confused INTEGER NOT NULL DEFAULT 0,
+    collected_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
@@ -101,6 +137,8 @@ class GSCDatabase:
             self.conn.executescript(SCHEMA_V018)
         if version < 19:
             self._apply_v019()
+        if version < 21:
+            self._apply_v021()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -122,6 +160,9 @@ class GSCDatabase:
                 self.conn.execute(idx)
             except sqlite3.OperationalError:
                 pass
+
+    def _apply_v021(self):
+        self.conn.executescript(SCHEMA_V021)
 
     def _schema_version(self) -> int:
         try:
@@ -306,6 +347,68 @@ class GSCDatabase:
         return {
             "total": total, "done": done,
             "pct": round(done / total * 100, 1) if total else 100.0,
+        }
+
+    # ── v0.23 Phase 2: Publication registry ────────────────────
+
+    def upsert_published_comment(self, repo: str, pr_number: int,
+                                  comment_id: int, head_sha: str = "",
+                                  finding_keys: list = None,
+                                  rollout_phase: str = "",
+                                  truncated: int = 0):
+        keys_json = json.dumps(finding_keys or [])
+        self.conn.execute("""
+            INSERT INTO published_comments
+                (repo, pr_number, comment_id, head_sha, finding_keys,
+                 rollout_phase, truncated, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+            ON CONFLICT(repo, pr_number) DO UPDATE SET
+                comment_id = excluded.comment_id,
+                head_sha = excluded.head_sha,
+                finding_keys = excluded.finding_keys,
+                rollout_phase = excluded.rollout_phase,
+                truncated = excluded.truncated,
+                updated_at = excluded.updated_at
+        """, (repo, pr_number, comment_id, head_sha, keys_json,
+              rollout_phase, truncated))
+        self.conn.commit()
+
+    def record_publication_event(self, repo: str, pr_number: int,
+                                  event: str, detail: str = ""):
+        self.conn.execute("""
+            INSERT INTO publication_events (repo, pr_number, event, detail)
+            VALUES (?, ?, ?, ?)
+        """, (repo, pr_number, event, detail))
+        self.conn.commit()
+
+    def phase2_stats(self, days: int = 14) -> dict:
+        window = f"-{days} days"
+        pub = self.query("""
+            SELECT COUNT(*) AS comments, SUM(truncated) AS truncated
+            FROM published_comments
+            WHERE updated_at > datetime('now', ?)
+        """, (window,)).fetchone()
+        events = self.query("""
+            SELECT event, COUNT(*) AS n FROM publication_events
+            WHERE created_at > datetime('now', ?)
+            GROUP BY event
+        """, (window,)).fetchall()
+        react = self.query("""
+            SELECT COALESCE(SUM(thumbs_up),0) AS up,
+                   COALESCE(SUM(thumbs_down),0) AS down,
+                   COALESCE(SUM(confused),0) AS confused
+            FROM comment_reactions
+            WHERE collected_at > datetime('now', ?)
+        """, (window,)).fetchone()
+        neg = react["down"] + react["confused"]
+        total_r = neg + react["up"]
+        return {
+            "comments_published": pub["comments"] or 0,
+            "truncated": pub["truncated"] or 0,
+            "events": {r["event"]: r["n"] for r in events},
+            "reactions": {"up": react["up"], "down": react["down"],
+                          "confused": react["confused"]},
+            "negative_rate": round(neg / total_r, 3) if total_r else None,
         }
 
     # ── Close ──────────────────────────────────────────────────

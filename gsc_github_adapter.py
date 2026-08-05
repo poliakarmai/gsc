@@ -282,11 +282,15 @@ def upsert_comment(client: GitHubAPIClient, ctx: GitHubPRContext,
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def conclusion_from_result(blocking: int, warnings: int, safe_mode: bool = False,
-                           errored: bool = False) -> str:
+                           errored: bool = False, phase: str = "warn-only") -> str:
     if errored:
         return "action_required"
     if safe_mode:
         return "neutral"
+    # Phase 2: warn-only never blocks (neutral = attention, not failure)
+    if phase == "warn-only":
+        return "neutral" if (blocking > 0 or warnings > 0) else "success"
+    # Phase 4+: blocking means failure
     if blocking > 0:
         return "failure"
     return "success"
