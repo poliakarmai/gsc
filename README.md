@@ -7,7 +7,7 @@
 ![self-learning-v2](https://img.shields.io/badge/self--learning-v2-blue)
 
 > Самообучающийся аудитор кода с замкнутой петлёй обучения. 23 детектора, LLM-ревалидация, авто-деактивация.
-> **v0.11 (август 2026):** Self-learning v2 — LLM-триаж в цикле, исправленные метрики, GS024 LLM-детектор.
+> **v0.16 (август 2026):** Production rollout, REST API, adversarial review fixes, CI workflows.
 
 ## 🤔 Проблема
 
@@ -19,15 +19,16 @@
 
 CLI-инструмент с накоплением паттернов и **самообучением v2**. Архитектура вдохновлена [Deepsec (Vercel Labs)](https://github.com/vercel-labs/deepsec).
 
-**Текущее состояние (v0.11):**
-- **23 plugin-детектора** — включая GS024 (LLM-based SQLi, пилот)
-- **400+ активных паттернов** (7 языков), авто-создание из TP (≥5 подтверждений)
-- **Self-learning v2** — замкнутая петля: scan → heuristic FP → LLM revalidate → update patterns
-- **192 проекта** в ротации, **154K+ находок** в базе
-- **Noise tiers** (precise/normal/noisy), resume, structured revalidate
-- **Честные метрики:** effectiveness = TP/(TP+FP) от ревалидированных находок, NULL если нет данных
-- Фильтры: docstring/comment, language + AST, inline suppression, reachability, framework-aware
-- AI-патч (`gsc fix`), SARIF, diff-only, baseline, PR comments, GitHub Actions
+**Текущее состояние (v0.16):**
+- **23 plugin-детектора** — GS024 (LLM SQLi пилот)
+- **400+ паттернов** (7 языков), авто-создание из TP
+- **Self-learning v2** — замкнутая петля с LLM-ревалидацией
+- **192 проекта** в ротации, **400K+ находок** в БД
+- **REST API v1.0** — FastAPI, 7 эндпоинтов, OpenAPI docs
+- **CI/CD** — GitHub Actions (internal PR + fork-safe + calibration)
+- **Rollout Phase 1** — warn-only, готов к blocking
+- **Calibration:** 14/14, **corpus:** 8/8
+- Noise tiers, resume, structured revalidate, PR gate с fingerprinting
 
 > **Честно о precision:** на своих проектах GSC точен (73% на размеченных данных). На чужих — precision ~0% без ревалидации. Self-learning v2 закрывает этот разрыв через LLM-триаж каждого цикла.
 
@@ -144,9 +145,27 @@ gsc fix <id>                            # AI-патч (DeepSeek)
 # Management
 gsc init                                # инициализация (.gsc/, CI workflow)
 gsc dashboard                           # веб-интерфейс (:8080)
+gsc api --port 8766                     # REST API (FastAPI + Swagger)
 gsc doctor                              # диагностика окружения
 gsc patterns export [file]              # экспорт YAML
 gsc db "SELECT COUNT(*) FROM findings"  # прямой SQL
+```
+
+## REST API 🆕
+
+```bash
+gsc api --port 8766                     # старт сервера
+
+# Эндпоинты (x-api-key header):
+curl localhost:8766/api/v1/health                          # статус
+curl -X POST localhost:8766/api/v1/scan \                  # запуск скана
+  -H "x-api-key: $KEY" -H "Content-Type: application/json" \
+  -d '{"target":"https://github.com/user/repo"}'
+curl -H "x-api-key: $KEY" \                                # результаты
+  localhost:8766/api/v1/scan/{scan_id}
+curl -H "x-api-key: $KEY" \                                # находки
+  "localhost:8766/api/v1/findings/gsc?severity=CRITICAL"
+open http://localhost:8766/docs                            # Swagger UI
 ```
 
 ## Noise Tiers (Deepsec-inspired)
@@ -187,20 +206,17 @@ python3 scripts/gsc_self_learn.py --dry-run # какие проекты сего
 ## CI/CD (GitHub Actions)
 
 ```yaml
-# .github/workflows/gsc-pr-scan.yml
-- uses: poliakarmai/gsc@main
-  with:
-    deepseek_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
-```
+# .github/workflows/gsc-internal-pr.yml — same-repo PR (full LLM)
+# .github/workflows/gsc-fork-safe.yml   — fork PR (regex-only, safe mode)
+# .github/workflows/gsc-calibration.yml — nightly calibration (14/14)
 
-Или вручную:
-```yaml
+# В своем репо:
 - run: pip install git+https://github.com/poliakarmai/gsc.git
 - run: gsc scan . --diff --sarif > results.sarif
 - uses: github/codeql-action/upload-sarif@v3
 ```
 
-PR scanner автоматически постит CRITICAL/HIGH находки как комментарии к PR.
+PR scanner: комментарий + check run + SARIF. Fork-safe: авто no-LLM, no-blocking.
 
 ## Дорожная карта
 
@@ -214,9 +230,10 @@ PR scanner автоматически постит CRITICAL/HIGH находки 
 | **6. Deepsec upgrade** | 15 детекторов, noise tiers, resume, revalidate | ✅ |
 | **7. Self-learning v2** 🆕 | Замкнутая петля, LLM-ревалидация, честные метрики | ✅ |
 | **8. LLM детектор** 🆕 | GS024 — пилот (SQLi), замена 87 regex одним LLM-вызовом | ✅ |
-| **9. Ground truth** | Разметка своих проектов, precision tracking | 🔜 Август 2026 |
-| **10. Мультиязычность** | Go, TS, Rust, Java, Docker, Terraform самообучение | 🔜 Сентябрь 2026 |
-| **11. DX** | VSCode extension, Pattern marketplace | 📋 2027 |
+| **9. Production rollout** | warn-only → blocking-critical → blocking-standard | 🔜 Август 2026 |
+| **10. Мультиязычность** | Go, TS, Rust, Java (интегрирована, тестируется) | ✅ |
+| **11. REST API** | FastAPI, 7 эндпоинтов, OpenAPI docs, API key auth | ✅ |
+| **12. DX** | VSCode extension, Pattern marketplace | 📋 2027 |
 | **12. Enterprise** | Helm chart, SSO, Compliance, RBAC | 📋 2027 |
 
 ## 🔧 Troubleshooting

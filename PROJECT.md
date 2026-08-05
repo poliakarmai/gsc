@@ -21,7 +21,7 @@ GSC — самообучающийся статический анализато
 | v0.13 | PR Gate: diff mode, fingerprinting, exit codes |
 | v0.14 | GitHub PR Adapter + Calibration CI (14/14) |
 | v0.15 | Real GitHub API, fork safe mode, redaction audit, CI workflows |
-| **v0.16** | **finding_key, rollout_phase, feedback loop, rollout metrics** |
+| v0.16 | finding_key, rollout_phase, feedback loop, rollout metrics, REST API |
 
 ---
 
@@ -70,6 +70,11 @@ gsc doctor --github
 gsc github-scan https://github.com/org/repo/pull/123 --dry-run
 gsc github-scan https://github.com/org/repo/pull/123 --post-comment --create-check --fail-on-blocking
 gsc github-scan . --github-context "$GITHUB_EVENT_PATH" --safe-mode --no-llm
+
+# REST API 🆕
+gsc api --port 8766                                            # start API server
+curl -X POST localhost:8766/api/v1/scan -H "x-api-key: $KEY" \ # trigger scan
+  -d '{"target":"https://github.com/user/repo","profile":"pr-gate"}'
 
 # Reports + feedback
 gsc report scan.json --format markdown
