@@ -1,0 +1,11 @@
+{
+  "project": "flask-jwt-auth",
+  "type": "vuln",
+  "expect_blocking": true,
+  "max_blocking": 3,
+  "expected_findings": [
+    {"rule_id": "GS011", "min_confidence": 0.85},
+    {"rule_id": "GS019", "min_confidence": 0.70}
+  ],
+  "forbidden_findings": []
+}

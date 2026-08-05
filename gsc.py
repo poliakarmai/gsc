@@ -1779,6 +1779,21 @@ def main():
     fb.add_argument('--verdict', choices=['tp', 'fp', 'ignore', 'fixed'], required=True)
     fb.add_argument('--reason', help='Why')
 
+    # gsc github-scan 🆕 v0.14
+    gh = sub.add_parser('github-scan', help='GitHub PR scan with comment + check run')
+    gh.add_argument('target', help='PR URL (https://github.com/org/repo/pull/123) or \".\" for local')
+    gh.add_argument('--profile', default='pr-gate')
+    gh.add_argument('--github-context', help='Path to GITHUB_EVENT_PATH JSON')
+    gh.add_argument('--dry-run', action='store_true', help='Do not post to GitHub')
+    gh.add_argument('--post-comment', action='store_true', help='Post comment to PR')
+    gh.add_argument('--fail-on-blocking', action='store_true', help='Exit 1 if blocking')
+
+    # gsc calibration 🆕 v0.14
+    cal = sub.add_parser('calibration', help='Run calibration against dataset')
+    cal.add_argument('action', nargs='?', default='run', choices=['run', 'check'])
+    cal.add_argument('--dataset', default='calibration/calibration_dataset.json')
+    cal.add_argument('--fail-on-regression', action='store_true', help='Exit 1 on regression')
+
     args = parser.parse_args()
 
     if args.command == "scan":
@@ -1833,16 +1848,38 @@ def main():
             subprocess.run(cmd)
 
     elif args.command in ("external-scan", "report", "feedback"):
-        subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_external.py"),
-                        args.command.replace("external-scan", "scan"),
-                        *([args.target if hasattr(args, 'target') else args.input_file] if hasattr(args, 'input_file') else [args.target if hasattr(args, 'target') else '']),
-                        *(["--mode", args.mode] if hasattr(args, 'mode') else []),
-                        *(["--ref", args.ref] if hasattr(args, 'ref') else []),
-                        *(["--max-llm", str(args.max_llm)] if hasattr(args, 'max_llm') else []),
-                        *(["--format", args.format] if hasattr(args, 'format') else []),
-                        *(["--output", args.output] if hasattr(args, 'output') and args.output else []),
-                        *(["--verdict", args.verdict] if hasattr(args, 'verdict') else []),
-                        *(["--reason", args.reason] if hasattr(args, 'reason') and args.reason else []),
+        ext_args = [sys.executable, str(Path(__file__).parent / "gsc_external.py"),
+                    args.command.replace("external-scan", "scan")]
+        # Build args dynamically
+        for attr in ["target", "input_file"]:
+            if hasattr(args, attr):
+                val = getattr(args, attr)
+                if val: ext_args.append(val)
+                break
+        for opt in ["mode", "ref", "format", "output", "verdict", "reason",
+                    "profile", "base", "head"]:
+            if hasattr(args, opt):
+                val = getattr(args, opt)
+                if val: ext_args.extend([f"--{opt.replace('_','-')}", str(val)])
+        if hasattr(args, "fail_on_blocking") and args.fail_on_blocking:
+            ext_args.append("--fail-on-blocking")
+        subprocess.run(ext_args)
+
+    elif args.command in ("github", "github-scan"):
+        subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_github_adapter.py"),
+                        "scan", getattr(args, "target", ".") or ".",
+                        *(["--profile", args.profile] if hasattr(args, "profile") else []),
+                        *(["--github-context", args.github_context] if hasattr(args, "github_context") and args.github_context else []),
+                        *(["--dry-run"] if hasattr(args, "dry_run") and args.dry_run else []),
+                        *(["--post-comment"] if hasattr(args, "post_comment") and args.post_comment else []),
+                        *(["--fail-on-blocking"] if hasattr(args, "fail_on_blocking") and args.fail_on_blocking else []),
+                        ])
+
+    elif args.command == "calibration":
+        subprocess.run([sys.executable, str(Path(__file__).parent / "scripts" / "gsc_calibration.py"),
+                        "run",
+                        *(["--dataset", args.dataset] if hasattr(args, "dataset") else []),
+                        *(["--fail-on-regression"] if hasattr(args, "fail_on_regression") and args.fail_on_regression else []),
                         ])
     else:
         parser.print_help()

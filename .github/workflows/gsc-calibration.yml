@@ -1,0 +1,52 @@
+name: GSC Calibration
+
+on:
+  pull_request:
+    paths:
+      - "gsc.py"
+      - "gsc_external.py"
+      - "gsc_revalidate.py"
+      - "gsc_github_adapter.py"
+      - "gsc_detectors/**"
+      - "scripts/framework_aware.py"
+      - "scripts/gsc_metrics.py"
+      - "scripts/gsc_calibration.py"
+      - "calibration/**"
+  schedule:
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calibration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pyyaml || true
+
+      - name: Run calibration
+        env:
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+        run: |
+          python3 scripts/gsc_calibration.py run \
+            --dataset calibration/calibration_dataset.json \
+            --format json \
+            --fail-on-regression
+
+      - name: Upload calibration artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: calibration-report
+          path: calibration/reports/
