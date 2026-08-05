@@ -10,7 +10,7 @@ Candidate selection uses rule categories and heuristics before LLM
 to conserve budget. Chains are persisted in SQLite via gsc_db.py.
 """
 
-import hashlib, itertools, json, re, sys, os
+import hashlib, itertools, json, os, re, sys
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 from typing import Optional
@@ -40,6 +40,7 @@ DEFAULTS = {
     "max_findings_per_chain": 3,
     "max_candidates": 12,
     "context_window": 15,
+    "cross_file": True,
 }
 
 REDACT_PATTERNS = [
@@ -116,6 +117,7 @@ class ChainComposer:
         self.max_per_chain = int(cfg.get("max_findings_per_chain", 3))
         self.max_candidates = int(cfg.get("max_candidates", 12))
         self.context_window = int(cfg.get("context_window", 15))
+        self.cross_file = bool(cfg.get("cross_file", True))
 
     # ── Public API ───────────────────────────────────────────
 
@@ -159,7 +161,23 @@ class ChainComposer:
                     if self._is_plausible(list(combo)):
                         candidates.append(list(combo))
 
-        candidates.sort(key=self._priority, reverse=True)
+        # 2) Cross-file: pairs in same directory (v0.21)
+        if self.cross_file:
+            by_dir: dict[str, list] = {}
+            for f in active:
+                d = os.path.dirname(f.get("file", f.get("file_path", "")))
+                by_dir.setdefault(d, []).append(f)
+            for fs in by_dir.values():
+                if len({f.get("file", f.get("file_path", "")) for f in fs}) < 2:
+                    continue
+                for a, b in itertools.combinations(fs, 2):
+                    if a.get("file", a.get("file_path", "")) == b.get("file", b.get("file_path", "")):
+                        continue  # already covered by intra-file
+                    if self._is_plausible([a, b]):
+                        candidates.append([a, b])
+
+        candidates.sort(key=lambda c: (self._priority(c),
+            tuple(sorted(f.get("finding_key", "") for f in c))), reverse=True)
         return candidates[:self.max_candidates]
 
     def _is_plausible(self, combo: list[dict]) -> bool:

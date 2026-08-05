@@ -250,9 +250,32 @@ def _split_functions(content: str) -> list[tuple[int, str]]:
 
 
 def check_dataflow(inv: Invariant, compiled: dict[str, Any],
-                   file_path: str, content: str) -> list[InvariantViolation]:
+                   file_path: str, content: str,
+                   use_ast: bool = True) -> list[InvariantViolation]:
     if not _match_paths(file_path, inv.paths, inv.exclude_paths):
         return []
+
+    # v0.21: AST path for Python
+    if use_ast and file_path.endswith(".py"):
+        try:
+            from gsc_ast_dataflow import PythonTaintAnalyzer
+        except ImportError:
+            pass
+        else:
+            analyzer = PythonTaintAnalyzer(
+                compiled["source"], compiled["sink"], compiled["sanitizer"])
+            lines = analyzer.analyze(content)
+            if lines is not None:
+                return [InvariantViolation(
+                    invariant_id=inv.id, invariant_type="dataflow",
+                    file=file_path, line=ln, severity=inv.severity,
+                    message=(f"Dataflow invariant {inv.id}: tainted value "
+                             f"reaches sink: {inv.name}"),
+                    snippet=_line_snippet(content, ln),
+                ) for ln in lines]
+            # None → AST failed to parse → fall through to regex heuristic
+
+    # v0.20 regex heuristic (unchanged) — for non-Python + fallback
     violations = []
     for offset, block in _split_functions(content):
         src = compiled["source"].search(block)
@@ -282,8 +305,9 @@ def check_dataflow(inv: Invariant, compiled: dict[str, Any],
 class InvariantEngine:
     """Loads invariants, compiles regexes, verifies files."""
 
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, use_ast: bool = True):
         self.config_path = config_path
+        self.use_ast = use_ast
         self.invariants = load_invariants(config_path)
         self.compiled: dict[str, dict[str, Any]] = {}
         for inv in self.invariants:
@@ -302,5 +326,6 @@ class InvariantEngine:
             elif inv.type == "structural":
                 violations += check_structural(inv, compiled, file_path, content)
             elif inv.type == "dataflow":
-                violations += check_dataflow(inv, compiled, file_path, content)
+                violations += check_dataflow(inv, compiled, file_path,
+                                             content, use_ast=self.use_ast)
         return violations
