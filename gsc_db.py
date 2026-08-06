@@ -203,12 +203,17 @@ class GSCDatabase:
         self.conn.executescript(SCHEMA_V023)
 
     def _apply_v022(self):
+        # Safe: check if feedback table exists before ALTER
+        row = self.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='feedback'"
+        ).fetchone()
+        if not row:
+            return  # feedback table doesn't exist yet — skip
         for alter in ALTERS_V022:
             try:
                 self.conn.execute(alter)
-            except sqlite3.OperationalError as e:
-                if "duplicate column" not in str(e).lower():
-                    raise
+            except sqlite3.OperationalError:
+                pass  # column already exists
         for idx in INDEXES_V022:
             try:
                 self.conn.execute(idx)
