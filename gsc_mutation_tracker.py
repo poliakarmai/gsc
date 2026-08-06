@@ -60,6 +60,62 @@ class MutationAlert:
         return asdict(self)
 
 
+class MutationMatcher:
+    """Чистый матчер: без БД. Принимает список resolved-родителей.
+    Используется и SQLite-трекером (v0.19), и cloud-инжестом (S2)."""
+
+    def __init__(self, config: dict | None = None):
+        cfg = {**DEFAULTS, **(config or {})}
+        self.sim_min = float(cfg["similarity_min"])
+        self.sim_recurrence = float(cfg["similarity_recurrence"])
+
+    def match(self, finding: dict, norm_snippet: str,
+              parent_rows: list) -> Optional[MutationAlert]:
+        best = None
+        for row in parent_rows:
+            parent_norm = row.get("normalized_snippet") or \
+                normalize_snippet(row.get("snippet") or
+                                  row.get("detail") or "")
+            if not parent_norm:
+                continue
+            sim = SequenceMatcher(None, norm_snippet, parent_norm).ratio()
+            if sim >= self.sim_recurrence:
+                kind = "recurrence"
+            elif sim >= self.sim_min:
+                kind = "mutation"
+            else:
+                continue
+            if best is None or sim > best[0]:
+                best = (sim, kind, row)
+        if best is None:
+            return None
+        return self._build_alert(finding, best)
+
+    def _build_alert(self, finding, best):
+        sim, kind, row = best
+        rule_id = finding.get("rule_id", finding.get("pattern_title", ""))
+        if kind == "recurrence":
+            msg = (f"Pattern {rule_id} was fixed "
+                   f"{row.get('resolved_at', '?')} "
+                   f"in {row.get('file_path', row.get('file', '?'))}, "
+                   f"but returned identical (similarity {sim:.0%})")
+        else:
+            msg = (f"Pattern {rule_id} was fixed "
+                   f"{row.get('resolved_at', '?')} "
+                   f"in {row.get('file_path', row.get('file', '?'))}, "
+                   f"but returned in mutated form "
+                   f"(similarity {sim:.0%}). Likely copy-paste debt")
+        return MutationAlert(
+            finding_key=finding.get("finding_key", ""),
+            parent_key=row.get("finding_key", "?"),
+            parent_file=row.get("file_path", row.get("file", "?")),
+            parent_resolved_at=row["resolved_at"],
+            kind=kind,
+            similarity=round(sim, 2),
+            message=msg,
+        )
+
+
 class MutationTracker:
     """Tracks return of resolved vulnerability patterns."""
 
@@ -67,11 +123,10 @@ class MutationTracker:
         cfg = {**DEFAULTS, **(config or {})}
         self.db = db
         self.lookback_days = int(cfg["lookback_days"])
-        self.sim_min = float(cfg["similarity_min"])
-        self.sim_recurrence = float(cfg["similarity_recurrence"])
         self.min_confidence = float(cfg["min_confidence"])
         self.max_per_scan = int(cfg["max_findings_per_scan"])
         self.max_candidates = int(cfg["max_parent_candidates"])
+        self.matcher = MutationMatcher(config)
 
     # ── Public API ─────────────────────────────────────────
 
@@ -129,47 +184,9 @@ class MutationTracker:
             LIMIT ?
         """, (f"%{rule_id}%", f"-{self.lookback_days} days",
               self.max_candidates)).fetchall()
-
-        best = None  # (sim, kind, row)
-        for row in candidates:
-            parent_snippet = row["detail"] or ""
-            parent_norm = normalize_snippet(parent_snippet)
-            if not parent_norm or not norm_snippet:
-                continue
-            sim = SequenceMatcher(None, norm_snippet, parent_norm).ratio()
-
-            if sim >= self.sim_recurrence:
-                kind = "recurrence"
-            elif sim >= self.sim_min:
-                kind = "mutation"
-            else:
-                continue
-
-            if best is None or sim > best[0]:
-                best = (sim, kind, row)
-
-        if best is None:
-            return None
-        sim, kind, row = best
-
-        if kind == "recurrence":
-            msg = (f"Pattern {rule_id} was fixed {row['resolved_at']} "
-                   f"in {row['file_path']}, but returned identical "
-                   f"(similarity {sim:.0%})")
-        else:
-            msg = (f"Pattern {rule_id} was fixed {row['resolved_at']} "
-                   f"in {row['file_path']}, but returned in mutated form "
-                   f"(similarity {sim:.0%}). Likely copy-paste debt")
-
-        return MutationAlert(
-            finding_key=finding.get("finding_key", ""),
-            parent_key=row.get("finding_key", "?"),
-            parent_file=row.get("file_path", "?"),
-            parent_resolved_at=row["resolved_at"],
-            kind=kind,
-            similarity=round(sim, 2),
-            message=msg,
-        )
+        # Convert sqlite3.Row to dict-like for MutationMatcher
+        parent_rows = [dict(r) for r in candidates]
+        return self.matcher.match(finding, norm_snippet, parent_rows)
 
 
 # ── Auto-resolve ──────────────────────────────────────────
