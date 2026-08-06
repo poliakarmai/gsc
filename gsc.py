@@ -1824,6 +1824,31 @@ def main():
     fix_batch.add_argument('--create-pr', dest='dry_run', action='store_false')
     fix_batch.add_argument('--output', '-o', help='Save results JSON')
 
+    # gsc policy (NL Policy)
+    pol_p = sub.add_parser('policy', help='Natural Language policies — human-readable security rules')
+    pol_sub = pol_p.add_subparsers(dest='pol_cmd', required=True)
+    pol_add = pol_sub.add_parser('add', help='Create policy from natural language')
+    pol_add.add_argument('text', nargs='+')
+    pol_sub.add_parser('list', help='List NL policies')
+    pol_test = pol_sub.add_parser('test', help='Test policy against repo')
+    pol_test.add_argument('name')
+    pol_test.add_argument('--repo', default='.')
+    pol_rm = pol_sub.add_parser('remove', help='Remove policy')
+    pol_rm.add_argument('name')
+    pol_exp = pol_sub.add_parser('export', help='Export to .gsc-audit.yml')
+    pol_exp.add_argument('--output', '-o', default='.gsc-audit.yml')
+
+    # gsc secrets (Cross-Repo)
+    sec_p = sub.add_parser('secrets', help='Cross-repo secret correlation')
+    sec_sub = sec_p.add_subparsers(dest='sec_cmd', required=True)
+    sec_corr = sec_sub.add_parser('correlate', help='Scan repos and correlate')
+    sec_corr.add_argument('--repos', nargs='+', required=True)
+    sec_corr.add_argument('--output', '-o')
+    sec_status = sec_sub.add_parser('status', help='Secret fingerprint status')
+    sec_status.add_argument('--key', required=True)
+    sec_rep = sec_sub.add_parser('report', help='Cross-repo report')
+    sec_rep.add_argument('--output', '-o')
+
     # gsc archaeology
     arch_p = sub.add_parser('archaeology', help='Security Archaeology — vulnerability time machine')
     arch_sub = arch_p.add_subparsers(dest='arch_cmd', required=True)
@@ -1946,6 +1971,28 @@ def main():
         if hasattr(args, "findings") and args.findings: arch_args.extend(["--findings", args.findings])
         if hasattr(args, "output") and args.output: arch_args.extend(["--output", args.output])
         subprocess.run(arch_args)
+
+    elif args.command == "policy":
+        pol_args = [sys.executable, str(Path(__file__).parent / "gsc_nlpolicy.py"), args.pol_cmd]
+        if hasattr(args, 'text') and args.text:
+            pol_args += args.text
+        if hasattr(args, 'name') and args.name:
+            pol_args.append(args.name)
+        if hasattr(args, 'repo'):
+            pol_args.extend(["--repo", args.repo])
+        if hasattr(args, 'output') and args.output:
+            pol_args.extend(["--output", args.output])
+        subprocess.run(pol_args)
+
+    elif args.command == "secrets":
+        sec_args = [sys.executable, str(Path(__file__).parent / "gsc_crossrepo_secrets.py"), args.sec_cmd]
+        if hasattr(args, 'repos') and args.repos:
+            sec_args += ["--repos"] + args.repos
+        if hasattr(args, 'key') and args.key:
+            sec_args += ["--key", args.key]
+        if hasattr(args, 'output') and args.output:
+            sec_args.extend(["--output", args.output])
+        subprocess.run(sec_args)
 
     elif args.command == "forecast":
         fc_args = [sys.executable, str(Path(__file__).parent / "gsc_forecast.py"), args.fc_cmd]
