@@ -1,0 +1,128 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: gsc
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: gsc
+            - name: POSTGRES_USER
+              value: gsc_admin
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: gsc-secrets
+                  key: PG_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+            - name: schema-s1
+              mountPath: /docker-entrypoint-initdb.d/01_schema_s1.sql
+              subPath: schema_s1.sql
+            - name: schema-bootstrap
+              mountPath: /docker-entrypoint-initdb.d/02_bootstrap_roles.sql
+              subPath: bootstrap_roles.sql
+            - name: schema-s2
+              mountPath: /docker-entrypoint-initdb.d/03_schema_s2.sql
+              subPath: schema_s2.sql
+            - name: schema-s3
+              mountPath: /docker-entrypoint-initdb.d/04_schema_s3.sql
+              subPath: schema_s3.sql
+            - name: schema-s4
+              mountPath: /docker-entrypoint-initdb.d/05_schema_s4.sql
+              subPath: schema_s4.sql
+            - name: schema-s5
+              mountPath: /docker-entrypoint-initdb.d/06_schema_s5.sql
+              subPath: schema_s5.sql
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: 250m
+            limits:
+              memory: 1Gi
+              cpu: 1000m
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "gsc_admin", "-d", "gsc"]
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "gsc_admin", "-d", "gsc"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: schema-s1
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: schema_s1.sql
+                path: schema_s1.sql
+        - name: schema-bootstrap
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: bootstrap_roles.sql
+                path: bootstrap_roles.sql
+        - name: schema-s2
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: schema_s2.sql
+                path: schema_s2.sql
+        - name: schema-s3
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: schema_s3.sql
+                path: schema_s3.sql
+        - name: schema-s4
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: schema_s4.sql
+                path: schema_s4.sql
+        - name: schema-s5
+          configMap:
+            name: gsc-schemas
+            items:
+              - key: schema_s5.sql
+                path: schema_s5.sql
+  volumeClaimTemplates:
+    - metadata:
+        name: pgdata
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 20Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: gsc
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gsc
+
+resources:
+  - 00-namespace-config.yaml
+  - 01-postgres.yaml
+  - 02-redis.yaml
+  - 03-api.yaml
+  - 04-worker.yaml
+  - 05-dashboard-ingress.yaml
+
+configMapGenerator:
+  - name: gsc-schemas
+    files:
+      - ../../cloud/schema_s1.sql
+      - ../../cloud/schema_s2.sql
+      - ../../cloud/schema_s3.sql
+      - ../../cloud/schema_s4.sql
+      - ../../cloud/schema_s5.sql
+      - ../../cloud/bootstrap_roles.sql
+
+secretGenerator:
+  - name: gsc-secrets
+    behavior: merge
+    literals:
+      - PG_PASSWORD=CHANGE_ME_IN_OVERLAY
+      - GSC_SESSION_SECRET=CHANGE_ME_32_BYTES_MINIMUM
+
+commonLabels:
+  app.kubernetes.io/part-of: gsc-cloud
+  app.kubernetes.io/version: "1.0"
