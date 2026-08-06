@@ -2,8 +2,8 @@
 
 > **Для:** внешнего AI-агента для аудита кодовой базы
 > **Автор:** Море (Hermes orchestrator, профиль `default`)
-> **Дата:** 2026-08-05
-> **Версия:** v1.0 — Rollout Complete & Enterprise Track
+> **Дата:** 2026-08-06
+> **Версия:** v1.0 — Production (Phase 5 complete, blocking-standard)
 > **Репозиторий:** `github.com/poliakarmai/gsc`
 
 ## 1. Что это
