@@ -1,0 +1,20 @@
+-- Роль приложения БЕЗ superuser — иначе RLS молча не применяется
+DO $$
+BEGIN
+   IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gsc_app') THEN
+      CREATE ROLE gsc_app LOGIN;
+   END IF;
+END $$;
+
+GRANT USAGE ON SCHEMA public TO gsc_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO gsc_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO gsc_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO gsc_app;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public
+  GRANT USAGE, SELECT ON SEQUENCES TO gsc_app;
+
+-- Принудительный RLS даже для владельца таблиц
+ALTER TABLE findings FORCE ROW LEVEL SECURITY;
+ALTER TABLE verdicts FORCE ROW LEVEL SECURITY;
+ALTER TABLE scans    FORCE ROW LEVEL SECURITY;
