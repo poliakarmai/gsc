@@ -1,194 +1,246 @@
-# 🔒 GSC — Git Security Checker
+<div align="center">
 
-[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](./LICENSE)
-[![Detectors](https://img.shields.io/badge/detectors-25-green)](./gsc_detectors/)
-[![Tests](https://img.shields.io/badge/tests-46%2F46-brightgreen)](./tests/)
-[![Calibration](https://img.shields.io/badge/calibration-17%2F17-brightgreen)](./calibration/)
-[![Python](https://img.shields.io/badge/python-3.10+-blue)](https://python.org)
+# 🛡️ GSC — Git Security Checker
 
-> AI-powered SAST with self-learning, PoC auto-generation, exploit chains, and mutation tracking.
-> **v1.0 — Cloud-ready: multi-tenant SaaS with billing, SSO, audit log, and Enterprise agent.**
+### Self-learning SAST that sees the **past, present, and future** of every vulnerability
 
-## What is GSC
+Not just another scanner. GSC **proves** vulnerabilities with generated exploits,
+**fixes** them with verified patches, and **heals** your codebase with automatic PRs.
 
-GSC scans source code for security vulnerabilities using 25 regex detectors + LLM revalidation (DeepSeek).
-Unlike traditional SAST tools, GSC learns from every scan: true positives strengthen detectors, false positives
-are auto-deactivated, and confirmed findings generate new patterns.
+[![Tests](https://img.shields.io/badge/tests-78%2F78-brightgreen)]()
+[![Calibration](https://img.shields.io/badge/calibration-17%2F17-brightgreen)]()
+[![Detectors](https://img.shields.io/badge/detectors-25%2B-orange)]()
+[![Version](https://img.shields.io/badge/version-v0.28-blue)]()
+[![License](https://img.shields.io/badge/license-BSL%201.1-blue)]()
 
-**Core capabilities:**
-- **25 plugin detectors** — secrets, injection, auth, crypto, supply chain, priv esc
-- **LLM revalidation** — CRITICAL/HIGH findings verified by DeepSeek (~$0.05/day)
-- **PoC Auto-Generation** — curl exploits for confirmed findings
-- **Exploit Chain Composer** — cross-file attack chains (SQLi → RCE, SSRF → IDOR)
-- **Temporal Mutation Tracker** — detects reintroduced "fixed" vulnerabilities
-- **Security Invariant Engine** — policy-as-code with AST taint tracking
-- **Blocking Engine** — CRITICAL ≥ 0.90, HIGH ≥ 0.85 with auto-policy from community verdicts
-- **Self-learning** — 400K+ findings database, closed-loop pattern optimization
+[Quick Start](#-quick-start) · [Features](#-what-makes-gsc-unique) ·
+[Architecture](#-architecture) · [Comparison](#-comparison) · [Roadmap](#-roadmap)
 
-## Quick Start
+</div>
 
-```bash
-# Requirements: Python 3.10+, ripgrep (binary, not pip)
-brew install ripgrep       # macOS
-sudo apt install ripgrep   # Linux
+---
 
-git clone https://github.com/poliakarmai/gsc.git
-cd gsc && pip install .
-gsc doctor && gsc scan .
-```
+## 🎯 Why GSC?
 
-## GSC Cloud (SaaS)
+Every SAST tool shows you a **snapshot of "right now"** — a list of findings you
+have to triage, verify, and fix manually.
 
-GSC is also available as a fully managed multi-tenant SaaS platform:
+**GSC is different.** It closes the entire security loop:
 
-| Feature | Description |
-|---|---|
-| **GitHub App** | PR gate, /gsc commands, verdicts, auto-comment |
-| **Web Dashboard** | Next.js dashboard: repos, findings, chains, mutations, usage |
-| **SSO (OIDC)** | Okta, Azure AD, Google Workspace (Business+) |
-| **Stripe Billing** | Seat-based subscriptions (Free / Team / Business) |
-| **Audit Log** | Append-only hash chain, SOC 2 ready, exportable |
-| **GitHub Marketplace** | Plan sync via signed webhook |
-| **DPA / GDPR** | 30-day grace deletion, data classification |
+**detect → prove → fix → verify → heal → predict → learn**
 
-## Enterprise Agent
+| Stage | What GSC does | Who else does this? |
+|---|---|---|
+| **Detect** | 25+ detectors + LLM revalidation | Semgrep, Snyk, CodeQL |
+| **Prove** | Auto-generates a working exploit (PoC) | 🔴 *Nobody* |
+| **Fix** | Auto-generates a minimal patch via LLM | 🔴 *Nobody* |
+| **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🔴 *Nobody* |
+| **Heal** | Opens a PR with the verified fix | 🔴 *Nobody* |
+| **Predict** | Forecasts where the *next* vulnerability appears | 🔴 *Nobody* |
+| **Learn** | Self-tunes: auto-deactivates noisy patterns | 🔴 *Nobody* |
 
-For organizations that require code to **never leave their perimeter:**
+> **Semgrep, Snyk, CodeQL, Sn1per — they all see a slice of "now."**
+> **GSC sees the past, present, and future of every vulnerability.**
 
-```bash
-# Self-hosted agent in your infrastructure
-docker run gsc-agent:0.31 \
-  --tenant-key <ACTIVATION_KEY> \
-  --repos /mnt/repos --interval 3600
+---
 
-# Air-gap mode (fully isolated, SARIF export)
-gsc-agent --air-gap --once --repos /mnt/repos
-```
+## ✨ What Makes GSC Unique
 
-Findings are sent to GSC Cloud. Your source code stays on-premises.
-
-## VSCode Extension
-
-Install from VSIX or build from source: [gsc-vscode](./../gsc-vscode)
-
-- Diagnostics in Problems panel
-- CodeLens: TP / FP / Fixed verdicts
-- Attack Chains Webview
-- SARIF import for CI results
-
-## Architecture
-
-```
-external-scan(target, profile)
-  ├── 25 regex detectors → raw findings
-  ├── LLM revalidate (DeepSeek) → confirmed / likely / uncertain
-  ├── PoC Generator → curl exploit
-  ├── Chain Composer → cross-file attack chains
-  ├── Mutation Tracker → reintroduced vulns
-  ├── Invariant Engine → policy-as-code, AST taint
-  └── Blocking Engine → auto-policy from verdicts
-```
-
-**Confidence V3:** ≥ 0.80 confirmed | 0.55–0.79 likely | 0.35–0.54 uncertain | < 0.35 suppressed
-
-## Detectors
-
-| Rule | Severity | Category |
-|------|:--------:|----------|
-| GS001 | CRITICAL | Hardcoded secrets (API keys, tokens, PAN/CVV) |
-| GS002 | HIGH | World-readable sensitive files |
-| GS003 | LOW | Debug prints in production |
-| GS004 | HIGH | Dangerous subprocess (shell=True, eval) |
-| GS005 | CRITICAL | SQL injection (87+ patterns) |
-| GS007 | HIGH | BAC/IDOR (35 patterns) |
-| GS008 | LOW | Dead code |
-| GS009 | HIGH | Supply chain (npm/PyPI/Go) |
-| GS010 | CRITICAL | Weak SSH config |
-| GS011 | CRITICAL | JWT vulnerabilities |
-| GS012 | HIGH | Mass Assignment |
-| GS013 | HIGH | GraphQL security |
-| GS014 | HIGH | Credential exposure |
-| GS015 | INFO | Entry-point coverage |
-| GS016 | CRITICAL | Linux privilege escalation |
-| GS017 | CRITICAL | Weak/default passwords |
-| GS018 | CRITICAL | Payment logic abuse |
-| GS019 | HIGH | Auth/session weaknesses |
-| GS020 | CRITICAL | XSS/HTML/SSTI injection |
-| GS021 | CRITICAL | CSRF/SSRF |
-| GS022 | HIGH | Open Redirect |
-| GS023 | HIGH | Race Conditions (TOCTOU) |
-| GS024 | CRITICAL | LLM-based SQLi (pilot) |
-| GS025 | HIGH | AI-Code Provenance |
-| GS028 | HIGH | Security Invariant Engine |
-
-## Commands
+### 🥇 Proof-of-Fix — verified auto-remediation
+GSC doesn't just tell you there's a bug. It:
+1. Generates a **working exploit** (PoC) and runs it → proves the code is vulnerable
+2. Generates a **minimal patch** via LLM
+3. Applies the patch in an **isolated sandbox**
+4. **Re-runs the exploit** → if the exploit now *fails*, the fix is **verified** ✅
+5. Optionally **validates on staging** via nuclei DAST scan (v0.28)
 
 ```bash
-# Scan
-gsc scan <project>                   # full audit
-gsc scan <project> --diff            # changed files only
-gsc scan <project> --with-poc        # generate PoC
-gsc scan <project> --with-chains     # compose attack chains
-gsc scan <project> --json --sarif    # export formats
-
-# Revalidate
-gsc revalidate <project>             # LLM re-check
-gsc revalidate <project> --no-llm    # heuristics only (free)
-
-# Verdicts
-gsc feedback <finding_key> --verdict tp|fp|fixed
-
-# Metrics
-gsc metrics                          # precision/recall per detector
-gsc rollout report                   # production rollout status
-
-# Management
-gsc doctor                           # diagnostics
-gsc api --port 8766                  # REST API + Swagger
+gsc pof generate abc123 --report scan.json --project-root ./repo
+```
+```
+Finding GS005 (SQL Injection) — app.py:42
+  PoC before:  SQLi successful: admin@admin.com   (VULNERABLE)
+  Patch:       query = "SELECT ... WHERE id=?" ; cursor.execute(query, (uid,))
+  PoC after:   ERROR: no results                  (SAFE)
+  DAST verify: nuclei staging scan → no findings ✅
+  ✅ VERIFIED (sandbox + DAST)
 ```
 
-## CI/CD (GitHub Actions)
+### 🥈 Self-Healing CI — automatic remediation PRs
+Wire GSC into CI. On every `CRITICAL`/`HIGH` finding, GSC runs Proof-of-Fix
+and — if the patch is verified — **opens a pull request with the fix**.
 
-```yaml
-- run: pip install git+https://github.com/poliakarmai/gsc.git
-- run: gsc scan . --diff --sarif > results.sarif
-- uses: github/codeql-action/upload-sarif@v3
+```bash
+gsc pof batch scan.json --create-pr --max-fixes 3
+```
+→ Opens PR #142: `[GSC Auto-Fix] 2 verified fixes`
+
+### 🥉 Security Archaeology — vulnerability time-travel
+Trace the **full lifespan** of any vulnerability: who introduced it, when,
+who fixed it, and how long it lived.
+
+```bash
+gsc archaeology trace abc123 --repo ./project
+```
+```
+GS003 SQLi in auth.py:42
+  Introduced by:  commit abc123 (alice) on 2026-06-15
+  Fixed by:       commit def456 (bob)   on 2026-08-01
+  Lived:          47 days
+  Module auth — average lifespan: 23.4 days
 ```
 
-## Quality
+### 🔮 Predictive Forecasting — risk heatmaps
+GSC scores every file by **likelihood of future vulnerabilities** using past
+density, code churn, author count, file size, and module clustering.
 
-| Suite | Tests |
-|---|---|
-| Core scanner | 8/8 |
-| Cloud (S1–S4) | 30/30 |
-| Enterprise agent | 8/8 |
-| Calibration | 17/17 projects |
-| **Total** | **46 + 17** |
+```bash
+gsc forecast heatmap --repo ./project
+```
+```
+ Score  Level      C  H  Churn  File
+    55  critical   3  2    42   🔴 payments/checkout.py
+    38  high       1  4    18   🟠 auth/login.py
+    22  medium     0  2    12   🟡 api/handler.go
+     8  low        0  0     2   🟢 utils/helpers.py
+```
 
-## Roadmap
+### 🗣️ NL Policy — security rules in plain language
+Write a policy in English (or Russian). GSC compiles it to a deterministic
+regex rule and enforces it across the repo.
+
+```bash
+gsc policy add "secrets must never appear in log statements"
+→ Policy nlp-abc12345 (CRITICAL) compiled
+  Pattern: (?i)(?:log\.(?:info|error|debug|warn)\(.*(?:password|secret|token|key).*)
+```
+
+### 🔗 Exploit Chain Composer
+GSC composes individual findings into **real attack chains**, showing how a
+low-severity leak chains into a critical breach (e.g., Info Leak → IDOR → SQLi → RCE).
+
+### 🔐 Cross-Repo Secret Correlation (v0.27)
+Scans multiple repos, fingerprints secrets (stores **hashes only, never values**),
+correlates the same secret across codebases, and detects **rotation**.
+
+### 🧠 Self-Learning Engine
+- Nightly LLM revalidation of findings (DeepSeek)
+- Developer feedback loop: `gsc feedback <key> --verdict tp|fp`
+- **Auto-deactivation** of patterns with < 30% TP rate at ≥ 10 verdicts
+- Blocking Engine only blocks with detectors of **proven accuracy**
+
+### 🔬 DAST Validation (v0.28)
+SAST findings exported as nuclei YAML templates. Validate on staging:
+```bash
+gsc export-nuclei scan.json -o templates/
+gsc scan-dast https://staging.example.com --severity critical
+```
+
+---
+
+## 🏗️ Architecture
+
+```
+GSC SAST+DAST Hybrid Platform
+├── 25 plugin detectors (GS001–GS028)
+├── LLM revalidator (DeepSeek) — confidence scoring
+├── PoC Auto-Generator — working exploits (Python/curl)
+├── Proof-of-Fix — sandbox + staging verification
+├── Self-Healing CI — auto-PR with verified patches
+├── Security Archaeology — vulnerability lifespan tracing
+├── Predictive Forecasting — risk heatmaps
+├── NL Policy — human-language security rules
+├── Exploit Chain Composer — cross-file attack paths
+├── Cross-Repo Secret Correlation — fingerprint + rotation
+├── Blocking Engine — auto-policy with community verdicts
+├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
+├── Nuclei Integration — DAST export/import/validate (v0.28)
+└── SQLite DB — schema 25, WAL, 403K fingerprints
+```
+
+**Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)
+
+---
+
+## ⚡ Quick Start
+
+```bash
+# Full scan of a repository
+gsc external-scan https://github.com/user/repo --profile audit
+
+# PR diff scan (CI gate)
+gsc external-scan ./repo --profile pr-gate \
+    --mode diff --base main --head HEAD --fail-on-blocking
+
+# Scan + auto-generate verified fixes
+gsc external-scan ./repo --profile audit --with-poc --with-chains
+
+# Predict risk hotspots
+gsc forecast heatmap --repo ./repo
+
+# Trace a vulnerability's history
+gsc archaeology trace <finding_key> --repo ./repo
+
+# Export to nuclei for DAST validation
+gsc export-nuclei scan.json -o nuclei-templates/
+nuclei -t nuclei-templates/ -u https://staging.example.com
+```
+
+**Profiles:** `developer-review` · `pr-gate` · `audit` · `candidate-review`
+
+---
+
+## 📊 Comparison
+
+| Capability | GSC | Semgrep | Snyk | CodeQL | Sn1per |
+|---|:---:|:---:|:---:|:---:|:---:|
+| SAST detection | ✅ | ✅ | ✅ | ✅ | ❌ |
+| **Auto PoC generation** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Auto verified fix** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Self-healing PRs** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Self-learning / auto-tune** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Vulnerability archaeology** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Predictive forecasting** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| **Exploit chain composition** | ✅ | ❌ | ❌ | ❌ | ❌ |
+| NL security policies | ✅ | ⚠️ | ❌ | ❌ | ❌ |
+| Cross-repo secret correlation | ✅ | ❌ | ⚠️ | ❌ | ❌ |
+| DAST validation | ✅ | ❌ | ❌ | ❌ | ✅ |
+| PR integration | ✅ | ✅ | ✅ | ✅ | ❌ |
+
+---
+
+## 🧪 Quality
+
+- **78/78 tests** (67 corpus + 11 nuclei integration)
+- **17/17 calibration projects** (11 clean + 6 vulnerable)
+- Hard chain assertion with retry (2-of-3, temperature 0)
+- Production rollout Phase 0–5 complete (blocking-standard)
+- Schema 25, WAL, auto-backup migrations
+
+---
+
+## 🗺️ Roadmap
 
 | Phase | Status |
 |---|---|
-| v0.11–v0.26 Production rollout (CI, feedback, blocking engine) | ✅ |
-| S1 Multi-tenant (PG + RLS + API keys) | ✅ |
-| S2 GitHub App (webhooks, /gsc commands, deep subsystems) | ✅ |
-| S3 Dashboard + Stripe (Next.js, billing) | ✅ |
-| S4 Trust & Growth (audit, SSO, DPA, SOC 2, marketplace) | ✅ |
-| Enterprise Agent v0.31 | ✅ |
-| VSCode Extension v0.32 | ✅ |
-| Cloud 1.0 GA | 🔜 |
-| First pilots | 🔜 |
+| Core pipeline v0.11–v0.16 | ✅ |
+| Unique features v0.17–v0.21 | ✅ |
+| Production rollout Phase 0–5 | ✅ |
+| Exclusive features v0.27 (PoF, Archaeology, Forecast…) | ✅ |
+| SAST+DAST hybrid v0.28 (nuclei integration) | ✅ |
+| VSCode extension / Marketplace | 🔜 |
+| Enterprise (Helm, SSO) | 📋 |
 
-## License
+---
 
-**Business Source License 1.1 (BSL 1.1).**
+## 📄 License
 
-✅ Allowed: viewing, modifying, forks, internal production use (scanning your own repos, including self-hosted), non-commercial use.
+Business Source License 1.1 (BSL 1.1). See [LICENSE](LICENSE).
 
-⛔ Not allowed without a commercial license: offering GSC as a commercial SaaS/managed security-scanning service to third parties.
+---
 
-🔓 Each version converts to **Apache 2.0** after 4 years (Change Date: 2030-08-06).
+<div align="center">
 
-Commercial licensing: armyanao@gmail.com
+**GSC doesn't just find vulnerabilities. It proves them, fixes them, and learns from them.**
 
-© 2026 Алексей Поляков
+</div>

@@ -1,8 +1,8 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — production security scanner.
-> **Версия:** v0.26 | **Детекторов:** 29 | **Schema:** 23 | **Файлов:** ~40
-> **Статус:** Production — blocking-standard (Phase 5 complete)
+> **Версия:** v0.28 | **Детекторов:** 29 | **Тестов:** 78/78 | **Schema:** 25 | **Файлов:** ~40
+> **Статус:** SAST+DAST hybrid — blocking-standard (Phase 6: nuclei integration complete)
 > **Roadmap:** [GSC_ROADMAP.md](GSC_ROADMAP.md) | **SaaS:** [GSC_SAAS_ROADMAP.md](GSC_SAAS_ROADMAP.md)
 
 ## Что это
@@ -27,15 +27,21 @@ gsc/
 ├── gsc_ast_dataflow.py        ← Python AST taint tracking
 ├── gsc_revalidate.py          ← Structured LLM revalidator
 ├── gsc_db.py                  ← SQLite wrapper, schema 23
+├── gsc_nuclei_export.py       ← Nuclei YAML export (Wave 1)
+├── gsc_nuclei_import.py       ← Nuclei template import (Wave 2)
+├── gsc_dast_scanner.py        ← DAST scanner via nuclei (Wave 2)
+├── gsc_dast_validator.py      ← DAST validation in Proof-of-Fix (Wave 3)
 ├── gsc_detectors/             ← 25 детекторов (GS001–GS028)
 ├── calibration/               ← 17 проектов (11 clean + 6 vuln)
 ├── scripts/                   ← dry-run, feedback, redact, metrics
 ├── .github/workflows/         ← 5 CI workflows
+├── tests/test_nuclei_export.py
+├── tests/test_nuclei_import.py
 ├── tests/test_corpus.py       ← тесты (цель: 67/67)
 └── PROJECT.md GSC_APPLY_PLAN.md README.md
 ```
 
-DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 23, 403K fingerprints).
+DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 25, 403K fingerprints + nuclei_templates).
 Cron: self-learning (04:00 MSK), reactions collector (04:30 MSK).
 API: порт 8766, x-api-key auth, эндпоинты scan/feedback/overrides/dryrun.
 
