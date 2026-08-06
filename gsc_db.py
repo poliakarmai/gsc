@@ -6,12 +6,13 @@ Handles: findings, chains, feedback, metrics, schema versioning.
 Auto-migrates on first access. Creates timestamped backups.
 """
 
-import json, shutil, sqlite3
+import json, os, shutil, sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
+DB_PATH = Path(os.environ.get(
+    "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
 TARGET_VERSION = 23
 
 SCHEMA_V018 = """
