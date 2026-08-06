@@ -6,3 +6,6 @@ psycopg[binary]==3.2.*
 redis==5.*
 PyJWT[crypto]==2.9.*
 requests==2.32.*
+stripe>=5.0
+authlib>=1.0
+httpx>=0.25

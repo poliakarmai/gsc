@@ -4,31 +4,54 @@ services:
     environment:
       POSTGRES_DB: gsc
       POSTGRES_USER: gsc_admin
-      POSTGRES_PASSWORD: ${PG_PASSWORD}
+      POSTGRES_PASSWORD: ${PG_PASSWORD:-devpassword}
+    ports:
+      - "5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./schema_s1.sql:/docker-entrypoint-initdb.d/01_schema.sql
+      - ./schema_s1.sql:/docker-entrypoint-initdb.d/01_schema_s1.sql
+      - ./bootstrap_roles.sql:/docker-entrypoint-initdb.d/02_bootstrap_roles.sql
+      - ./schema_s2.sql:/docker-entrypoint-initdb.d/03_schema_s2.sql
+      - ./schema_s3.sql:/docker-entrypoint-initdb.d/04_schema_s3.sql
+      - ./schema_s4.sql:/docker-entrypoint-initdb.d/05_schema_s4.sql
+      - ./schema_s5.sql:/docker-entrypoint-initdb.d/06_schema_s5.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U gsc_admin -d gsc"]
+      interval: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
 
   api:
     build:
       context: ..
       dockerfile: cloud/Dockerfile
-    command: uvicorn cloud.api:app --host 0.0.0.0 --port 8000
+    command: uvicorn cloud.api:app --host 0.0.0.0 --port 8000 --reload
     environment:
-      GSC_DATABASE_URL: postgresql://gsc_app:${PG_APP_PASSWORD}@postgres/gsc
-      GSC_REDIS_URL: redis://redis:6379/0
+      GSC_DATABASE_URL: ${GSC_DATABASE_URL:-postgresql://gsc_app:dev_app_pw@postgres:5432/gsc}
+      GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}
+      GSC_SESSION_SECRET: ${GSC_SESSION_SECRET:-dev-secret-32bytes-minimum!!}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      GSC_OAUTH_CLIENT_ID: ${GSC_OAUTH_CLIENT_ID:-}
+      GSC_OAUTH_CLIENT_SECRET: ${GSC_OAUTH_CLIENT_SECRET:-}
+      GSC_GITHUB_APP_ID: ${GSC_GITHUB_APP_ID:-}
+      GSC_GITHUB_APP_PRIVATE_KEY: ${GSC_GITHUB_APP_PRIVATE_KEY:-}
+      GSC_MARKETPLACE_SECRET: ${GSC_MARKETPLACE_SECRET:-}
     ports:
       - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
 
   worker:
     build:
@@ -36,14 +59,26 @@ services:
       dockerfile: cloud/Dockerfile
     command: python -m cloud.worker
     environment:
-      GSC_DATABASE_URL: postgresql://gsc_app:${PG_APP_PASSWORD}@postgres/gsc
-      GSC_REDIS_URL: redis://redis:6379/0
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GSC_DATABASE_URL: ${GSC_DATABASE_URL:-postgresql://gsc_app:dev_app_pw@postgres:5432/gsc}
+      GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
     depends_on:
       - postgres
       - redis
     deploy:
       replicas: 2
+
+  dashboard:
+    build:
+      context: ../apps/dashboard
+      dockerfile: Dockerfile
+    command: npm run dev
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3001:3000"
+    depends_on:
+      - api
 
 volumes:
   pgdata:

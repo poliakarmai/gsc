@@ -2,7 +2,9 @@
 DO $$
 BEGIN
    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gsc_app') THEN
-      CREATE ROLE gsc_app LOGIN;
+      CREATE ROLE gsc_app LOGIN PASSWORD 'dev_app_pw';
+   ELSE
+      ALTER ROLE gsc_app PASSWORD 'dev_app_pw';
    END IF;
 END $$;
 

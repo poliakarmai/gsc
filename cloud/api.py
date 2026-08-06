@@ -2,7 +2,7 @@
 # Copyright (c) 2026 Алексей Поляков
 # Licensed under BSL 1.1 — see LICENSE
 
-"""GSC Cloud API (S1). Пространство /api/v2 — внутренний /api/v1 не трогаем."""
+"""GSC Cloud API (S1–S5). Cloud 1.0 — multi-tenant SaaS backend."""
 from __future__ import annotations
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -12,8 +12,22 @@ from cloud import store
 from cloud.apideps import tenant_ctx
 from cloud.scan_queue import ScanQueue
 
-app = FastAPI(title="GSC Cloud", version="0.27")
+# ── S3–S5 routers ──────────────────────────────────────
+from cloud.user_auth import auth_router
+from cloud.dash_api import router as dash_router
+from cloud.billing import billing_router
+from cloud.agent_api import router as agent_router
+from cloud.observability import router as obs_router
+
+app = FastAPI(title="GSC Cloud", version="1.0")
 queue = ScanQueue()
+
+# Mount all routers
+app.include_router(auth_router)
+app.include_router(dash_router)
+app.include_router(billing_router)
+app.include_router(agent_router)
+app.include_router(obs_router)
 
 VALID_PROFILES = {"developer-review", "pr-gate", "audit", "candidate-review"}
 
