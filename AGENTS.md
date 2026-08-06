@@ -1,8 +1,9 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — production security scanner.
-> **Версия:** v0.26 | **Детекторов:** 25 | **Schema:** 23 | **Файлов:** ~35
+> **Версия:** v0.26 | **Детекторов:** 29 | **Schema:** 23 | **Файлов:** ~40
 > **Статус:** Production — blocking-standard (Phase 5 complete)
+> **Roadmap:** [GSC_ROADMAP.md](GSC_ROADMAP.md) | **SaaS:** [GSC_SAAS_ROADMAP.md](GSC_SAAS_ROADMAP.md)
 
 ## Что это
 
@@ -160,6 +161,24 @@ dry_run_runs | schema_version
 3. `gsc metrics --rollout` — метрики всех фаз
 4. DB: `~/.hermes/state/gsc_audit.db` — schema 23, WAL
 5. Ключ: `DEEPSEEK_API_KEY` в `~/.bashrc` — без него LLM отключается, но 24 regex-детектора работают
+
+## Cloud-инфраструктура (спроектирована, закоммичена)
+
+```
+cloud/
+├── docker-compose.yml       ← Cloud 1.0: PG + Redis + API + Workers + Dashboard
+├── k8s/                     ← Kubernetes: StatefulSet PG, Deployments, HPA, Ingress
+├── api/                     ← FastAPI-роутеры (/api/v2)
+├── db/                      ← SQL-схемы (S1–S4)
+└── dashboard/               ← Next.js scaffold
+```
+
+Статус: инфраструктура закоммичена, реализация S1–S4 по [GSC_ROADMAP.md](GSC_ROADMAP.md).
+
+## Лицензия
+
+BSL 1.1 с Additional Use Grant (коммерческий SaaS требует лицензии).  
+SPDX-заголовки в 40 файлах. Подробности: [LICENSE](LICENSE).
 
 ## Ключевые инварианты
 
