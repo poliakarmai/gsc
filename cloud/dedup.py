@@ -22,3 +22,11 @@ class DeliveryDedup:
 
     def once(self, key: str, ttl: int) -> bool:
         return bool(self.r.set(key, "1", nx=True, ex=ttl))
+
+    def once_raw(self, key: str, ttl: int, value: str = "pending") -> bool:
+        """SETNX с произвольным значением (для OAuth state)."""
+        return bool(self.r.set(key, value, nx=True, ex=ttl))
+
+    def consume(self, key: str) -> bool:
+        """GETDEL: одноразовое потребление ключа (state для OAuth)."""
+        return self.r.getdel(key) is not None
