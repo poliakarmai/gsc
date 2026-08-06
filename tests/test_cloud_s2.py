@@ -116,10 +116,10 @@ def test_installation_token_refresh_margin(monkeypatch):
 # ---------------------------------------------------------------------------
 # PG-backed tests (пропускаются без PostgreSQL)
 # ---------------------------------------------------------------------------
-PG_DSN = os.environ.get("GSC_TEST_DATABASE_URL", "")
+PG_DSN = os.environ.get("GSC_DATABASE_URL", "")
 requires_pg = pytest.mark.skipif(
     not PG_DSN,
-    reason="GSC_TEST_DATABASE_URL not set — PG-backed tests skipped")
+    reason="GSC_DATABASE_URL not set — PG-backed tests skipped")
 
 
 def _seed_tenant(db, name="acme-org", plan="free"):
@@ -145,8 +145,11 @@ def test_install_auto_creates_tenant():
 
 
 @requires_pg
-def test_supersede_stale_queued_scans():
+def test_supersede_stale_queued_scans(monkeypatch):
     from cloud.scanjobs import handle_pull_request
+    # Mock Redis
+    monkeypatch.setattr("cloud.scan_queue.ScanQueue.enqueue", lambda self, job: None)
+    monkeypatch.setenv("GSC_REDIS_URL", "redis://localhost:6379/0")
     p1 = {
         "action": "opened",
         "installation": {"id": 999},
@@ -164,8 +167,10 @@ def test_supersede_stale_queued_scans():
 
 
 @requires_pg
-def test_fork_pr_job_flagged():
+def test_fork_pr_job_flagged(monkeypatch):
     from cloud.scanjobs import handle_pull_request
+    monkeypatch.setattr("cloud.scan_queue.ScanQueue.enqueue", lambda self, job: None)
+    monkeypatch.setenv("GSC_REDIS_URL", "redis://localhost:6379/0")
     payload = {
         "action": "opened",
         "installation": {"id": 999},
@@ -177,29 +182,44 @@ def test_fork_pr_job_flagged():
 
 
 @requires_pg
-def test_gsc_command_via_webhook_tenant_scoped():
+def test_gsc_command_via_webhook_tenant_scoped(monkeypatch):
     from cloud.pr_commands import handle_issue_comment
     from cloud.store import control_plane
+    # Mock GitHub reaction post
+    monkeypatch.setattr("cloud.pr_commands.requests.post", lambda *a, **kw: None)
+    monkeypatch.setattr("cloud.pr_commands.gh_headers", lambda iid: {})
+    monkeypatch.setenv("GSC_APP_ID", "12345")
 
-    # Seed 2 tenants
+    # Seed 2 tenants (use unique installation_id to avoid clashes)
     db0 = control_plane()
-    db0.execute("INSERT INTO tenants (name, plan) VALUES (%s, 'free') ON CONFLICT DO NOTHING", ("t1",))
-    db0.execute("INSERT INTO tenants (name, plan) VALUES (%s, 'free') ON CONFLICT DO NOTHING", ("t2",))
+    import random
+    inst_id = random.randint(90000, 99999)
+    # Clean potential stale data from previous runs
+    db0.execute("DELETE FROM github_installs WHERE installation_id = %s", (inst_id,))
+    db0.execute("INSERT INTO tenants (name, plan) VALUES (%s, 'free')", ("t1_cmd",))
+    db0.execute("INSERT INTO tenants (name, plan) VALUES (%s, 'free')", ("t2_cmd",))
+    # Get their IDs
+    t1 = db0.fetchone("SELECT id FROM tenants WHERE name = %s", ("t1_cmd",))["id"]
+    t2 = db0.fetchone("SELECT id FROM tenants WHERE name = %s", ("t2_cmd",))["id"]
     db0.execute("INSERT INTO github_installs (tenant_id, installation_id, org_login) VALUES (%s, %s, %s)",
-                (1, 777, "t1"))
+                (t1, inst_id, "t1_cmd"))
     db0.commit()
 
     # Seed finding for tenant 1
-    db1 = PgBackend(PG_DSN, 1)
-    db1.execute("""INSERT INTO repos (tenant_id, name, clone_url, gh_repo_id) VALUES (%s, 'r', 'x', %s)""",
-                (1, 42))
+    db1 = PgBackend(PG_DSN, t1)
+    gh_rid = inst_id  # unique gh_repo_id
+    db1.execute("""INSERT INTO repos (tenant_id, name, clone_url, gh_repo_id) VALUES (%s, %s, 'x', %s)""",
+                (t1, f"r_{inst_id}", gh_rid))
+    db1.execute("""INSERT INTO scans (tenant_id, profile, status) VALUES (%s, 'pr-gate', 'done')""",
+                (t1,))
+    scan_id = db1.fetchone("SELECT currval(pg_get_serial_sequence('scans','id')) AS id")["id"]
     db1.execute("""INSERT INTO findings (tenant_id, scan_id, finding_key, rule_id, severity, confidence, file, line) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)""",
-                (1, 1, "abc123def456", "GS001", "HIGH", 0.9, "x.py", 1))
+                (t1, scan_id, "abc123def456", "GS001", "HIGH", 0.9, "x.py", 1))
     db1.commit()
 
     payload = {
-        "installation": {"id": 777},
-        "repository": {"id": 42, "full_name": "t1/repo"},
+        "installation": {"id": inst_id},
+        "repository": {"id": gh_rid, "full_name": f"t1/r_{inst_id}"},
         "issue": {"number": 1, "pull_request": True},
         "comment": {
             "id": 100,
@@ -215,6 +235,6 @@ def test_gsc_command_via_webhook_tenant_scoped():
     assert v1["verdict"] == "fp"
 
     # Tenant 2 should NOT see it
-    db2 = PgBackend(PG_DSN, 2)
+    db2 = PgBackend(PG_DSN, t2)
     v2 = db2.fetchone("SELECT 1 AS x FROM verdicts WHERE finding_key = %s", ("abc123def456",))
     assert v2 is None

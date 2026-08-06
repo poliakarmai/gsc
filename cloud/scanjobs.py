@@ -40,10 +40,10 @@ def handle_pull_request(payload: dict) -> dict:
         INSERT INTO scans (tenant_id, repo_id, profile, mode, status,
                            metadata)
         VALUES (?, ?, 'pr-gate', 'diff', 'queued',
-                jsonb_build_object('pr_number', ?, 'head_sha', ?,
-                                   'base_ref', ?, 'is_fork', ?::boolean))
+                jsonb_build_object('pr_number', ?::int, 'head_sha', ?::text,
+                                   'base_ref', ?::text, 'is_fork', ?::text::boolean))
     """, (tenant_id, repo_id, pr["number"], pr["head"]["sha"],
-          pr["base"]["ref"], is_fork))
+          pr["base"]["ref"], "true" if is_fork else "false"))
     scan_id = db.fetchone(
         "SELECT currval(pg_get_serial_sequence('scans','id')) AS id")["id"]
     db.commit()
