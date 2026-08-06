@@ -1808,15 +1808,15 @@ def main():
     ws_del = ws_sub.add_parser('delete', help='Delete workspace')
     ws_del.add_argument('name')
 
-    # gsc fix (Proof-of-Fix + Self-Healing)
-    fix_p = sub.add_parser('fix', help='Proof-of-Fix: generate + verify security patches')
-    fix_sub = fix_p.add_subparsers(dest='fix_cmd', required=True)
-    fix_gen = fix_sub.add_parser('generate', help='Generate + verify fix for a finding')
+    # gsc pof (Proof-of-Fix + Self-Healing)
+    pof_p = sub.add_parser('pof', help='Proof-of-Fix: generate + verify security patches')
+    pof_sub = pof_p.add_subparsers(dest='pof_cmd', required=True)
+    fix_gen = pof_sub.add_parser('generate', help='Generate + verify fix for a finding')
     fix_gen.add_argument('finding_key')
     fix_gen.add_argument('--report', '-r', required=True, help='Scan report JSON')
     fix_gen.add_argument('--project-root', default='.', help='Project root')
     fix_gen.add_argument('--output', '-o', help='Save evidence JSON')
-    fix_batch = fix_sub.add_parser('batch', help='Auto-fix all eligible CRITICAL/HIGH')
+    fix_batch = pof_sub.add_parser('batch', help='Auto-fix all eligible CRITICAL/HIGH')
     fix_batch.add_argument('report', help='Scan report JSON')
     fix_batch.add_argument('--project-root', default='.', help='Project root')
     fix_batch.add_argument('--max-fixes', type=int, default=3)
@@ -1824,7 +1824,32 @@ def main():
     fix_batch.add_argument('--create-pr', dest='dry_run', action='store_false')
     fix_batch.add_argument('--output', '-o', help='Save results JSON')
 
+    # gsc archaeology
+    arch_p = sub.add_parser('archaeology', help='Security Archaeology — vulnerability time machine')
+    arch_sub = arch_p.add_subparsers(dest='arch_cmd', required=True)
+    arch_trace = arch_sub.add_parser('trace', help='Trace finding lifecycle')
+    arch_trace.add_argument('finding_key')
+    arch_trace.add_argument('--report', '-r')
+    arch_trace.add_argument('--repo', required=True)
+    arch_rep = arch_sub.add_parser('report', help='Full archaeology report')
+    arch_rep.add_argument('--repo', required=True)
+    arch_rep.add_argument('--findings')
+    arch_rep.add_argument('--output', '-o')
+
+    # gsc forecast
+    fc_p = sub.add_parser('forecast', help='Predictive Risk Forecasting')
+    fc_sub = fc_p.add_subparsers(dest='fc_cmd', required=True)
+    fc_pred = fc_sub.add_parser('predict', help='Predict risk for files')
+    fc_pred.add_argument('--repo', required=True)
+    fc_pred.add_argument('--files', nargs='*')
+    fc_pred.add_argument('--output', '-o')
+    fc_pred.add_argument('--limit', type=int, default=10)
+    fc_hm = fc_sub.add_parser('heatmap', help='Full repo risk heatmap')
+    fc_hm.add_argument('--repo', required=True)
+    fc_hm.add_argument('--output', '-o')
+
     # gsc dork
+
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
     dork.add_argument('org', help='GitHub organization or company name')
     dork.add_argument('--limit', type=int, default=5, help='Results per dork (default: 5)')
@@ -1912,6 +1937,24 @@ def main():
         cmd_triage(args)
     elif args.command == "explain":
         cmd_explain(args)
+    elif args.command == "archaeology":
+        arch_args = [sys.executable, str(Path(__file__).parent / "gsc_archaeology.py"), args.arch_cmd]
+        if hasattr(args, "finding_key") and args.finding_key:
+            arch_args.append(args.finding_key)
+        if hasattr(args, "repo"): arch_args.extend(["--repo", args.repo])
+        if hasattr(args, "report") and args.report: arch_args.extend(["--report", args.report])
+        if hasattr(args, "findings") and args.findings: arch_args.extend(["--findings", args.findings])
+        if hasattr(args, "output") and args.output: arch_args.extend(["--output", args.output])
+        subprocess.run(arch_args)
+
+    elif args.command == "forecast":
+        fc_args = [sys.executable, str(Path(__file__).parent / "gsc_forecast.py"), args.fc_cmd]
+        if hasattr(args, "repo"): fc_args.extend(["--repo", args.repo])
+        if hasattr(args, "files") and args.files: fc_args += ["--files"] + args.files
+        if hasattr(args, "limit"): fc_args.extend(["--limit", str(args.limit)])
+        if hasattr(args, "output") and args.output: fc_args.extend(["--output", args.output])
+        subprocess.run(fc_args)
+
     elif args.command == "fix":
         cmd_fix(args)
     elif args.command == 'config':
@@ -1959,14 +2002,14 @@ def main():
         elif args.ws_cmd == 'delete':
             workspace_delete(args.name)
 
-    elif args.command == "fix":
-        if args.fix_cmd == 'generate':
+    elif args.command == "pof":
+        if args.pof_cmd == 'generate':
             subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_proofoffix.py"),
                             "generate", args.finding_key,
                             "--report", args.report,
                             "--project-root", args.project_root,
                             *(["--output", args.output] if hasattr(args, 'output') and args.output else [])])
-        elif args.fix_cmd == 'batch':
+        elif args.pof_cmd == 'batch':
             subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_selfhealing.py"),
                             args.report,
                             "--project-root", getattr(args, 'project_root', '.'),
