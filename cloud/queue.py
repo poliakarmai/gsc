@@ -10,7 +10,14 @@ QUEUE_KEY = "gsc:scans"
 
 class ScanQueue:
     def __init__(self, url: str | None = None):
-        self.r = redis.from_url(url or os.environ["GSC_REDIS_URL"])
+        self._url = url
+        self._r = None
+
+    @property
+    def r(self):
+        if self._r is None:
+            self._r = redis.from_url(self._url or os.environ["GSC_REDIS_URL"])
+        return self._r
 
     def enqueue(self, job: dict) -> None:
         self.r.lpush(QUEUE_KEY, json.dumps(job))
