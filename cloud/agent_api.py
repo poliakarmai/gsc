@@ -114,3 +114,78 @@ def get_policy(authorization: str = Header(...)):
             "high": 0.85,
         },
     }
+
+
+@router.post("/ingest")
+def ingest_findings(body: dict,
+                    authorization: str = Header(...)):
+    """Приём findings от агента. Код НЕ передаётся."""
+    tenant_id, agent_id = _resolve_session(authorization)
+    repo = body.get("repo", "unknown")
+    findings = body.get("findings", [])
+    chains = body.get("chains", [])
+    mutations = body.get("mutation_alerts", [])
+
+    db = control_plane(tenant_id)
+    db.execute("""
+        INSERT INTO scans (tenant_id, profile, mode, status,
+                           findings_total, metadata)
+        VALUES (?, 'agent', 'full', 'done', ?,
+                jsonb_build_object('agent_id', ?, 'repo', ?,
+                                   'source', 'agent'))
+    """, (tenant_id, len(findings), agent_id, repo))
+    scan_id = db.fetchone(
+        "SELECT currval(pg_get_serial_sequence('scans','id')) AS id"
+    )["id"]
+
+    for f in findings:
+        db.execute("""
+            INSERT INTO findings
+                (tenant_id, scan_id, finding_key, rule_id, severity,
+                 confidence, file, line, snippet, poc, metadata,
+                 pattern_fingerprint, normalized_snippet,
+                 agent_id, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'agent')
+        """, (tenant_id, scan_id, f["finding_key"], f["rule_id"],
+              f.get("severity"), f.get("confidence"), f.get("file"),
+              f.get("line"), f.get("snippet", ""),
+              f.get("poc", ""),
+              json.dumps(f.get("metadata", {})),
+              f.get("pattern_fingerprint", ""),
+              f.get("normalized_snippet", ""),
+              agent_id))
+
+    for c in chains:
+        db.execute("""
+            INSERT INTO chains
+                (tenant_id, chain_key, finding_keys, composed_severity,
+                 confidence, narrative)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT (tenant_id, chain_key) DO UPDATE SET
+                confidence = excluded.confidence,
+                narrative = excluded.narrative
+        """, (tenant_id, c["chain_key"], json.dumps(c["finding_keys"]),
+              c["composed_severity"], c["confidence"],
+              c.get("narrative")))
+
+    for m in mutations:
+        db.execute("""
+            INSERT INTO mutation_alerts
+                (tenant_id, finding_key, parent_key, kind, similarity)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT (tenant_id, finding_key, parent_key) DO NOTHING
+        """, (tenant_id, m["finding_key"], m["parent_key"],
+              m["kind"], m["similarity"]))
+
+    db.execute("""
+        INSERT INTO agent_ingests
+            (tenant_id, agent_id, repo, findings_count, chains_count)
+        VALUES (?, ?, ?, ?, ?)
+    """, (tenant_id, agent_id, repo, len(findings), len(chains)))
+    audit.record(db, tenant_id, f"agent:{agent_id}", "agent.ingest",
+                 "scan", str(scan_id),
+                 {"repo": repo, "findings": len(findings)})
+    db.commit()
+
+    return {"ok": True, "scan_id": scan_id,
+            "findings_ingested": len(findings)}
