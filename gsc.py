@@ -1808,6 +1808,22 @@ def main():
     ws_del = ws_sub.add_parser('delete', help='Delete workspace')
     ws_del.add_argument('name')
 
+    # gsc fix (Proof-of-Fix + Self-Healing)
+    fix_p = sub.add_parser('fix', help='Proof-of-Fix: generate + verify security patches')
+    fix_sub = fix_p.add_subparsers(dest='fix_cmd', required=True)
+    fix_gen = fix_sub.add_parser('generate', help='Generate + verify fix for a finding')
+    fix_gen.add_argument('finding_key')
+    fix_gen.add_argument('--report', '-r', required=True, help='Scan report JSON')
+    fix_gen.add_argument('--project-root', default='.', help='Project root')
+    fix_gen.add_argument('--output', '-o', help='Save evidence JSON')
+    fix_batch = fix_sub.add_parser('batch', help='Auto-fix all eligible CRITICAL/HIGH')
+    fix_batch.add_argument('report', help='Scan report JSON')
+    fix_batch.add_argument('--project-root', default='.', help='Project root')
+    fix_batch.add_argument('--max-fixes', type=int, default=3)
+    fix_batch.add_argument('--dry-run', action='store_true', default=True)
+    fix_batch.add_argument('--create-pr', dest='dry_run', action='store_false')
+    fix_batch.add_argument('--output', '-o', help='Save results JSON')
+
     # gsc dork
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
     dork.add_argument('org', help='GitHub organization or company name')
@@ -1942,6 +1958,21 @@ def main():
             workspace_list()
         elif args.ws_cmd == 'delete':
             workspace_delete(args.name)
+
+    elif args.command == "fix":
+        if args.fix_cmd == 'generate':
+            subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_proofoffix.py"),
+                            "generate", args.finding_key,
+                            "--report", args.report,
+                            "--project-root", args.project_root,
+                            *(["--output", args.output] if hasattr(args, 'output') and args.output else [])])
+        elif args.fix_cmd == 'batch':
+            subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_selfhealing.py"),
+                            args.report,
+                            "--project-root", getattr(args, 'project_root', '.'),
+                            "--max-fixes", str(getattr(args, 'max_fixes', 3)),
+                            *(["--create-pr"] if hasattr(args, 'dry_run') and not args.dry_run else []),
+                            *(["--output", args.output] if hasattr(args, 'output') and args.output else [])])
 
     elif args.command == "dork":
         if args.list:
