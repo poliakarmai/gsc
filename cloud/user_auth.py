@@ -120,6 +120,12 @@ def auth_callback(code: str, state: str, response: Response):
         ORDER BY (role != 'owner'), created_at LIMIT 1
     """, (user_id,))
     tid = tenant["tenant_id"] if tenant else None
+    # SSO-required тенант: GitHub OAuth заблокирован
+    if tid:
+        t = db.fetchone("SELECT sso_required FROM tenants WHERE id = ?",
+                        (tid,))
+        if t and t.get("sso_required"):
+            raise HTTPException(403, "this tenant requires SSO login")
     cookie = session.issue(user_id, tid)
     response.set_cookie("gsc_session", cookie, **session.COOKIE_OPTS)
     return {"ok": True, "tenant_id": tid}
