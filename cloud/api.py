@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from cloud import store
 from cloud.apideps import tenant_ctx
-from cloud.queue import ScanQueue
+from cloud.scan_queue import ScanQueue
 
 app = FastAPI(title="GSC Cloud", version="0.27")
 queue = ScanQueue()

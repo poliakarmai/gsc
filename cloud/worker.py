@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 
 from gsc_db_backend import PgBackend
 from cloud import store          # CRUD по scans/findings/usage
-from cloud.queue import ScanQueue
+from cloud.scan_queue import ScanQueue
 
 ALLOWED_HOSTS = {"github.com"}
 SCAN_TIMEOUT_SEC = 900

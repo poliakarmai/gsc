@@ -56,7 +56,8 @@ class PgBackend:
         self.tenant_id = tenant_id
         self.conn = psycopg.connect(dsn, row_factory=dict_row, autocommit=False)
         # RLS-контекст: даже при ошибке в SQL чужой тенант не читается
-        self.conn.execute("SET app.tenant_id = %s", (str(tenant_id),))
+        # SET не поддерживает параметры $1 — интерполяция безопасна (int)
+        self.conn.execute(f"SET app.tenant_id = {int(tenant_id)}")
 
     def query(self, sql: str, params: tuple = ()) -> List[Any]:
         return self.conn.execute(q_to_pg(sql), params).fetchall()
@@ -65,8 +66,7 @@ class PgBackend:
         return self.conn.execute(q_to_pg(sql), params).fetchone()
 
     def execute(self, sql: str, params: tuple = ()):
-        with self.conn:
-            self.conn.execute(q_to_pg(sql), params)
+        self.conn.execute(q_to_pg(sql), params)
 
     def commit(self):
         self.conn.commit()
