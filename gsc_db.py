@@ -159,7 +159,16 @@ CREATE TABLE IF NOT EXISTS secret_sightings (
 );
 CREATE INDEX IF NOT EXISTS idx_sightings_repo ON secret_sightings(repo_path);
 CREATE INDEX IF NOT EXISTS idx_sightings_fp ON secret_sightings(fingerprint);
-CREATE INDEX IF NOT EXISTS idx_sightings_loc ON secret_sightings(repo_path, file_path, line_number);
+CREATE INDEX IF NOT EXISTS idx_sightings_loc
+    ON secret_sightings(repo_path, file_path, line_number);
+"""
+
+# Schema v24 alters
+ALTERS_V024 = """
+ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
+"""
+
+SCHEMA_V023 = """
 """
 
 SCHEMA_V023 = """

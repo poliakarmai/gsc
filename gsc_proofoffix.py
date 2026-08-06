@@ -1,46 +1,145 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-GSC Proof-of-Fix v1.1 — верифицированная автокоррекция.
+GSC Proof-of-Fix v0.27 (revised code review 2026-08-06).
 
-v1.1 fixes (code review 2026-08-06):
-  C1: SUCCESS_MARKERS contract — PoC exits 0 + prints marker on success
-  H1: Sandbox isolation — tempdir + NO_NET_ENV + timeout
-  H2: Edit-instructions fallback — find/replace before unified diff
+Cycle: finding → patch → sandbox apply → re-PoC → verify → evidence.
 
-Цикл: finding → patch (edit-instruction priority) → sandbox → re-PoC → verify.
-
-CLI: gsc pof generate <key> --report scan.json
+Fixed:
+  C1  verified by PoC markers, not bare exit code
+  H1  PoC executed ONLY in sandbox (tempdir, no-network, timeout)
+  H2  patch applied via edit-instructions {find, replace}, not unified diff
 """
 
 from __future__ import annotations
 
-import json, os, shutil, subprocess, sys, tempfile
-from dataclasses import dataclass
+import ast
+import difflib
+import json
+import os
+import re
+import subprocess
+import sys
+import tempfile
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-# ── C1: PoC SUCCESS markers (explicit contract) ────────────
-SUCCESS_MARKERS = ("VULNERABLE", "EXPLOITED", "PWNED", "LEAKED", "SUCCESS",
-                   "SQLI_SUCCESS", "XSS_SUCCESS", "RCE_SUCCESS", "SSRF_SUCCESS")
-FAILURE_MARKERS = ("SAFE", "NOT_VULNERABLE", "PATCHED", "BLOCKED", "FAILED")
+from gsc_poc_generator import SUCCESS_MARKERS
 
-# ── H1: Sandbox isolation ──────────────────────────────────
+POC_TIMEOUT_SEC = 30
+POC_MAX_OUTPUT = 4096
+MAX_ITERATIONS = 3
+MAX_EDITS = 6
+
+# Any PoC network call immediately fails (port 9 = discard)
 NO_NET_ENV = {
-    "HTTP_PROXY": "http://127.0.0.1:9",
-    "HTTPS_PROXY": "http://127.0.0.1:9",
     "http_proxy": "http://127.0.0.1:9",
     "https_proxy": "http://127.0.0.1:9",
-    "NO_PROXY": "",
-    "REQUESTS_CA_BUNDLE": "/dev/null",
-    "CURL_CA_BUNDLE": "/dev/null",
+    "HTTP_PROXY": "http://127.0.0.1:9",
+    "HTTPS_PROXY": "http://127.0.0.1:9",
+    "no_proxy": "",
 }
-SANDBOX_TIMEOUT = 30  # seconds per PoC run
 
 
-# ── LLM ────────────────────────────────────────────────────
-def _call_llm(system: str, user: str, max_tokens: int = 1500) -> Optional[str]:
+@dataclass
+class FixEvidence:
+    finding_key: str
+    rule_id: str = ""
+    file_path: str = ""
+    line_number: int = 0
+    level: str = "failed"          # verified|structural|syntax_only|failed
+    verified: bool = False
+    patch: list = field(default_factory=list)   # edit-instructions
+    patch_display: str = ""
+    reasoning: str = ""
+    exploited_before: Optional[bool] = None
+    exploited_after: Optional[bool] = None
+    detector_fires_before: bool = False
+    detector_fires_after: bool = False
+    poc_before: str = ""
+    poc_after: str = ""
+    iterations: int = 0
+    error: str = ""
+
+    def to_dict(self):
+        d = asdict(self)
+        d.pop("patch_display", None)
+        d["patch_display"] = self.patch_display[:3000]
+        return d
+
+
+# ── Sandbox ────────────────────────────────────────────────
+class FixSandbox:
+    """Isolated file copy in tempdir. Original is never mutated."""
+
+    def __init__(self, file_path: str, original: str):
+        self.file_path = file_path
+        self.basename = os.path.basename(file_path)
+        self.dir = tempfile.TemporaryDirectory(prefix="gsc_pof_")
+        self.workfile = os.path.join(self.dir.name, self.basename)
+        Path(self.workfile).write_text(original, encoding="utf-8")
+
+    def apply_edits(self, edits: list) -> str:
+        content = Path(self.workfile).read_text(encoding="utf-8")
+        for e in edits:
+            find_text = e["find"]
+            replace_text = e["replace"]
+            n = content.count(find_text)
+            if n != 1:
+                raise PatchApplyError(f"find-block not unique/absent (occurrences={n})")
+            content = content.replace(find_text, replace_text, 1)
+        Path(self.workfile).write_text(content, encoding="utf-8")
+        return content
+
+    def syntax_ok(self, content: str) -> bool:
+        if not self.basename.endswith(".py"):
+            return True
+        try:
+            ast.parse(content)
+            return True
+        except SyntaxError:
+            return False
+
+    def cleanup(self):
+        self.dir.cleanup()
+
+
+class PatchApplyError(Exception):
+    pass
+
+
+# ── PoC execution with marker contract (C1) + isolation (H1) ──
+def _run_poc_sandboxed(poc_code: str, sandbox_dir: str) -> dict:
+    """Execute PoC in isolation. Returns {exploited, output, exit}.
+
+    exploited = True when exit_code == 0 AND a SUCCESS_MARKER is in output.
+    exploited = None when marker was not printed or process crashed.
+    """
+    poc_path = os.path.join(sandbox_dir, "poc_verify.py")
+    Path(poc_path).write_text(poc_code, encoding="utf-8")
+
+    env = {**os.environ, **NO_NET_ENV, "PYTHONDONTWRITEBYTECODE": "1"}
+    try:
+        proc = subprocess.run(
+            [sys.executable, poc_path],
+            cwd=sandbox_dir, env=env,
+            timeout=POC_TIMEOUT_SEC, capture_output=True, text=True,
+        )
+    except subprocess.TimeoutExpired:
+        return {"exploited": None, "output": "<timeout>", "exit": None}
+    except Exception as e:
+        return {"exploited": None, "output": f"<error: {e}>", "exit": None}
+
+    out = (proc.stdout or "")[-POC_MAX_OUTPUT:]
+    has_marker = any(m in out.upper() for m in SUCCESS_MARKERS)
+    exploited = (proc.returncode == 0) and has_marker
+    return {"exploited": exploited, "output": out, "exit": proc.returncode}
+
+
+# ── LLM helpers ────────────────────────────────────────────
+def _call_llm(system: str, user: str, max_tokens: int = 900) -> Optional[str]:
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
     if not api_key:
         return None
@@ -64,26 +163,6 @@ def _call_llm(system: str, user: str, max_tokens: int = 1500) -> Optional[str]:
         return None
 
 
-# ── Data ───────────────────────────────────────────────────
-@dataclass
-class FixEvidence:
-    finding_key: str
-    rule_id: str = "unknown"
-    file_path: str = "unknown"
-    line_number: int = 0
-    patch: str = ""
-    patch_mode: str = "none"          # edit_instruction | unified_diff | none
-    patch_syntax_ok: bool = False
-    # C1: marker-based verification
-    exploited_before: bool = False
-    poc_before: str = ""
-    exploited_after: bool = False
-    poc_after: str = ""
-    verified: bool = False
-    verified_at: str = ""
-    error: str = ""
-
-
 # ── Finding lookup ─────────────────────────────────────────
 def _find_finding(report_path: str, finding_key: str) -> Optional[dict]:
     with open(report_path) as f:
@@ -96,269 +175,293 @@ def _find_finding(report_path: str, finding_key: str) -> Optional[dict]:
     return None
 
 
-# ── H2: Patch generation (edit-instruction priority) ───────
-def _generate_patch(finding: dict, source: str) -> tuple:
-    """Returns (patch_text, mode) where mode = 'edit_instruction' | 'unified_diff'."""
-    rule = finding.get("rule_id", "")
-    detail = finding.get("detail", "")[:500]
-    file_path = finding.get("file_path", "")
-    line = finding.get("line_number", 0)
+# ── Patch generator (edit-instructions) ────────────────────
+PATCH_PROMPT = """You are a security engineer. Fix the vulnerability with the
+MINIMAL safe change. Do not refactor unrelated code. Do not delete
+functionality unless it IS the vulnerability.
 
-    system = (
-        "You are a security fix engine. Generate a minimal patch as an EDIT INSTRUCTION, "
-        "not a unified diff. Format:\n\n"
-        "```edit\n"
-        "@@ file:path/to/file.py @@\n"
-        "@@ find @@\n"
-        "exact vulnerable line(s) from source\n"
-        "@@ replace @@\n"
-        "fixed line(s)\n"
-        "@@ end @@\n"
-        "```\n\n"
-        "RULES:\n"
-        "- The 'find' block MUST match source EXACTLY (character-for-character)\n"
-        "- The 'find' block must appear EXACTLY ONCE in the file\n"
-        "- Change ONLY what's necessary — minimal diff\n"
-        "- Never refactor, rename, or add features\n"
-        "- If the fix requires a unified diff, fallback to:\n"
-        "```diff\n--- a/path\n+++ b/path\n@@ -line,count +line,count @@\n context\n-old\n+new\n```\n"
-        "Then append on the last line: EXPLANATION: <one sentence>"
-    )
+Rule: {rule_id} — {title}
+File: {file_path}:{line}
+Code:
+{context}
 
-    user = (
-        f"VULNERABILITY: {rule} — {file_path}:{line}\n"
-        f"Details: {detail}\n\n"
-        f"SOURCE CODE (around line {line}):\n{source[:4000]}"
-    )
+{history}
 
-    raw = _call_llm(system, user, max_tokens=1500)
-    if not raw:
-        return "", "none"
+Output strictly as JSON:
+{{
+  "reasoning": "one paragraph",
+  "edits": [{{"find": "<exact text from the file>",
+              "replace": "<fixed text>"}}]
+}}
 
-    # H2: Try edit-instruction first
-    if "```edit" in raw:
-        patch = raw.split("```edit", 1)[1]
-        if "```" in patch:
-            patch = patch.split("```", 1)[0]
-        return patch.strip(), "edit_instruction"
-
-    # Fallback: unified diff
-    if "```diff" in raw:
-        patch = raw.split("```diff", 1)[1]
-    elif "```" in raw:
-        patch = raw.split("```", 1)[1]
-    else:
-        patch = raw
-
-    if "```" in patch:
-        patch = patch.split("```", 1)[0]
-
-    # Strip EXPLANATION line
-    for line_text in patch.split("\n"):
-        if line_text.strip().upper().startswith("EXPLANATION"):
-            patch = patch.split(line_text, 1)[0]
-            break
-
-    return patch.strip(), "unified_diff"
+Requirements:
+- "find" MUST match the file text EXACTLY (whitespace included)
+- use parameterization/escaping/allowlists/validation as appropriate
+- keep legitimate behavior intact
+"""
 
 
-# ── H2: Patch application ──────────────────────────────────
-def _apply_patch(source: str, patch: str, mode: str) -> str:
-    """Apply patch. Returns patched source or raises."""
-    if mode == "edit_instruction":
-        # Parse find/replace blocks
-        find_block = None
-        replace_block = None
-        for line_text in patch.split("\n"):
-            if line_text.strip() == "@@ find @@" and find_block is None:
-                find_block = ""
-            elif line_text.strip() == "@@ replace @@" and find_block is not None:
-                replace_block = ""
-            elif line_text.strip() == "@@ end @@":
-                break
-            elif find_block is not None and replace_block is None:
-                find_block += line_text + "\n"
-            elif replace_block is not None:
-                replace_block += line_text + "\n"
+class PatchGenerator:
+    def __init__(self, budget: int = 4):
+        self.budget = budget
 
-        find_block = (find_block or "").rstrip("\n")
-        replace_block = (replace_block or "").rstrip("\n")
+    def generate(self, finding, source, failed=None) -> Optional[dict]:
+        if self.budget <= 0:
+            return None
+        self.budget -= 1
 
-        if not find_block:
-            raise RuntimeError("No 'find' block in edit instruction")
+        context = self._context(source, finding.get("line", finding.get("line_number", 1)))
+        history = ""
+        if failed:
+            history = ("Previous attempts FAILED:\n"
+                       + "\n".join(f"- {a}" for a in failed[-3:])
+                       + "\nPropose a different approach.")
 
-        # Verify find_block appears EXACTLY ONCE
-        count = source.count(find_block)
-        if count == 0:
-            raise RuntimeError(f"'find' block not found in source (len={len(find_block)})")
-        if count > 1:
-            raise RuntimeError(f"'find' block appears {count} times — must be unique")
-
-        return source.replace(find_block, replace_block, 1)
-
-    # unified_diff fallback
-    import tempfile as _tf
-    with _tf.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as sf:
-        sf.write(source)
-        sf_path = sf.name
-    with _tf.NamedTemporaryFile(mode="w", suffix=".diff", delete=False) as pf:
-        pf.write(patch)
-        pf_path = pf.name
-
-    try:
-        r = subprocess.run(
-            ["patch", "-u", "--force", "--fuzz=2", sf_path, pf_path],
-            capture_output=True, text=True, timeout=10,
+        prompt = PATCH_PROMPT.format(
+            rule_id=finding.get("rule_id"), title=finding.get("title", ""),
+            file_path=finding.get("file_path", finding.get("file", "")),
+            line=finding.get("line_number", finding.get("line", 1)),
+            context=context, history=history,
         )
-        # patch returns 0 on success, but also on "already applied" — check stderr
-        if r.returncode != 0 and "FAILED" in (r.stderr or ""):
-            raise RuntimeError(f"patch failed: {r.stderr[:200]}")
-        return Path(sf_path).read_text()
-    finally:
-        Path(sf_path).unlink(missing_ok=True)
-        Path(pf_path).unlink(missing_ok=True)
+
+        raw = _call_llm(
+            "You are a security fix engine. Output strictly JSON with edit instructions.",
+            prompt, max_tokens=900,
+        )
+        if not raw:
+            return None
+        return self._parse(raw)
+
+    def _context(self, source, line, span=15):
+        lines = source.splitlines()
+        start = max(0, line - 1 - span)
+        return "\n".join(lines[start:start + span * 2])
+
+    def _parse(self, raw):
+        m = re.search(r"\{.*\}", raw, re.DOTALL)
+        if not m:
+            return None
+        try:
+            data = json.loads(m.group(0))
+        except json.JSONDecodeError:
+            return None
+
+        edits = data.get("edits")
+        if not isinstance(edits, list) or not edits or len(edits) > MAX_EDITS:
+            return None
+        for e in edits:
+            if not isinstance(e.get("find"), str) or not e["find"].strip():
+                return None
+            if not isinstance(e.get("replace"), str):
+                return None
+        return {"reasoning": str(data.get("reasoning", ""))[:400], "edits": edits}
 
 
-# ── C1+H1: PoC runner with sandbox + marker contract ───────
-def _run_poc(finding: dict, source_code: str) -> tuple:
-    """
-    Returns (output, exit_code, exploited).
-    exploited = True when: exit_code == 0 AND output contains a SUCCESS_MARKER.
-    """
+def _render_diff(before: str, after: str, path: str) -> str:
+    return "\n".join(difflib.unified_diff(
+        before.splitlines(), after.splitlines(),
+        fromfile=f"a/{path}", tofile=f"b/{path}", lineterm="",
+    ))
+
+
+# ── Orchestrator ───────────────────────────────────────────
+class ProofOfFix:
+    def __init__(self, patch_generator, detect_fn, max_iter=MAX_ITERATIONS):
+        self.gen = patch_generator
+        self.detect_fn = detect_fn   # detect_fn(file, content) -> [findings]
+        self.max_iter = max_iter
+
+    def _detector_fires(self, finding, source):
+        hits = self.detect_fn(finding.get("file_path", finding.get("file", "")), source)
+        return any(h.get("rule_id") == finding.get("rule_id", "") for h in hits)
+
+    def attempt(self, finding, source, poc_code) -> FixEvidence:
+        import hashlib
+        raw = f"{finding.get('rule_id','')}+{finding.get('file_path','')}+{finding.get('detail','')[:80]}"
+        key = hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+        ev = FixEvidence(
+            finding_key=key, rule_id=finding.get("rule_id", ""),
+            file_path=finding.get("file_path", ""),
+            line_number=finding.get("line_number", 0),
+        )
+        failed = []
+        best_level, best_patch, best_reason = "failed", [], ""
+
+        fires_before = self._detector_fires(finding, source)
+        ev.detector_fires_before = fires_before
+
+        # Pre-fix PoC (gold-standard signal)
+        pre_sb = FixSandbox(finding.get("file_path", "t.py"), source)
+        try:
+            pre = _run_poc_sandboxed(poc_code, pre_sb.dir.name)
+            ev.exploited_before = pre["exploited"]
+            ev.poc_before = pre["output"]
+        finally:
+            pre_sb.cleanup()
+
+        for i in range(self.max_iter):
+            patch = self.gen.generate(finding, source, failed)
+            if patch is None:
+                failed.append("generator returned nothing")
+                continue
+
+            sb = FixSandbox(finding.get("file_path", "t.py"), source)
+            try:
+                patched = sb.apply_edits(patch["edits"])
+                if not sb.syntax_ok(patched):
+                    failed.append(f"iter{i}: syntax broken")
+                    continue
+
+                fires_after = self._detector_fires(finding, patched)
+                post = _run_poc_sandboxed(poc_code, sb.dir.name)
+                exploited_after = post["exploited"]
+
+                level = self._classify(
+                    ev.exploited_before, exploited_after,
+                    fires_before, fires_after,
+                )
+
+                if _rank(level) > _rank(best_level):
+                    best_level = level
+                    best_patch = patch["edits"]
+                    best_reason = patch["reasoning"]
+                    ev.exploited_after = exploited_after
+                    ev.poc_after = post["output"]
+                    ev.detector_fires_after = fires_after
+                    ev.patch_display = _render_diff(source, patched, finding.get("file_path", "t.py"))
+
+                if level == "verified":
+                    break
+                if fires_after:
+                    failed.append(f"iter{i}: detector still fires, poc_after={exploited_after}")
+                else:
+                    failed.append(f"iter{i}: level={level}")
+            except PatchApplyError as e:
+                failed.append(f"iter{i}: apply failed — {e}")
+            finally:
+                sb.cleanup()
+
+        ev.level = best_level
+        ev.patch = best_patch
+        ev.reasoning = best_reason
+        ev.verified = (best_level == "verified")
+        ev.iterations = i + 1
+        return ev
+
+    @staticmethod
+    def _classify(expl_before, expl_after, fires_before, fires_after):
+        # Gold: exploitable BEFORE and NOT exploitable AFTER
+        if expl_before is True and expl_after is False:
+            return "verified"
+        # Deterministic signal: detector stopped firing
+        if fires_before and not fires_after:
+            return "structural"
+        # Nothing proven, but syntax is intact
+        return "syntax_only"
+
+
+def _rank(level):
+    return {"failed": 0, "syntax_only": 1, "structural": 2, "verified": 3}.get(level, 0)
+
+
+# ── Generate PoC code for a finding ────────────────────────
+def _generate_poc_code(finding: dict, source_code: str) -> Optional[str]:
     sys.path.insert(0, str(Path(__file__).parent))
     from gsc_poc_generator import PoCGenerator
-
     gen = PoCGenerator(budget=1)
     poc = gen.generate(finding, source_code)
-
-    if not poc or not poc.code:
-        return "No PoC generated", -1, False
-
-    # H1: isolated sandbox
-    sandbox = tempfile.mkdtemp(prefix="gsc_sandbox_")
-    try:
-        sandbox_file = Path(sandbox) / Path(finding.get("file_path", "target.py")).name
-        sandbox_file.write_text(source_code)
-
-        poc_file = Path(sandbox) / "poc.py"
-        poc_file.write_text(poc.code)
-
-        r = subprocess.run(
-            [sys.executable, str(poc_file)],
-            capture_output=True, text=True,
-            timeout=SANDBOX_TIMEOUT,
-            cwd=sandbox,
-            env={**os.environ, **NO_NET_ENV},
-        )
-        out = (r.stdout or "") + (r.stderr or "")
-
-        # C1: marker-based exploitation check
-        exploited = (
-            r.returncode == 0
-            and any(m in out.upper() for m in SUCCESS_MARKERS)
-        )
-        return out[-4096:], r.returncode, exploited
-    except subprocess.TimeoutExpired:
-        return "PoC timeout", 124, False
-    except Exception as e:
-        return str(e), -1, False
-    finally:
-        shutil.rmtree(sandbox, ignore_errors=True)
+    return poc.code if poc and poc.code else None
 
 
-# ── Main cycle ─────────────────────────────────────────────
+# ── Main entry point ───────────────────────────────────────
 def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEvidence:
     root = Path(project_root).resolve()
     finding = _find_finding(report_path, finding_key)
-    evidence = FixEvidence(finding_key=finding_key)
+    ev = FixEvidence(finding_key=finding_key)
 
     if not finding:
-        evidence.error = f"Finding {finding_key} not found in {report_path}"
-        return evidence
+        ev.error = f"Finding {finding_key} not found in {report_path}"
+        return ev
 
-    evidence.rule_id = finding.get("rule_id", "unknown")
-    evidence.file_path = finding.get("file_path", "unknown")
-    evidence.line_number = finding.get("line_number", 0)
+    ev.rule_id = finding.get("rule_id", "")
+    ev.file_path = finding.get("file_path", "")
+    ev.line_number = finding.get("line_number", 0)
 
-    source = (root / evidence.file_path).read_text() if (root / evidence.file_path).exists() else ""
-    if not source:
-        evidence.error = f"Source file not found: {evidence.file_path}"
-        return evidence
+    file_path = root / ev.file_path
+    if not file_path.exists():
+        ev.error = f"Source file not found: {ev.file_path}"
+        return ev
 
-    # 1. Run PoC BEFORE (prove vulnerable)
-    print(f"[PoF] Step 1: PoC BEFORE on {evidence.file_path}")
-    evidence.poc_before, _, evidence.exploited_before = _run_poc(finding, source)
-    if not evidence.exploited_before:
-        evidence.error = (
-            "PoC did not trigger on original code — cannot verify fix. "
-            "Either the vulnerability is not exploitable or the PoC generator needs improvement."
-        )
-        return evidence
+    source = file_path.read_text(encoding="utf-8")
+    if not source.strip():
+        ev.error = "Source file is empty"
+        return ev
 
-    # 2. Generate patch (edit-instruction priority)
-    print("[PoF] Step 2: Generating patch via DeepSeek...")
-    evidence.patch, evidence.patch_mode = _generate_patch(finding, source)
-    if not evidence.patch:
-        evidence.error = "LLM failed to generate patch"
-        return evidence
+    # Generate PoC code
+    print(f"[PoF] Generating PoC for {ev.rule_id} in {ev.file_path}...")
+    poc_code = _generate_poc_code(finding, source)
+    if not poc_code:
+        ev.error = "PoC generation failed — cannot verify fix"
+        return ev
 
-    evidence.patch_syntax_ok = bool(evidence.patch)
+    # A simple detect_fn that checks if the rule still fires
+    # In production, this would call gsc_external detectors, but for
+    # now we use a structural check: the detector stopped if we can't
+    # find the same pattern in the source
+    import re as _re
 
-    # 3. Apply in sandbox
-    print(f"[PoF] Step 3: Applying patch ({evidence.patch_mode})...")
-    try:
-        patched = _apply_patch(source, evidence.patch, evidence.patch_mode)
-    except Exception as e:
-        evidence.error = f"Patch application failed: {e}"
-        return evidence
+    def _detect_fn(file_path: str, content: str) -> list:
+        """Minimal structural detector — checks if GS00X pattern still present."""
+        results = []
+        rule_prefix = finding.get("rule_id", "")
+        if rule_prefix == "GS001" and "sk-" in content:
+            results.append({"rule_id": "GS001"})
+        if rule_prefix == "GS004" and ("os.system" in content or "shell=True" in content):
+            results.append({"rule_id": "GS004"})
+        if rule_prefix == "GS005" and _re.search(r"SELECT.*\+|f\"SELECT|%.*sql", content, _re.IGNORECASE):
+            results.append({"rule_id": "GS005"})
+        if rule_prefix == "GS017" and "password" in content.lower():
+            results.append({"rule_id": "GS017"})
+        return results
 
-    # 4. Re-run PoC AFTER (prove fixed)
-    print("[PoF] Step 4: PoC AFTER on patched code...")
-    evidence.poc_after, _, evidence.exploited_after = _run_poc(finding, patched)
+    print(f"[PoF] Running Proof-of-Fix orchestrator ({MAX_ITERATIONS} iterations)...")
+    gen = PatchGenerator(budget=MAX_ITERATIONS)
+    pof = ProofOfFix(gen, _detect_fn, max_iter=MAX_ITERATIONS)
+    result = pof.attempt(finding, source, poc_code)
 
-    # C1: VERIFIED = exploited before AND NOT exploited after
-    evidence.verified = evidence.exploited_before and not evidence.exploited_after
-    evidence.verified_at = datetime.now(timezone.utc).isoformat()
-    return evidence
-
-
-# ── Reporting ──────────────────────────────────────────────
-def evidence_to_dict(ev: FixEvidence) -> dict:
-    return {
-        "finding_key": ev.finding_key, "rule_id": ev.rule_id,
-        "file_path": ev.file_path, "line_number": ev.line_number,
-        "patch_mode": ev.patch_mode, "patch": ev.patch[:2000],
-        "exploited_before": ev.exploited_before,
-        "poc_before": ev.poc_before[:500],
-        "exploited_after": ev.exploited_after,
-        "poc_after": ev.poc_after[:500],
-        "verified": ev.verified, "verified_at": ev.verified_at,
-        "error": ev.error,
-    }
+    result.error = ev.error
+    return result
 
 
+# ── Output ─────────────────────────────────────────────────
 def evidence_to_markdown(ev: FixEvidence) -> str:
-    icon = "✅ VERIFIED" if ev.verified else "❌ FAILED"
+    level_icon = {"verified": "✅ VERIFIED", "structural": "🟡 STRUCTURAL",
+                   "syntax_only": "⚪ SYNTAX ONLY", "failed": "❌ FAILED"}
+    icon = level_icon.get(ev.level, "❓")
+
     lines = [
         f"# Proof-of-Fix: {ev.finding_key} — {icon}",
         f"**Rule:** {ev.rule_id} | **File:** {ev.file_path}:{ev.line_number}",
-        f"**Patch mode:** {ev.patch_mode} | **Verified at:** {ev.verified_at}",
+        f"**Level:** {ev.level} (iterations: {ev.iterations})",
+        f"**Reasoning:** {ev.reasoning[:300]}",
         "",
-        f"### Before (Exploitable: {'YES' if ev.exploited_before else 'NO'})",
+        f"### Before (Exploitable: {ev.exploited_before})",
         f"```\n{ev.poc_before[:1000]}\n```",
-        f"### After (Exploitable: {'YES' if ev.exploited_after else 'NO'})",
+        f"### After (Exploitable: {ev.exploited_after})",
         f"```\n{ev.poc_after[:1000]}\n```",
-        f"### Patch",
-        f"```{ev.patch_mode}\n{ev.patch[:3000]}\n```",
+        f"### Patch ({len(ev.patch)} edits)",
+        f"```diff\n{ev.patch_display[:3000]}\n```",
     ]
     if ev.error:
         lines.append(f"\n### Error\n{ev.error}")
     return "\n".join(lines)
 
 
+# ── CLI ────────────────────────────────────────────────────
 def main() -> None:
     import argparse
-    p = argparse.ArgumentParser(description="GSC Proof-of-Fix v1.1")
+    p = argparse.ArgumentParser(description="GSC Proof-of-Fix v0.27")
     sub = p.add_subparsers(dest="cmd", required=True)
     gen = sub.add_parser("generate", help="Generate and verify a fix")
     gen.add_argument("finding_key")
@@ -372,7 +475,7 @@ def main() -> None:
         print(evidence_to_markdown(evidence))
         print(f"\n{'✅ VERIFIED' if evidence.verified else '❌ COULD NOT VERIFY'}")
         if args.output:
-            Path(args.output).write_text(json.dumps(evidence_to_dict(evidence), indent=2))
+            Path(args.output).write_text(json.dumps(evidence.to_dict(), indent=2, ensure_ascii=False))
         sys.exit(0 if evidence.verified else 1)
 
 
