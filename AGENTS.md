@@ -1,53 +1,41 @@
 # AGENTS.md — GSC
 
-> Навигация для AI-агентов. Git Security Checker — self-learning audit system.
-> Обновлено: 2026-08-04 (v0.11 — Self-Learning v2, GS024 LLM detector, честные метрики)
+> Навигация для AI-агентов. Git Security Checker — production security scanner.
+> Обновлено: 2026-08-06 (v0.26 — Blocking CRITICAL+HIGH, rollout Phase 5 complete)
+>
+> **Версия:** v0.26 | **Детекторов:** 25 | **Schema:** 23 | **Файлов:** ~35
+> **Статус:** Production — blocking-standard
 
 ## Что это
 
-Пятистадийный аудитор кода с самообучением. 400+ паттернов, 18 plugin-детекторов, SQLite DB, Obsidian-отчёты.
-Каждая находка становится паттерном для будущих аудитов.
+GSC — production-сканер безопасности с LLM-ревалидацией. 
+25 детекторов (GS001–GS025 + GS028), PoC Auto-Generation, 
+Exploit Chain Composer, Temporal Mutation Tracker, Security Invariant Engine,
+Blocking Engine с авто-политикой на основе вердиктов сообщества.
 
-Архитектура вдохновлена Deepsec (Vercel Labs): scan → revalidate → export, per-file state, structured verdicts.
+**Быстрый старт:** `gsc external-scan /path/to/repo --profile developer-review`
 
 ## Структура
 
 ```
 gsc/
-├── gsc.py                ← CLI entry point (15 команд)
-├── gsc_detectors/        ← Plugin detector system (v0.9, 18 детекторов)
-│   ├── __init__.py       ← AuditContext, Finding (noise_tier), Detector interface
-│   ├── registry.py       ← ALL_DETECTORS, get_detectors(), run_detectors()
-│   ├── gs001_hardcoded_secret.py   ← API keys, tokens, passwords, PAN/CVV/Track/IBAN
-│   ├── gs002_world_readable.py     ← Sensitive files (perms)
-│   ├── gs003_debug_prints.py       ← print() / console.log in production
-│   ├── gs004_dangerous_subprocess.py ← shell=True, eval, exec
-│   ├── gs005_sql_injection.py      ← f-string SQL, raw queries
-│   ├── gs007_idor.py              ← BAC: IDOR + fintech-IDOR (payment methods, transactions, statements) — 35 patterns, v2.2
-│   ├── gs008_dead_code.py         ← Constants never used
-│   ├── gs009_supply_chain.py      ← Bumblebee scanner (npm/PyPI/Go/MCP)
-│   ├── gs010_ssh_hardening.py     ← sshd_config weakness
-│   ├── gs011_jwt_vulnerabilities.py ← alg:none, weak secrets
-│   ├── gs012_mass_assignment.py   ← 🆕 Django/FastAPI/Rails/GraphQL
-│   ├── gs013_graphql_security.py  ← 🆕 introspection, depth limiting
-│   ├── gs014_credential_exposure.py ← SAM, DPAPI, unattend, sudoers
-│   ├── gs015_entry_points.py      ← Noisy matcher: all HTTP handlers
-│   ├── gs016_linux_priv_esc.py    ← 🆕 SUID, cron hijack, capabilities, sudo NOPASSWD
-│   ├── gs017_weak_passwords.py    ← 🆕🆕 Default creds, Docker defaults, short passwords
-│   ├── gs018_payment_abuse.py     ← 🆕🆕 Payment logic, idempotency, promos, race conditions
-│   └── gs019_auth_session.py      ← 🆕🆕 Auth/session: SMS exhaustion, JWT, cookie flags, OTP
-│   ├── gs020_xss_injection.py     ← 🆕🆕🆕 XSS/HTML/SSTI: reflected, stored, DOM, template injection (Web Hacking 101)
-│   ├── gs021_csrf_ssrf.py         ← 🆕🆕🆕 CSRF/SSRF: missing tokens, internal URL fetches (Bug Hunting)
-│   ├── gs022_open_redirect.py     ← 🆕🆕🆕 Open Redirect: redirect params, URL bypass (Web Hacking 101)
-│   └── gs023_race_conditions.py   ← 🆕🆕🆕 Race Conditions: TOCTOU, double-spend, async races (Bug Hunting)
-│   └── gs024_llm_sqli.py          ← 🆕🆕🆕🆕 LLM-based SQLi detector (pilot, replaces 87 regex patterns)
-├── gsc_resume.py         ← 🆕 FileStateManager (per-file scan state)
-├── gsc_revalidate.py     ← 🆕 Structured revalidator (TP/FP/Fixed/Uncertain)
-├── patterns/             ← Seed patterns (OWASP, CWE, 7 languages)
-├── scripts/              ← Self-learn, export, metrics, CI, config
-├── tests/                ← Corpus tests (8/8)
-├── AGENTS.md             ← This file
-└── README.md             ← User docs
+├── gsc.py                ← CLI (30+ команд)
+├── gsc_external.py       ← External Scanner v0.26
+├── gsc_github_adapter.py ← GitHub PR Adapter (priority truncation)
+├── gsc_blocking.py       ← v0.25/26 Blocking Engine
+├── gsc_poc_generator.py  ← v0.17 PoC Auto-Generation
+├── gsc_chain_composer.py ← v0.18/v0.21 Exploit Chain Composer
+├── gsc_mutation_tracker.py ← v0.19 Temporal Mutation Tracker
+├── gsc_invariant_engine.py ← v0.20 Security Invariant Engine
+├── gsc_ast_dataflow.py   ← v0.21 Python AST taint tracking
+├── gsc_revalidate.py     ← Structured LLM revalidator
+├── gsc_db.py             ← SQLite wrapper, schema 23
+├── gsc_detectors/        ← 25 детекторов (GS001–GS028)
+├── calibration/          ← 17 проектов (11 clean + 6 vuln)
+├── scripts/              ← dry-run, feedback, metrics, self-learning
+├── .github/workflows/    ← 5 CI workflows
+├── tests/test_corpus.py  ← 67/67
+└── PROJECT.md AGENTS.md README.md LICENSE
 ```
 
 ## Как запускать
@@ -55,64 +43,37 @@ gsc/
 ```bash
 cd ~/gsc
 
-# Scan
-python3 gsc.py scan <project>                       # полный аудит
-python3 gsc.py scan <project> --resume              # 🆕 продолжить прерванный скан
-python3 gsc.py scan <project> --deep                # LLM-анализ
-python3 gsc.py scan <project> --diff                # только изменённые файлы
-python3 gsc.py scan <project> --json                # JSON-вывод
+# Основной скан (regex + LLM)
+python3 gsc_external.py scan <repo> --profile developer-review
 
-# Revalidate (Deepsec-inspired)
-python3 gsc.py revalidate <project>                 # 🆕 перепроверить находки (LLM)
-python3 gsc.py revalidate <project> --no-llm        # 🆕 только эвристики (бесплатно)
-python3 gsc.py revalidate <project> --min-severity HIGH
+# Diff-режим (только изменения)
+python3 gsc_external.py scan . --mode diff --base origin/main --head HEAD
 
-# Status
-python3 gsc.py status <project>                     # 🆕 прогресс скана (resume-aware)
+# С доп. фичами
+gsc external-scan <repo> --with-poc --with-chains --fail-on-blocking
 
-# Other
-python3 gsc.py init                                 # инициализация
-python3 gsc.py dashboard                            # веб-дашборд (:8080)
-python3 gsc.py patterns --list                      # список паттернов
-python3 gsc.py triage <project>                     # ручная разметка TP/FP
-python3 gsc.py explain <id>                         # CVSS + анализ
-python3 gsc.py fix <id>                             # AI-патч
-python3 gsc.py metrics                              # precision/recall
-python3 gsc.py db "SELECT COUNT(*) FROM findings"   # прямой SQL
+# GitHub PR
+gsc github-scan <pr-url> --post-comment --create-check
+
+# Вердикты (из PR или CLI)
+gsc feedback <finding_key> --verdict tp|fp|fixed
+# или в PR-комментарии: /gsc fp <key> причина
+
+# Метрики
+gsc metrics --rollout | --detectors
+gsc rollout report
+python3 tests/test_corpus.py         # 67/67
 ```
 
 ## Архитектура
 
 ```
-gsc scan <project>
-  ├── load_patterns (DB + seed files, noise-tier приоритизация)
-  ├── E1: Source-driven (grep + precise-tier detectors)
-  ├── E2: Security (regex + permissions + normal-tier detectors)
-  ├── E3: Adversarial (semantic + noisy-tier detectors)
-  ├── E4: LLM deep analysis (--deep, опционально)
-  ├── post-filters: docstring/comment, framework-aware, reachability
-  └── save_findings → SQLite + Obsidian
-       ↓
-gsc revalidate <project>  ← 🆕 Deepsec-inspired
-  ├── Heuristic pre-checks (test files, docs, placeholders)
-  ├── Git history check (was this fixed?)
-  ├── LLM structured analysis (DeepSeek)
-  └── Verdict: true-positive / false-positive / fixed / uncertain
-```
-
-### Pipeline (Deepsec-inspired)
-
-```
-         scan              revalidate            export
-          │                    │                    │
-          ▼                    ▼                    ▼
-   candidates  →   findings    TP/FP/Fixed   →  JSON / Obsidian
-   (regex+15      (LLM verify)  (structured      (markdown +
-   detectors)                    verdicts)        SARIF)
-        │                      │
-        └── resume ────────────┘
-      (per-file state, idempotent,
-       можно продолжить с места падения)
+external-scan → regex detectors (24) → LLM revalidate (DeepSeek)
+  ├── PoC Generator (curl exploit for confirmed findings)
+  ├── Chain Composer (SQLi→RCE, SSRF→IDOR chains)
+  ├── Mutation Tracker (рецидивы «починенных» уязвимостей)
+  ├── Invariant Engine (policy-as-code, AST taint)
+  └── Blocking Engine (CRITICAL≥90%, HIGH≥85%, auto-policy)
 ```
 
 ### Plugin Detector System (v0.9 — 18 detectors)
