@@ -1787,6 +1787,27 @@ def main():
     status = sub.add_parser('status', help='Show scan progress (resume-aware)')
     status.add_argument('project', help='Project name or path')
 
+    # gsc workspace
+    ws = sub.add_parser('workspace', help='Multi-repo workspace management')
+    ws_sub = ws.add_subparsers(dest='ws_cmd', required=True)
+    ws_create = ws_sub.add_parser('create', help='Create workspace')
+    ws_create.add_argument('name')
+    ws_create.add_argument('--description', default='')
+    ws_add = ws_sub.add_parser('add', help='Add repo to workspace')
+    ws_add.add_argument('workspace')
+    ws_add.add_argument('repo')
+    ws_add.add_argument('--alias', default='')
+    ws_scan = ws_sub.add_parser('scan', help='Scan workspace repos')
+    ws_scan.add_argument('workspace')
+    ws_scan.add_argument('--scan-mode', choices=['quick', 'standard', 'deep'], default='standard')
+    ws_scan.add_argument('--profile', default='developer-review')
+    ws_rep = ws_sub.add_parser('report', help='Workspace report')
+    ws_rep.add_argument('workspace')
+    ws_rep.add_argument('--format', choices=['json', 'markdown'], default='markdown')
+    ws_sub.add_parser('list', help='List workspaces')
+    ws_del = ws_sub.add_parser('delete', help='Delete workspace')
+    ws_del.add_argument('name')
+
     # gsc dork
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
     dork.add_argument('org', help='GitHub organization or company name')
@@ -1904,6 +1925,24 @@ def main():
         cmd_revalidate(args)
     elif args.command == "status":
         cmd_status(args)
+    elif args.command == "workspace":
+        from gsc_workspace import (
+            workspace_create, workspace_add, workspace_scan,
+            workspace_report, workspace_list, workspace_delete,
+        )
+        if args.ws_cmd == 'create':
+            workspace_create(args.name, args.description)
+        elif args.ws_cmd == 'add':
+            workspace_add(args.workspace, args.repo, args.alias)
+        elif args.ws_cmd == 'scan':
+            workspace_scan(args.workspace, args.scan_mode, args.profile)
+        elif args.ws_cmd == 'report':
+            print(workspace_report(args.workspace, args.format))
+        elif args.ws_cmd == 'list':
+            workspace_list()
+        elif args.ws_cmd == 'delete':
+            workspace_delete(args.name)
+
     elif args.command == "dork":
         if args.list:
             subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), "--list-dorks"])
