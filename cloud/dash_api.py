@@ -96,3 +96,68 @@ def usage_summary(request: Request):
         "scans_this_month": month["scans"] if month else 0,
         "llm_calls_this_month": month["llm_calls"] if month else 0,
     }
+
+
+# ── Helpers ─────────────────────────────────────────────
+
+def _plan_of(tid: int) -> str:
+    db = control_plane()
+    row = db.fetchone("SELECT plan FROM tenants WHERE id = ?", (tid,))
+    return row["plan"] if row else "free"
+
+
+# ── Audit log (Business+) ───────────────────────────────
+
+import json as _json
+from cloud import audit
+
+
+@router.get("/audit")
+def audit_log(request: Request, limit: int = 200,
+              action: str | None = None):
+    _, tid = _ctx(request)
+    if _plan_of(tid) not in ("business", "enterprise"):
+        raise HTTPException(402, "audit log requires Business plan")
+    db = control_plane(tid)
+    sql = ("SELECT id, actor, action, resource_type, resource_id, "
+           "detail, created_at FROM audit_events WHERE tenant_id = ?")
+    params: list = [tid]
+    if action:
+        sql += " AND action = ?"
+        params.append(action)
+    sql += " ORDER BY id DESC LIMIT ?"
+    params.append(min(limit, 1000))
+    rows = db.query(sql, tuple(params))
+    return {"events": [_redact_event(r) for r in rows]}
+
+
+@router.get("/audit/export")
+def audit_export(request: Request):
+    _, tid = _ctx(request)
+    if _plan_of(tid) not in ("business", "enterprise"):
+        raise HTTPException(402, "audit log requires Business plan")
+    db = control_plane(tid)
+    rows = db.query("SELECT * FROM audit_events WHERE tenant_id = ? "
+                    "ORDER BY id", (tid,))
+    events = [_redact_event(r) for r in rows]
+    return {"events": events,
+            "chain": audit.verify_chain(db, tid)}
+
+
+def _redact_event(row: dict) -> dict:
+    """Redaction поверх detail — секреты не покидают контур."""
+    out = dict(row)
+    detail = out.get("detail")
+    if isinstance(detail, str):
+        detail = _json.loads(detail)
+    # Strip anything looking like a token/key from detail
+    if isinstance(detail, dict):
+        out["detail"] = {
+            k: v for k, v in detail.items()
+            if not any(secret_marker in k.lower()
+                       for secret_marker in ("key", "secret", "token",
+                                              "password", "credential"))
+        }
+    else:
+        out["detail"] = detail
+    return out
