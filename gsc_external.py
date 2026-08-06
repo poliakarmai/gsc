@@ -931,9 +931,18 @@ def _resolve_diff_base(repo_path: Path, base: str) -> str:
 def run_external_scan(target: str, profile_name: str = "developer-review",
                       mode: str = "full", ref: str = "main",
                       base: str = "", head: str = "",
-                      dry_run: bool = False) -> ScanResult:
+                      dry_run: bool = False,
+                      scan_mode: str = "standard") -> ScanResult:
     policy = PROFILES.get(profile_name, PROFILES["developer-review"])
     mode = mode or policy.get("mode", "full")
+
+    # Apply scan mode overrides (quick/standard/deep)
+    if scan_mode:
+        try:
+            from gsc_scan_modes import apply_scan_mode
+            policy = apply_scan_mode(policy, scan_mode)
+        except ImportError:
+            pass
 
     # Phase 1: auto-degrade to regex-only on empty API key
     use_llm_flag = True
@@ -1335,6 +1344,7 @@ def main():
     scan.add_argument("target", help="GitHub URL or local path")
     scan.add_argument("--profile", choices=list(PROFILES.keys()), default="developer-review")
     scan.add_argument("--mode", choices=["full", "diff", "pr"])
+    scan.add_argument("--scan-mode", choices=["quick", "standard", "deep"], default="standard")
     scan.add_argument("--ref", default="main")
     scan.add_argument("--base", default="", help="Base ref for diff mode (e.g. origin/main)")
     scan.add_argument("--head", default="HEAD", help="Head ref for diff mode")
@@ -1357,7 +1367,8 @@ def main():
 
     if args.command == "scan":
         result = run_external_scan(args.target, args.profile, args.mode, args.ref,
-                                   getattr(args, 'base', ''), getattr(args, 'head', 'HEAD'))
+                                   getattr(args, 'base', ''), getattr(args, 'head', 'HEAD'),
+                                   scan_mode=getattr(args, 'scan_mode', 'standard'))
 
         # Output directory
         name = args.target.rstrip("/").split("/")[-1].replace(".git", "")

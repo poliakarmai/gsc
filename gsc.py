@@ -1803,6 +1803,7 @@ def main():
     ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
     ext.add_argument('target', help='GitHub URL or local path')
     ext.add_argument('--mode', choices=['full', 'pr', 'diff'], default='full')
+    ext.add_argument('--scan-mode', choices=['quick', 'standard', 'deep'], help='Scan depth (overrides profile settings)')
     ext.add_argument('--ref', default='main', help='Branch/tag')
     ext.add_argument('--max-llm', type=int, default=50, help='Max LLM calls')
     ext.add_argument('--output', '-o', help='Output file')
@@ -1928,7 +1929,7 @@ def main():
                 if val: ext_args.append(val)
                 break
         for opt in ["mode", "ref", "format", "output", "verdict", "reason",
-                    "profile", "base", "head"]:
+                    "profile", "base", "head", "scan-mode"]:
             if hasattr(args, opt):
                 val = getattr(args, opt)
                 if val: ext_args.extend([f"--{opt.replace('_','-')}", str(val)])
