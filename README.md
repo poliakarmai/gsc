@@ -266,6 +266,6 @@ GSC is licensed under the **Business Source License 1.1**.
 
 🔓 Each version converts to **Apache 2.0** after 4 years (Change Date: 2030-08-06).
 
-Commercial licensing: poliakarm@proton.me
+Commercial licensing: armyanao@gmail.com
 
 © 2026 Алексей Поляков
