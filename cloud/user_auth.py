@@ -86,3 +86,40 @@ def grant_owner_on_first_install(db, user_id: int, github_login: str):
         WHERE gi.org_login = ?
         ON CONFLICT (user_id, tenant_id) DO NOTHING
     """, (user_id, github_login))
+
+
+# ── FastAPI auth routes ───────────────────────────────────
+
+from fastapi import APIRouter, HTTPException, Response
+from cloud.dedup import DeliveryDedup
+from cloud import session
+from cloud.store import control_plane
+
+auth_router = APIRouter()
+dedup_store = DeliveryDedup()
+
+
+@auth_router.post("/api/v2/auth/github/begin")
+def auth_begin():
+    url, _ = begin_login(dedup_store)
+    return {"url": url}
+
+
+@auth_router.post("/api/v2/auth/github/callback")
+def auth_callback(code: str, state: str, response: Response):
+    try:
+        gh_user = complete_login(code, state, dedup_store)
+    except OAuthError as e:
+        raise HTTPException(401, str(e))
+    db = control_plane()
+    user_id = upsert_user(db, gh_user)
+    grant_owner_on_first_install(db, user_id, gh_user["login"])
+    db.commit()
+    tenant = db.fetchone("""
+        SELECT tenant_id FROM memberships WHERE user_id = ?
+        ORDER BY (role != 'owner'), created_at LIMIT 1
+    """, (user_id,))
+    tid = tenant["tenant_id"] if tenant else None
+    cookie = session.issue(user_id, tid)
+    response.set_cookie("gsc_session", cookie, **session.COOKIE_OPTS)
+    return {"ok": True, "tenant_id": tid}
