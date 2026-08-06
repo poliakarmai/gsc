@@ -944,11 +944,14 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         except ImportError:
             pass
 
-    # Phase 1: auto-degrade to regex-only on empty API key
+    # Phase 1: auto-degrade to regex-only on empty API key or quick mode
     use_llm_flag = True
     if not os.environ.get("DEEPSEEK_API_KEY"):
         print("⚠️  DEEPSEEK_API_KEY not set → LLM stages disabled (regex-only mode)",
               file=sys.stderr)
+        use_llm_flag = False
+    # scan_mode override (e.g. quick → no LLM)
+    if not policy.get("llm_enabled", True):
         use_llm_flag = False
 
     result = ScanResult(
