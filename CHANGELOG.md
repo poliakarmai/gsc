@@ -1,40 +1,64 @@
-# GSC v0.4.0 — Adaptive Audit Release
+# GSC Cloud 1.0 — Changelog
 
-## Core
-- 277 seed patterns across 7 languages (Python, Go, TS, Rust, Java, Docker, Terraform)
-- 3 audit echelons: Source-driven → Security → Adversarial
-- E4 LLM deep analysis via OpenRouter API (optional, `--deep`)
-- 8/8 corpus tests passing
-- 88% FP reduction: language filter + framework-aware AST filter
+> Release: 2026-08-06 | Version: 1.0.0 | Tests: 98/98
 
-## Triage & Learning
-- Interactive triage with pattern-skip and inline explain
-- Bulk triage by pattern (`--group-by pattern`)
-- Auto-deactivation: patterns with <30% effectiveness disabled automatically
-- Precision/recall metrics dashboard
+## What is GSC Cloud?
 
-## CI/CD
-- SARIF 2.1.0 export for GitHub Code Scanning
-- Diff-only scan (`--diff`) for PRs
-- Smart pre-commit hook (baseline-aware, only blocks NEW critical)
-- Helm chart for Kubernetes (CronJob-based)
+Git Security Checker Cloud — multi-tenant SaaS scanner with LLM revalidation,
+now with full billing, SSO, audit log, and marketplace distribution.
 
-## DX
-- `gsc fix` — AI-generated patch via OpenRouter
-- `gsc issue` — create Jira/Linear tickets from findings
-- `gsc report` — HTML/PDF export
-- HTML report with styled cards, badges, severity indicators
-- `gsc config` — user settings (vault path, API keys, excludes)
-- VSCode extension (read-only diagnostic markers)
-- `pyproject.toml` — `pip install -e .` → `gsc scan`
+## Journey
 
-## Marketplace & Ecosystem
-- Pattern marketplace: export/import patterns as YAML
-- 217 Python patterns @ 91.9% average effectiveness
-- DB encryption (Fernet AES-128)
-- Obsidian vault integration
+| Version | Milestone |
+|---|---|
+| v0.11 | MVP: regex + LLM scanner |
+| v0.21–v0.26 | Production rollout: CI, feedback, blocking engine |
+| S1 (v0.27) | Multi-tenant: PG + RLS + queue + API keys |
+| S2 (v0.28) | GitHub App: webhooks, deep subsystems in PG |
+| S3 (v0.30) | Dashboard + Stripe: product layer |
+| S4 (v1.0) | Trust & Growth: audit, SSO, DPA, marketplace |
 
-## Project Audit Results
-- bybit-ws: 388 → 46 findings after filters
-- pci-index: 62 findings audited, 0 critical remaining
-- Total: 358 findings in database, 8 audit runs
+## Features (Cloud 1.0)
+
+- **25 detectors** (GS001–GS028) with LLM revalidation
+- **Multi-tenant** with PostgreSQL RLS isolation
+- **GitHub App** integration: PR gate, /gsc commands, verdicts
+- **Web Dashboard** (Next.js): repos, findings, chains, mutations, usage
+- **GitHub OAuth** + **SSO (OIDC)** for Business+
+- **Stripe billing**: seat-based subscriptions, webhook, idempotent
+- **GitHub Marketplace**: plan sync via signed webhook
+- **Audit log** with hash chain (tamper-evident, SOC 2 ready)
+- **DPA/GDPR**: 30-day grace deletion flow, data classification
+- **Observability**: health, readiness, metrics
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Scanner core | Python, regex + DeepSeek LLM |
+| Cloud backend | FastAPI + PostgreSQL 16 + Redis |
+| Dashboard | Next.js 14 + TypeScript |
+| Billing | Stripe |
+| Auth | GitHub OAuth + OIDC SSO |
+| Isolation | Row-Level Security (FORCE RLS) |
+
+## GA Gate
+
+| Criterion | Status |
+|---|---|
+| Tests (98/98 cloud + 8/8 core) | ✅ |
+| Calibration (17/17) | ✅ |
+| RLS multi-tenant isolation | ✅ |
+| Stripe webhook idempotent | ✅ |
+| Audit hash chain verified | ✅ |
+| DPA + deletion flow | ✅ |
+| SOC 2 controls map | ✅ |
+| Evidence pack automatable | ✅ |
+
+## What's Next (S5+)
+
+- SOC 2 Type I audit (external auditor)
+- GitHub Marketplace listing approval
+- SSO provider-specific guides (Okta, Azure AD, Google)
+- Overage purchases (v2 billing)
+- SOC 2 Type II (observation period started)
