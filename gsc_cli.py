@@ -4,4 +4,5 @@ import sys
 import gsc
 
 if __name__ == "__main__":
-    sys.exit(gsc.main(sys.argv[1:]))
+    sys.argv[0] = "gsc"
+    gsc.main()
