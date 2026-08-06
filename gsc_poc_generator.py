@@ -160,6 +160,8 @@ class PoCGenerator:
             f"Code:\n{ctx}\n\n"
             f"Format: {fmt}\n"
             f"Use placeholder values ONLY. One request/script. No destructive actions.\n"
+            f'CRITICAL: If the exploit succeeds, print exactly "VULNERABLE" on its own line before exiting with code 0.\n'
+            f'If the target is safe, print "SAFE" and exit 1.\n'
             f'Output JSON: {{"code": "...", "impact": "one sentence"}}'
         )
 

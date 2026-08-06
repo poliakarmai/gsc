@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 23
+TARGET_VERSION = 24
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -135,6 +135,33 @@ INDEXES_V022 = [
 ]
 
 
+SCHEMA_V024 = """
+CREATE TABLE IF NOT EXISTS secret_fingerprints (
+    fingerprint TEXT PRIMARY KEY,
+    first_seen TEXT NOT NULL,
+    last_seen TEXT NOT NULL,
+    repo_count INTEGER DEFAULT 1,
+    total_sightings INTEGER DEFAULT 1,
+    rotated INTEGER DEFAULT 0,
+    rotation_detected_at TEXT,
+    status TEXT DEFAULT 'active'
+);
+CREATE TABLE IF NOT EXISTS secret_sightings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    fingerprint TEXT NOT NULL,
+    repo_path TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    line_number INTEGER,
+    prev_fingerprint TEXT,
+    next_fingerprint TEXT,
+    seen_at TEXT NOT NULL,
+    FOREIGN KEY (fingerprint) REFERENCES secret_fingerprints(fingerprint)
+);
+CREATE INDEX IF NOT EXISTS idx_sightings_repo ON secret_sightings(repo_path);
+CREATE INDEX IF NOT EXISTS idx_sightings_fp ON secret_sightings(fingerprint);
+CREATE INDEX IF NOT EXISTS idx_sightings_loc ON secret_sightings(repo_path, file_path, line_number);
+"""
+
 SCHEMA_V023 = """
 CREATE TABLE IF NOT EXISTS overrides (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -179,6 +206,8 @@ class GSCDatabase:
             self._apply_v022()
         if version < 23:
             self._apply_v023()
+        if version < 24:
+            self._apply_v024()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -234,6 +263,10 @@ class GSCDatabase:
             return row["v"] or 0
         except sqlite3.OperationalError:
             return 0
+
+    def _apply_v024(self):
+        """Schema v24: cross-repo secret fingerprints + sightings."""
+        self.conn.executescript(SCHEMA_V024)
 
     def _backup(self):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

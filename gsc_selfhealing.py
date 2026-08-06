@@ -51,6 +51,10 @@ def _eligible_for_autofix(f_: dict) -> bool:
     if conf < 0.80:
         return False
 
+    # Guard: never auto-fix findings from auto-fix PRs (C5)
+    if f_.get("source") == "gsc-autofix":
+        return False
+
     # Don't auto-fix findings already resolved
     if verdict in ("fp", "fixed", "false-positive"):
         return False
@@ -88,6 +92,8 @@ def autofix(report_path: str, project_root: str = ".",
 
     fixed_count = 0
     for f_ in eligible[:max_fixes]:
+        f_["source"] = "gsc-autofix"  # loop guard
+        f_["source"] = "gsc-autofix"  # mark for loop guard
         key = _finding_key(f_)
         print(f"\n[Self-Heal] Processing {key} — {f_.get('rule_id')} {f_.get('category')}")
 

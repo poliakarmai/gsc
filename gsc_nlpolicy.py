@@ -132,14 +132,20 @@ def _compile_policy(natural_text: str) -> Optional[dict]:
     return None
 
 
+# C2: ReDoS guard — sync with GS028 MAX_PATTERN_LEN
+MAX_POLICY_PATTERN_LEN = 200
+POLICY_TEST_TIMEOUT = 10  # seconds per repo scan
+
 def _validate_pattern(pattern: str) -> bool:
-    """Validate regex compiles and isn't dangerous."""
+    """Validate regex compiles, isn't too long, and isn't dangerous."""
     import re
+    if not pattern or len(pattern) > MAX_POLICY_PATTERN_LEN:
+        return False
+    # Simple ReDoS check: nested quantifiers like (a+)+ or (a*)*
+    if re.search(r'\([^)]*[+*]\)[+*]', pattern):
+        return False
     try:
         re.compile(pattern)
-        # Reject catastrophic backtracking patterns
-        if len(pattern) > 500:
-            return False
         return True
     except re.error:
         return False
