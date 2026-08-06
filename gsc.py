@@ -1881,6 +1881,20 @@ def main():
     nuc.add_argument('--max', type=int, default=50)
     nuc.add_argument('--validate', action='store_true')
 
+    # gsc import-nuclei / scan-dast / list-nuclei (Wave 2: SAST+DAST)
+    imp_nuc = sub.add_parser('import-nuclei', help='Import nuclei YAML templates')
+    imp_nuc.add_argument('directory', help='Path to nuclei-templates/')
+
+    dast = sub.add_parser('scan-dast', help='DAST scan via nuclei')
+    dast.add_argument('target', help='Target URL')
+    dast.add_argument('--severity', nargs='+',
+                      choices=['info','low','medium','high','critical'])
+    dast.add_argument('--output', '-o', help='Save results JSON')
+
+    list_nuc = sub.add_parser('list-nuclei', help='List imported nuclei templates')
+    list_nuc.add_argument('--severity', choices=['info','low','medium','high','critical'])
+    list_nuc.add_argument('--tag', help='Filter by tag')
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
@@ -2083,6 +2097,26 @@ def main():
         if hasattr(args, 'validate') and args.validate:
             nuc_args.append("--validate")
         subprocess.run(nuc_args)
+
+    elif args.command == "import-nuclei":
+        subprocess.run([sys.executable, str(Path(__file__).parent / "gsc_nuclei_import.py"),
+                        "import", args.directory])
+
+    elif args.command == "scan-dast":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_dast_scanner.py"), args.target]
+        if hasattr(args, 'severity') and args.severity:
+            cmd += ["--severity"] + args.severity
+        if hasattr(args, 'output') and args.output:
+            cmd += ["--output", args.output]
+        subprocess.run(cmd)
+
+    elif args.command == "list-nuclei":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_nuclei_import.py"), "list"]
+        if hasattr(args, 'severity') and args.severity:
+            cmd += ["--severity", args.severity]
+        if hasattr(args, 'tag') and args.tag:
+            cmd += ["--tag", args.tag]
+        subprocess.run(cmd)
 
     elif args.command == "dork":
         if args.list:

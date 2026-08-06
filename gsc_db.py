@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 24
+TARGET_VERSION = 25
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -161,6 +161,7 @@ CREATE INDEX IF NOT EXISTS idx_sightings_repo ON secret_sightings(repo_path);
 CREATE INDEX IF NOT EXISTS idx_sightings_fp ON secret_sightings(fingerprint);
 CREATE INDEX IF NOT EXISTS idx_sightings_loc
     ON secret_sightings(repo_path, file_path, line_number);
+
 """
 
 # Schema v24 alters
@@ -168,7 +169,64 @@ ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
 """
 
-SCHEMA_V023 = """
+SCHEMA_V025 = """
+CREATE TABLE IF NOT EXISTS nuclei_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    description TEXT,
+    tags TEXT,
+    requests TEXT NOT NULL,
+    matchers TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_nuclei_severity ON nuclei_templates(severity);
+CREATE INDEX IF NOT EXISTS idx_nuclei_tags ON nuclei_templates(tags);
+
+CREATE TABLE IF NOT EXISTS dast_findings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_url TEXT NOT NULL,
+    template_id TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    matched_at TEXT,
+    evidence TEXT,
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_sightings_loc
+    ON secret_sightings(repo_path, file_path, line_number);
+"""
+
+# Schema v24 alters
+ALTERS_V024 = """
+ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
+"""
+
+SCHEMA_V025 = """
+CREATE TABLE IF NOT EXISTS nuclei_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    template_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    description TEXT,
+    tags TEXT,
+    requests TEXT NOT NULL,
+    matchers TEXT NOT NULL,
+    imported_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_nuclei_severity ON nuclei_templates(severity);
+CREATE INDEX IF NOT EXISTS idx_nuclei_tags ON nuclei_templates(tags);
+
+CREATE TABLE IF NOT EXISTS dast_findings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    target_url TEXT NOT NULL,
+    template_id TEXT NOT NULL,
+    severity TEXT NOT NULL,
+    matched_at TEXT,
+    evidence TEXT,
+    scanned_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_dast_target ON dast_findings(target_url, scanned_at);
 """
 
 SCHEMA_V023 = """
@@ -217,6 +275,8 @@ class GSCDatabase:
             self._apply_v023()
         if version < 24:
             self._apply_v024()
+        if version < 25:
+            self._apply_v025()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -276,6 +336,10 @@ class GSCDatabase:
     def _apply_v024(self):
         """Schema v24: cross-repo secret fingerprints + sightings."""
         self.conn.executescript(SCHEMA_V024)
+
+    def _apply_v025(self):
+        """Schema v25: nuclei_templates + dast_findings for SAST+DAST hybrid."""
+        self.conn.executescript(SCHEMA_V025)
 
     def _backup(self):
         stamp = datetime.now().strftime("%Y%m%d_%H%M%S")

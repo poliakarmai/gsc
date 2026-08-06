@@ -61,6 +61,10 @@ class FixEvidence:
     poc_before: str = ""
     poc_after: str = ""
     iterations: int = 0
+    verified_by: str = "sandbox"    # sandbox|sandbox_dast|dast_only
+    dast_verified: Optional[bool] = None
+    dast_output: str = ""
+    dast_exit: Optional[int] = None
     error: str = ""
 
     def to_dict(self):
@@ -266,10 +270,13 @@ def _render_diff(before: str, after: str, path: str) -> str:
 
 # ── Orchestrator ───────────────────────────────────────────
 class ProofOfFix:
-    def __init__(self, patch_generator, detect_fn, max_iter=MAX_ITERATIONS):
+    def __init__(self, patch_generator, detect_fn, max_iter=MAX_ITERATIONS,
+                 staging_url: str = None, dast_timeout: int = 300):
         self.gen = patch_generator
         self.detect_fn = detect_fn   # detect_fn(file, content) -> [findings]
         self.max_iter = max_iter
+        self.staging_url = staging_url
+        self.dast_timeout = dast_timeout
 
     def _detector_fires(self, finding, source):
         hits = self.detect_fn(finding.get("file_path", finding.get("file", "")), source)
@@ -347,6 +354,26 @@ class ProofOfFix:
         ev.reasoning = best_reason
         ev.verified = (best_level == "verified")
         ev.iterations = i + 1
+
+        # Wave 3: DAST verification on staging
+        if self.staging_url and ev.level in ("verified", "structural"):
+            from gsc_dast_validator import validate_fix_on_staging
+            dast_result = validate_fix_on_staging(
+                finding, poc_code, ev.to_dict(),
+                self.staging_url, self.dast_timeout)
+            ev.dast_verified = dast_result["dast_verified"]
+            ev.dast_output = dast_result["dast_output"]
+            ev.dast_exit = dast_result["dast_exit"]
+            if ev.dast_verified is True:
+                ev.verified_by = "sandbox_dast"
+            elif ev.dast_verified is False:
+                ev.level = "failed"
+                ev.verified = False
+                ev.verified_by = "sandbox"
+            # dast_verified=None → keep sandbox-only
+        elif not self.staging_url:
+            ev.verified_by = "sandbox"
+
         return ev
 
     @staticmethod
