@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """Инжест отчёта в PG с использованием ИСТОРИИ тенанта (S2).
 
 Мутации и авто-resolve живут здесь, а не в эфемерном SQLite worker'а:

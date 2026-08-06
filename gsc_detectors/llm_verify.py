@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """
 GSC LLM Verifier — deep analysis of findings using LLM context awareness.
 

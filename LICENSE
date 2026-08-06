@@ -1,0 +1,81 @@
+Business Source License 1.1
+
+License text copyright (c) 2017 MariaDB Corporation Ab, All Rights Reserved.
+"Business Source License" is a trademark of MariaDB Corporation Ab.
+
+-----------------------------------------------------------------------------
+
+Parameters
+
+Licensor:             Алексей Поляков
+Licensed Work:        GSC: Git Security Checker
+                      The Licensed Work is (c) 2026 Алексей Поляков
+Additional Use Grant: You may make production use of the Licensed Work,
+                      provided that you do not offer, market, or operate
+                      the Licensed Work (or any derivative work of it) as
+                      a commercial software-as-a-service or managed service
+                      that provides source-code security analysis,
+                      vulnerability scanning, or SAST functionality to
+                      third parties, in competition with the Licensor's
+                      products or services.
+                      Internal production use within your own organization,
+                      including scanning your own repositories, is always
+                      permitted.
+Change Date:          2030-08-06
+Change License:       Apache License, Version 2.0
+
+-----------------------------------------------------------------------------
+
+Notice
+
+The Business Source License (this document, or the "License") is not an Open
+Source license. However, the Licensed Work will eventually be made available
+under an Open Source License, as stated in this License.
+
+-----------------------------------------------------------------------------
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, create derivative
+works, redistribute, and make non-production use of the Licensed Work. The
+Licensor may make an Additional Use Grant, above, permitting limited
+production use.
+
+Effective on the Change Date, or the fourth anniversary of the first publicly
+available distribution of a specific version of the Licensed Work under this
+License, whichever comes first, the Licensor hereby grants you rights under
+the terms of the Change License, and the rights granted in the paragraph
+above terminate.
+
+If your use of the Licensed Work does not comply with the requirements
+currently in effect as described in this License, you must purchase a
+commercial license from the Licensor, its affiliated entities, or authorized
+resellers, or you must refrain from using the Licensed Work.
+
+All copies of the original and modified Licensed Work, and derivative works
+of the Licensed Work, are subject to this License. This License applies
+separately for each version of the Licensed Work and the Change Date may
+vary for each version of the Licensed Work released by Licensor.
+
+You must conspicuously display this License on each original or modified copy
+of the Licensed Work. If you receive the Licensed Work in original or
+modified form from a third party, the terms and conditions set forth in this
+License apply to your use of that work.
+
+Any use of the Licensed Work in compliance with this License does not grant
+you any rights in the trademarks, copyrights, patents, trade secrets, or any
+other intellectual property rights of the Licensor or any third party,
+except as expressly stated in this License.
+
+Covenants
+
+Licensor covenants that it will not place additional restrictions on the
+rights granted under this License for any version of the Licensed Work once
+that version has been publicly released under this License, and that each
+version will become available under the Change License no later than its
+Change Date.
+
+-----------------------------------------------------------------------------
+
+Commercial licenses: poliakarm@proton.me
+© 2026 Алексей Поляков. All rights reserved.

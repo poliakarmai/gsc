@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """
 GS020 — LLM-based SQL Injection Detector (Pilot).
 Replaces 87 regex patterns with a single LLM call per candidate file.

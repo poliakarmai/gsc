@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """Control plane storage (PostgreSQL only).
 
 Тенант-данные читаются через PgBackend(tenant_id) — RLS + явный фильтр.

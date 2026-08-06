@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 #!/usr/bin/env python3
 """
 GSC AST-based intra-procedural taint tracking for Python (v0.21).

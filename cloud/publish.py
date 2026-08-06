@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """Публикация результата в PR: комментарий + check run.
 
 Переиспользует gsc_github_adapter v0.23: priority truncation,

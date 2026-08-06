@@ -1,6 +1,6 @@
 # 🔒 GSC — Git Security Checker
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![License: BSL 1.1](https://img.shields.io/badge/License-BSL%201.1-blue.svg)](./LICENSE)
 ![detectors-23](https://img.shields.io/badge/detectors-23-green)
 ![patterns-400+](https://img.shields.io/badge/patterns-400+-green)
 ![python-3.10+](https://img.shields.io/badge/python-3.10+-blue)
@@ -246,4 +246,26 @@ PR scanner: комментарий + check run + SARIF. Fork-safe: авто no-L
 
 ## 📄 Лицензия
 
-MIT — см. [LICENSE](./LICENSE).
+GSC — **Business Source License 1.1 (BSL 1.1)**.
+
+**✅ Разрешено:** просмотр, модификация, форки, внутреннее production-использование (сканирование своих репо, включая self-hosted), некоммерческое использование.
+
+**⛔ Запрещено без коммерческой лицензии:** предлагать GSC как коммерческий SaaS/managed-сервис сканирования для третьих лиц.
+
+**🔓 Открытость:** каждая версия становится **Apache 2.0** через 4 года (Change Date: 2030-08-06).
+
+---
+
+## License (EN)
+
+GSC is licensed under the **Business Source License 1.1**.
+
+✅ Allowed: viewing, modifying, forks, internal production use (scanning your own repos, including self-hosted), non-commercial use.
+
+⛔ Not allowed without a commercial license: offering GSC as a commercial SaaS/managed security-scanning service to third parties.
+
+🔓 Each version converts to **Apache 2.0** after 4 years (Change Date: 2030-08-06).
+
+Commercial licensing: poliakarm@proton.me
+
+© 2026 Алексей Поляков

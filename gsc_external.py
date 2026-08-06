@@ -1,4 +1,10 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 #!/usr/bin/env python3
+# Copyright (c) 2024-2026 Алексей Поляков
+# Licensed under Polyform Shield 1.0.0 — see LICENSE for details.
 """
 GSC External Scanner v0.12 — Developer Project Reviewer.
 

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """GitHub App authentication (S2).
 
 App JWT (уровень приложения, ≤10 мин) → installation access token

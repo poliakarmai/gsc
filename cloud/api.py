@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """GSC Cloud API (S1). Пространство /api/v2 — внутренний /api/v1 не трогаем."""
 from __future__ import annotations
 

@@ -1,3 +1,7 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
 """Маппинг GitHub installation → tenant. PLG: первая установка
 создаёт free-тенант автоматически."""
 from __future__ import annotations
