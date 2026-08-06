@@ -52,3 +52,7 @@ CREATE TABLE IF NOT EXISTS data_deletion_requests (
     execute_at TIMESTAMPTZ NOT NULL,          -- +30 дней grace
     completed_at TIMESTAMPTZ
 );
+
+-- Audit log: tamper-evident (INSERT+SELECT only, no UPDATE/DELETE)
+REVOKE UPDATE, DELETE ON audit_events FROM gsc_app;
+GRANT INSERT, SELECT ON audit_events TO gsc_app;
