@@ -58,6 +58,7 @@ class ScanRequest(BaseModel):
     target: str = Field(..., description="GitHub URL or local path", examples=["https://github.com/user/repo"])
     profile: str = Field("developer-review", description="Scan profile")
     mode: str = Field("full", description="full | diff")
+    scan_mode: str = Field("standard", description="quick | standard | deep")
     base: Optional[str] = Field(None, description="Base ref for diff mode")
     head: Optional[str] = Field(None, description="Head ref for diff mode")
 
@@ -161,7 +162,8 @@ def _run_scan_background(scan_id: str, req: ScanRequest):
             mode=req.mode,
             base=req.base or "main",
             head=req.head or "HEAD",
-            no_fail_on_blocking=True,
+            dry_run=False,
+            scan_mode=req.scan_mode,
         )
         state["status"] = "done"
         state["completed_at"] = datetime.now(timezone.utc).isoformat()
@@ -324,6 +326,83 @@ async def get_chains(target: Optional[str] = None, status: Optional[str] = None,
         return {"chains": rows, "total": len(rows)}
     except Exception as e:
         return {"chains": [], "total": 0, "error": str(e)}
+
+
+
+# ── Workspace API ──────────────────────────────────────────
+class WorkspaceCreate(BaseModel):
+    name: str
+    description: str = ""
+
+class WorkspaceAddRepo(BaseModel):
+    repo: str
+    alias: str = ""
+
+class WorkspaceScan(BaseModel):
+    scan_mode: str = "standard"
+    profile: str = "developer-review"
+
+
+@app.post("/api/v1/workspaces", status_code=201)
+async def create_workspace(req: WorkspaceCreate, x_api_key: str = Header(..., alias="x-api-key")):
+    """Create a new workspace (engagement)."""
+    verify_api_key(x_api_key)
+    from gsc_workspace import workspace_create
+    ok = workspace_create(req.name, req.description)
+    if not ok:
+        raise HTTPException(status_code=409, detail=f"Workspace '{req.name}' already exists")
+    return {"status": "created", "name": req.name}
+
+
+@app.get("/api/v1/workspaces")
+async def list_workspaces():
+    """List all workspaces."""
+    from gsc_workspace import workspace_list
+    return {"workspaces": workspace_list()}
+
+
+@app.post("/api/v1/workspaces/{name}/repos", status_code=201)
+async def add_repo_to_workspace(name: str, req: WorkspaceAddRepo, x_api_key: str = Header(..., alias="x-api-key")):
+    """Add a repo to a workspace."""
+    verify_api_key(x_api_key)
+    from gsc_workspace import workspace_add
+    ok = workspace_add(name, req.repo, req.alias)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Workspace '{name}' not found")
+    return {"status": "added", "workspace": name, "repo": req.repo}
+
+
+@app.post("/api/v1/workspaces/{name}/scan", status_code=202)
+async def scan_workspace(name: str, req: WorkspaceScan, x_api_key: str = Header(..., alias="x-api-key")):
+    """Scan all repos in a workspace (background)."""
+    verify_api_key(x_api_key)
+    from gsc_workspace import workspace_scan
+
+    def _bg_scan():
+        workspace_scan(name, req.scan_mode, req.profile)
+
+    thread = threading.Thread(target=_bg_scan, daemon=True)
+    thread.start()
+    return {"status": "scanning", "workspace": name, "scan_mode": req.scan_mode}
+
+
+@app.get("/api/v1/workspaces/{name}/report")
+async def workspace_report(name: str, fmt: str = "markdown"):
+    """Get workspace report."""
+    from gsc_workspace import workspace_report
+    return {"workspace": name, "format": fmt, "report": workspace_report(name, fmt)}
+
+
+@app.delete("/api/v1/workspaces/{name}")
+async def delete_workspace(name: str, x_api_key: str = Header(..., alias="x-api-key")):
+    """Delete a workspace."""
+    verify_api_key(x_api_key)
+    from gsc_workspace import workspace_delete
+    ok = workspace_delete(name)
+    if not ok:
+        raise HTTPException(status_code=404, detail=f"Workspace '{name}' not found")
+    return {"status": "deleted", "name": name}
+
 
 
 # ── Main ──────────────────────────────────────────────────
