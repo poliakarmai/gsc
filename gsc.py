@@ -1873,6 +1873,14 @@ def main():
     fc_hm.add_argument('--repo', required=True)
     fc_hm.add_argument('--output', '-o')
 
+    # gsc export-nuclei (Wave 1: PoC → nuclei YAML)
+    nuc = sub.add_parser('export-nuclei', help='Export GSC findings as nuclei YAML templates')
+    nuc.add_argument('report', help='GSC scan report JSON')
+    nuc.add_argument('--output', '-o', default='nuclei-templates')
+    nuc.add_argument('--severity', '-s', help='Filter: critical,high,medium')
+    nuc.add_argument('--max', type=int, default=50)
+    nuc.add_argument('--validate', action='store_true')
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
@@ -2063,6 +2071,18 @@ def main():
                             "--max-fixes", str(getattr(args, 'max_fixes', 3)),
                             *(["--create-pr"] if hasattr(args, 'dry_run') and not args.dry_run else []),
                             *(["--output", args.output] if hasattr(args, 'output') and args.output else [])])
+
+    elif args.command == "export-nuclei":
+        nuc_args = [sys.executable, str(Path(__file__).parent / "gsc_nuclei_export.py"), args.report]
+        if hasattr(args, 'output') and args.output != 'nuclei-templates':
+            nuc_args.extend(["--output", args.output])
+        if hasattr(args, 'severity') and args.severity:
+            nuc_args.extend(["--severity", args.severity])
+        if hasattr(args, 'max'):
+            nuc_args.extend(["--max", str(args.max)])
+        if hasattr(args, 'validate') and args.validate:
+            nuc_args.append("--validate")
+        subprocess.run(nuc_args)
 
     elif args.command == "dork":
         if args.list:
