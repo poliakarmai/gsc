@@ -1,0 +1,63 @@
+{
+  "name": "gsc-security",
+  "displayName": "GSC — Git Security Checker",
+  "description": "Self-learning AppSec: findings, PoC, exploit chains, auto-fix — in your IDE",
+  "version": "0.37.0",
+  "publisher": "poliakarmai",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Linters", "Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "gsc.scan", "title": "GSC: Scan Current Workspace" },
+      { "command": "gsc.scanFile", "title": "GSC: Scan Current File" },
+      { "command": "gsc.showChains", "title": "GSC: Show Exploit Chains" },
+      { "command": "gsc.showPoc", "title": "GSC: Show PoC" },
+      { "command": "gsc.verdictTp", "title": "GSC: Verdict — True Positive" },
+      { "command": "gsc.verdictFp", "title": "GSC: Verdict — False Positive" },
+      { "command": "gsc.verdictFixed", "title": "GSC: Verdict — Fixed" },
+      { "command": "gsc.override", "title": "GSC: Override Finding" },
+      { "command": "gsc.refresh", "title": "GSC: Refresh Findings" },
+      { "command": "gsc.openSettings", "title": "GSC: Open Settings" }
+    ],
+    "views": {
+      "explorer": [{
+        "id": "gscFindings",
+        "name": "GSC Findings",
+        "icon": "media/shield.svg",
+        "contextualTitle": "GSC Findings"
+      }]
+    },
+    "menus": {
+      "view/title": [
+        { "command": "gsc.scan", "when": "view == gscFindings", "group": "navigation" },
+        { "command": "gsc.refresh", "when": "view == gscFindings", "group": "navigation" }
+      ],
+      "view/item/context": [
+        { "command": "gsc.verdictTp", "when": "view == gscFindings && viewItem == finding" },
+        { "command": "gsc.verdictFp", "when": "view == gscFindings && viewItem == finding" },
+        { "command": "gsc.showPoc", "when": "view == gscFindings && viewItem == finding" }
+      ]
+    },
+    "configuration": {
+      "title": "GSC",
+      "properties": {
+        "gsc.apiUrl": { "type": "string", "default": "http://localhost:8766", "description": "GSC API URL" },
+        "gsc.apiKey": { "type": "string", "default": "", "description": "GSC API key (x-api-key)" },
+        "gsc.profile": { "type": "string", "default": "developer-review", "enum": ["developer-review","pr-gate","audit","candidate-review"] },
+        "gsc.scanOnSave": { "type": "boolean", "default": false },
+        "gsc.minSeverity": { "type": "string", "default": "LOW", "enum": ["LOW","MEDIUM","HIGH","CRITICAL"] }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "test": "node ./out/test/runTest.js"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.3.0"
+  }
+}
