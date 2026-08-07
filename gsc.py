@@ -394,6 +394,32 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
         return []
 
 
+
+def _derive_rule_id(pattern: dict) -> str:
+    """Derive rule_id for legacy pattern-based findings."""
+    title = (pattern.get("title") or "").lower()
+    if "sql" in title: return "GS005"
+    if "xss" in title: return "GS020"
+    if "secret" in title or "credential" in title or "token" in title or "encrypt" in title or "exposed" in title or "hardcoded" in title: return "GS029"
+    if "eval" in title: return "GS008"
+    if "pickle" in title or "deserial" in title: return "GS007"
+    if "except" in title: return "GS010"
+    if "assert" in title: return "GS018"
+    if "docker" in title or "container" in title: return "GS031"
+    if "permission" in title or "world-readable" in title or "writable" in title: return "GS025"
+    if "cve" in title: return "GS025"
+    return "GS000-LEGACY"
+
+def _perm_finding(file_path: str, title: str, detail: str) -> dict:
+    import hashlib
+    rule_id = "GS025"
+    finding_key = hashlib.sha256(f"{rule_id}{file_path}{title[:100]}".encode()).hexdigest()[:12]
+    return {"finding_key": finding_key, "rule_id": rule_id,
+            "category": "HIGH", "echelon": 2,
+            "title": title, "file_path": file_path, "line_number": 0,
+            "detail": detail, "pattern_title": "chmod: World-readable sensitive files"}
+
+
 def check_source_driven(project: str, path: Path) -> list[dict]:
     """Echelon 1: Source-driven checks."""
     findings = []
@@ -421,7 +447,13 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
                     continue
                 parts = line.split(":", 2)
                 if len(parts) >= 2:
+                    rule_id = _derive_rule_id(p)
+                    snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
+                    import hashlib
+                    finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
                     findings.append({
+                        "finding_key": finding_key,
+                        "rule_id": rule_id,
                         "category": p.get("category", "MEDIUM"),
                         "echelon": 1,
                         "title": p["title"],
@@ -464,7 +496,13 @@ def check_security(project: str, path: Path) -> list[dict]:
                         continue
                     parts = line.split(":", 2)
                     if len(parts) >= 2:
+                        rule_id = _derive_rule_id(p)
+                        snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
+                        import hashlib
+                        finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
                         findings.append({
+                            "finding_key": finding_key,
+                            "rule_id": rule_id,
                             "category": p.get("category", "MEDIUM"),
                             "echelon": 2,
                             "title": p["title"],
@@ -484,15 +522,9 @@ def check_security(project: str, path: Path) -> list[dict]:
             if f.is_file() and f.suffix in (".db", ".json", ".log", ".env", ".yaml", ".yml", ".key", ".pem"):
                 perms = oct(f.stat().st_mode)[-3:]
                 if int(perms[-1]) >= 4:  # world-readable
-                    findings.append({
-                        "category": "HIGH",
-                        "echelon": 2,
-                        "title": f"World-readable file: {f.name} ({perms})",
-                        "file_path": str(f),
-                        "line_number": 0,
-                        "detail": f"Permissions {perms} — should be 600 for sensitive files",
-                        "pattern_title": "chmod: World-readable sensitive files",
-                    })
+                    findings.append(_perm_finding(str(f),
+                        f"World-readable file: {f.name} ({perms})",
+                        f"Permissions {perms} — should be 600 for sensitive files"))
 
     # Also check root-level sensitive files (including dotfiles)
     sensitive_names = {".env", ".envrc", ".secrets", ".credentials"}
@@ -502,13 +534,9 @@ def check_security(project: str, path: Path) -> list[dict]:
         if f.is_file() and is_sensitive:
             perms = oct(f.stat().st_mode)[-3:]
             if int(perms[-1]) >= 4:
-                findings.append({
-                    "category": "HIGH", "echelon": 2,
-                    "title": f"World-readable file: {f.name} ({perms})",
-                    "file_path": str(f), "line_number": 0,
-                    "detail": f"Permissions {perms} — should be 600",
-                    "pattern_title": "chmod: World-readable",
-                })
+                findings.append(_perm_finding(str(f),
+                    f"World-readable file: {f.name} ({perms})",
+                    f"Permissions {perms} — should be 600"))
 
     # ── Systemd service file structural audit ──
     REQUIRED_DIRECTIVES = [
