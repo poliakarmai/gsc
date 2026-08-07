@@ -1676,6 +1676,56 @@ def cmd_revalidate(args):
     rev.close()
 
 
+
+def cmd_sbom(args):
+    """gsc sbom — generate SBOM (CycloneDX or SPDX)."""
+    import json
+    from gsc_sca import parse_repo_manifests
+    from gsc_sbom import generate_sbom
+    from gsc_spdx import generate_spdx
+    packages = parse_repo_manifests(args.repo)
+    if not packages:
+        print("No dependency manifests found"); return 1
+    fmt = getattr(args, 'format', 'cyclonedx')
+    sbom = generate_spdx(packages) if fmt == "spdx" else generate_sbom(packages)
+    out = args.output or ("sbom.spdx.json" if fmt == "spdx" else "sbom.cdx.json")
+    with open(out, "w") as f: json.dump(sbom, f, indent=2)
+    print(f"SBOM: {len(sbom.get('packages', sbom.get('components', [])))} components -> {out}")
+    return 0
+
+
+
+def cmd_iac(args):
+    """gsc iac — IaC misconfiguration scan."""
+    from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, _is_kubernetes
+    from pathlib import Path
+    findings = []
+    for path in Path(args.repo).rglob("*"):
+        if not path.is_file(): continue
+        try: content = path.read_text(errors="ignore")
+        except: continue
+        if path.suffix in (".tf",".tfvars"):
+            findings.extend(detect_terraform(str(path), content))
+        elif path.name.lower().startswith("dockerfile") or path.name.lower().endswith(".dockerfile"):
+            findings.extend(detect_dockerfile(str(path), content))
+        elif path.suffix in (".yaml",".yml") and _is_kubernetes(content):
+            findings.extend(detect_kubernetes(str(path), content))
+    for f in findings:
+        print(f"  {f['severity']:8s} {f['rule_id']:25s} {f['title']}")
+    print(f"\n{len(findings)} IaC findings")
+    return 1 if any(f["severity"] in ("CRITICAL","HIGH") for f in findings) else 0
+
+def cmd_sbom_verify(args):
+    """gsc sbom-verify — verify SBOM signature."""
+    import json
+    from gsc_spdx import verify_sbom, load_signing_key
+    sbom = json.load(open(args.sbom)); sig = json.load(open(args.signature))
+    key = load_signing_key()
+    if key is None: print("No signing key"); return 1
+    ok = verify_sbom(sbom, sig, key)
+    print("Valid" if ok else "INVALID — tampered")
+    return 0 if ok else 1
+
 def cmd_status(args):
     """gsc status — scan progress (resume-aware)."""
     from gsc_resume import FileStateManager
