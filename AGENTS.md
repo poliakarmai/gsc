@@ -15,12 +15,13 @@ Predictive Forecasting, Federated Learning.
 **P0 (поверхность):** SCA (OSV.dev), GS029 Secrets, Compliance mapping (CWE/OWASP/PCI).
 **P1 (доверие):** EPSS exploitability, OWASP Benchmark, Federated Self-Learning.
 
-## Структура v0.32
+## Структура v1.0
 
 ```
 gsc/
-├── gsc.py                        ← CLI (40+ команд)
-├── gsc_external.py               ← External Scanner v0.32
+├── gsc.py                        ← CLI (50+ команд)
+├── gsc_orchestrator.py           ← Master orchestrator (v0.39)
+├── gsc_external.py               ← External Scanner
 ├── gsc_github_adapter.py         ← GitHub PR Adapter
 ├── gsc_blocking.py               ← Blocking Engine (+ federated guard)
 ├── gsc_poc_generator.py          ← PoC + SUCCESS_MARKERS
@@ -55,7 +56,7 @@ gsc/
 ├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
 ├── cloud/                        ← SaaS S1–S4
-├── tests/                        ← 171 тест (16+ файлов)
+├── tests/                        ← 188 тестов (18+ файлов)
 └── PROJECT.md AGENTS.md README.md
 ```
 
