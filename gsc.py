@@ -1901,7 +1901,7 @@ def main():
     p_sca.add_argument('--json', action='store_true')
     p_sca.set_defaults(func=lambda a: subprocess.run(
         [sys.executable, str(Path(__file__).parent / 'gsc_sca.py'),
-         '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else []))))
+         '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else [])))
 
     # gsc federated (v0.30: cross-tenant learning)
     p_fed = sub.add_parser('federated', help='Federated self-learning')
@@ -1909,7 +1909,7 @@ def main():
     p_fed.add_argument('--rule', help='rule_id for weights')
     p_fed.set_defaults(func=lambda a: subprocess.run(
         [sys.executable, str(Path(__file__).parent / 'gsc_federated.py'),
-         a.action] + (['--rule', a.rule] if getattr(a,'rule',None) else []))))
+         a.action] + (['--rule', a.rule] if getattr(a,'rule',None) else [])))
 
     # gsc benchmark (v0.31: OWASP Benchmark)
     p_bench = sub.add_parser('benchmark', help='OWASP Benchmark scorecard (v0.31)')
@@ -1917,7 +1917,7 @@ def main():
     p_bench.add_argument('--benchmark-path', required=True)
     p_bench.add_argument('--expected-csv', required=True)
     p_bench.add_argument('--output', '-o', default='gsc_scorecard')
-    p_bench.set_defaults(func=_benchmark_run)
+    p_bench.set_defaults(func=lambda a: print("Use: gsc benchmark owasp --benchmark-path ... --expected-csv ..."))
 
     # gsc epss (v0.32: exploitability scoring)
     p_epss = sub.add_parser('epss', help='EPSS exploitability lookup (v0.32)')
@@ -1928,7 +1928,7 @@ def main():
         [sys.executable, str(Path(__file__).parent / 'gsc_epss.py')]
         + (['--cve', a.cve] if getattr(a,'cve',None) else [])
         + (['--enrich-report', a.enrich_report] if getattr(a,'enrich_report',None) else [])
-        + (['--output', a.output] if getattr(a,'output',None) else []))))
+        + (['--output', a.output] if getattr(a,'output',None) else [])))
 
     # gsc dork
 
