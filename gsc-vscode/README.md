@@ -1,38 +1,60 @@
-# GSC VSCode Extension v0.37
+# GSC — Git Security Checker for VS Code
 
-Self-learning AppSec platform in your IDE. See findings, exploit chains, and PoCs without leaving VSCode.
+<p align="center">
+  <img src="media/icon.png" width="128" alt="GSC icon"/>
+</p>
 
-## Features
+**Self-learning AppSec scanner. Finds vulnerabilities, proves them with PoC, auto-fixes with verified PRs — right in your IDE.**
 
-- **Diagnostics** — findings as squiggly lines in Problems panel
-- **CodeLens** — PoC / TP / FP actions above affected lines
-- **Findings Explorer** — tree view grouped by severity
-- **Webview** — full PoC and exploit chain details
-- **Verdicts** — submit TP/FP/fixed from IDE
-- **Overrides** — emergency bypass with audit trail
+---
 
-## Setup
+## 🚀 Why GSC
 
-```bash
-cd gsc-vscode && npm install && npm run compile
+Traditional scanners (Snyk, Semgrep, SonarQube) give you a list of findings. You spend hours triaging false positives.
+
+**GSC is different:** it only shows proven vulnerabilities.
+
+```
+Snyk:    "439 findings, 71 false — triage yourself"
+GSC:     "4 proven vulnerabilities, auto-PR with fix attached"
 ```
 
-Then press F5 in VSCode, or install from .vsix:
-```bash
-vsce package && code --install-extension gsc-security-0.37.0.vsix
-```
+## ✨ Features
 
-## Settings
+- **🔍 Scan** — 29 detectors: SAST + SCA + Secrets + IaC + DAST + LLM
+- **💥 PoC** — Auto-generated proof-of-concept for each vulnerability
+- **🔗 Exploit Chains** — Multi-step attack paths
+- **🔧 Auto-Fix** — One-click fix suggestions
+- **✅ Verdict** — TP/FP feedback → self-learning improves over time
+
+## 📦 Quick Start
+
+1. Install from VS Code Marketplace
+2. Open any project
+3. Click `GSC: Scan` in the sidebar or command palette
+4. See only proven findings with PoC
+
+## ⚙️ Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `gsc.apiUrl` | `http://localhost:8766` | GSC API URL |
-| `gsc.apiKey` | — | API key (x-api-key) |
-| `gsc.profile` | `developer-review` | Scan profile |
-| `gsc.minSeverity` | `LOW` | Minimum severity to display |
-| `gsc.scanOnSave` | `false` | Auto-scan on save |
+| `gsc.apiUrl` | `http://localhost:8766` | GSC API endpoint |
+| `gsc.profile` | `developer-review` | Scan profile (audit, pr-gate, etc.) |
+| `gsc.scanOnSave` | `false` | Auto-scan on file save |
 
-## Requirements
+## 🛡️ Scan Profiles
 
-- GSC API running (`gsc api --port 8766`)
-- VSCode 1.85+
+- **developer-review** — fast, low noise (default)
+- **pr-gate** — blocks merge if CRITICAL found
+- **audit** — full echelon scan
+- **candidate-review** — balanced for code review
+
+## 🔗 Links
+
+- [GitHub](https://github.com/poliakarmai/gsc)
+- [Full Documentation](https://github.com/poliakarmai/gsc/blob/master/GSC_AUDIT_GUIDE.md)
+- [Demo Script](https://github.com/poliakarmai/gsc/tree/master/demo)
+
+## 📄 License
+
+BUSL-1.1 — free for evaluation and non-production use.
