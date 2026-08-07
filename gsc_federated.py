@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+GSC Federated Self-Learning v1.0 (v0.30).
+
+Cross-tenant learning without code leakage. Tenants anonymously share
+TP/FP counts per rule_id. Central server aggregates global weights.
+Tenants adjust confidence + deactivate globally noisy rules.
+
+Privacy: ONLY {tenant_hash, rule_id, tp, fp} are transmitted.
+NEVER: code, snippets, file paths, finding_keys.
+"""
+
+from __future__ import annotations
+
+import hashlib, json, math, random, sys
+from pathlib import Path
+from typing import Dict, List, Optional
+
+HTTP_TIMEOUT = 30
+
+
+def _base_rule(rule_id: str) -> str:
+    """GS025-permissive_cors → GS025; GS030-PYSEC-x → GS030."""
+    return rule_id.split("-")[0]
+
+
+# ── Differential Privacy ───────────────────────────────────
+def add_laplace_noise(count: int, epsilon: float) -> int:
+    """Laplace noise for DP. sensitivity=1."""
+    if epsilon <= 0:
+        return count
+    scale = 1.0 / epsilon
+    u = random.random() - 0.5
+    noise = -scale * math.copysign(1, u) * math.log(1 - 2 * abs(u))
+    return max(0, int(count + noise))
+
+
+# ── Local metric collection ────────────────────────────────
+def collect_local_metrics(db, min_verdicts: int = 3) -> Dict[str, Dict[str, int]]:
+    """Collect local TP/FP by base rule_id from feedback. No code/paths."""
+    rows = db.conn.execute("""
+        SELECT f.rule_id AS rule_id,
+               SUM(CASE WHEN fb.verdict IN ('tp','fixed') THEN 1 ELSE 0 END) AS tp,
+               SUM(CASE WHEN fb.verdict = 'fp' THEN 1 ELSE 0 END) AS fp
+        FROM feedback fb
+        JOIN findings f ON f.finding_key = fb.finding_key
+        GROUP BY f.rule_id
+    """).fetchall()
+
+    metrics: Dict[str, Dict[str, int]] = {}
+    for r in rows:
+        base = _base_rule(r["rule_id"])
+        m = metrics.setdefault(base, {"tp": 0, "fp": 0})
+        m["tp"] += r["tp"] or 0
+        m["fp"] += r["fp"] or 0
+
+    return {rid: m for rid, m in metrics.items()
+            if (m["tp"] + m["fp"]) >= min_verdicts}
+
+
+# ── Federated Client ───────────────────────────────────────
+class FederatedClient:
+    def __init__(self, db, server_url: str, api_key: str,
+                 enabled: bool = True, epsilon: float = 1.0,
+                 min_verdicts: int = 3):
+        self.db = db
+        self.server_url = server_url.rstrip("/")
+        self.api_key = api_key
+        self.enabled = enabled
+        self.epsilon = epsilon
+        self.min_verdicts = min_verdicts
+
+    def _tenant_hash(self) -> str:
+        seed = getattr(self.db, "tenant_id", "local")
+        return hashlib.sha256(f"gsc-tenant:{seed}".encode()).hexdigest()[:16]
+
+    def _log(self, action: str, detail: str):
+        self.db.conn.execute(
+            "INSERT OR IGNORE INTO federated_log (action, detail) VALUES (?, ?)",
+            (action, detail[:200]))
+        self.db.conn.commit()
+
+    # ── Submit local metrics ────────────────────────────
+    def submit(self) -> bool:
+        if not self.enabled:
+            return False
+        metrics = collect_local_metrics(self.db, self.min_verdicts)
+        if not metrics:
+            return False
+        # DP noise
+        if self.epsilon > 0:
+            for rid in metrics:
+                metrics[rid]["tp"] = add_laplace_noise(metrics[rid]["tp"], self.epsilon)
+                metrics[rid]["fp"] = add_laplace_noise(metrics[rid]["fp"], self.epsilon)
+        payload = {"tenant_hash": self._tenant_hash(), "metrics": metrics}
+        try:
+            import urllib.request as request
+            body = json.dumps(payload).encode()
+            req = request.Request(f"{self.server_url}/api/v1/federated/submit",
+                                  data=body, method="POST")
+            req.add_header("x-api-key", self.api_key)
+            req.add_header("Content-Type", "application/json")
+            with request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                ok = resp.status == 200
+            self._log("submit", f"rules={len(metrics)} ok={ok}")
+            return ok
+        except Exception as e:
+            self._log("submit", f"error={e}")
+            return False
+
+    # ── Fetch global weights ────────────────────────────
+    def fetch_weights(self) -> Dict[str, dict]:
+        if not self.enabled:
+            return {}
+        try:
+            import urllib.request as request
+            req = request.Request(f"{self.server_url}/api/v1/federated/weights")
+            req.add_header("x-api-key", self.api_key)
+            with request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+                weights = json.loads(resp.read())
+        except Exception as e:
+            self._log("fetch", f"error={e}")
+            return {}
+
+        for rule_id, data in weights.items():
+            self.db.conn.execute("""
+                INSERT OR REPLACE INTO federated_global_weights
+                (rule_id, global_tp_rate, global_verdicts, updated_at)
+                VALUES (?, ?, ?, datetime('now'))
+            """, (rule_id, data.get("tp_rate", 0.0), data.get("verdicts", 0)))
+        self.db.conn.commit()
+        self._log("fetch", f"rules={len(weights)}")
+        return weights
+
+    # ── Local accessor ──────────────────────────────────
+    def get_global_tp_rate(self, rule_id: str) -> Optional[float]:
+        base = _base_rule(rule_id)
+        row = self.db.conn.execute("""
+            SELECT global_tp_rate, global_verdicts
+            FROM federated_global_weights WHERE rule_id = ?
+        """, (base,)).fetchone()
+        if row and row["global_verdicts"] >= 20:
+            return row["global_tp_rate"]
+        return None
+
+
+# ── Confidence adjustment ──────────────────────────────────
+def adjust_confidence(finding: dict, client: FederatedClient) -> dict:
+    global_tp = client.get_global_tp_rate(finding.get("rule_id", ""))
+    if global_tp is None:
+        return finding
+
+    conf = finding.get("confidence", 0.0)
+    meta = finding.setdefault("metadata", {})
+
+    if global_tp < 0.50:
+        penalty = (0.50 - global_tp) * 0.30
+        finding["confidence"] = max(0.05, conf - penalty)
+        meta["federated_adjusted"] = "penalty"
+        meta["global_tp_rate"] = round(global_tp, 3)
+    elif global_tp > 0.85:
+        boost = (global_tp - 0.85) * 0.20
+        finding["confidence"] = min(0.99, conf + boost)
+        meta["federated_adjusted"] = "boost"
+        meta["global_tp_rate"] = round(global_tp, 3)
+    return finding
+
+
+# ── Global auto-deactivate ─────────────────────────────────
+def auto_deactivate_global(db, client: FederatedClient,
+                           tp_threshold: float = 0.30,
+                           min_verdicts: int = 30) -> List[str]:
+    rows = db.conn.execute("""
+        SELECT rule_id, global_tp_rate, global_verdicts
+        FROM federated_global_weights
+        WHERE global_tp_rate < ? AND global_verdicts >= ?
+    """, (tp_threshold, min_verdicts)).fetchall()
+
+    deactivated = []
+    for r in rows:
+        db.conn.execute("""
+            INSERT OR IGNORE INTO federated_deactivated (rule_id, reason)
+            VALUES (?, ?)
+        """, (r["rule_id"],
+              f"global_tp_rate={r['global_tp_rate']:.2f}@{r['global_verdicts']}verdicts"))
+        deactivated.append(r["rule_id"])
+    if deactivated:
+        db.conn.commit()
+    return deactivated
+
+
+def is_globally_deactivated(db, rule_id: str) -> bool:
+    base = _base_rule(rule_id)
+    row = db.conn.execute(
+        "SELECT 1 FROM federated_deactivated WHERE rule_id = ?", (base,)).fetchone()
+    return row is not None
+
+
+# ── Cold start ─────────────────────────────────────────────
+def cold_start_adjust(finding: dict, client: FederatedClient,
+                      local_verdicts: int, threshold: int = 5) -> dict:
+    if local_verdicts < threshold:
+        return adjust_confidence(finding, client)
+    return finding
+
+
+# ── CLI ────────────────────────────────────────────────────
+def main() -> None:
+    import argparse
+    p = argparse.ArgumentParser(description="GSC Federated Learning")
+    sub = p.add_subparsers(dest="action", required=True)
+
+    sub.add_parser("status", help="Show federated status")
+    sub.add_parser("submit", help="Submit local metrics")
+    sub.add_parser("fetch", help="Fetch global weights")
+    wp = sub.add_parser("weights", help="Show global weight for a rule")
+    wp.add_argument("rule", help="rule_id")
+
+    args = p.parse_args()
+
+    sys.path.insert(0, str(Path(__file__).parent))
+    from gsc_db import GSCDatabase
+    db = GSCDatabase()
+    db.__enter__()
+
+    # Dummy client for local ops
+    client = FederatedClient(db, "http://localhost", "key", enabled=True)
+
+    if args.action == "status":
+        w = db.conn.execute("SELECT COUNT(*) AS n FROM federated_global_weights").fetchone()
+        d = db.conn.execute("SELECT COUNT(*) AS n FROM federated_deactivated").fetchone()
+        print(f"Global weights cached: {w['n']} rules")
+        print(f"Globally deactivated:  {d['n']} rules")
+        print(f"Tenant hash: {client._tenant_hash()}")
+
+    elif args.action == "submit":
+        ok = client.submit()
+        print(f"Submit: {'OK' if ok else 'FAILED'}")
+
+    elif args.action == "fetch":
+        weights = client.fetch_weights()
+        print(f"Fetched {len(weights)} global weights")
+
+    elif args.action == "weights":
+        rate = client.get_global_tp_rate(args.rule)
+        if rate is not None:
+            print(f"{args.rule}: global_tp_rate={rate:.3f}")
+        else:
+            print(f"No global data for {args.rule}")
+
+    db.close()
+
+
+if __name__ == "__main__":
+    main()

@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 26
+TARGET_VERSION = 27
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -169,6 +169,26 @@ ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
 """
 
+SCHEMA_V027 = """
+CREATE TABLE IF NOT EXISTS federated_global_weights (
+    rule_id TEXT PRIMARY KEY,
+    global_tp_rate REAL NOT NULL,
+    global_verdicts INTEGER NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS federated_deactivated (
+    rule_id TEXT PRIMARY KEY,
+    reason TEXT,
+    deactivated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS federated_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+"""
+
 SCHEMA_V026 = """
 CREATE TABLE IF NOT EXISTS sca_cache (
     ecosystem TEXT NOT NULL,
@@ -211,6 +231,26 @@ CREATE INDEX IF NOT EXISTS idx_sightings_loc
 # Schema v24 alters
 ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
+"""
+
+SCHEMA_V027 = """
+CREATE TABLE IF NOT EXISTS federated_global_weights (
+    rule_id TEXT PRIMARY KEY,
+    global_tp_rate REAL NOT NULL,
+    global_verdicts INTEGER NOT NULL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS federated_deactivated (
+    rule_id TEXT PRIMARY KEY,
+    reason TEXT,
+    deactivated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS federated_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    action TEXT NOT NULL,
+    detail TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 SCHEMA_V026 = """
@@ -301,6 +341,8 @@ class GSCDatabase:
             self._apply_v025()
         if version < 26:
             self._apply_v026()
+        if version < 27:
+            self._apply_v027()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -360,6 +402,10 @@ class GSCDatabase:
     def _apply_v024(self):
         """Schema v24: cross-repo secret fingerprints + sightings."""
         self.conn.executescript(SCHEMA_V024)
+
+    def _apply_v027(self):
+        """Schema v27: federated learning tables."""
+        self.conn.executescript(SCHEMA_V027)
 
     def _apply_v026(self):
         """Schema v26: sca_cache for OSV.dev responses."""

@@ -1903,6 +1903,14 @@ def main():
         [sys.executable, str(Path(__file__).parent / 'gsc_sca.py'),
          '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else []))))
 
+    # gsc federated (v0.30: cross-tenant learning)
+    p_fed = sub.add_parser('federated', help='Federated self-learning')
+    p_fed.add_argument('action', choices=['status','submit','fetch','weights'])
+    p_fed.add_argument('--rule', help='rule_id for weights')
+    p_fed.set_defaults(func=lambda a: subprocess.run(
+        [sys.executable, str(Path(__file__).parent / 'gsc_federated.py'),
+         a.action] + (['--rule', a.rule] if getattr(a,'rule',None) else []))))
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
