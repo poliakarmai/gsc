@@ -166,6 +166,22 @@ def cmd_scan(args):
     export_to_obsidian(project, findings, project_path, quiet=quiet)
 
     # 4. Report
+    # IaC: сканирование инфраструктурных файлов (GS031)
+    try:
+        from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, _is_kubernetes
+        for fpath in project_path.rglob("*"):
+            if not fpath.is_file(): continue
+            try: content = fpath.read_text(errors="ignore")
+            except: continue
+            if fpath.suffix in (".tf",".tfvars"):
+                findings.extend(detect_terraform(str(fpath), content))
+            base = fpath.name.lower()
+            if base.startswith("dockerfile") or base.endswith(".dockerfile"):
+                findings.extend(detect_dockerfile(str(fpath), content))
+            elif fpath.suffix in (".yaml",".yml") and _is_kubernetes(content):
+                findings.extend(detect_kubernetes(str(fpath), content))
+    except ImportError: pass
+
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
     elif args.sarif:

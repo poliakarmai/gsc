@@ -55,6 +55,15 @@ XSS_PATTERNS: list[tuple[str, str, str]] = [
     (r'Template\s*\(\s*.*\+', "SSTI: Go html/template with string concatenation", "HIGH"),
     (r'ERB\.new\s*\(', "SSTI: ERB.new with user input in Ruby", "CRITICAL"),
     (r'\{\s*\{\s*.*request\.', "SSTI: Django/Jinja2 template with request object", "MEDIUM"),
+
+    # Python f-string / format HTML injection (Reflected XSS)
+    (r'f["\']<\s*\w+[^"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string HTML interpolation — user input in tag", "HIGH"),
+    (r'["\']<[^"\']*\{[^}]*\}[^"\']*>["\']\s*\.format\s*\(', "Reflected XSS: .format() HTML interpolation", "HIGH"),
+    (r'["\']<[^"\']*%s[^"\']*>["\']\s*%\s*', "Reflected XSS: %-formatting HTML interpolation", "MEDIUM"),
+    (r'f["\']<\s*script[^"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string script tag with variable", "CRITICAL"),
+
+    # Template literals with user input (JS)
+    (r'`<\w+[^`]*\$\{[a-zA-Z_]\w*\}', "Reflected XSS: template literal HTML with variable", "HIGH"),
 ]
 
 # ── HTML Injection Patterns ───────────────────────────────────────────────────
