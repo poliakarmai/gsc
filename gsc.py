@@ -1930,6 +1930,13 @@ def main():
         + (['--enrich-report', a.enrich_report] if getattr(a,'enrich_report',None) else [])
         + (['--output', a.output] if getattr(a,'output',None) else [])))
 
+    # gsc sbom (v0.33: CycloneDX + VEX)
+    p_sbom = sub.add_parser('sbom', help='Generate SBOM + VEX (v0.33)')
+    p_sbom.add_argument('--repo', default='.')
+    p_sbom.add_argument('--with-vex', action='store_true')
+    p_sbom.add_argument('--output', '-o')
+    p_sbom.set_defaults(func=cmd_sbom)
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
