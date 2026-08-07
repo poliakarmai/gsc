@@ -5,7 +5,7 @@ os.chdir('/home/openclaw/gsc')
 sys.path.insert(0, '.')
 
 from gsc_nlpolicy import compile_policy, PolicyError
-from gsc_crossrepo_secrets import ORIGINAL_PATTERNS, REFINED_PATTERNS, fingerprint_secret
+from gsc_crossrepo_secrets import REFINED_PATTERNS, fingerprint_secret
 
 passed, failed = 0, 0
 def test(name, fn):
@@ -37,9 +37,9 @@ test('NL policy: rejects ReDoS pattern', t2)
 
 def t3():
     sha = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
-    hits = [st for pat, st in ORIGINAL_PATTERNS if re.search(pat, sha)]
-    assert len(hits) > 0, "Should prove FP flood"
-test('ORIGINAL_PATTERNS false-positively match SHA-256', t3)
+    hits = [st for pat, st in REFINED_PATTERNS if re.search(pat, sha)]
+    assert len(hits) == 0, f"REFINED_PATTERNS false-matched SHA: {hits}"
+test('REFINED_PATTERNS do NOT false-positively match SHA-256', t3)
 
 def t4():
     sha = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"

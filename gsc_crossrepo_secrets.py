@@ -35,12 +35,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
 
-# Module-level patterns for tests
-ORIGINAL_PATTERNS = [
-    (r'[A-Za-z0-9+/=]{40,}', 'api_key'),
-    (r'\b[0-9a-fA-F]{32,64}\b', 'hex_key'),
-    (r'AKIA[0-9A-Z]{16}', 'aws_access_key'),
-]
+# Module-level patterns for tests (single source: REFINED_PATTERNS)
 REFINED_PATTERNS = [
     (r'AKIA[0-9A-Z]{16}', 'aws_access_key'),
     (r'-----BEGIN\s+(?:RSA|EC|OPENSSH|PGP)\s+PRIVATE\s+KEY', 'private_key'),
