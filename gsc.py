@@ -1919,6 +1919,17 @@ def main():
     p_bench.add_argument('--output', '-o', default='gsc_scorecard')
     p_bench.set_defaults(func=_benchmark_run)
 
+    # gsc epss (v0.32: exploitability scoring)
+    p_epss = sub.add_parser('epss', help='EPSS exploitability lookup (v0.32)')
+    p_epss.add_argument('--cve', help='Lookup single CVE')
+    p_epss.add_argument('--enrich-report', help='Enrich scan.json with EPSS')
+    p_epss.add_argument('--output', '-o')
+    p_epss.set_defaults(func=lambda a: subprocess.run(
+        [sys.executable, str(Path(__file__).parent / 'gsc_epss.py')]
+        + (['--cve', a.cve] if getattr(a,'cve',None) else [])
+        + (['--enrich-report', a.enrich_report] if getattr(a,'enrich_report',None) else [])
+        + (['--output', a.output] if getattr(a,'output',None) else []))))
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')

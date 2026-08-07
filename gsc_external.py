@@ -1159,6 +1159,7 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     try:
         from gsc_blocking import BlockingEngine
 from gsc_compliance import enrich_finding
+from gsc_epss import enrich_sca_findings
         from gsc_db import GSCDatabase
         with GSCDatabase() as db:
             engine = BlockingEngine(db, policy.get("rollout_phase", "warn-only"),

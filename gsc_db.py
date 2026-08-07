@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 27
+TARGET_VERSION = 28
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -169,6 +169,17 @@ ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
 """
 
+SCHEMA_V028 = """
+CREATE TABLE IF NOT EXISTS epss_cache (
+    cve_id TEXT PRIMARY KEY,
+    epss REAL NOT NULL,
+    percentile REAL NOT NULL,
+    epss_date TEXT,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_epss_fetched ON epss_cache(fetched_at);
+"""
+
 SCHEMA_V027 = """
 CREATE TABLE IF NOT EXISTS federated_global_weights (
     rule_id TEXT PRIMARY KEY,
@@ -231,6 +242,17 @@ CREATE INDEX IF NOT EXISTS idx_sightings_loc
 # Schema v24 alters
 ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
+"""
+
+SCHEMA_V028 = """
+CREATE TABLE IF NOT EXISTS epss_cache (
+    cve_id TEXT PRIMARY KEY,
+    epss REAL NOT NULL,
+    percentile REAL NOT NULL,
+    epss_date TEXT,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_epss_fetched ON epss_cache(fetched_at);
 """
 
 SCHEMA_V027 = """
@@ -343,6 +365,8 @@ class GSCDatabase:
             self._apply_v026()
         if version < 27:
             self._apply_v027()
+        if version < 28:
+            self._apply_v028()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -402,6 +426,10 @@ class GSCDatabase:
     def _apply_v024(self):
         """Schema v24: cross-repo secret fingerprints + sightings."""
         self.conn.executescript(SCHEMA_V024)
+
+    def _apply_v028(self):
+        """Schema v28: epss_cache for EPSS exploitability lookups."""
+        self.conn.executescript(SCHEMA_V028)
 
     def _apply_v027(self):
         """Schema v27: federated learning tables."""
