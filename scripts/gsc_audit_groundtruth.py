@@ -28,7 +28,7 @@ def run(cmd, timeout=120):
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, cwd=str(GSC_ROOT))
         return r.returncode, r.stdout, r.stderr
-    except: return -1, "", str(_)
+    except Exception as e: return -1, "", str(e)
 
 def count_tests():
     total = 0
