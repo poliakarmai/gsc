@@ -1937,6 +1937,11 @@ def main():
     p_sbom.add_argument('--output', '-o')
     p_sbom.set_defaults(func=cmd_sbom)
 
+    # gsc iac (v0.34: IaC scanning)
+    p_iac = sub.add_parser('iac', help='IaC misconfiguration scan (v0.34)')
+    p_iac.add_argument('--repo', default='.')
+    p_iac.set_defaults(func=cmd_iac)
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
