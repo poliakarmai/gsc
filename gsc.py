@@ -1911,6 +1911,14 @@ def main():
         [sys.executable, str(Path(__file__).parent / 'gsc_federated.py'),
          a.action] + (['--rule', a.rule] if getattr(a,'rule',None) else []))))
 
+    # gsc benchmark (v0.31: OWASP Benchmark)
+    p_bench = sub.add_parser('benchmark', help='OWASP Benchmark scorecard (v0.31)')
+    p_bench.add_argument('target', choices=['owasp'])
+    p_bench.add_argument('--benchmark-path', required=True)
+    p_bench.add_argument('--expected-csv', required=True)
+    p_bench.add_argument('--output', '-o', default='gsc_scorecard')
+    p_bench.set_defaults(func=_benchmark_run)
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')
