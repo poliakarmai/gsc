@@ -1,0 +1,30 @@
+{
+  "total": 20,
+  "poc_verified": 4,
+  "vulnerabilities": [
+    {
+      "rule_id": "GS005",
+      "title": "SQL injection risk: f-string in query",
+      "file": "/home/openclaw/gsc/demo/repo/app.py",
+      "finding_key": "8e8e1a51feff"
+    },
+    {
+      "rule_id": "GS005",
+      "title": "CVE-2026-55721: SQL injection",
+      "file": "/home/openclaw/gsc/demo/repo/app.py",
+      "finding_key": "8e8e1a51feff"
+    },
+    {
+      "rule_id": "GS007",
+      "title": "pickle.load() \u2014 unsafe deserialization",
+      "file": "/home/openclaw/gsc/demo/repo/app.py",
+      "finding_key": "3c903aac90a4"
+    },
+    {
+      "rule_id": "GS008",
+      "title": "eval() or exec() usage",
+      "file": "/home/openclaw/gsc/demo/repo/app.py",
+      "finding_key": "b5c1e37c9184"
+    }
+  ]
+}
