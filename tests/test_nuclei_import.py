@@ -111,13 +111,19 @@ requests:
   - method: GET
     path: ["{{BaseURL}}/"]
 """)
-        import_nuclei_directory(str(d))
-        import_nuclei_directory(str(d))  # duplicate
-        templates = list_templates()
-        # DB isolation needed for true idempotency (known issue)
-        if len(templates) != 1:
-            print("  ⚠️ idempotent import — DB state (known issue, not a regression)")
-            return
+        # Isolated DB for true idempotency test
+        import sqlite3
+        iso_db = str(Path(d) / "iso.db")
+        conn = sqlite3.connect(iso_db)
+        conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INT)")
+        conn.execute("INSERT INTO schema_version VALUES (28)")
+        conn.execute("CREATE TABLE IF NOT EXISTS nuclei_templates (template_id TEXT PRIMARY KEY, name TEXT, severity TEXT, description TEXT, tags TEXT, requests TEXT, matchers TEXT)")
+        conn.execute("CREATE TABLE IF NOT EXISTS findings (finding_key TEXT PRIMARY KEY, rule_id TEXT, title TEXT, severity TEXT, confidence REAL, file TEXT, line INT, snippet TEXT)")
+        conn.commit(); conn.close()
+        import_nuclei_directory(str(d), db_path=iso_db)
+        import_nuclei_directory(str(d), db_path=iso_db)  # duplicate
+        templates = list_templates(db_path=iso_db)
+        assert len(templates) == 1  # not duplicated
 import pytest
 test('idempotent import (xfail: shared DB state)', t5)
 

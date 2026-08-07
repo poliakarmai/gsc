@@ -56,14 +56,14 @@ class NucleiTemplate:
         }
 
 
-def import_nuclei_directory(directory: str) -> dict:
+def import_nuclei_directory(directory: str, db_path: str = None) -> dict:
     dir_path = Path(directory)
     if not dir_path.exists():
         raise FileNotFoundError(f"Directory not found: {directory}")
     yaml_files = list(dir_path.rglob("*.yaml")) + list(dir_path.rglob("*.yml"))
     stats = {"imported": 0, "skipped": 0, "errors": 0}
     from gsc_db import GSCDatabase
-    with GSCDatabase() as db:
+    with (GSCDatabase(db_path) if db_path else GSCDatabase()) as db:
         for yaml_file in yaml_files:
             template = NucleiTemplate.from_yaml(str(yaml_file))
             if not template:
@@ -89,9 +89,9 @@ def import_nuclei_directory(directory: str) -> dict:
     return stats
 
 
-def list_templates(severity: str = None, tag: str = None) -> List[dict]:
+def list_templates(severity: str = None, tag: str = None, db_path: str = None) -> List[dict]:
     from gsc_db import GSCDatabase
-    with GSCDatabase() as db:
+    with (GSCDatabase(db_path) if db_path else GSCDatabase()) as db:
         sql = "SELECT * FROM nuclei_templates WHERE 1=1"
         params = []
         if severity:
