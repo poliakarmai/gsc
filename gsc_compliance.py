@@ -77,3 +77,18 @@ def enrich_finding(finding: dict) -> dict:
     if mapping:
         finding.setdefault("metadata", {})["compliance"] = mapping
     return finding
+
+
+# ── IaC GS031 — CIS Benchmarks ──────────────────────────
+COMPLIANCE_MAP.update({
+    "GS031-DOCKER-ROOT":       {"cwe": "CWE-250",  "cis": "CIS-Docker-4.1",   "owasp": "A05:2021-Misconfig"},
+    "GS031-DOCKER-NO-USER":    {"cwe": "CWE-250",  "cis": "CIS-Docker-4.1",   "owasp": "A05:2021-Misconfig"},
+    "GS031-DOCKER-LATEST":     {"cwe": "CWE-1104", "cis": "CIS-Docker-4.7",   "owasp": "A06:2021-VulnComponents"},
+    "GS031-DOCKER-SECRET-ENV": {"cwe": "CWE-798",  "cis": "CIS-Docker-5.10",  "owasp": "A02:2021-CryptoFailures"},
+    "GS031-K8S-PRIVILEGED":    {"cwe": "CWE-250",  "cis": "CIS-K8s-5.2.1",    "owasp": "A05:2021-Misconfig"},
+    "GS031-K8S-CAP-SYS-ADMIN": {"cwe": "CWE-250",  "cis": "CIS-K8s-5.2.1",    "owasp": "A05:2021-Misconfig"},
+    "GS031-K8S-HOST-NETWORK":  {"cwe": "CWE-668",  "cis": "CIS-K8s-5.2.4",    "owasp": "A05:2021-Misconfig"},
+    "GS031-TF-SG-OPEN":        {"cwe": "CWE-284",  "cis": "CIS-AWS-5.2",      "owasp": "A01:2021-BrokenAccess"},
+    "GS031-TF-S3-PUBLIC-ACL":  {"cwe": "CWE-732",  "cis": "CIS-AWS-2.1.1",    "owasp": "A01:2021-BrokenAccess"},
+    "GS031-TF-PLAINTEXT-SECRET": {"cwe": "CWE-798","cis": "CIS-AWS-3.1",      "owasp": "A02:2021-CryptoFailures"},
+})

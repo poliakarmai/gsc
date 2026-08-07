@@ -1,8 +1,8 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
-> **Версия:** v0.32 | **Детекторов:** 27 plugin + GS024 LLM | **Тестов:** 130/130 (12 файлов) | **Schema:** 28 | **Модулей:** ~60
-> **Статус:** SAST+DAST hybrid + P0/P1 complete — blocking-standard
+> **Версия:** v0.36 | **Детекторов:** 28 | **Тестов:** 171/171 (16+ файлов) | **Schema:** 28 | **Модулей:** ~60
+> **Статус:** SAST+DAST+SCA+IaC+SBOM — P0/P1/P2 complete, STABILIZED
 
 ## Что это
 
@@ -44,12 +44,15 @@ gsc/
 ├── gsc_nuclei_import.py          ← Nuclei import (Wave 2)
 ├── gsc_dast_scanner.py           ← DAST scanner (Wave 2)
 ├── gsc_dast_validator.py         ← DAST in Proof-of-Fix (Wave 3)
-├── gsc_detectors/                ← 27 plugin-детекторов
+├── gsc_sbom.py                   ← SBOM CycloneDX + VEX
+├── gsc_spdx.py                   ← SPDX 2.3 + signing
+├── gsc_iac.py                    ← IaC misconfigurations
+├── gsc_detectors/                ← 28 plugin-детекторов
 ├── benchmark/                    ← 🆕 OWASP Benchmark
 ├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
 ├── cloud/                        ← SaaS S1–S4
-├── tests/                        ← 130 тестов (12 файлов)
+├── tests/                        ← 171 тест (16+ файлов)
 └── PROJECT.md AGENTS.md README.md
 ```
 
