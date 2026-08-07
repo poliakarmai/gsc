@@ -1895,6 +1895,14 @@ def main():
     list_nuc.add_argument('--severity', choices=['info','low','medium','high','critical'])
     list_nuc.add_argument('--tag', help='Filter by tag')
 
+    # gsc sca (v0.28: SCA via OSV.dev)
+    p_sca = sub.add_parser('sca', help='Scan dependencies for CVEs (OSV.dev)')
+    p_sca.add_argument('--repo', default='.')
+    p_sca.add_argument('--json', action='store_true')
+    p_sca.set_defaults(func=lambda a: subprocess.run(
+        [sys.executable, str(Path(__file__).parent / 'gsc_sca.py'),
+         '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else []))))
+
     # gsc dork
 
     dork = sub.add_parser('dork', help='GitHub Dorks scan — find secrets in public repos')

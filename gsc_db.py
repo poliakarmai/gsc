@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 25
+TARGET_VERSION = 26
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -169,6 +169,17 @@ ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
 """
 
+SCHEMA_V026 = """
+CREATE TABLE IF NOT EXISTS sca_cache (
+    ecosystem TEXT NOT NULL,
+    package TEXT NOT NULL,
+    version TEXT NOT NULL,
+    vulns_json TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (ecosystem, package, version)
+);
+"""
+
 SCHEMA_V025 = """
 CREATE TABLE IF NOT EXISTS nuclei_templates (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -200,6 +211,17 @@ CREATE INDEX IF NOT EXISTS idx_sightings_loc
 # Schema v24 alters
 ALTERS_V024 = """
 ALTER TABLE findings ADD COLUMN autofixed INTEGER DEFAULT 0;
+"""
+
+SCHEMA_V026 = """
+CREATE TABLE IF NOT EXISTS sca_cache (
+    ecosystem TEXT NOT NULL,
+    package TEXT NOT NULL,
+    version TEXT NOT NULL,
+    vulns_json TEXT NOT NULL,
+    fetched_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (ecosystem, package, version)
+);
 """
 
 SCHEMA_V025 = """
@@ -277,6 +299,8 @@ class GSCDatabase:
             self._apply_v024()
         if version < 25:
             self._apply_v025()
+        if version < 26:
+            self._apply_v026()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -336,6 +360,10 @@ class GSCDatabase:
     def _apply_v024(self):
         """Schema v24: cross-repo secret fingerprints + sightings."""
         self.conn.executescript(SCHEMA_V024)
+
+    def _apply_v026(self):
+        """Schema v26: sca_cache for OSV.dev responses."""
+        self.conn.executescript(SCHEMA_V026)
 
     def _apply_v025(self):
         """Schema v25: nuclei_templates + dast_findings for SAST+DAST hybrid."""
