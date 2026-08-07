@@ -1,8 +1,8 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
-> **Версия:** v0.37 | **Детекторов:** 28 | **Тестов:** 171/171 | **VSCode:** ✅ (16+ файлов) | **Schema:** 28 | **Модулей:** ~60
-> **Статус:** SAST+DAST+SCA+IaC+SBOM — P0/P1/P2 complete + VSCode extension
+> **Версия:** v0.38 | **Детекторов:** 28 | **Тестов:** 181/181 | **VSCode:** ✅ (16+ файлов) | **Schema:** 28 | **Модулей:** ~60
+> **Статус:** SAST+DAST+SCA+IaC+SBOM — P0/P1/P2 + VSCode + Enterprise (RBAC/SSO/Audit/Helm)
 
 ## Что это
 
@@ -49,6 +49,7 @@ gsc/
 ├── gsc_iac.py                    ← IaC misconfigurations
 ├── gsc_detectors/                ← 28 plugin-детекторов
 ├── benchmark/                    ← 🆕 OWASP Benchmark
+├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension (v0.37)
 ├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
