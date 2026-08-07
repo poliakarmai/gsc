@@ -1933,6 +1933,8 @@ def main():
     # gsc sbom (v0.33: CycloneDX + VEX)
     p_sbom = sub.add_parser('sbom', help='Generate SBOM + VEX (v0.33)')
     p_sbom.add_argument('--repo', default='.')
+    p_sbom.add_argument('--format', choices=['cyclonedx','spdx'], default='cyclonedx')
+    p_sbom.add_argument('--sign', action='store_true', help='Sign SBOM (HMAC-SHA256)')
     p_sbom.add_argument('--with-vex', action='store_true')
     p_sbom.add_argument('--output', '-o')
     p_sbom.set_defaults(func=cmd_sbom)
@@ -1941,6 +1943,12 @@ def main():
     p_iac = sub.add_parser('iac', help='IaC misconfiguration scan (v0.34)')
     p_iac.add_argument('--repo', default='.')
     p_iac.set_defaults(func=cmd_iac)
+
+    # gsc sbom-verify
+    p_sbomv = sub.add_parser('sbom-verify', help='Verify SBOM signature')
+    p_sbomv.add_argument('sbom', help='SBOM JSON file')
+    p_sbomv.add_argument('signature', help='Signature .sig.json file')
+    p_sbomv.set_defaults(func=cmd_sbom_verify)
 
     # gsc dork
 
