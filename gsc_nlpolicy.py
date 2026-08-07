@@ -32,7 +32,7 @@ MAX_POLICY_PATTERN_LEN = 200
 POLICY_TEST_TIMEOUT = 30
 
 # Nested quantifier constructs — explicit ReDoS candidates
-BAD_RE = re.compile(r"(\.\*|\.\+|\{[0-9,]*\})\s*\)?\s*(\.\*|\.\+|\{)")
+BAD_RE = re.compile(r'(?:(?:\.\*|\.\+|\{[0-9,]*\})\s*\)?\s*(?:\.\*|\.\+|\{)|\)\s*[+*])')
 
 
 class PolicyError(Exception):
@@ -162,6 +162,32 @@ def policy_add(natural_text: str) -> Optional[dict]:
     print(f"✅ Policy '{name}' ({policy['severity']}): {policy['description']}")
     print(f"   Pattern: {policy['pattern'][:80]}")
     return policy
+
+
+
+# ReDoS-safe policy compilation (for tests + external use)
+BAD_RE_POLICY = BAD_RE
+
+def compile_policy(natural_text, llm, max_len=MAX_POLICY_PATTERN_LEN):
+    """Compile NL policy with ReDoS guard. Returns dict or raises PolicyError."""
+    raw = llm.ask(f"POLICY: {natural_text}", max_tokens=300)
+    import json as _json
+    m = re.search(r"\{.*\}", raw, re.DOTALL)
+    if not m:
+        raise PolicyError("LLM returned no JSON")
+    compiled = _json.loads(m.group(0))
+    pattern = compiled.get("pattern", "")
+    if not pattern:
+        raise PolicyError("empty pattern")
+    if len(pattern) > max_len:
+        raise PolicyError(f"pattern too long ({len(pattern)} > {max_len}), ReDoS guard")
+    if BAD_RE_POLICY.search(pattern):
+        raise PolicyError("nested quantifiers rejected (ReDoS risk)")
+    try:
+        re.compile(pattern)
+    except re.error as e:
+        raise PolicyError(f"invalid regex: {e}")
+    return compiled
 
 
 def policy_list() -> List[dict]:

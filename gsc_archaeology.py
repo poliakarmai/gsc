@@ -58,6 +58,11 @@ class VulnerabilityLifespan:
 
 
 # ── Fingerprint matching ──────────────────────────────────
+def content_fingerprint(snippet: str) -> str:
+    """Public alias for testing — normalised content hash."""
+    return _content_fingerprint(snippet)
+
+
 def _content_fingerprint(snippet: str) -> str:
     """Normalized fingerprint — strip whitespace, lowercase, truncate."""
     norm = "".join(snippet.lower().split())[:120]

@@ -18,6 +18,11 @@ CLI:
 from __future__ import annotations
 
 import hashlib
+
+
+def fingerprint_secret(value: str) -> str:
+    """Return 32-char SHA256 fingerprint. Value is NOT stored."""
+    return hashlib.sha256(value.encode()).hexdigest()[:32]
 import json
 import os
 import sqlite3
@@ -29,6 +34,19 @@ from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Set
+
+# Module-level patterns for tests
+ORIGINAL_PATTERNS = [
+    (r'[A-Za-z0-9+/=]{40,}', 'api_key'),
+    (r'\b[0-9a-fA-F]{32,64}\b', 'hex_key'),
+    (r'AKIA[0-9A-Z]{16}', 'aws_access_key'),
+]
+REFINED_PATTERNS = [
+    (r'AKIA[0-9A-Z]{16}', 'aws_access_key'),
+    (r'-----BEGIN\s+(?:RSA|EC|OPENSSH|PGP)\s+PRIVATE\s+KEY', 'private_key'),
+    (r'(?i)(?:password|passwd|pwd|secret|api[_-]?key|token)\s*[:=]\s*[\'"]?([A-Za-z0-9+/=_.-]{12,})', 'config_secret'),
+    (r'(?i)(?:mongodb|mysql|postgresql|redis|amqp)://[^\s\'"]{10,}', 'db_url'),
+]
 
 GSC_HOME = Path.home() / ".gsc"
 SECRETS_DB = GSC_HOME / "crossrepo_secrets.db"

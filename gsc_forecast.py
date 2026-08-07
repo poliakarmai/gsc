@@ -304,3 +304,23 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
+def calc_risk_score(stats: dict) -> int:
+    """Calculate risk score (0-100) from file stats. Returns int for testing."""
+    past = stats.get("past_critical", 0) * 10 + stats.get("past_high", 0) * 5
+    churn = min(50, stats.get("churn_90d", 0))
+    authors = min(20, stats.get("authors_90d", 1) * 5)
+    density = min(30, (stats.get("lines", 1) / max(1, stats.get("age_days", 1))) * 0.3)
+    return int(past + churn + authors + density)
+
+
+def risk_level(score: int) -> str:
+    """Map score to risk level."""
+    if score >= 50:
+        return "critical"
+    if score >= 30:
+        return "high"
+    if score >= 15:
+        return "medium"
+    return "low"
