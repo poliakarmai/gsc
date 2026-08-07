@@ -1,11 +1,13 @@
 # GSC Audit Guide — для AI-агента
 
-> **Это актуальный источник правды.** PROJECT.md и AGENTS.md могут отставать — сверяться с этим документом.
-> Последнее обновление: 2026-08-07 | Версия кода: v1.2.0+
+> **Это актуальный источник правды.** PROJECT.md и AGENTS.md синхронизированы — все числа через `gsc_meta.py`.
+> Последнее обновление: 2026-08-07 | Версия кода: v1.2.0+ | Коммит: `6c169bd`
 
 ## Назначение
 
 Инструкция для внешнего AI-агента по проверке кодовой базы GSC. Точки входа, ожидаемые результаты, инварианты, известные проблемы, быстрые проверки.
+
+**Источник правды по числам:** `python3 gsc_meta.py` + `python3 scripts/gsc_reconcile.py`. Этот документ описывает структуру и проверки, но конкретные числа сверяются динамически. PROJECT.md и AGENTS.md больше не содержат хардкод-чисел.
 
 ---
 
@@ -152,7 +154,7 @@ cd gsc-vscode && npm install && npm run compile && npx tsc --noEmit && npm test
 | # | Инвариант | Где проверять | 🔴 при нарушении |
 |---|----------|---------------|-----------------|
 | 1 | `finding_key = sha256(rule+file+snippet)[:12]` | `make_finding()` в `base.py` | Ломает дедупликацию, feedback loop, archaeology |
-| 2 | finding без rule_id — не создаётся | `make_finding()`: `if not rule_id: raise ValueError` | См. проблему №4 |
+| 2 | finding без rule_id — не попадает в результаты | `make_finding()`: `if not rule_id: warn + return None` | См. проблему №4: 26 находок от legacy-паттернов |
 | 3 | Blocking Engine — единый источник блокировки | `gsc_blocking.py` | |
 | 4 | Авто-деградация: нет DEEPSEEK_API_KEY → regex-only | `check_plugin_detectors()` | |
 | 5 | Override с audit-trail | `publication_events` таблица | |
@@ -170,7 +172,7 @@ cd gsc-vscode && npm install && npm run compile && npx tsc --noEmit && npm test
 | 1 | SaaS S2–S3 не реализованы (воркеры, очереди, биллинг) | 🟡 | SKIP в тестах |
 | 2 | Enterprise под PostgreSQL, работает на SQLite | 🟡 | MVP-ограничение |
 | 3 | VSCode-тесты standalone (без @vscode/test-electron) | 🟡 | Не проверяют UI |
-| 4 | 🔴 Детекторы выдают находки без rule_id | 🔴 | **Guard в `make_finding()`** — если нашёл → детектор возвращает пустой rule_id |
+| 4 | 🔴 26 находок без rule_id от legacy-паттернов | 🔴 | **Guard skip + `scripts/gsc_audit_detectors.py`**. Корень: `check_source_driven`/`check_security` не проставляют rule_id. Фикс — миграция паттернов в DETECTORS |
 | 5 | Calibration-проекты — заглушки в `/tmp/gsc-calibration/` | 🟡 | Не полный набор |
 | 6 | GS024 LLM требует DEEPSEEK_API_KEY | 🟡 | Деградация в regex-only |
 
@@ -228,4 +230,4 @@ git status                     # должно быть чисто
 | Калибровка <10/10 | Проверить `expected.json` rule_id vs фактические |
 | VSCode tsc ошибки | `npm install && npx tsc --noEmit 2>&1 \| head -20` |
 | Fingerprint не совпадает | Сверить `sha256(value.strip().encode()).hexdigest()[:32]` |
-| **🔴 Находки без rule_id** | `grep -rn "rule_id.*['\"]\s*['\"]\|rule_id\s*=\s*None\|rule_id\s*=\s*\"\"" gsc_detectors/` — найти детектор-нарушитель. Исправить: добавить `rule_id=RULE_ID` в каждую `make_finding()` |
+| **🔴 Находки без rule_id** | `python3 scripts/gsc_audit_detectors.py` — найдёт legacy-паттерны без rule_id. Guard в `make_finding()` пропускает их (warning), не роняет скан. Корень: `check_source_driven`/`check_security` в `gsc.py` |
