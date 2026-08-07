@@ -1,8 +1,9 @@
 # AGENTS.md — GSC
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
-> **Версия:** v1.1 | **Детекторов:** 28 plugin + GS024 LLM | **Тестов:** 195/195 | **VSCode:** ✅ (16+ файлов) | **Schema:** 28 | **Модулей:** ~60
-> **Статус:** SAST+DAST+SCA+IaC+SBOM — AppSec Platform v1.1 — SaaS Foundation
+> **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
+> **Версия:** v1.2.0+ | **Schema:** 28 | **Статус:** SAST+DAST+SCA+IaC+SBOM — RELEASE
+> **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это
 

@@ -3,7 +3,7 @@
 > Для: внешнего AI-агента для аудита кодовой базы
 > Автор: Море (Hermes orchestrator, профиль default)
 > Дата: 2026-08-07
-> Версия: v1.1.0 — AppSec Platform (P0/P1/P2 + VSCode + Enterprise + SaaS S1)
+> Версия: v1.2.0+ — AppSec Platform (числа → gsc_meta.py) (P0/P1/P2 + VSCode + Enterprise + SaaS S1)
 > Репозиторий: github.com/poliakarmai/gsc
 
 ## 1. Что это
@@ -12,7 +12,7 @@ GSC — самообучающаяся AppSec-платформа. Полный �
 detect → prove → fix → verify → heal → predict → learn.
 
 **Покрытие поверхности:**
-- SAST (код) — 28 plugin-детекторов + GS024 LLM (DeepSeek)
+- SAST (код) — plugin-детекторы + GS024 LLM (DeepSeek) — точное число: gsc_meta.py
 - SCA (зависимости) — OSV.dev бatching, GS030
 - Secrets — GS029 + cross-repo корреляция
 - IaC — Terraform/K8s/Dockerfile, GS031

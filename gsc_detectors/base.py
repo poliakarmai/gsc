@@ -6,8 +6,10 @@ from typing import Dict, List, Tuple
 def make_finding(rule_id: str, title: str, severity: str, confidence: float,
                  file: str, line: int, snippet: str,
                  metadata: Dict | None = None) -> Dict:
-    if not rule_id:
-        raise ValueError("finding without rule_id — finding_key will be unstable")
+    if not rule_id or not str(rule_id).strip():
+        import warnings
+        warnings.warn(f"make_finding: empty rule_id — skipped. title={title!r} file={file!r}")
+        return None  # caller must handle: if f is None → skip
     key = hashlib.sha256(f"{rule_id}{file}{snippet}".encode()).hexdigest()[:12]
     return {"finding_key": key, "rule_id": rule_id, "title": title,
             "severity": severity, "confidence": confidence, "file": file,
