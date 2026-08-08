@@ -11,8 +11,9 @@ services:
       - GSC_DIR=/app
       - GSC_DB=/data/gsc_cloud.db
       - PORT=8000
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-Iv23liEjWuUFpei2kF9b}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-27666cc763243f72137a30acd24a0e00b23d6c72}
+      - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8081/api/v2/auth/github/callback}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
     volumes:

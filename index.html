@@ -31,11 +31,23 @@
         .demo { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 2rem; margin: 3rem 0; }
         .demo input { width: 100%; padding: 12px; background: #0d1117; border: 1px solid #30363d; border-radius: 8px; color: #e6edf3; font-size: 1rem; margin-bottom: 1rem; }
         .demo button { padding: 12px 24px; background: #1f6feb; border: none; border-radius: 8px; color: #fff; font-weight: 600; font-size: 1rem; cursor: pointer; }
+        .nav { display: flex; justify-content: flex-end; padding: 1rem 0; gap: 1rem; align-items: center; }
+        .btn-github { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background: #24292f; color: #fff; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: .95rem; transition: background .2s; }
+        .btn-github:hover { background: #353d46; }
+        .btn-github svg { width: 20px; height: 20px; fill: #fff; }
+        .user-badge { color: #58a6ff; font-weight: 600; font-size: .95rem; }
+        .btn-logout { padding: 8px 16px; background: #21262d; color: #8b949e; border: 1px solid #30363d; border-radius: 8px; text-decoration: none; font-size: .85rem; cursor: pointer; }
         footer { text-align: center; color: #484f58; padding: 2rem 0; font-size: .85rem; }
     </style>
 </head>
 <body>
     <div class="container">
+        <div class="nav" id="authNav">
+            <a href="/api/v2/auth/github" class="btn-github">
+                <svg viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61-.546-1.385-1.335-1.755-1.335-1.755-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.605-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 21.795 24 17.295 24 12 24 5.37 18.63 0 12 0z"/></svg>
+                Login with GitHub
+            </a>
+        </div>
         <div class="hero">
             <h1>GSC — Git Security Checker</h1>
             <p>AI-native security scanner. 36 detectors. SAST + SCA + Secrets + IaC + SBOM.<br>Find vulnerabilities before attackers do.</p>
@@ -103,16 +115,48 @@
     </footer>
 
     <script>
+        // ── OAuth handling ──
+        const params = new URLSearchParams(window.location.search);
+        const token = params.get('token');
+        const githubUser = params.get('github_user');
+
+        if (token && githubUser) {
+            // Store session and clean URL
+            sessionStorage.setItem('gsc_token', token);
+            sessionStorage.setItem('gsc_github_user', githubUser);
+            window.history.replaceState({}, '', '/');
+            showUser(githubUser);
+        } else {
+            // Check existing session
+            const savedUser = sessionStorage.getItem('gsc_github_user');
+            if (savedUser) showUser(savedUser);
+        }
+
+        function showUser(user) {
+            document.getElementById('authNav').innerHTML = `
+                <span class="user-badge">👤 ${user}</span>
+                <button class="btn-logout" onclick="logout()">Logout</button>
+            `;
+        }
+
+        function logout() {
+            sessionStorage.clear();
+            window.location.href = '/';
+        }
+
+        // ── Demo scan ──
         async function runDemo() {
             const url = document.getElementById('repoUrl').value;
             const result = document.getElementById('result');
             result.style.display = 'block';
             result.textContent = 'Scanning ' + url + '...';
+
+            const apiKey = sessionStorage.getItem('gsc_token') || 'demo';
             try {
                 const resp = await fetch('/api/v2/scan', {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({target: url, profile: 'audit', api_key: 'demo'})
+                    body: JSON.stringify({target: url, profile: 'audit', api_key: apiKey})
                 });
                 const data = await resp.json();
                 result.textContent = JSON.stringify(data, null, 2);

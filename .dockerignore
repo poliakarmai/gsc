@@ -1,0 +1,14 @@
+# GSC Docker — exclude heavy dev/test files
+OWASPBenchmark/
+calibration/
+tests/
+benchmark/
+gsc-vscode/
+enterprise/
+scripts/
+cloud/
+*.md
+.git
+__pycache__/
+*.pyc
+.hermes/
