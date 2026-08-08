@@ -464,34 +464,71 @@ def stats(api_key: str = Query(...)):
 @app.get("/dashboard")
 def dashboard():
     """Security dashboard with trend charts and PR feedback."""
-    db = conn  # global sqlite3 connection
+    db = conn  # global sqlite3 connection (cloud DB)
 
     # Stats for charts
-    stats = {"total_findings": 0, "by_severity": {}, "by_rule": {}, "pr_feedback": []}
+    stats = {
+        "total_scans": 0, "scans_today": 0, "total_findings": 0,
+        "by_severity": {}, "by_rule": {}, "pr_feedback": [],
+        "prs_created": 0, "prs_accepted": 0, "last_scan": None,
+    }
 
     try:
-        # Findings by severity
-        rows = db.execute(
-            "SELECT severity, COUNT(*) as cnt FROM findings GROUP BY severity ORDER BY cnt DESC"
-        ).fetchall()
-        stats["by_severity"] = {r["severity"]: r["cnt"] for r in rows if r["severity"]}
-        stats["total_findings"] = sum(stats["by_severity"].values())
+        # Scan stats (from audit DB if available, else cloud DB)
+        src = _audit_conn or db
+        stats["total_scans"] = src.execute("SELECT COUNT(*) FROM audit_runs").fetchone()[0]
+        try:
+            stats["scans_today"] = src.execute(
+                "SELECT COUNT(*) FROM audit_runs WHERE date(started_at) = date('now')"
+            ).fetchone()[0]
+        except Exception:
+            stats["scans_today"] = 0
+        last = src.execute(
+            "SELECT project, started_at, total_findings FROM audit_runs ORDER BY id DESC LIMIT 1"
+        ).fetchone()
+        if last:
+            stats["last_scan"] = {"project": last["project"], "at": last["started_at"],
+                                 "findings": last["total_findings"]}
 
-        # Top detectors
-        rows = db.execute(
-            "SELECT rule_id, COUNT(*) as cnt FROM findings GROUP BY rule_id ORDER BY cnt DESC LIMIT 8"
-        ).fetchall()
-        stats["by_rule"] = {r["rule_id"]: r["cnt"] for r in rows}
+        # PR stats
+        try:
+            stats["prs_created"] = db.execute("SELECT COUNT(*) FROM published_comments").fetchone()[0]
+        except Exception:
+            stats["prs_created"] = 0
+        # Findings stats (from audit DB if available)
+        src = _audit_conn or db
+        stats["total_findings"] = src.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
+        try:
+            # Audit DB uses 'category' not 'severity'
+            rows = src.execute(
+                "SELECT COALESCE(category, 'UNKNOWN') as sev, COUNT(*) as cnt "
+                "FROM findings GROUP BY sev ORDER BY cnt DESC"
+            ).fetchall()
+            stats["by_severity"] = {r["sev"]: r["cnt"] for r in rows}
+        except Exception:
+            stats["by_severity"] = {}
+        try:
+            rows = src.execute(
+                "SELECT COALESCE(category, 'unknown') as rule_id, COUNT(*) as cnt "
+                "FROM findings GROUP BY rule_id ORDER BY cnt DESC LIMIT 8"
+            ).fetchall()
+            stats["by_rule"] = {r["rule_id"]: r["cnt"] for r in rows}
+        except Exception:
+            stats["by_rule"] = {}
 
         # PR feedback
-        rows = db.execute("""
-            SELECT repo, pr_number, pr_state, author_response, comment_count,
-                   reactions_json, merged, checked_at
-            FROM pr_feedback ORDER BY checked_at DESC LIMIT 10
-        """).fetchall()
-        stats["pr_feedback"] = [dict(r) for r in rows]
+        try:
+            rows = db.execute("""
+                SELECT repo, pr_number, pr_state, author_response, comment_count,
+                       reactions_json, merged, checked_at
+                FROM pr_feedback ORDER BY checked_at DESC LIMIT 10
+            """).fetchall()
+            stats["pr_feedback"] = [dict(r) for r in rows]
+        except Exception:
+            stats["pr_feedback"] = []
+
     except Exception:
-        pass  # Tables may not exist yet
+        pass  # Generic fallback for scan/finding queries
 
     # Build HTML with Chart.js
     severity_json = json.dumps(stats["by_severity"])
@@ -508,14 +545,15 @@ def dashboard():
 <style>
 * {{ margin: 0; padding: 0; box-sizing: border-box; }}
 body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }}
-header {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; }}
+header {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }}
 h1 {{ font-size: 20px; color: #58a6ff; }}
+.version {{ font-size: 12px; color: #8b949e; }}
 .grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; padding: 24px; }}
 .card {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }}
 .card h2 {{ font-size: 16px; margin-bottom: 16px; color: #8b949e; }}
 .big-number {{ font-size: 48px; font-weight: bold; color: #58a6ff; }}
-.stats-row {{ display: flex; gap: 20px; }}
-.stat {{ flex: 1; text-align: center; }}
+.stats-row {{ display: flex; gap: 20px; flex-wrap: wrap; }}
+.stat {{ flex: 1; min-width: 100px; text-align: center; }}
 .stat .value {{ font-size: 28px; font-weight: bold; }}
 .stat .label {{ font-size: 12px; color: #8b949e; margin-top: 4px; }}
 .crit {{ color: #f85149; }} .high {{ color: #f0883e; }} .med {{ color: #d29922; }} .low {{ color: #58a6ff; }}
@@ -524,14 +562,24 @@ th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #21262d;
 th {{ color: #8b949e; font-weight: 600; }}
 .merged {{ color: #3fb950; }} .open {{ color: #58a6ff; }} .closed {{ color: #8b949e; }}
 canvas {{ max-height: 250px; }}
+.last-scan {{ font-size: 13px; color: #8b949e; margin-top: 12px; }}
 </style>
 </head>
 <body>
-<header><h1>🔒 GSC Security Dashboard</h1></header>
+<header><h1>🔒 GSC Security Dashboard</h1><span class="version">v1.4.0</span></header>
 <div class="grid">
     <div class="card">
         <h2>📊 Overview</h2>
-        <div class="big-number" id="total">0</div>
+        <div class="stats-row">
+            <div class="stat"><div class="value" id="scans">{stats['total_scans']}</div><div class="label">Total Scans</div></div>
+            <div class="stat"><div class="value" id="scansToday">{stats['scans_today']}</div><div class="label">Today</div></div>
+            <div class="stat"><div class="value" id="prs">{stats['prs_created']}</div><div class="label">PRs Created</div></div>
+        </div>
+        <div class="last-scan" id="lastScan">{f"Last: {stats['last_scan']['project']} ({stats['last_scan']['findings']} findings)" if stats.get('last_scan') else ""}</div>
+    </div>
+    <div class="card">
+        <h2>🔍 Findings</h2>
+        <div class="big-number" id="total">{stats['total_findings']:,}</div>
         <div class="stats-row" style="margin-top:12px">
             <div class="stat"><div class="value crit" id="crit">0</div><div class="label">Critical</div></div>
             <div class="stat"><div class="value high" id="hi">0</div><div class="label">High</div></div>
@@ -625,6 +673,16 @@ if (prData && prData.length > 0) {{
 </html>"""
     from fastapi.responses import HTMLResponse
     return HTMLResponse(content=html)
+
+# ── Import audit DB at startup ──
+AUDIT_DB = os.environ.get("GSC_AUDIT_DB", "")
+_audit_conn = None
+if AUDIT_DB and Path(AUDIT_DB).exists():
+    _audit_conn = sqlite3.connect(
+        f"file://{AUDIT_DB}?immutable=1", uri=True,
+        check_same_thread=False)
+    _audit_conn.row_factory = sqlite3.Row
+    print(f"✅ Audit DB loaded: {_audit_conn.execute('SELECT COUNT(*) FROM findings').fetchone()[0]} findings", flush=True)
 
 # ── Static files (catch-all for frontend) ──
 STATIC_DIR = GSC_DIR
