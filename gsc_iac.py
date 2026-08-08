@@ -107,10 +107,10 @@ TERRAFORM_RULES = [
     ("GS031-TF-PUBLIC-IP", re.compile(r'associate_public_ip_address\s*=\s*true', re.MULTILINE), "MEDIUM", "Public IP on instance"),
     ("GS031-TF-PLAINTEXT-SECRET", re.compile(r'(?i)(?:access_key|secret_key|password)\s*=\s*"[^"]{8,}"'), "CRITICAL", "Hardcoded credentials in Terraform"),
     # 🆕 DevOps Book patterns
-    ("GS031-TF-BACKEND-NO-ENCRYPT", re.compile(r'backend\s+"s3"\s*\{[^}]*?(?<!\bencrypt\s*=\s*true)', re.DOTALL | re.MULTILINE), "HIGH", "S3 backend without encrypt=true — state exposed"),
+    ("GS031-TF-BACKEND-NO-ENCRYPT", re.compile(r'backend\s+"s3"\s*\{', re.MULTILINE), "HIGH", "S3 backend — verify encrypt=true is set (manual check)"),
     ("GS031-TF-RDS-PUBLIC", re.compile(r'publicly_accessible\s*=\s*true', re.MULTILINE), "CRITICAL", "RDS publicly accessible"),
     ("GS031-TF-IAM-WILDCARD", re.compile(r'"(?:arn:aws:[^"]*:\*|[^"]*\*[^"]*)"\s*\]', re.MULTILINE), "HIGH", "Wildcard in IAM resource ARN"),
-    ("GS031-TF-S3-NO-VERSIONING", re.compile(r'bucket\s*=\s*"[^"]+"\s*\n(?!.*versioning\s*\{[^}]*enabled\s*=\s*true)', re.DOTALL), "LOW", "S3 bucket without versioning — no rollback"),
+    ("GS031-TF-S3-NO-VERSIONING", re.compile(r'bucket\s*=\s*"[^"]+"\s*\n', re.MULTILINE), "LOW", "S3 bucket — verify versioning is enabled (manual check)"),
 ]
 
 def detect_terraform(file_path: str, content: str) -> List[dict]:
