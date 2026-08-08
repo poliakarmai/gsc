@@ -43,6 +43,7 @@ import gsc_detectors.gs023_race_conditions as _gs023
 import gsc_detectors.gs025_ai_provenance as _gs025
 import gsc_detectors.gs032_prompt_injection as _gs032
 import gsc_detectors.gs033_cicd as _gs033
+import gsc_detectors.gs034_supply_chain as _gs034
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -237,6 +238,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs033.detect,
         description=_gs033.description,
         noise_tier=getattr(_gs033, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 v2.0: npm supply chain attack detection (GS034)
+    DetectorEntry(
+        rule_id=_gs034.RULE_ID,
+        echelon=_gs034.ECHELON,
+        detect_fn=_gs034.detect,
+        description=_gs034.description,
+        noise_tier=getattr(_gs034, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
