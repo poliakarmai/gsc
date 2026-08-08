@@ -2,12 +2,12 @@
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
 > **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
-> **Версия:** v1.2.0+ | **Schema:** 28 | **Статус:** SAST+DAST+SCA+IaC+SBOM — RELEASE
+> **Версия:** v1.3.0 | **Schema:** 29 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
 > **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это
 
-GSC — самообучающаяся AppSec-платформа: 27 детекторов + GS024 LLM (DeepSeek),
+GSC — самообучающаяся AppSec-платформа: 28 детекторов + GS024 LLM (DeepSeek),
 SQLite, полный цикл `detect → prove → fix → verify → heal → predict`.
 
 **Эксклюзивы:** PoC Auto-Generation, Proof-of-Fix, Self-Healing CI, Security Archaeology,
@@ -61,7 +61,7 @@ gsc/
 └── PROJECT.md AGENTS.md README.md
 ```
 
-DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 28)
+DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 29)
 
 ## Быстрый старт
 
