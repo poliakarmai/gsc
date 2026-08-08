@@ -45,6 +45,10 @@ import gsc_detectors.gs032_prompt_injection as _gs032
 import gsc_detectors.gs033_cicd as _gs033
 import gsc_detectors.gs034_supply_chain as _gs034
 import gsc_detectors.gs035_php as _gs035
+import gsc_detectors.gs036_nodejs as _gs036
+import gsc_detectors.gs037_python as _gs037
+import gsc_detectors.gs038_go as _gs038
+import gsc_detectors.gs039_ruby as _gs039
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -255,6 +259,35 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs035.detect,
         description=_gs035.description,
         noise_tier=getattr(_gs035, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS036–GS039: language-specific vulnerability detectors
+    DetectorEntry(
+        rule_id=_gs036.RULE_ID,
+        echelon=_gs036.ECHELON,
+        detect_fn=_gs036.detect,
+        description=_gs036.description,
+        noise_tier=getattr(_gs036, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs037.RULE_ID,
+        echelon=_gs037.ECHELON,
+        detect_fn=_gs037.detect,
+        description=_gs037.description,
+        noise_tier=getattr(_gs037, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs038.RULE_ID,
+        echelon=_gs038.ECHELON,
+        detect_fn=_gs038.detect,
+        description=_gs038.description,
+        noise_tier=getattr(_gs038, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs039.RULE_ID,
+        echelon=_gs039.ECHELON,
+        detect_fn=_gs039.detect,
+        description=_gs039.description,
+        noise_tier=getattr(_gs039, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
