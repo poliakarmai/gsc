@@ -123,7 +123,7 @@ async def findings(
         raise HTTPException(401, "Invalid API key")
 
     from cloud.api_v2 import handle_findings_v2
-    result, code = handle_findings_v2(db, api_key)
+    result, code = handle_findings_v2(db, api_key, severity=severity, rule_id=rule_id, limit=limit)
     return result
 
 # ═══════════════════════════════════════════════════════════

@@ -1,5 +1,5 @@
 """SaaS S1 — /api/v2 multi-tenant endpoints (v1.1)."""
-from typing import Tuple
+from typing import Tuple, Optional
 from cloud.tenancy import verify_api_key, scoped_query
 
 def handle_scan_v2(db, api_key: str, target: str, profile: str) -> Tuple[dict, int]:
@@ -15,9 +15,18 @@ def handle_scan_v2(db, api_key: str, target: str, profile: str) -> Tuple[dict, i
             f.get("severity",""),f.get("confidence",0.85),f.get("file",""),f.get("line",0),f.get("snippet",""),tid))
     return {"findings": len(report.get("findings", [])), "tenant_id": tid}, 200
 
-def handle_findings_v2(db, api_key: str) -> Tuple[dict, int]:
+def handle_findings_v2(db, api_key: str, severity: str = None, rule_id: str = None, limit: int = 50) -> Tuple[dict, int]:
     tid = verify_api_key(db, api_key)
     if tid is None: return {"error": "unauthorized"}, 401
     sql, params = scoped_query("SELECT * FROM findings", tid)
+    # Optional filters
+    if severity:
+        sql += " AND severity = ?"
+        params = (*params, severity)
+    if rule_id:
+        sql += " AND rule_id = ?"
+        params = (*params, rule_id)
+    sql += " ORDER BY created_at DESC LIMIT ?"
+    params = (*params, limit)
     rows = db.query(sql, params)
     return {"findings": [dict(r) for r in rows]}, 200
