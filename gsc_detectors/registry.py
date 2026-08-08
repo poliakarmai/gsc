@@ -44,6 +44,7 @@ import gsc_detectors.gs025_ai_provenance as _gs025
 import gsc_detectors.gs032_prompt_injection as _gs032
 import gsc_detectors.gs033_cicd as _gs033
 import gsc_detectors.gs034_supply_chain as _gs034
+import gsc_detectors.gs035_php as _gs035
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -246,6 +247,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs034.detect,
         description=_gs034.description,
         noise_tier=getattr(_gs034, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 v2.0: PHP vulnerability detection (GS035)
+    DetectorEntry(
+        rule_id=_gs035.RULE_ID,
+        echelon=_gs035.ECHELON,
+        detect_fn=_gs035.detect,
+        description=_gs035.description,
+        noise_tier=getattr(_gs035, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
