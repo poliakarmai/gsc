@@ -1,3 +1,6 @@
-# GSC scanner core dependencies (stdlib-heavy, minimal external)
-pyyaml>=6.0
-requests>=2.31
+fastapi>=0.110
+uvicorn[standard]>=0.29
+pydantic>=2.0
+httpx
+python-jose[cryptography]
+stripe
