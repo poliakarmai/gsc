@@ -1364,6 +1364,92 @@ def cmd_db(args):
         conn.close()
 
 
+def cmd_state(args):
+    """Manage finding state lifecycle with FSM router."""
+    from gsc_db import GSCDatabase
+    from gsc_router import FindingRouter, FindingEvent, FindingState, Action
+
+    db = GSCDatabase()
+    router = FindingRouter()
+
+    if args.history:
+        history = db.get_state_history(args.finding_key)
+        if not history:
+            print(f"No state history for '{args.finding_key}'")
+            db.close(); return
+        print(f"State history for {args.finding_key}:")
+        for h in history:
+            print(f"  [{h['created_at']}] {h['from_state']} → {h['to_state']} ({h['event_type']})")
+        db.close(); return
+
+    if not args.transition:
+        current = db.get_current_state(args.finding_key)
+        print(f"Current state: {current}")
+        print("Use --transition <fp|confirm|fix|verify|reject|retriage>")
+        print("Or --history to see full state log")
+        db.close(); return
+
+    # Map CLI transition to event
+    current = db.get_current_state(args.finding_key)
+    state = FindingState(current) if current in [s.value for s in FindingState] else FindingState.NEW
+
+    transition_map = {
+        "fp":        ("fp_reported", "Marked as false positive"),
+        "confirm":   ("fix_pushed", f"Confirmed, fix in PR #{args.pr}" if args.pr else "Confirmed"),
+        "fix":       ("fix_pushed", f"Fix pushed: PR #{args.pr}" if args.pr else "Fix pushed"),
+        "verify":    ("fix_confirmed", "Fix verified"),
+        "reject":    ("fix_rejected", f"Fix rejected: {args.comment}" if args.comment else "Fix rejected"),
+        "retriage":  ("comment_added", f"Re-triaging: {args.comment}" if args.comment else "Re-triaging"),
+    }
+
+    event_type, reason = transition_map[args.transition]
+    event = FindingEvent(type=event_type, finding_key=args.finding_key,
+                         actor=args.actor, comment=args.comment or reason,
+                         pr_number=args.pr)
+
+    action = router.route(event, state)
+    if action.type == Action.SKIP:
+        print(f"❌ Cannot transition from '{current}' via '{args.transition}': {action.reason}")
+        db.close(); return
+
+    db.log_state_transition(args.finding_key, current, action.target_state.value,
+                            event_type, args.actor, args.comment or reason)
+    print(f"✓ {current} → {action.target_state.value} ({action.type})")
+    print(f"  {action.reason}")
+    db.close()
+
+
+def cmd_verify_fix(args):
+    """Verify a fix before creating PR."""
+    import json
+    from gsc_verify_fix import verify_fix
+
+    report = verify_fix(
+        finding_key=args.finding_key,
+        repo_path=args.repo_path,
+        detector_id=args.detector,
+        skip_dast=not args.dast,
+        skip_tests=not args.tests,
+    )
+
+    output = {
+        "result": report.result.value,
+        "ready_for_pr": report.ready_for_pr,
+        "should_retry": report.should_retry,
+        "error": report.error_message,
+        "attempt": report.attempt,
+        "rescan_findings": len(report.rescan_findings),
+    }
+    print(json.dumps(output, indent=2))
+
+    if report.ready_for_pr:
+        print("\n✅ Fix verified — ready for PR!")
+    elif report.should_retry:
+        print(f"\n🔄 Fix needs work (attempt {report.attempt}/{report.max_attempts})")
+    else:
+        print(f"\n❌ Verification failed: {report.error_message}")
+
+
 def cmd_triage(args):
     """Interactive finding review — y/n/i/$/q + bulk mode."""
     if args.bulk:
@@ -1832,6 +1918,24 @@ def main():
     db = sub.add_parser("db", help="Query GSC database")
     db.add_argument("sql", help="SQL query")
 
+    # gsc state — finding state machine (v29)
+    state_p = sub.add_parser("state", help="Manage finding state lifecycle")
+    state_p.add_argument("finding_key", help="Finding key (pattern_fingerprint)")
+    state_p.add_argument("--transition", choices=["fp", "confirm", "fix", "verify", "reject", "retriage"],
+                         help="Trigger state transition")
+    state_p.add_argument("--actor", default="cli", help="Who triggered the transition")
+    state_p.add_argument("--comment", default="", help="Optional comment")
+    state_p.add_argument("--history", action="store_true", help="Show state history")
+    state_p.add_argument("--pr", type=int, default=0, help="PR number (for fix transition)")
+
+    # gsc verify-fix — validate fix before PR (v29)
+    verify_fix = sub.add_parser("verify-fix", help="Verify a fix resolves the finding")
+    verify_fix.add_argument("finding_key", help="Finding key")
+    verify_fix.add_argument("repo_path", help="Path to repository with fix")
+    verify_fix.add_argument("--detector", default="", help="Specific detector to verify")
+    verify_fix.add_argument("--dast", action="store_true", help="Run DAST verification")
+    verify_fix.add_argument("--tests", action="store_true", help="Run test suite")
+
     # gsc triage
     triage = sub.add_parser("triage", help="Interactive finding review (y/n/i)")
     triage.add_argument("project", nargs="?", help="Project name")
@@ -2131,6 +2235,10 @@ def main():
         cmd_db(args)
     elif args.command == "triage":
         cmd_triage(args)
+    elif args.command == "state":
+        cmd_state(args)
+    elif args.command == "verify-fix":
+        cmd_verify_fix(args)
     elif args.command == "explain":
         cmd_explain(args)
     elif args.command == "archaeology":

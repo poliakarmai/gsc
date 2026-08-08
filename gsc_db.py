@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 28
+TARGET_VERSION = 29
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -367,6 +367,8 @@ class GSCDatabase:
             self._apply_v027()
         if version < 28:
             self._apply_v028()
+        if version < 29:
+            self._apply_v029()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -430,6 +432,52 @@ class GSCDatabase:
     def _apply_v028(self):
         """Schema v28: epss_cache for EPSS exploitability lookups."""
         self.conn.executescript(SCHEMA_V028)
+
+    def _apply_v029(self):
+        """Schema v29: finding state machine + verification tracking.
+
+        - finding_states: immutable state transition log
+        - ALTER findings: add current_state, state_updated_at
+        - verify_results: fix verification outcome history
+        """
+        self.conn.executescript("""
+            CREATE TABLE IF NOT EXISTS finding_states (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                finding_key     TEXT NOT NULL,
+                from_state      TEXT NOT NULL DEFAULT 'new',
+                to_state        TEXT NOT NULL,
+                event_type      TEXT NOT NULL,
+                actor           TEXT NOT NULL DEFAULT '',
+                comment         TEXT DEFAULT '',
+                attempt         INTEGER DEFAULT 0,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (finding_key) REFERENCES findings(finding_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_finding_states_key
+                ON finding_states(finding_key, created_at);
+            CREATE INDEX IF NOT EXISTS idx_finding_states_state
+                ON finding_states(to_state, created_at);
+
+            ALTER TABLE findings ADD COLUMN current_state TEXT DEFAULT 'new';
+            ALTER TABLE findings ADD COLUMN state_updated_at TEXT;
+
+            CREATE TABLE IF NOT EXISTS verify_results (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                finding_key     TEXT NOT NULL,
+                result          TEXT NOT NULL,
+                attempt         INTEGER DEFAULT 1,
+                max_attempts    INTEGER DEFAULT 2,
+                ready_for_pr    INTEGER DEFAULT 0,
+                error_message   TEXT DEFAULT '',
+                rescan_count    INTEGER DEFAULT 0,
+                test_passed     INTEGER DEFAULT 0,
+                dast_count      INTEGER DEFAULT 0,
+                created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (finding_key) REFERENCES findings(finding_key)
+            );
+            CREATE INDEX IF NOT EXISTS idx_verify_results_key
+                ON verify_results(finding_key, created_at);
+        """)
 
     def _apply_v027(self):
         """Schema v27: federated learning tables."""
@@ -810,6 +858,58 @@ class GSCDatabase:
             return 0
 
     # ── Close ──────────────────────────────────────────────────
+
+    # ── v29 State Machine ──────────────────────────────────
+
+    def log_state_transition(self, finding_key: str, from_state: str,
+                              to_state: str, event_type: str,
+                              actor: str = "", comment: str = "",
+                              attempt: int = 0):
+        """Record immutable state transition. finding_key = pattern_fingerprint or id."""
+        self.conn.execute("""
+            INSERT INTO finding_states (finding_key, from_state, to_state,
+                event_type, actor, comment, attempt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (finding_key, from_state, to_state, event_type, actor, comment, attempt))
+
+        # Update current state on the finding row (match by pattern_fingerprint)
+        self.conn.execute("""
+            UPDATE findings SET current_state = ?, state_updated_at = datetime('now')
+            WHERE pattern_fingerprint = ?
+        """, (to_state, finding_key))
+        self.conn.commit()
+
+    def get_current_state(self, finding_key: str) -> str:
+        row = self.query(
+            "SELECT current_state FROM findings WHERE pattern_fingerprint = ?",
+            (finding_key,)).fetchone()
+        return row["current_state"] if row else "new"
+
+    def get_state_history(self, finding_key: str) -> list[dict]:
+        rows = self.query("""
+            SELECT * FROM finding_states WHERE finding_key = ?
+            ORDER BY created_at
+        """, (finding_key,)).fetchall()
+        return [dict(r) for r in rows]
+
+    def save_verify_result(self, finding_key: str, result: str,
+                           attempt: int = 1, ready_for_pr: bool = False,
+                           error_message: str = "", rescan_count: int = 0,
+                           test_passed: bool = False, dast_count: int = 0):
+        self.conn.execute("""
+            INSERT INTO verify_results (finding_key, result, attempt,
+                ready_for_pr, error_message, rescan_count, test_passed, dast_count)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (finding_key, result, attempt, int(ready_for_pr),
+              error_message, rescan_count, int(test_passed), dast_count))
+        self.conn.commit()
+
+    def get_verify_history(self, finding_key: str) -> list[dict]:
+        rows = self.query("""
+            SELECT * FROM verify_results WHERE finding_key = ?
+            ORDER BY created_at DESC
+        """, (finding_key,)).fetchall()
+        return [dict(r) for r in rows]
 
     def close(self):
         self.conn.close()
