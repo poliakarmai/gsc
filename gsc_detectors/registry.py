@@ -41,6 +41,8 @@ import gsc_detectors.gs021_csrf_ssrf as _gs021
 import gsc_detectors.gs022_open_redirect as _gs022
 import gsc_detectors.gs023_race_conditions as _gs023
 import gsc_detectors.gs025_ai_provenance as _gs025
+import gsc_detectors.gs032_prompt_injection as _gs032
+import gsc_detectors.gs033_cicd as _gs033
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -219,6 +221,22 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs025.detect,
         description=_gs025.description,
         noise_tier=_gs025.NOISE_TIER,
+    ),
+    # 🆕 v2.0: Prompt injection detection for AI coding agents (GS032)
+    DetectorEntry(
+        rule_id=_gs032.RULE_ID,
+        echelon=_gs032.ECHELON,
+        detect_fn=_gs032.detect,
+        description=_gs032.description,
+        noise_tier=getattr(_gs032, "NOISE_TIER", "normal"),
+    ),
+    # 🆕 v2.0: CI/CD pipeline anti-patterns (GS033)
+    DetectorEntry(
+        rule_id=_gs033.RULE_ID,
+        echelon=_gs033.ECHELON,
+        detect_fn=_gs033.detect,
+        description=_gs033.description,
+        noise_tier=getattr(_gs033, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(

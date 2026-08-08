@@ -35,6 +35,9 @@ DOCKER_RULES = [
     ("GS031-DOCKER-LATEST",  re.compile(r"^\s*FROM\s+\S+:latest\s*$", re.MULTILINE), "MEDIUM", "FROM :latest — unfixed image version"),
     ("GS031-DOCKER-SECRET-ENV", re.compile(r"^\s*(?:ENV|ARG)\s+(\w*(?:password|passwd|secret|key|token)\w*)\s*=?\s*\S+", re.MULTILINE | re.IGNORECASE), "HIGH", "Secret in ENV/ARG"),
     ("GS031-DOCKER-ADD-URL", re.compile(r"^\s*ADD\s+https?://", re.MULTILINE), "LOW", "ADD with URL — use COPY instead"),
+    # 🆕 DevOps Book patterns
+    ("GS031-DOCKER-LINT", re.compile(r"^\s*RUN\s+.*curl\s+.*\|\s*(?:sh|bash)", re.MULTILINE), "CRITICAL", "curl | sh — supply chain attack vector"),
+    ("GS031-DOCKER-LINT-BINDS", re.compile(r"^\s*VOLUME\s+\[", re.MULTILINE), "LOW", "Unnamed VOLUME — use named volumes for persistence"),
 ]
 
 def detect_dockerfile(file_path: str, content: str) -> List[dict]:
@@ -91,6 +94,9 @@ def detect_kubernetes(file_path: str, content: str) -> List[dict]:
             if not c.get("resources",{}).get("limits"): findings.append(_iac_finding("GS031-K8S-NO-LIMITS","LOW",f"No resources.limits in '{name}'",file_path,0,f"container: {name}"))
             for p in c.get("ports",[]):
                 if p.get("hostPort") and p["hostPort"]<1024: findings.append(_iac_finding("GS031-K8S-HOST-PORT","MEDIUM",f"hostPort {p['hostPort']} (<1024) in '{name}'",file_path,0,f"container: {name}, hostPort: {p['hostPort']}"))
+            # 🆕 DevOps Book: probes
+            if not c.get("livenessProbe"): findings.append(_iac_finding("GS031-K8S-NO-LIVENESS","LOW",f"No livenessProbe in '{name}' — K8s won't restart hung containers",file_path,0,f"container: {name}"))
+            if not c.get("readinessProbe"): findings.append(_iac_finding("GS031-K8S-NO-READINESS","LOW",f"No readinessProbe in '{name}' — traffic goes to unready pods",file_path,0,f"container: {name}"))
     return findings
 
 
@@ -100,6 +106,11 @@ TERRAFORM_RULES = [
     ("GS031-TF-S3-PUBLIC-ACL", re.compile(r'acl\s*=\s*"(?:public-read|public-read-write)"', re.MULTILINE), "CRITICAL", "S3 bucket with public ACL"),
     ("GS031-TF-PUBLIC-IP", re.compile(r'associate_public_ip_address\s*=\s*true', re.MULTILINE), "MEDIUM", "Public IP on instance"),
     ("GS031-TF-PLAINTEXT-SECRET", re.compile(r'(?i)(?:access_key|secret_key|password)\s*=\s*"[^"]{8,}"'), "CRITICAL", "Hardcoded credentials in Terraform"),
+    # 🆕 DevOps Book patterns
+    ("GS031-TF-BACKEND-NO-ENCRYPT", re.compile(r'backend\s+"s3"\s*\{[^}]*?(?<!\bencrypt\s*=\s*true)', re.DOTALL | re.MULTILINE), "HIGH", "S3 backend without encrypt=true — state exposed"),
+    ("GS031-TF-RDS-PUBLIC", re.compile(r'publicly_accessible\s*=\s*true', re.MULTILINE), "CRITICAL", "RDS publicly accessible"),
+    ("GS031-TF-IAM-WILDCARD", re.compile(r'"(?:arn:aws:[^"]*:\*|[^"]*\*[^"]*)"\s*\]', re.MULTILINE), "HIGH", "Wildcard in IAM resource ARN"),
+    ("GS031-TF-S3-NO-VERSIONING", re.compile(r'bucket\s*=\s*"[^"]+"\s*\n(?!.*versioning\s*\{[^}]*enabled\s*=\s*true)', re.DOTALL), "LOW", "S3 bucket without versioning — no rollback"),
 ]
 
 def detect_terraform(file_path: str, content: str) -> List[dict]:
@@ -109,4 +120,23 @@ def detect_terraform(file_path: str, content: str) -> List[dict]:
         for m in pat.finditer(content):
             n = content[:m.start()].count("\n") + 1
             findings.append(_iac_finding(rid, sev, title, file_path, n, _line(lines, n)))
+    return findings
+
+
+# ── Ansible ──────────────────────────────────────────────────
+ANSIBLE_RULES = [
+    ("GS031-ANSIBLE-VAULT", re.compile(r'(?i)(?:password|secret|token|api_key)\s*:\s*"[^"]{8,}"', re.MULTILINE), "CRITICAL", "Plaintext secret in Ansible — use ansible-vault"),
+    ("GS031-ANSIBLE-SHELL", re.compile(r'^\s*shell:\s*curl\s+.*\|\s*(?:sh|bash)', re.MULTILINE), "CRITICAL", "curl | sh in Ansible — supply chain risk"),
+    ("GS031-ANSIBLE-ROOT", re.compile(r'become:\s*yes', re.MULTILINE), "LOW", "become: yes — runs as root, use become_user"),
+    ("GS031-ANSIBLE-NO-TAGS", re.compile(r'^---\s*\n(?!.*tags:\s*\[)', re.DOTALL), "LOW", "Playbook without tags — can't do partial runs"),
+]
+
+
+def detect_ansible(file_path: str, content: str) -> List[dict]:
+    findings = []
+    lines = content.splitlines()
+    for rid, pat, sev, title in ANSIBLE_RULES:
+        for m in pat.finditer(content):
+            n = content[:m.start()].count("\n") + 1
+            findings.append(_iac_finding(rid, sev, title, file_path, n, _line(lines, n), "ansible"))
     return findings
