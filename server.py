@@ -460,6 +460,172 @@ def stats(api_key: str = Query(...)):
         "scans_remaining": {"free": 10, "pro": 100, "team": 500, "enterprise": 99999}[tenant["plan"]] - tenant["scans_used"],
     }
 
+# ── Dashboard ──
+@app.get("/dashboard")
+def dashboard():
+    """Security dashboard with trend charts and PR feedback."""
+    db = conn  # global sqlite3 connection
+
+    # Stats for charts
+    stats = {"total_findings": 0, "by_severity": {}, "by_rule": {}, "pr_feedback": []}
+
+    try:
+        # Findings by severity
+        rows = db.execute(
+            "SELECT severity, COUNT(*) as cnt FROM findings GROUP BY severity ORDER BY cnt DESC"
+        ).fetchall()
+        stats["by_severity"] = {r["severity"]: r["cnt"] for r in rows if r["severity"]}
+        stats["total_findings"] = sum(stats["by_severity"].values())
+
+        # Top detectors
+        rows = db.execute(
+            "SELECT rule_id, COUNT(*) as cnt FROM findings GROUP BY rule_id ORDER BY cnt DESC LIMIT 8"
+        ).fetchall()
+        stats["by_rule"] = {r["rule_id"]: r["cnt"] for r in rows}
+
+        # PR feedback
+        rows = db.execute("""
+            SELECT repo, pr_number, pr_state, author_response, comment_count,
+                   reactions_json, merged, checked_at
+            FROM pr_feedback ORDER BY checked_at DESC LIMIT 10
+        """).fetchall()
+        stats["pr_feedback"] = [dict(r) for r in rows]
+    except Exception:
+        pass  # Tables may not exist yet
+
+    # Build HTML with Chart.js
+    severity_json = json.dumps(stats["by_severity"])
+    rule_json = json.dumps(stats["by_rule"])
+    pr_json = json.dumps(stats["pr_feedback"])
+
+    html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GSC Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+* {{ margin: 0; padding: 0; box-sizing: border-box; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0d1117; color: #c9d1d9; }}
+header {{ background: #161b22; border-bottom: 1px solid #30363d; padding: 16px 24px; }}
+h1 {{ font-size: 20px; color: #58a6ff; }}
+.grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(450px, 1fr)); gap: 20px; padding: 24px; }}
+.card {{ background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }}
+.card h2 {{ font-size: 16px; margin-bottom: 16px; color: #8b949e; }}
+.big-number {{ font-size: 48px; font-weight: bold; color: #58a6ff; }}
+.stats-row {{ display: flex; gap: 20px; }}
+.stat {{ flex: 1; text-align: center; }}
+.stat .value {{ font-size: 28px; font-weight: bold; }}
+.stat .label {{ font-size: 12px; color: #8b949e; margin-top: 4px; }}
+.crit {{ color: #f85149; }} .high {{ color: #f0883e; }} .med {{ color: #d29922; }} .low {{ color: #58a6ff; }}
+table {{ width: 100%; border-collapse: collapse; font-size: 13px; }}
+th, td {{ padding: 8px 12px; text-align: left; border-bottom: 1px solid #21262d; }}
+th {{ color: #8b949e; font-weight: 600; }}
+.merged {{ color: #3fb950; }} .open {{ color: #58a6ff; }} .closed {{ color: #8b949e; }}
+canvas {{ max-height: 250px; }}
+</style>
+</head>
+<body>
+<header><h1>🔒 GSC Security Dashboard</h1></header>
+<div class="grid">
+    <div class="card">
+        <h2>📊 Overview</h2>
+        <div class="big-number" id="total">0</div>
+        <div class="stats-row" style="margin-top:12px">
+            <div class="stat"><div class="value crit" id="crit">0</div><div class="label">Critical</div></div>
+            <div class="stat"><div class="value high" id="hi">0</div><div class="label">High</div></div>
+            <div class="stat"><div class="value med" id="med">0</div><div class="label">Medium</div></div>
+            <div class="stat"><div class="value low" id="lo">0</div><div class="label">Low</div></div>
+        </div>
+    </div>
+    <div class="card">
+        <h2>🥧 Severity Distribution</h2>
+        <canvas id="pieChart"></canvas>
+    </div>
+    <div class="card">
+        <h2>🔝 Top Detectors</h2>
+        <canvas id="barChart"></canvas>
+    </div>
+    <div class="card">
+        <h2>🔄 PR Feedback</h2>
+        <table id="prTable"><tr><td colspan="5" style="color:#8b949e">Loading...</td></tr></table>
+    </div>
+</div>
+<script>
+const sevData = {severity_json};
+const ruleData = {rule_json};
+const prData = {pr_json};
+
+// Overview
+const total = {stats['total_findings']};
+document.getElementById('total').textContent = total || 0;
+if (sevData) {{
+    document.getElementById('crit').textContent = sevData.CRITICAL || 0;
+    document.getElementById('hi').textContent = sevData.HIGH || 0;
+    document.getElementById('med').textContent = sevData.MEDIUM || 0;
+    document.getElementById('lo').textContent = sevData.LOW || 0;
+}}
+
+// Pie chart
+if (sevData && Object.keys(sevData).length > 0) {{
+    new Chart(document.getElementById('pieChart'), {{
+        type: 'doughnut',
+        data: {{
+            labels: Object.keys(sevData),
+            datasets: [{{
+                data: Object.values(sevData),
+                backgroundColor: ['#f85149', '#f0883e', '#d29922', '#58a6ff', '#8b949e']
+            }}]
+        }},
+        options: {{ plugins: {{ legend: {{ labels: {{ color: '#c9d1d9' }} }} }} }}
+    }});
+}}
+
+// Bar chart
+if (ruleData && Object.keys(ruleData).length > 0) {{
+    new Chart(document.getElementById('barChart'), {{
+        type: 'bar',
+        data: {{
+            labels: Object.keys(ruleData),
+            datasets: [{{
+                label: 'Findings',
+                data: Object.values(ruleData),
+                backgroundColor: '#58a6ff'
+            }}]
+        }},
+        options: {{
+            indexAxis: 'y',
+            plugins: {{ legend: {{ labels: {{ color: '#c9d1d9' }} }} }}
+        }}
+    }});
+}}
+
+// PR table
+const prTable = document.getElementById('prTable');
+if (prData && prData.length > 0) {{
+    prTable.innerHTML = '<tr><th>Repo</th><th>PR</th><th>Status</th><th>Response</th><th>Comments</th></tr>' +
+        prData.map(p => {{
+            const stateClass = p.merged ? 'merged' : (p.pr_state || 'open');
+            const icon = p.merged ? '🟣' : (p.pr_state === 'closed' ? '🔴' : '🟢');
+            const responseIcon = p.author_response === 'accepted' ? '✅' : (p.author_response === 'dismissed' ? '❌' : '');
+            return `<tr>
+                <td>${{p.repo}}</td>
+                <td><a href="https://github.com/${{p.repo}}/pull/${{p.pr_number}}" style="color:#58a6ff">#${{p.pr_number}}</a></td>
+                <td class="${{stateClass}}">${{icon}} ${{p.merged ? 'merged' : p.pr_state}}</td>
+                <td>${{responseIcon}} ${{p.author_response}}</td>
+                <td>${{p.comment_count}}</td>
+            </tr>`;
+        }}).join('');
+}} else {{
+    prTable.innerHTML = '<tr><td colspan="5" style="color:#8b949e;text-align:center">No PRs tracked yet. Scan a repo and create a PR to see feedback here.</td></tr>';
+}}
+</script>
+</body>
+</html>"""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html)
+
 # ── Static files (catch-all for frontend) ──
 STATIC_DIR = GSC_DIR
 

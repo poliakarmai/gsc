@@ -299,6 +299,28 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
     ),
 ]
 
+# ── YAML custom rules (Semgrep-compatible) ──
+try:
+    import gsc_detectors.yaml_rules as _yr
+    for _mod_name in getattr(_yr, '__all__', []):
+        try:
+            _ym = getattr(_yr, _mod_name, None)
+            if _ym is None:
+                continue
+            _det = getattr(_ym, 'detector', None)
+            if _det and hasattr(_det, 'rule_id'):
+                ALL_DETECTORS.append(DetectorEntry(
+                    rule_id=_det.rule_id,
+                    echelon=2,
+                    detect_fn=_det.detect,
+                    description=getattr(_ym, 'description', f'YAML rule: {_det.name}'),
+                    noise_tier="custom",
+                ))
+        except Exception:
+            pass
+except ImportError:
+    pass  # no YAML rules compiled
+
 # Grouped by echelon for targeted runs
 ECHELON_DETECTORS: dict[int, list[DetectorEntry]] = {}
 for det in ALL_DETECTORS:
