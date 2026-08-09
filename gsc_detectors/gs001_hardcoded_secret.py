@@ -91,6 +91,41 @@ def _is_placeholder(value: str) -> bool:
     return any(p in value.lower() for p in placeholders)
 
 
+# Valid ISO 3166-1 alpha-2 country codes that issue IBANs
+_IBAN_COUNTRIES = frozenset({
+    "AL", "AD", "AT", "AZ", "BH", "BY", "BE", "BA", "BR", "BG",
+    "CR", "HR", "CY", "CZ", "DK", "DO", "EG", "SV", "EE", "FO",
+    "FI", "FR", "GE", "DE", "GI", "GR", "GL", "GT", "HU", "IS",
+    "IQ", "IE", "IL", "IT", "JO", "KZ", "XK", "KW", "LV", "LB",
+    "LY", "LI", "LT", "LU", "MK", "MT", "MR", "MU", "MD", "MC",
+    "ME", "NL", "NO", "PK", "PS", "PL", "PT", "QA", "RO", "RU",
+    "LC", "SM", "ST", "SA", "RS", "SC", "SK", "SI", "ES", "SE",
+    "CH", "TL", "TN", "TR", "UA", "AE", "GB", "VA", "VG",
+})
+
+_IBAN_MIN_LEN = 15
+_IBAN_MAX_LEN = 34
+
+
+def _is_valid_iban(candidate: str) -> bool:
+    """Validate IBAN: country code + length + mod-97 checksum."""
+    s = candidate.strip('"').strip("'").replace(" ", "").upper()
+    if len(s) < _IBAN_MIN_LEN or len(s) > _IBAN_MAX_LEN:
+        return False
+    if s[:2] not in _IBAN_COUNTRIES:
+        return False
+    # mod-97: move first 4 chars to end, convert letters A=10..Z=35
+    rearranged = s[4:] + s[:4]
+    digits = "".join(
+        str(ord(c) - 55) if "A" <= c <= "Z" else c
+        for c in rearranged
+    )
+    try:
+        return int(digits) % 97 == 1
+    except ValueError:
+        return False
+
+
 # ── Main detector ───────────────────────────────────────────────────────────
 
 def detect(ctx: AuditContext) -> list[Finding]:
@@ -105,6 +140,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
             for m in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
                 matched = m.group(0)
                 if _is_placeholder(matched):
+                    continue
+                # IBAN validation: require valid country code + mod-97 checksum
+                if "IBAN" in label and not _is_valid_iban(matched):
                     continue
                 findings.append(Finding(
                     rule_id=RULE_ID,
