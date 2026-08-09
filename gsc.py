@@ -383,11 +383,30 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
         for det in get_detectors(echelon=echelon):
             if det.rule_id in ctx.skipped_detectors:
                 continue
-            det_findings = det.detect(ctx)
-            for f in det_findings:
-                f["echelon"] = det.echelon
-                f["pattern_title"] = f"{det.rule_id} ({det.description[:60]})"
-            findings.extend(det_findings)
+            # RegexDetector-based YAML rules expect (file_path, content),
+            # plugin detectors expect (ctx). Detect by signature.
+            detect_fn = det.detect
+            if hasattr(detect_fn, '__self__') and hasattr(detect_fn.__self__, '_compiled'):
+                # RegexDetector — iterate files manually
+                for fp in ctx.files:
+                    try:
+                        content = fp.read_text(errors='replace')
+                    except Exception:
+                        continue
+                    rel = str(fp.relative_to(path))
+                    det_findings = detect_fn(rel, content)
+                    for f in det_findings:
+                        f["echelon"] = det.echelon
+                        f["pattern_title"] = f"{det.rule_id} ({det.description[:60]})"
+                        if "file" in f and "file_path" not in f:
+                            f["file_path"] = str(path / f["file"])
+                    findings.extend(det_findings)
+            else:
+                det_findings = detect_fn(ctx)
+                for f in det_findings:
+                    f["echelon"] = det.echelon
+                    f["pattern_title"] = f"{det.rule_id} ({det.description[:60]})"
+                findings.extend(det_findings)
         return findings
     except ImportError:
         # detectors/ package not available — graceful degradation
