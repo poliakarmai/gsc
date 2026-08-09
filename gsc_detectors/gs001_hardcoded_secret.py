@@ -87,7 +87,11 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
 def _is_placeholder(value: str) -> bool:
     """Filter out obvious placeholder values."""
     placeholders = ("***", "your-", "xxxx", "changeme", "replace_me", "TODO",
-                    "{}{}", "%s%s", "__yt_dlp_token__")
+                    "{}{}", "%s%s", "__yt_dlp_token__",
+                    "getpass.getpass",  # prompts user, not hardcoded
+                    "min_length=", "max_length=",  # form/validator fields
+                    "ImageField", "FileField",  # Django fields, not upload handlers
+                    )
     return any(p in value.lower() for p in placeholders)
 
 

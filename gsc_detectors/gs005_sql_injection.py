@@ -348,6 +348,11 @@ def _detect_line(
                 if not re.search(r'[%{}]|\$\{|\+.*SELECT|f["\']', line):
                     continue
 
+            # Skip f-string SQL with parameterized ? or %s placeholders
+            # Example: f"WHERE id IN ({','.join('?' * N)})" — safe, ? filled by driver
+            if re.search(r'(?:\?|%s)', line) and re.search(r'\.join\s*\(', line):
+                continue
+
             # Skip parameterized queries (placeholder detected)
             if re.search(r'%s\s*,\s*\(|%s\s*,\s*\[|\?\s*,\s*\[', line):
                 continue
