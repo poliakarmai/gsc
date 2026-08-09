@@ -1,0 +1,69 @@
+# GSC Security Audit — GitHub Action Workflow Template
+# Copy to .github/workflows/gsc-audit.yml in your repo
+# or add to an existing CI workflow.
+
+name: GSC Security Audit
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+  schedule:
+    - cron: '0 7 * * *'  # daily at 07:00 UTC
+  workflow_dispatch:      # manual trigger
+
+permissions:
+  contents: read
+  pull-requests: write    # needed for PR comments
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: GSC Security Audit
+        uses: poliakarmai/gsc@master
+        with:
+          path: '.'
+          deep_scan: true
+          with_poc: true
+          with_chains: true
+          fail_on_critical: false   # set to true to block merge
+          max_findings_to_comment: 10
+
+      # Optional: upload scan report as artifact
+      - name: Upload Report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gsc-report
+          path: /tmp/gsc_report.json
+
+      # Optional: add GSC badge to README
+      - name: Update GSC Badge
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master'
+        run: |
+          SCORE=$(python3 -c "
+          import json
+          data = json.load(open('/tmp/gsc_report.json'))
+          critical = sum(1 for f in data if f.get('category') == 'CRITICAL')
+          high = sum(1 for f in data if f.get('category') == 'HIGH')
+          score = max(0, 100 - critical * 10 - high * 3)
+          print(score)
+          ")
+          COLOR="brightgreen"
+          if [ "$SCORE" -lt 85 ]; then COLOR="green"; fi
+          if [ "$SCORE" -lt 70 ]; then COLOR="yellow"; fi
+          if [ "$SCORE" -lt 50 ]; then COLOR="orange"; fi
+          if [ "$SCORE" -lt 30 ]; then COLOR="red"; fi
+          echo "GSC Score: $SCORE/100"
+          # Replace badge in README
+          BADGE="![GSC Score](https://img.shields.io/badge/GSC-${SCORE}%2F100-${COLOR}?style=flat&logo=shield)"
+          if grep -q "GSC Score" README.md; then
+            sed -i "s|!\[GSC Score\].*|${BADGE}|" README.md
+          else
+            echo -e "\n${BADGE}" >> README.md
+          fi
+        shell: bash
