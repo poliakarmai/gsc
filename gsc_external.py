@@ -92,6 +92,31 @@ PROFILES = {
         "review_only_rules": [],
         "chain_budget": 10,
     },
+    "precision-hunt": {
+        "description": "Охота за уязвимостями — только высокоточные детекторы (FP < 50%)",
+        "mode": "full",
+        "llm_enabled": True,
+        "llm_max_calls": 20,
+        "llm_severities": ["CRITICAL", "HIGH"],
+        "block_min_severity": "CRITICAL",
+        "block_min_confidence": 0.85,
+        "warn_min_severity": "HIGH",
+        "warn_min_confidence": 0.70,
+        "report_formats": ["json"],
+        "show_uncertain": False,
+        # Disabled: noisiest detectors for external projects
+        "disabled_rules": [
+            "GS000", "GS001", "GS003", "GS008",
+            "GS015", "GS023", "GS029"
+        ],
+        # Review-only: medium-noise, flag but don't treat as blocking
+        "review_only_rules": [
+            "GS007", "GS012", "GS013",
+            "GS018", "GS019"
+        ],
+        "chain_budget": 0,
+        "poc_budget": 0,
+    },
     "candidate-review": {
         "description": "Проверка тестового задания — мягкий режим",
         "mode": "full",

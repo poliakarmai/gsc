@@ -24,8 +24,11 @@ SECRET_PATTERNS = [
 ]
 
 EXCLUDE_PATH_RE = re.compile(
-    r'(?:^|/)(?:tests?|fixtures?|examples?|mock|__mocks__|'
+    r'(?:^|/)(?:tests?|fixtures?|examples?|samples?|tutorials?|devscripts?|mock|__mocks__|'
     r'node_modules|vendor|\.git|venv|\.venv)(?:/|$)', re.IGNORECASE)
+
+EXCLUDE_FILE_RE = re.compile(
+    r'(?:^test_|_test\.|conftest\.|setup\.|conf\.py$)', re.IGNORECASE)
 
 MIN_ENTROPY = 3.0
 
@@ -44,6 +47,9 @@ class GS029SecretsDetector:
 
     def detect(self, file_path: str, content: str, language: str = "auto") -> List[Dict]:
         if EXCLUDE_PATH_RE.search(file_path):
+            return []
+        fname = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
+        if EXCLUDE_FILE_RE.search(fname):
             return []
         findings = []
         for pattern, secret_type, capture_idx, severity in SECRET_PATTERNS:

@@ -128,6 +128,14 @@ def _is_valid_iban(candidate: str) -> bool:
 
 # ── Main detector ───────────────────────────────────────────────────────────
 
+_EXCLUDE_PATHS_GS001 = re.compile(
+    r'(?:/|^)(?:tests?|fixtures?|examples?|samples?|tutorials?|devscripts?|'
+    r'docs?|demo|mock|e2e)(?:/|$)', re.IGNORECASE)
+
+_EXCLUDE_FILES_GS001 = re.compile(
+    r'(?:^test_|_test\.|conftest\.|setup\.cfg|\.ini$)', re.IGNORECASE)
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     """Scan all source files for hardcoded secrets."""
     if "GS001" in ctx.skipped_detectors:
@@ -135,6 +143,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
     findings: list[Finding] = []
     for fp in ctx.get_source_files():
+        fpath = str(fp)
+        if _EXCLUDE_PATHS_GS001.search(fpath):
+            continue
+        fname = fp.name
+        if _EXCLUDE_FILES_GS001.search(fname):
+            continue
         content = ctx.read_file(fp)
         for pattern, label in _SECRET_PATTERNS:
             for m in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
