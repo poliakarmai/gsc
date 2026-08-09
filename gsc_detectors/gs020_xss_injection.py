@@ -109,9 +109,15 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if _is_false_positive(snippet, pattern):
                     continue
 
+                # Context-aware severity adjustment (Precision First)
+                context_start = max(0, line_no - 3)
+                context_end = min(len(lines := content.split('\n')), line_no + 2)
+                context = '\n'.join(lines[context_start:context_end])
+                adjusted_severity = _adjust_xss_severity(severity, pattern, context)
+
                 findings.append(Finding(
                     rule_id=RULE_ID,
-                    severity=severity,
+                    severity=adjusted_severity,
                     category="injection",
                     file=rel_path,
                     line=line_no,
@@ -174,6 +180,60 @@ def _is_false_positive(snippet: str, pattern: str) -> bool:
         if 'innerhtml' in pattern or 'document.write' in pattern:
             return True
     return False
+
+
+# ── XSS context-aware analysis (Precision First) ──────────────────────────
+
+_XSS_SANITIZERS = re.compile(
+    r'(?:DOMPurify\.sanitize|escapeHtml|sanitizeHtml|encodeURIComponent|'
+    r'html\.escape|bleach\.clean|xss-filters|\.textContent\s*=)',
+    re.IGNORECASE,
+)
+
+_XSS_TAINT_SOURCES = re.compile(
+    r'(?:request\.(?:args|form|values|json|data|GET|POST|COOKIE)|'
+    r'input\s*\(|params\[|location\.(?:search|hash|href)|'
+    r'\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|'
+    r'\.(?:value|innerText|textContent)\b)',
+    re.IGNORECASE,
+)
+
+# Patterns where context analysis applies (DOM-based, innerHTML-like)
+_CONTEXT_AWARE_PATTERNS = frozenset({
+    '.innerHTML', 'dangerouslySetInnerHTML', '.outerHTML',
+    'insertAdjacentHTML', 'document.write',
+})
+
+
+def _has_xss_sanitizer(context: str) -> bool:
+    """Check if surrounding code has XSS sanitizer calls."""
+    return bool(_XSS_SANITIZERS.search(context))
+
+
+def _has_tainted_source(context: str) -> bool:
+    """Check if variable originates from user input."""
+    return bool(_XSS_TAINT_SOURCES.search(context))
+
+
+def _adjust_xss_severity(
+    severity: str, pattern: str, context: str
+) -> str:
+    """Adjust XSS severity based on context analysis."""
+    # Only apply context analysis to DOM-based patterns
+    if not any(kw in pattern for kw in _CONTEXT_AWARE_PATTERNS):
+        return severity
+
+    has_sanitizer = _has_xss_sanitizer(context)
+    has_taint = _has_tainted_source(context)
+
+    if has_sanitizer:
+        # Sanitizer present — downgrade significantly
+        return "LOW"
+    if has_taint:
+        # Tainted source, no sanitizer — escalate
+        return "CRITICAL"
+    # Neither — keep original severity (developer should verify)
+    return severity
 
 
 def _cvss_for_severity(severity: str) -> str:
