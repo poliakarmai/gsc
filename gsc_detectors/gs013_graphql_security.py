@@ -130,13 +130,16 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     except ValueError:
                         pass
 
+                # Manual {match.group(N)} substitution — str.format() doesn't support method calls
+                formatted_detail = re.sub(r'\{match\.group\((\d+)\)\}', lambda m: (match.group(int(m.group(1))) or ""), detail)
+
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     file_path=rel_path,
                     line=lineno,
                     severity=severity,
                     title=title,
-                    detail=detail.format(match=match),
+                    detail=formatted_detail,
                     fix_suggestion=fix,
                     references=["Hacking APIs Ch.14 Attacking GraphQL"]
                 ))
