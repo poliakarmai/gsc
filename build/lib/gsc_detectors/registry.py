@@ -1,0 +1,353 @@
+# SPDX-License-Identifier: BUSL-1.1
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under BSL 1.1 — see LICENSE
+
+"""
+GSC Detector Registry — mirrors CVE Lite's ALL_DETECTORS pattern.
+
+Register detectors here to make them available to the audit engine.
+Each detector module exports: RULE_ID, ECHELON, detect(), description.
+"""
+
+from __future__ import annotations
+
+from typing import Callable, Sequence
+
+from gsc_detectors import AuditContext, Detector, Finding
+
+
+# ── Import detectors ─────────────────────────────────────────────────────────
+
+import gsc_detectors.gs001_hardcoded_secret as _gs001
+import gsc_detectors.gs002_world_readable as _gs002
+import gsc_detectors.gs003_debug_prints as _gs003
+import gsc_detectors.gs004_dangerous_subprocess as _gs004
+import gsc_detectors.gs005_sql_injection as _gs005
+import gsc_detectors.gs007_idor as _gs007
+import gsc_detectors.gs008_dead_code as _gs008
+import gsc_detectors.gs009_supply_chain as _gs009
+import gsc_detectors.gs010_ssh_hardening as _gs010
+import gsc_detectors.gs011_jwt_vulnerabilities as _gs011
+import gsc_detectors.gs012_mass_assignment as _gs012
+import gsc_detectors.gs013_graphql_security as _gs013
+import gsc_detectors.gs014_credential_exposure as _gs014
+import gsc_detectors.gs015_entry_points as _gs015
+import gsc_detectors.gs016_linux_priv_esc as _gs016
+import gsc_detectors.gs017_weak_passwords as _gs017
+import gsc_detectors.gs018_payment_abuse as _gs018
+import gsc_detectors.gs019_auth_session as _gs019
+import gsc_detectors.gs020_xss_injection as _gs020
+import gsc_detectors.gs021_csrf_ssrf as _gs021
+import gsc_detectors.gs022_open_redirect as _gs022
+import gsc_detectors.gs023_race_conditions as _gs023
+import gsc_detectors.gs025_ai_provenance as _gs025
+import gsc_detectors.gs032_prompt_injection as _gs032
+import gsc_detectors.gs033_cicd as _gs033
+import gsc_detectors.gs034_supply_chain as _gs034
+import gsc_detectors.gs035_php as _gs035
+import gsc_detectors.gs036_nodejs as _gs036
+import gsc_detectors.gs037_python as _gs037
+import gsc_detectors.gs038_go as _gs038
+import gsc_detectors.gs039_ruby as _gs039
+
+
+# ── Detector descriptor ──────────────────────────────────────────────────────
+
+class DetectorEntry:
+    """Lightweight descriptor — not the module itself."""
+
+    def __init__(self, rule_id: str, echelon: int, detect_fn: Callable, description: str, noise_tier: str = "normal"):
+        self.rule_id = rule_id
+        self.echelon = echelon
+        self.detect = detect_fn
+        self.description = description
+        self.noise_tier = noise_tier
+
+    def __repr__(self):
+        return f"DetectorEntry({self.rule_id}, echelon={self.echelon})"
+
+
+# ── Lazy imports (must be defined BEFORE ALL_DETECTORS) ─────────────────────
+
+def _lazy_gs024(ctx):
+    """Lazy-load LLM SQLi detector — avoids API key requirement at import time."""
+    try:
+        import gsc_detectors.gs020_llm_sqli as _gs024
+        return _gs024.detect(ctx)
+    except Exception:
+        return []
+
+
+# ── Registry ─────────────────────────────────────────────────────────────────
+
+ALL_DETECTORS: Sequence[DetectorEntry] = [
+    DetectorEntry(
+        rule_id=_gs001.RULE_ID,
+        echelon=_gs001.ECHELON,
+        detect_fn=_gs001.detect,
+        description=_gs001.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs002.RULE_ID,
+        echelon=_gs002.ECHELON,
+        detect_fn=_gs002.detect,
+        description=_gs002.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs003.RULE_ID,
+        echelon=_gs003.ECHELON,
+        detect_fn=_gs003.detect,
+        description=_gs003.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs004.RULE_ID,
+        echelon=_gs004.ECHELON,
+        detect_fn=_gs004.detect,
+        description=_gs004.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs005.RULE_ID,
+        echelon=_gs005.ECHELON,
+        detect_fn=_gs005.detect,
+        description=_gs005.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs007.RULE_ID,
+        echelon=_gs007.ECHELON,
+        detect_fn=_gs007.detect,
+        description=_gs007.description,
+        noise_tier=getattr(_gs007, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs008.RULE_ID,
+        echelon=_gs008.ECHELON,
+        detect_fn=_gs008.detect,
+        description=_gs008.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs009.RULE_ID,
+        echelon=_gs009.ECHELON,
+        detect_fn=_gs009.detect,
+        description=_gs009.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs010.RULE_ID,
+        echelon=_gs010.ECHELON,
+        detect_fn=_gs010.detect,
+        description=_gs010.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs011.RULE_ID,
+        echelon=_gs011.ECHELON,
+        detect_fn=_gs011.detect,
+        description=_gs011.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs012.RULE_ID,
+        echelon=_gs012.ECHELON,
+        detect_fn=_gs012.detect,
+        description=_gs012.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs013.RULE_ID,
+        echelon=_gs013.ECHELON,
+        detect_fn=_gs013.detect,
+        description=_gs013.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs014.RULE_ID,
+        echelon=_gs014.ECHELON,
+        detect_fn=_gs014.detect,
+        description=_gs014.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs015.RULE_ID,
+        echelon=_gs015.ECHELON,
+        detect_fn=_gs015.detect,
+        description=_gs015.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs016.RULE_ID,
+        echelon=_gs016.ECHELON,
+        detect_fn=_gs016.detect,
+        description=_gs016.description,
+    ),
+    DetectorEntry(
+        rule_id=_gs017.RULE_ID,
+        echelon=_gs017.ECHELON,
+        detect_fn=_gs017.detect,
+        description=_gs017.description,
+        noise_tier=getattr(_gs017, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs018.RULE_ID,
+        echelon=_gs018.ECHELON,
+        detect_fn=_gs018.detect,
+        description=_gs018.description,
+        noise_tier=getattr(_gs018, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs019.RULE_ID,
+        echelon=_gs019.ECHELON,
+        detect_fn=_gs019.detect,
+        description=_gs019.description,
+        noise_tier=getattr(_gs019, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs020.RULE_ID,
+        echelon=_gs020.ECHELON,
+        detect_fn=_gs020.detect,
+        description=_gs020.description,
+        noise_tier=getattr(_gs020, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs021.RULE_ID,
+        echelon=_gs021.ECHELON,
+        detect_fn=_gs021.detect,
+        description=_gs021.description,
+        noise_tier=getattr(_gs021, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs022.RULE_ID,
+        echelon=_gs022.ECHELON,
+        detect_fn=_gs022.detect,
+        description=_gs022.description,
+        noise_tier=getattr(_gs022, "NOISE_TIER", "normal"),
+    ),
+    DetectorEntry(
+        rule_id=_gs023.RULE_ID,
+        echelon=_gs023.ECHELON,
+        detect_fn=_gs023.detect,
+        description=_gs023.description,
+        noise_tier=_gs023.NOISE_TIER,
+    ),
+    DetectorEntry(
+        rule_id=_gs025.RULE_ID,
+        echelon=_gs025.ECHELON,
+        detect_fn=_gs025.detect,
+        description=_gs025.description,
+        noise_tier=_gs025.NOISE_TIER,
+    ),
+    # 🆕 v2.0: Prompt injection detection for AI coding agents (GS032)
+    DetectorEntry(
+        rule_id=_gs032.RULE_ID,
+        echelon=_gs032.ECHELON,
+        detect_fn=_gs032.detect,
+        description=_gs032.description,
+        noise_tier=getattr(_gs032, "NOISE_TIER", "normal"),
+    ),
+    # 🆕 v2.0: CI/CD pipeline anti-patterns (GS033)
+    DetectorEntry(
+        rule_id=_gs033.RULE_ID,
+        echelon=_gs033.ECHELON,
+        detect_fn=_gs033.detect,
+        description=_gs033.description,
+        noise_tier=getattr(_gs033, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 v2.0: npm supply chain attack detection (GS034)
+    DetectorEntry(
+        rule_id=_gs034.RULE_ID,
+        echelon=_gs034.ECHELON,
+        detect_fn=_gs034.detect,
+        description=_gs034.description,
+        noise_tier=getattr(_gs034, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 v2.0: PHP vulnerability detection (GS035)
+    DetectorEntry(
+        rule_id=_gs035.RULE_ID,
+        echelon=_gs035.ECHELON,
+        detect_fn=_gs035.detect,
+        description=_gs035.description,
+        noise_tier=getattr(_gs035, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS036–GS039: language-specific vulnerability detectors
+    DetectorEntry(
+        rule_id=_gs036.RULE_ID,
+        echelon=_gs036.ECHELON,
+        detect_fn=_gs036.detect,
+        description=_gs036.description,
+        noise_tier=getattr(_gs036, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs037.RULE_ID,
+        echelon=_gs037.ECHELON,
+        detect_fn=_gs037.detect,
+        description=_gs037.description,
+        noise_tier=getattr(_gs037, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs038.RULE_ID,
+        echelon=_gs038.ECHELON,
+        detect_fn=_gs038.detect,
+        description=_gs038.description,
+        noise_tier=getattr(_gs038, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs039.RULE_ID,
+        echelon=_gs039.ECHELON,
+        detect_fn=_gs039.detect,
+        description=_gs039.description,
+        noise_tier=getattr(_gs039, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
+    DetectorEntry(
+        rule_id="GS024",
+        echelon=2,
+        detect_fn=_lazy_gs024,
+        description="LLM-based SQL injection (pilot — replaces 87 regex patterns)",
+        noise_tier="precise",
+    ),
+]
+
+# ── YAML custom rules (Semgrep-compatible) ──
+try:
+    import gsc_detectors.yaml_rules as _yr
+    for _mod_name in getattr(_yr, '__all__', []):
+        try:
+            _ym = getattr(_yr, _mod_name, None)
+            if _ym is None:
+                continue
+            _det = getattr(_ym, 'detector', None)
+            if _det and hasattr(_det, 'rule_id'):
+                ALL_DETECTORS.append(DetectorEntry(
+                    rule_id=_det.rule_id,
+                    echelon=2,
+                    detect_fn=_det.detect,
+                    description=getattr(_ym, 'description', f'YAML rule: {_det.name}'),
+                    noise_tier="custom",
+                ))
+        except Exception:
+            pass
+except ImportError:
+    pass  # no YAML rules compiled
+
+# Grouped by echelon for targeted runs
+ECHELON_DETECTORS: dict[int, list[DetectorEntry]] = {}
+for det in ALL_DETECTORS:
+    ECHELON_DETECTORS.setdefault(det.echelon, []).append(det)
+
+# Grouped by category (for CI/quick scans)
+FAST_DETECTORS = [det for det in ALL_DETECTORS if det.echelon <= 2]  # echelons 1-2
+FULL_DETECTORS = list(ALL_DETECTORS)  # all echelons
+
+
+def get_detectors(echelon: int | None = None) -> list[DetectorEntry]:
+    """Get detectors, optionally filtered by echelon."""
+    if echelon is None:
+        return list(ALL_DETECTORS)
+    return ECHELON_DETECTORS.get(echelon, [])
+
+
+def run_detectors(
+    ctx: AuditContext,
+    echelons: Sequence[int] | None = None,
+) -> list[Finding]:
+    """Run all (or filtered) detectors against context."""
+    all_findings: list[Finding] = []
+    for det in ALL_DETECTORS:
+        if echelons is not None and det.echelon not in echelons:
+            continue
+        if det.rule_id in ctx.skipped_detectors:
+            continue
+        all_findings.extend(det.detect(ctx))
+    return all_findings

@@ -3,7 +3,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "gsc"
+name = "gsc-security"
 version = "1.3.0"
 description = "Git Security Checker — AI-powered SAST with 38 detectors, auto-PoC, and self-learning"
 readme = "README.md"
