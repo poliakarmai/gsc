@@ -6,11 +6,11 @@ services:
     container_name: gsc-api
     restart: unless-stopped
     ports:
-      - "8000:8000"
+      - "8001:8001"
     environment:
       - GSC_DIR=/app
       - GSC_DB=/data/gsc_cloud.db
-      - PORT=8000
+      - PORT=8001
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-Iv23liEjWuUFpei2kF9b}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-27666cc763243f72137a30acd24a0e00b23d6c72}
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8081/api/v2/auth/github/callback}
@@ -20,7 +20,7 @@ services:
       - gsc_data:/data
       - /var/run/docker.sock:/var/run/docker.sock  # for isolated scans
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 5s
       retries: 3
