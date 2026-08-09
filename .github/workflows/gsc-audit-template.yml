@@ -4,14 +4,20 @@
 
 name: GSC Security Audit
 
+# This is a TEMPLATE — copy to your repo and adjust triggers.
+# Triggers below are examples. Uncomment what you need.
+
 on:
-  pull_request:
-    branches: [main, master]
-  push:
-    branches: [main, master]
-  schedule:
-    - cron: '0 7 * * *'  # daily at 07:00 UTC
-  workflow_dispatch:      # manual trigger
+  workflow_call:    # allows reuse from other workflows
+  workflow_dispatch: # manual trigger from Actions tab
+
+# To enable auto-triggers, uncomment:
+#  pull_request:
+#    branches: [main, master]
+#  push:
+#    branches: [main, master]
+#  schedule:
+#    - cron: '0 7 * * *'
 
 permissions:
   contents: read
