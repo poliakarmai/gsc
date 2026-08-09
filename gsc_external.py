@@ -104,15 +104,14 @@ PROFILES = {
         "warn_min_confidence": 0.70,
         "report_formats": ["json"],
         "show_uncertain": False,
-        # Disabled: noisiest detectors for external projects
+        # Disabled: only the absolute noisiest detectors for external projects
         "disabled_rules": [
-            "GS000", "GS001", "GS003", "GS008",
-            "GS015", "GS023", "GS029"
+            "GS000",           # LEGACY catch-all — pattern-based, needs context
         ],
         # Review-only: medium-noise, flag but don't treat as blocking
         "review_only_rules": [
             "GS007", "GS012", "GS013",
-            "GS018", "GS019"
+            "GS018", "GS019", "GS015",   # GS015: entry-point coverage (INFO-level)
         ],
         "chain_budget": 0,
         "poc_budget": 0,
