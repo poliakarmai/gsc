@@ -402,6 +402,22 @@ def _has_sanitizer(context: str) -> bool:
     return bool(_SANITIZER_PATTERNS.search(context))
 
 
+# ── Taint source detection for SQL injection ──────────────────────────────
+
+_TAINT_SOURCE_PATTERNS = re.compile(
+    r'(?:request\.(?:args|form|values|json|data|GET|POST|COOKIE)|'
+    r'input\s*\(|sys\.argv|os\.environ\[|'
+    r'\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|'
+    r'\.(?:get_json|form_data)\s*\()',
+    re.IGNORECASE,
+)
+
+
+def _has_taint_source(context: str) -> bool:
+    """Check if SQL query variables come from user input."""
+    return bool(_TAINT_SOURCE_PATTERNS.search(context))
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     """Detect SQL/NoSQL injection patterns in source code."""
     if RULE_ID in ctx.skipped_detectors:
@@ -428,9 +444,15 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 # Downgrade f-string SQL if sanitizer present in context
                 if f.get("severity") == "CRITICAL" and "f-string" in f.get("title", ""):
                     context = "\n".join(lines[max(0, lineno-3):lineno])
-                    if _has_sanitizer(context):
+                    has_san = _has_sanitizer(context)
+                    has_taint = _has_taint_source(context)
+                    if has_san:
                         f["severity"] = "LOW"
                         f["title"] = f["title"] + " [sanitized — verify manually]"
+                    elif not has_taint:
+                        # No taint source — hardcoded values, low exploitability
+                        f["severity"] = "MEDIUM"
+                        f["title"] = f["title"] + " [no user input — verify]"
                 findings.append(f)
 
     return findings
