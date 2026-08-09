@@ -183,8 +183,15 @@ class PoCGenerator:
 
 def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 5) -> list[dict]:
     """Generate PoCs for confirmed findings. Mutates findings in-place. Returns findings."""
+    # Try deterministic PoCs first (no LLM, instant)
+    from gsc_poc_deterministic import attach_deterministic_pocs
+    attach_deterministic_pocs(findings)
+
+    # Fall back to LLM for findings without deterministic PoC
     gen = PoCGenerator(budget=budget)
     for f in findings:
+        if f.get("metadata", {}).get("poc"):
+            continue  # already has deterministic PoC
         if f.get("confidence", 0) < POC_MIN_CONFIDENCE:
             continue
         src = source_map.get(f.get("file_path", f.get("file", "")))
@@ -197,5 +204,4 @@ def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 
             f["metadata"]["poc_format"] = poc.fmt
         elif poc is None and f.get("confidence", 0) < 0.85:
             f["confidence"] = round(f["confidence"] * POC_FAIL_PENALTY, 2)
-            f.setdefault("metadata", {})["poc_failed"] = True
     return findings
