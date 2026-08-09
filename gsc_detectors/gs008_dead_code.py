@@ -8,7 +8,6 @@ GS008 — Dead code: declared but never used.
 Detects:
 - Module-level UPPER_CASE constants referenced only once (declaration)
 - Feature flags assigned but never read (VAR = os.environ.get('FLAG') → VAR unused)
-- Functions imported but never called (in main loop files)
 
 Inspired by ATR_TP_LEVELS bug (2026-06-28): constants declared, never used,
 causing ATR-based TP to never fire.
@@ -68,6 +67,18 @@ def _count_occurrences(name: str, source: str) -> int:
     return len(re.findall(r"\b" + re.escape(name) + r"\b", source))
 
 
+def _is_library_module(filepath: Path, content: str) -> tuple[bool, bool]:
+    """Check if file is a library module (not application code).
+    Returns (is_library, is_main_app).
+    Library modules export constants for consumers — dead constant
+    detection is noisy here. Feature flags still checked."""
+    is_library = (filepath.parent / "__init__.py").exists()
+    is_main = bool(re.search(
+        r'if\s+__name__\s*==\s*["\']__main__["\']\s*:', content
+    ))
+    return is_library, is_main
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     """Find dead code in Python source files."""
     if "GS008" in ctx.skipped_detectors:
@@ -87,32 +98,38 @@ def detect(ctx: AuditContext) -> list[Finding]:
         if not content:
             continue
 
-        # ── Check 1: Dead UPPER_CASE constants ──
-        for name, line_text, line_no in _extract_constants(content):
-            occurrences = _count_occurrences(name, content)
-            if occurrences == 1:
-                # Check if imported by other files (cross-file usage)
-                # Simple heuristic: if constant is a FILE/PATH/DIR/KEY, skip
-                if any(x in name for x in ("FILE", "PATH", "DIR", "_KEY", "_SECRET", "_URL", "_TOKEN", "_PASSWORD")):
-                    continue
+        # Library modules: skip constant detection (exports = legitimate),
+        # but still check feature flags (they're application concerns)
+        is_library, is_main = _is_library_module(fp, content)
 
-                findings.append(Finding(
-                    rule_id=RULE_ID,
-                    category="LOW",
-                    title=f"Dead constant: {name} — declared but never read",
-                    file_path=str(fp),
-                    line_number=line_no,
-                    detail=f"Line {line_no}: {line_text}",
-                    fix_suggestion=(
-                        f"Remove '{name}' or reference it in the code. "
-                        f"If this is an exported constant, move it to __init__.py. "
-                        f"See ATR_TP_LEVELS bug (auto_tp.py): dead constants caused "
-                        f"ATR-based TP to never fire."
-                    ),
-                    references=[
-                        "dead-code-audit skill (~/.hermes/skills/trading/dead-code-audit/)",
-                    ],
-                ))
+        # ── Check 1: Dead UPPER_CASE constants ──
+        # Skip for library modules without a main guard — exported
+        # constants are used by consumers, not within the same file.
+        if not is_library or is_main:
+            for name, line_text, line_no in _extract_constants(content):
+                occurrences = _count_occurrences(name, content)
+                if occurrences == 1:
+                    if any(x in name for x in (
+                        "FILE", "PATH", "DIR", "_KEY", "_SECRET",
+                        "_URL", "_TOKEN", "_PASSWORD"
+                    )):
+                        continue
+
+                    findings.append(Finding(
+                        rule_id=RULE_ID,
+                        category="LOW",
+                        title=f"Dead constant: {name} — declared but never read",
+                        file_path=str(fp),
+                        line_number=line_no,
+                        detail=f"Line {line_no}: {line_text}",
+                        fix_suggestion=(
+                            f"Remove '{name}' or reference it in the code. "
+                            f"If this is an exported constant, move it to __init__.py."
+                        ),
+                        references=[
+                            "dead-code-audit skill",
+                        ],
+                    ))
 
         # ── Check 2: Feature flags assigned but never read ──
         for m in re.finditer(
@@ -130,11 +147,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         title=f"Dead feature flag: {var_name} = os.environ.get('{flag_name}') — never read",
                         file_path=str(fp),
                         line_number=content[:m.start()].count("\n") + 1,
-                        detail=f"Feature flag '{flag_name}' assigned to '{var_name}' but {var_name} is never used",
+                        detail=f"Feature flag '{flag_name}' assigned but never used",
                         fix_suggestion=(
-                            f"Either use {var_name} in a condition, or remove the flag. "
-                            f"Dead feature flags are worse than dead code — they create false "
-                            f"confidence that a feature exists."
+                            f"Either use {var_name} in a condition, or remove the flag."
                         ),
                         references=[
                             "dead-code-audit skill",

@@ -75,14 +75,18 @@ def detect(ctx: AuditContext) -> list[Finding]:
             continue
 
         rel_path = str(file_path.relative_to(ctx.path))
+        if _is_skip_path(rel_path):
+            continue
 
         for pattern, message, severity in RACE_PATTERNS:
             # Multi-line patterns need DOTALL
-            flags = re.IGNORECASE | (re.DOTALL if '\n' in pattern else 0)
+            flags = re.IGNORECASE | (re.DOTALL if '\\n' in pattern else 0)
             for match in re.finditer(pattern, content, flags):
-                line_no = content[:match.start()].count('\n') + 1
+                line_no = content[:match.start()].count('\\n') + 1
                 snippet = _extract_line(content, line_no)
-                if _is_false_positive(snippet):
+                if _is_false_positive(snippet, content):
+                    continue
+                if _is_noise_pattern(pattern, content):
                     continue
                 findings.append(Finding(
                     rule_id=RULE_ID, severity=severity, category="race_condition",
@@ -111,10 +115,34 @@ def _extract_line(content: str, line_no: int) -> str:
     return lines[line_no - 1] if 0 < line_no <= len(lines) else ''
 
 
-def _is_false_positive(snippet: str) -> bool:
+def _is_false_positive(snippet: str, full_context: str = "") -> bool:
     s = snippet.strip()
     if s.startswith('//') or s.startswith('#') or s.startswith('/*') or s.startswith('*'):
         return True
     if s.startswith('<!--'):
         return True
+    # os.path.exists → open is OK if wrapped in try/with
+    if 'os.path.exists' in s or 'Path(' in s:
+        if re.search(r'(with|try)\s*:', full_context):
+            return True
+    return False
+
+
+def _is_skip_path(rel_path: str) -> bool:
+    """Skip demo/test/sample/migration directories."""
+    return bool(re.search(
+        r'(?:/|\A)(?:tests?|fixtures?|examples?|samples?|demo|docs?|migrations?)/',
+        rel_path, re.IGNORECASE
+    ))
+
+
+def _is_noise_pattern(pattern: str, full_context: str) -> bool:
+    """Additional context checks to reduce noise."""
+    # save()+save() is fine if it's different fields
+    if re.search(r'\.save\s*\(\)', pattern) and re.search(r'select_for_update|\.objects\.select_for_update|transaction\.atomic', full_context):
+        return True
+    # async def + global is fine if it's a single-threaded context
+    if 'async' in pattern and 'global' in pattern:
+        if not re.search(r'(?:balance|stock|inventory|counter|ledger)', full_context, re.IGNORECASE):
+            return True
     return False

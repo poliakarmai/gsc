@@ -53,6 +53,18 @@ def _is_test_file(filepath: Path, ctx: AuditContext) -> bool:
     return ctx.is_test_file(filepath)
 
 
+def _is_cli_tool(content: str) -> bool:
+    """Check if file is a CLI tool where print() is legitimate output."""
+    cli_indicators = (
+        r'import\s+argparse', r'import\s+click\b', r'import\s+typer\b',
+        r'from\s+argparse\s+import', r'from\s+click\s+import',
+        r'if\s+__name__\s*==\s*[\'"]__main__[\'"]\s*:',
+        r'\.add_argument\s*\(', r'@click\.\w+',
+        r'sys\.stdout\.write', r'logging\.basicConfig',
+    )
+    return any(re.search(p, content) for p in cli_indicators)
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     """Find debug/diagnostic statements in production code."""
     if "GS003" in ctx.skipped_detectors:
@@ -65,6 +77,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
             if _is_test_file(fp, ctx):
                 continue
             content = ctx.read_file(fp)
+            if _is_cli_tool(content):
+                continue  # print() is legitimate CLI output
             for pattern, label in patterns:
                 for m in re.finditer(pattern, content, re.MULTILINE):
                     line_no = content[:m.start()].count("\n") + 1

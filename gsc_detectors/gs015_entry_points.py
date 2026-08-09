@@ -65,7 +65,10 @@ ENTRY_PATTERNS = [
      "WSGI/ASGI application entry", "generic"),
 ]
 
-# Files to focus on (avoid noise in config/test files)
+# Paths to skip — not real entry points, just demo/test/sample code
+_SKIP_PATH_PATTERNS = re.compile(
+    r'(?:/|\A)(?:tests?|fixtures?|examples?|samples?|demo|docs?)/',
+    re.IGNORECASE)
 TARGET_GLOBS = [
     "**/routes/**/*.py",
     "**/views/**/*.py", 
@@ -103,6 +106,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # Skip tests and non-code
         if ctx.is_test_file(fp) or ctx.is_non_code_file(fp):
+            continue
+        # Skip demo/test/sample directories
+        if _SKIP_PATH_PATTERNS.search(rel_path):
             continue
 
         try:
