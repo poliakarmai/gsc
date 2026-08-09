@@ -7,14 +7,14 @@
 Not just another scanner. GSC **proves** vulnerabilities with generated exploits,
 **fixes** them with verified patches, and **heals** your codebase with automatic PRs.
 
-[![Tests](https://img.shields.io/badge/tests-78%2F78-brightgreen)]()
-[![Calibration](https://img.shields.io/badge/calibration-17%2F17-brightgreen)]()
-[![Detectors](https://img.shields.io/badge/detectors-25%2B-orange)]()
-[![Version](https://img.shields.io/badge/version-v0.28-blue)]()
+[![Tests](https://img.shields.io/badge/tests-35%2F35-brightgreen)]()
+[![Detectors](https://img.shields.io/badge/detectors-39-blue)]()
+[![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
 [![License](https://img.shields.io/badge/license-BSL%201.1-blue)]()
+[![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
 
 [Quick Start](#-quick-start) · [Features](#-what-makes-gsc-unique) ·
-[Architecture](#-architecture) · [Comparison](#-comparison) · [Roadmap](#-roadmap)
+[GitHub Action](#-github-action) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
 
 </div>
 
@@ -238,6 +238,26 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 Business Source License 1.1 (BSL 1.1). See [LICENSE](LICENSE).
 
 ---
+
+## 🚀 GitHub Action
+
+One line to add GSC to any repo:
+
+```yaml
+- uses: poliakarmai/gsc@master
+  with:
+    deep_scan: true
+    with_poc: true
+    with_chains: true
+```
+
+The action will:
+- 🔍 Scan your code on every PR and push
+- 💬 Post findings as a PR comment (upserts on new commits)
+- 📊 Show a security score badge on your README
+- 🚫 Optionally block merge on CRITICAL findings
+
+**Template:** Copy [`.github/workflows/gsc-audit-template.yml`](.github/workflows/gsc-audit-template.yml) to your repo.
 
 <div align="center">
 
