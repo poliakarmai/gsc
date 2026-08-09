@@ -8,6 +8,7 @@
 | 1 | **aio-libs/aiohttp-security** | 147 | Session Fixation in demo login handlers — `remember()` without `forget()` allows attacker to hijack authenticated session | CWE-384 | GS019 (session handling) | [#1005](https://github.com/aio-libs/aiohttp-security/pull/1005) |
 | 2 | **mathiasertl/django-ca** | 158 | SSRF in ACME HTTP-01 validation — `validate_http_01()` makes HTTP request to attacker-controlled domain without checking for internal IPs | CWE-918 | GS025 (CVE/SSRF patterns) | [#202](https://github.com/mathiasertl/django-ca/pull/202) |
 | 3 | **deep-learning-indaba/Baobab** | 60 | Hardcoded API key `sk_Lex...` in `api/app/invoice/generator.py` — visible to 533 contributors | CWE-798 | GS029 (Secrets) | [#1401](https://github.com/deep-learning-indaba/Baobab/pull/1401) |
+| 4 | **stanfrbd/cyberbro** | 212 | XSS via innerHTML in search highlight — user-controlled input interpolated into DOM without sanitization | CWE-79 | GS020 (XSS) | [#212](https://github.com/stanfrbd/cyberbro/pull/212) |
 
 ## How It Works
 

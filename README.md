@@ -12,7 +12,7 @@ Not just another scanner. GSC **proves** vulnerabilities with generated exploits
 [![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
 [![License](https://img.shields.io/badge/license-BSL%201.1-blue)]()
 [![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
-[![Hall of Fame](https://img.shields.io/badge/hall%20of%20fame-2%20finds-gold)](HALL_OF_FAME.md)
+[![Hall of Fame](https://img.shields.io/badge/hall%20of%20fame-4%20finds-gold)](HALL_OF_FAME.md)
 
 [Quick Start](#-quick-start) · [Features](#-what-makes-gsc-unique) ·
 [GitHub Action](#-github-action) · [Architecture](#-architecture) · [Roadmap](#-roadmap)
