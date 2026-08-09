@@ -4,19 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gsc"
-version = "0.4.0"
-description = "Git Security Checker — adaptive code audit with pattern learning"
+version = "1.3.0"
+description = "Git Security Checker — AI-powered SAST with 38 detectors, auto-PoC, and self-learning"
 readme = "README.md"
-license = {text = "MIT"}
+license = {text = "BUSL-1.1"}
 requires-python = ">=3.10"
 dependencies = []
-authors = [{name = "poliakarmai"}]
-keywords = ["security", "audit", "static-analysis", "sast", "lint"]
+authors = [{name = "Alexey Polyakov", email = "poliakarmai@github.com"}]
+keywords = ["security", "audit", "static-analysis", "sast", "sast-tool", "vulnerability-scanner", "appsec", "devsecops"]
 classifiers = [
-    "Development Status :: 3 — Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
     "Topic :: Security",
-    "License :: OSI Approved :: MIT License",
+    "Topic :: Software Development :: Quality Assurance",
+    "License :: Other/Proprietary License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -29,6 +31,8 @@ gsc = "gsc:main"
 Homepage = "https://github.com/poliakarmai/gsc"
 Repository = "https://github.com/poliakarmai/gsc.git"
 Issues = "https://github.com/poliakarmai/gsc/issues"
+Hall-of-Fame = "https://github.com/poliakarmai/gsc/blob/master/HALL_OF_FAME.md"
 
 [tool.setuptools]
 py-modules = ["gsc"]
+packages = ["gsc_detectors", "gsc_detectors.yaml_rules", "scripts", "tests", "enterprise"]
