@@ -387,6 +387,21 @@ def _detect_line(
     return findings
 
 
+# ── Sanitizer detection for f-string SQL downgrade ────────────────────────
+
+_SANITIZER_PATTERNS = re.compile(
+    r'\b(?:ident|scrub|escape_identifier|quote_ident|_sqlite_ident|sanitize)'
+    r'|\.replace\(["\']\\[\'"]["\'],\s*["\']\\1["\']\)'
+    r'|_safe_\w+',
+    re.IGNORECASE,
+)
+
+
+def _has_sanitizer(context: str) -> bool:
+    """Check if surrounding context contains identifier sanitizer calls."""
+    return bool(_SANITIZER_PATTERNS.search(context))
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     """Detect SQL/NoSQL injection patterns in source code."""
     if RULE_ID in ctx.skipped_detectors:
@@ -410,6 +425,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 f["line_number"] = lineno
                 f["line"] = lineno
                 f["detail"] = f"Line {lineno}: {line.strip()[:140]}"
+                # Downgrade f-string SQL if sanitizer present in context
+                if f.get("severity") == "CRITICAL" and "f-string" in f.get("title", ""):
+                    context = "\n".join(lines[max(0, lineno-3):lineno])
+                    if _has_sanitizer(context):
+                        f["severity"] = "LOW"
+                        f["title"] = f["title"] + " [sanitized — verify manually]"
                 findings.append(f)
 
     return findings

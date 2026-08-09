@@ -439,6 +439,17 @@ def _perm_finding(file_path: str, title: str, detail: str) -> dict:
             "detail": detail, "pattern_title": "chmod: World-readable sensitive files"}
 
 
+# ── Security-rule file detection ────────────────────────────────────────────
+
+def _is_security_rule_file(file_path: str) -> bool:
+    """Check if file is a security detector/rule definition (not application code)."""
+    low = file_path.lower()
+    return any(kw in low for kw in (
+        "detector", "scanner", "_rules", "rulepack", "builtin.py",
+        "patterns.json", "pattern.py", "yaml_rules",
+    ))
+
+
 def check_source_driven(project: str, path: Path) -> list[dict]:
     """Echelon 1: Source-driven checks."""
     findings = []
@@ -470,10 +481,14 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
                     snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
                     import hashlib
                     finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
+                    category = p.get("category", "MEDIUM")
+                    # Downgrade CVE findings in security-rule files (patterns looking for vulns)
+                    if "CVE-" in p.get("title", "") and _is_security_rule_file(parts[0]):
+                        category = "LOW"
                     findings.append({
                         "finding_key": finding_key,
                         "rule_id": rule_id,
-                        "category": p.get("category", "MEDIUM"),
+                        "category": category,
                         "echelon": 1,
                         "title": p["title"],
                         "file_path": parts[0],
@@ -519,10 +534,13 @@ def check_security(project: str, path: Path) -> list[dict]:
                         snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
                         import hashlib
                         finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
+                        category = p.get("category", "MEDIUM")
+                        if "CVE-" in p.get("title", "") and _is_security_rule_file(parts[0]):
+                            category = "LOW"
                         findings.append({
                             "finding_key": finding_key,
                             "rule_id": rule_id,
-                            "category": p.get("category", "MEDIUM"),
+                            "category": category,
                             "echelon": 2,
                             "title": p["title"],
                             "file_path": parts[0],
