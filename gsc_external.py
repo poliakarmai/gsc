@@ -970,7 +970,29 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
 
     # Phase 1: auto-degrade to regex-only on empty API key or quick mode
     use_llm_flag = True
-    if not os.environ.get("DEEPSEEK_API_KEY"):
+    # Check os.environ first, then .env file (Hermes stores keys in ~/.hermes/.env)
+    _api_key = os.environ.get("DEEPSEEK_API_KEY")
+    if not _api_key:
+        for _env_path in [
+            os.path.expanduser("~/.hermes/.env"),
+            os.path.expanduser("~/.hermes/env"),
+            ".env",
+        ]:
+            if os.path.exists(_env_path):
+                try:
+                    with open(_env_path) as _f:
+                        for _line in _f:
+                            _line = _line.strip()
+                            if _line.startswith("DEEPSEEK_API_KEY="):
+                                _api_key = _line.split("=", 1)[1].strip().strip('"').strip("'")
+                                if _api_key:
+                                    os.environ["DEEPSEEK_API_KEY"] = _api_key
+                                    break
+                except Exception:
+                    pass
+            if _api_key:
+                break
+    if not _api_key:
         print("⚠️  DEEPSEEK_API_KEY not set → LLM stages disabled (regex-only mode)",
               file=sys.stderr)
         use_llm_flag = False
