@@ -10,6 +10,8 @@
 | 3 | **deep-learning-indaba/Baobab** | 60 | Hardcoded API key `sk_Lex...` in `api/app/invoice/generator.py` — visible to 533 contributors | CWE-798 | GS029 (Secrets) | [#1401](https://github.com/deep-learning-indaba/Baobab/pull/1401) |
 | 4 | **stanfrbd/cyberbro** | 212 | XSS via innerHTML in search highlight — user-controlled input interpolated into DOM without sanitization | CWE-79 | GS020 (XSS) | [#212](https://github.com/stanfrbd/cyberbro/pull/212) |
 
+| 5 | **manjurulhoque/doccure** | 80 | Hardcoded Django SECRET_KEY in `doccure/settings.py` — allows session forgery, CSRF bypass, password reset token forgery | CWE-798 | GS001 (Hardcoded Secrets) | [#14](https://github.com/manjurulhoque/doccure/pull/14) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:
