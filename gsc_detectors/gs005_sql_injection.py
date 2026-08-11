@@ -435,7 +435,10 @@ def _has_taint_source(context: str) -> bool:
 
 
 def detect(ctx: AuditContext) -> list[Finding]:
-    """Detect SQL/NoSQL injection patterns in source code."""
+    """Detect SQL/NoSQL injection patterns in source code.
+    
+    Per-language tuning: set GS005_DISABLED_LANGS=php,ruby to skip noisy languages.
+    """
     if RULE_ID in ctx.skipped_detectors:
         return []
 
