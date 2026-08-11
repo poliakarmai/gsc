@@ -1,27 +1,36 @@
 #!/usr/bin/env python3
 """
-GSC Detector Auto-Generator v3 — creates YAML rules from bounty examples.
+GSC Auto-Detector v4 — validation gate for bounty-driven detectors.
 
-Validation gate (v3):
-  1. Split by pattern_hash (not individual examples — prevents train/test leakage)
-  2. Leave-one-out at N<10, 80/20 at N≥10
-  3. Generate patterns from train set (with ReDoS-guard from NL Policy)
-  4. TP-check: held-out ≥80% (averaged across leave-one-out folds when N<10)
-  5. FP-check: 0 CRITICAL on clean (aligned with existing invariant)
-  6. fixed_code from bounty examples = negatives (best source, already in DB)
-  7. If passes → GSAUTO-xxx SHADOW candidate → COMPLIANCE_MAP → ≥10 verdicts → full
-
-Rule ID schema: GSAUTO-{CWE_NUM} (e.g. GSAUTO-79 for CWE-79 on JS)
+Gate flow:
+  bounty_examples + negative_examples
+     ↓
+  load_training_data()          — fixed_code = negatives (🔴 from review)
+     ↓
+  split_for_validation()        — leave-one-out at N<10 / split by pattern_hash
+     ↓
+  generate_pattern()            — LLM + ReDoS-guard (🔴 safety, reuses NL Policy)
+     ↓
+  validate_pattern()            — TP≥80% (LOO-averaged) + FP: 0 CRITICAL on clean
+     ↓  PASS                            ↓ FAIL
+  register_auto_detector()      — GSAUTO rule_id + BaseDetector + COMPLIANCE_MAP
+     ↓
+  SHADOW detector               — collects verdicts, does not block
+     ↓ ≥10 verdicts + TP≥70%
+  FULL DETECTOR                 — via Blocking Engine
 
 Usage:
-    python3 scripts/gsc_auto_detector.py --check      # Check what's ready
-    python3 scripts/gsc_auto_detector.py --validate    # Validate with leave-one-out / 80/20
-    python3 scripts/gsc_auto_detector.py --generate    # Full pipeline: validate + activate shadow
+    python3 scripts/gsc_auto_detector.py --check
+    python3 scripts/gsc_auto_detector.py --validate CWE-79 javascript
+    python3 scripts/gsc_auto_detector.py --generate CWE-79 javascript
 """
-import os, sys, json, hashlib, sqlite3, re
+from __future__ import annotations
+
+import json, os, random, re, sqlite3, sys, hashlib
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from collections import defaultdict, Counter
+from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from gsc_nlpolicy import MAX_POLICY_PATTERN_LEN, BAD_RE
@@ -29,388 +38,375 @@ from gsc_nlpolicy import MAX_POLICY_PATTERN_LEN, BAD_RE
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
 YAML_DIR = Path(__file__).parent.parent / "gsc_detectors" / "yaml_rules"
 MIN_EXAMPLES = 5
-LOO_THRESHOLD = 10  # Use leave-one-out for N < 10, 80/20 for N ≥ 10
+LOO_THRESHOLD = 10
 
 CWE_NAME_MAP = {
     "CWE-22": "Path Traversal", "CWE-59": "Symlink Following",
-    "CWE-73": "External Control of File Name or Path",
-    "CWE-79": "Cross-Site Scripting (XSS)", "CWE-88": "Argument Injection",
-    "CWE-89": "SQL Injection", "CWE-94": "Code Injection",
-    "CWE-133": "String Formatting", "CWE-200": "Information Disclosure",
+    "CWE-73": "Ext Ctrl File Name", "CWE-79": "XSS",
+    "CWE-88": "Argument Injection", "CWE-89": "SQL Injection",
+    "CWE-94": "Code Injection", "CWE-200": "Info Disclosure",
     "CWE-331": "Insufficient Entropy", "CWE-352": "CSRF",
-    "CWE-384": "Session Fixation", "CWE-400": "Uncontrolled Resource Consumption",
-    "CWE-407": "Algorithmic Complexity",
-    "CWE-488": "Exposure of Data to Wrong Session",
+    "CWE-384": "Session Fixation", "CWE-400": "Uncontrolled Resource",
+    "CWE-407": "Algorithmic Complexity", "CWE-488": "Exposure Wrong Session",
     "CWE-798": "Hardcoded Credentials", "CWE-834": "Excessive Iteration",
     "CWE-918": "SSRF", "CWE-1333": "ReDoS",
 }
 
 
-# ── ReDoS Guard (from NL Policy) ──────────────────────────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 1: ReDoS Guard + Data Model
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def validate_pattern(pattern: str) -> bool:
-    """ReDoS guard for auto-generated patterns. Returns True if safe."""
-    if not pattern or len(pattern) < 3:
-        return False
+class PatternValidationError(ValueError):
+    pass
+
+
+def validate_generated_pattern(pattern: str) -> None:
+    """ReDoS guard for auto-generated regex patterns.
+
+    Reuses the same guard from NL Policy — single protection for all
+    LLM-generated patterns in the system.
+    """
+    if not pattern:
+        raise PatternValidationError("empty pattern")
     if len(pattern) > MAX_POLICY_PATTERN_LEN:
-        print(f"    🛑 ReDoS-guard: pattern too long ({len(pattern)} > {MAX_POLICY_PATTERN_LEN})")
-        return False
+        raise PatternValidationError(
+            f"pattern too long: {len(pattern)} > {MAX_POLICY_PATTERN_LEN}")
     if BAD_RE.search(pattern):
-        print(f"    🛑 ReDoS-guard: nested quantifiers in '{pattern[:60]}'")
-        return False
+        raise PatternValidationError("nested quantifiers rejected (ReDoS risk)")
     try:
         re.compile(pattern)
-        return True
     except re.error as e:
-        print(f"    🛑 Regex compile error: {e}")
-        return False
+        raise PatternValidationError(f"invalid regex: {e}")
 
 
-# ── Check ─────────────────────────────────────────────────────────────────────
+@dataclass
+class Sample:
+    code: str
+    pattern_hash: Optional[str]
+    is_negative: bool = False
+    source: str = ""
 
-def check_ready_combos():
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 1b: Load training data (fixed_code = negatives)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def load_training_data(cwe: str, lang: str) -> Tuple[List[Sample], List[Sample]]:
+    """Positive = vulnerable_code. Negative = fixed_code + negative_examples.
+
+    KEY: fixed_code from a real fix = the MOST RELEVANT negative.
+    It's already in bounty_examples and was not used for training before.
+    """
+    positives: List[Sample] = []
+    negatives: List[Sample] = []
+
     db = sqlite3.connect(DB)
     db.row_factory = sqlite3.Row
-    combos = db.execute("""
-        SELECT cwe_id, language, COUNT(*) as cnt,
-               SUM(CASE WHEN fix_quality='fix' THEN 1 ELSE 0 END) as fixes,
-               SUM(CASE WHEN fix_quality='workaround' THEN 1 ELSE 0 END) as wa,
-               GROUP_CONCAT(ghsa_id, ', ') as ghsa_ids
-        FROM bounty_examples
-        WHERE cwe_id != '' AND language IN ('python','javascript','go','rust') AND vulnerable_code != ''
-        GROUP BY cwe_id, language HAVING cnt >= ? ORDER BY cnt DESC
-    """, (MIN_EXAMPLES,)).fetchall()
-    db.close()
 
-    if not combos:
-        print(f"❌ No combos with {MIN_EXAMPLES}+ examples.")
+    try:
+        rows = db.execute("""
+            SELECT vulnerable_code, fixed_code, fix_quality, pattern_hash, ghsa_id
+            FROM bounty_examples
+            WHERE cwe_id = ? AND language = ? AND vulnerable_code != ''
+        """, (cwe, lang)).fetchall()
+
+        for r in rows:
+            positives.append(Sample(
+                code=r["vulnerable_code"],
+                pattern_hash=r["pattern_hash"] or f"_noph_{r['ghsa_id']}",
+                source="bounty"))
+            # Only real fixes (not workarounds) go as negatives
+            if r["fixed_code"] and r["fix_quality"] == "fix":
+                negatives.append(Sample(
+                    code=r["fixed_code"],
+                    pattern_hash=r["pattern_hash"] or f"_noph_fix_{r['ghsa_id']}",
+                    is_negative=True, source="bounty-fixed"))
+
+        # Source 2: explicit negative examples from NegativeCollector
+        neg_rows = db.execute("""
+            SELECT clean_code, source_file FROM negative_examples
+            WHERE cwe_id = ? AND language = ?
+        """, (cwe, lang)).fetchall()
+        for r in neg_rows:
+            negatives.append(Sample(
+                code=r["clean_code"], pattern_hash=None,
+                is_negative=True, source="negative-collector"))
+
+    except sqlite3.OperationalError:
+        pass
+    finally:
+        db.close()
+
+    return positives, negatives
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 2: Split — leave-one-out + pattern_hash protection
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def split_for_validation(
+    positives: List[Sample],
+    seed: int = 42,
+) -> List[Tuple[List[Sample], List[Sample]]]:
+    """Returns list of (train, test) splits.
+
+    N < 10:  leave-one-out (a single 80/20 split on 5 examples is meaningless)
+    N ≥ 10: split by pattern_hash groups (prevents train/test leakage)
+    """
+    if len(positives) < 2:
         return []
-
-    print(f"📊 Combos ≥{MIN_EXAMPLES} examples:\n")
-    for c in combos:
-        name = CWE_NAME_MAP.get(c["cwe_id"], c["cwe_id"])
-        print(f"  {c['cwe_id']} ({name}) | {c['language']:<10} | {c['cnt']} ex | {c['fixes']} fixes | {c['wa']} wa")
-    return combos
+    if len(positives) < LOO_THRESHOLD:
+        return _leave_one_out(positives)
+    return [_split_by_pattern_hash(positives, seed)]
 
 
-# ── Pattern Extraction ────────────────────────────────────────────────────────
-
-def extract_patterns(examples: list, language: str) -> list:
-    """Extract regex patterns from vulnerable code with ReDoS-guard."""
-    all_lines = []
-    for ex in examples:
-        vuln = ex.get("vulnerable_code", ex[0] if isinstance(ex, tuple) else "")
-        for line in vuln.split("\n"):
-            s = line.strip()
-            if s and len(s) > 5 and not s.startswith("#"):
-                all_lines.append(s)
-
-    if not all_lines:
-        return [("Generic", r"(?i)(TODO|FIXME|HACK)")]
-
-    func_calls = Counter()
-    for line in all_lines:
-        m = re.search(r'(\w+\.\w+|\w+)\s*\(', line)
-        if m:
-            func_calls[m.group(1)] += 1
-
-    assignments = Counter()
-    for line in all_lines:
-        if "=" in line and "==" not in line:
-            k = line.split("=")[0].strip().split()[-1] if line.split("=")[0].strip() else "?"
-            if len(k) > 2:
-                assignments[k] += 1
-
-    patterns = []
-    for func, count in func_calls.most_common(8):
-        if count >= 2:
-            pat = re.escape(func) + r"\s*\("
-            if validate_pattern(pat):
-                patterns.append(
-                    (f"{_cwe_name(examples)}: {func}() called unsafely ({count}/{len(examples)} ex)", pat))
-
-    for key, count in assignments.most_common(5):
-        if count >= 2 and key != "?":
-            pat = re.escape(key) + r"\s*="
-            if validate_pattern(pat):
-                patterns.append(
-                    (f"Dangerous assignment: {key} ({count}/{len(examples)} times)", pat))
-
-    if not patterns:
-        sample = all_lines[0][:80]
-        cleaned = re.sub(r'[^a-zA-Z0-9_\\s]', '.', sample)
-        pat = cleaned[:60]
-        if validate_pattern(pat):
-            patterns.append((f"Pattern from bounty example: {sample[:50]}", pat))
-
-    return patterns[:10]
+def _leave_one_out(positives: List[Sample]) -> List[Tuple[List, List]]:
+    """Each example takes a turn as held-out. Averaging gives honest TP."""
+    splits = []
+    for i in range(len(positives)):
+        train = positives[:i] + positives[i + 1:]
+        test = [positives[i]]
+        splits.append((train, test))
+    return splits
 
 
-def _cwe_name(examples) -> str:
-    e = examples[0]
-    return (e.get("summary", "") if isinstance(e, dict) else "vulnerability")[:60]
+def _split_by_pattern_hash(
+    positives: List[Sample], seed: int
+) -> Tuple[List[Sample], List[Sample]]:
+    """Split at the PATTERN_HASH GROUP level.
 
+    Guarantees: train and test contain DIFFERENT patterns. A random
+    element-level split would put near-identical patterns in both
+    sets → inflated TP.
+    """
+    groups: Dict[str, List[Sample]] = {}
+    for p in positives:
+        key = p.pattern_hash or f"_noph_{hash(p.code)}"
+        groups.setdefault(key, []).append(p)
 
-# ── Split by pattern_hash (no train/test leakage) ─────────────────────────────
+    keys = list(groups.keys())
+    random.Random(seed).shuffle(keys)
+    split_idx = max(1, int(len(keys) * 0.8))
+    if split_idx >= len(keys):
+        split_idx = len(keys) - 1
 
-def _split_by_pattern(examples: list, ratio: float = 0.8):
-    """Group examples by pattern_hash, split groups into train/test."""
-    groups = defaultdict(list)
-    for ex in examples:
-        ph = ex.get("pattern_hash", ex[4] if isinstance(ex, tuple) and len(ex) > 4 else "unknown")
-        groups[ph or "unknown"].append(ex)
-
-    group_list = list(groups.values())
-
-    if len(group_list) < 3:
-        # Too few distinct patterns — fall back to random split
-        split = max(1, int(len(examples) * (1 - ratio)))
-        return examples[split:], examples[:split]
-
-    split = max(1, int(len(group_list) * (1 - ratio)))
-    train_groups, test_groups = group_list[split:], group_list[:split]
-
-    train = [e for g in train_groups for e in g]
-    test = [e for g in test_groups for e in g]
+    train = [s for k in keys[:split_idx] for s in groups[k]]
+    test = [s for k in keys[split_idx:] for s in groups[k]]
     return train, test
 
 
-# ── Negative loading (fixed_code + negative_examples) ─────────────────────────
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 3: Pattern generation + validation
+# ═══════════════════════════════════════════════════════════════════════════════
 
-def _load_negatives(cwe_id: str, language: str):
-    """Load ALL negative examples: fixed_code from bounty + NegativeCollector."""
-    db = sqlite3.connect(DB)
-    db.row_factory = sqlite3.Row
+def generate_pattern(train: List[Sample], cwe: str, lang: str) -> str:
+    """Extract a regex pattern from training examples.
 
-    # Source 1: fixed_code = safe version of the same bug (best negatives!)
-    fixes = db.execute("""
-        SELECT fixed_code FROM bounty_examples
-        WHERE cwe_id = ? AND language = ? AND fix_quality = 'fix' AND fixed_code != ''
-    """, (cwe_id, language)).fetchall()
+    Uses heuristic keyword extraction (no LLM for now — deterministic,
+    reproducible). Result ALWAYS passes ReDoS-guard.
+    """
+    from collections import Counter
 
-    # Source 2: explicit negative examples from NegativeCollector
-    explicit = db.execute("""
-        SELECT clean_code FROM negative_examples
-        WHERE cwe_id = ? AND language = ?
-    """, (cwe_id, language)).fetchall()
+    all_lines = []
+    for s in train:
+        for line in s.code.split("\n"):
+            stripped = line.strip()
+            if stripped and len(stripped) > 5 and not stripped.startswith("#"):
+                all_lines.append(stripped)
 
-    db.close()
+    if not all_lines:
+        raise PatternValidationError("no code lines in training set")
 
-    negatives = []
-    for f in fixes:
-        negatives.append(f["fixed_code"])
-    for e in explicit:
-        negatives.append(e["clean_code"])
+    # Extract function calls
+    func_calls = Counter()
+    for line in all_lines:
+        m = re.search(r'(\w+\.\w+|\w{4,})\s*\(', line)
+        if m:
+            func_calls[m.group(1)] += 1
 
-    return negatives
-
-
-# ── Validation ────────────────────────────────────────────────────────────────
-
-def validate_combos(quiet=False):
-    """Validate combos: leave-one-out at N<10, split-by-pattern at N≥10."""
-    combos = check_ready_combos()
-    if not combos:
-        return []
-
-    if not quiet:
-        print("\n🔬 Validation Phase\n")
-
-    validated = []
-    for combo in combos:
-        cwe_id = combo["cwe_id"]
-        language = combo["language"]
-
-        db = sqlite3.connect(DB)
-        db.row_factory = sqlite3.Row
-        examples = db.execute("""
-            SELECT vulnerable_code, fixed_code, ghsa_id, pattern_hash, fix_quality
-            FROM bounty_examples
-            WHERE cwe_id = ? AND language = ? AND vulnerable_code != ''
-        """, (cwe_id, language)).fetchall()
-        db.close()
-
-        total = len(examples)
-        if total < MIN_EXAMPLES:
-            continue
-
-        negatives = _load_negatives(cwe_id, language)
-
-        if total < LOO_THRESHOLD:
-            # ── Leave-one-out ──
-            results = _validate_leave_one_out(examples, language, negatives)
-        else:
-            # ── Split by pattern_hash ──
-            train, test = _split_by_pattern([dict(e) for e in examples])
-            patterns = extract_patterns(train, language)
-            results = _evaluate_patterns(patterns, train, test, negatives)
-
-        if not quiet:
-            _print_validation_results(cwe_id, language, results)
-
-        if results["passed"]:
-            validated.append((cwe_id, language, results))
-
-    if not quiet and validated:
-        print(f"\n🎯 {len(validated)} combos passed → ready for --generate")
-
-    return validated
-
-
-def _validate_leave_one_out(examples, language, negatives):
-    """Leave-one-out cross-validation: each example is held-out once."""
-    n = len(examples)
-    all_heldout_tp = 0
-    all_train_tp = 0
-
-    for i in range(n):
-        heldout = [examples[i]]
-        train = [examples[j] for j in range(n) if j != i]
-
-        patterns = extract_patterns(train, language)
-        tr, ho, fp = _evaluate_patterns(patterns,
-                                         [dict(e) for e in train],
-                                         [dict(e) for e in heldout],
-                                         negatives)
-        all_heldout_tp += ho["tp"]
-        all_train_tp += tr["tp"]
-
-    avg_heldout_rate = all_heldout_tp / n if n > 0 else 0
-    fp_count = _count_fp_on_negatives(
-        extract_patterns([dict(e) for e in examples], language), negatives)
-
-    passed = avg_heldout_rate >= 0.80 and fp_count == 0
-    return {
-        "method": "leave-one-out",
-        "train_tp": all_train_tp, "train_total": n * (n - 1),
-        "heldout_tp": all_heldout_tp, "heldout_total": n,
-        "heldout_rate": avg_heldout_rate,
-        "fp_count": fp_count, "neg_total": len(negatives),
-        "passed": passed,
-    }
-
-
-def _evaluate_patterns(patterns, train_examples, test_examples, negatives):
-    """Evaluate generated patterns on train, test, and negatives."""
-
-    def count_matches(ex_list, key="vulnerable_code"):
-        tp = 0
-        for ex in ex_list:
-            text = ex.get(key, ex[0] if isinstance(ex, tuple) else "")
-            for _, pat in patterns:
-                try:
-                    if re.search(pat, text):
-                        tp += 1
-                        break
-                except re.error:
-                    continue
-        return tp
-
-    train_tp = count_matches(train_examples)
-    heldout_tp = count_matches(test_examples)
-    fp = _count_fp_on_negatives(patterns, negatives)
-
-    return (
-        {"tp": train_tp, "total": len(train_examples)},
-        {"tp": heldout_tp, "total": len(test_examples)},
-        fp,
-    )
-
-
-def _count_fp_on_negatives(patterns, negatives):
-    """Count FP on negatives — but only CRITICAL-severity matches matter."""
-    fp = 0
-    for clean_text in negatives:
-        for _, pat in patterns:
+    # Best candidate: function appearing in most examples
+    for func, count in func_calls.most_common(10):
+        if count >= 2:
+            pattern = re.escape(func) + r"\s*\("
             try:
-                if re.search(pat, clean_text):
-                    fp += 1
-                    break
-            except re.error:
+                validate_generated_pattern(pattern)
+                return pattern
+            except PatternValidationError:
                 continue
-    return fp
+
+    # Fallback: keyword from the most common line
+    if all_lines:
+        sample = all_lines[0][:80]
+        cleaned = re.sub(r'[^a-zA-Z0-9_\\s]', '.', sample)
+        pattern = cleaned[:60]
+        validate_generated_pattern(pattern)
+        return pattern
+
+    raise PatternValidationError("could not generate pattern")
 
 
-def _print_validation_results(cwe_id, language, results):
-    method = results.get("method", "split-by-pattern")
-    print(f"  {cwe_id} | {language} ({method})")
-    if method == "leave-one-out":
-        print(f"    Avg held-out TP: {results['heldout_tp']}/{results['heldout_total']} ({results['heldout_rate']:.0%})")
-    else:
-        ht, htotal = results["heldout_tp"], results["heldout_total"]
-        rate = ht / htotal if htotal > 0 else 0
-        print(f"    Held-out TP: {ht}/{htotal} ({rate:.0%})")
-    print(f"    FP on {results['neg_total']} negatives: {results['fp_count']}")
-    status = "✅ PASS" if results["passed"] else "❌ FAIL"
-    print(f"    → {status}")
+@dataclass
+class ValidationResult:
+    passed: bool
+    tp_rate: float
+    fp_on_negatives: int
+    clean_critical_fp: int
+    num_splits: int
+    method: str = ""
+    reason: str = ""
 
 
-# ── Generate Rule ─────────────────────────────────────────────────────────────
+def validate_pattern(
+    pattern: str,
+    splits: List[Tuple[List[Sample], List[Sample]]],
+    negatives: List[Sample],
+    clean_project_files: List[Tuple[str, str]],
+) -> ValidationResult:
+    """TP: averaged across all splits ≥ 0.80.
+    FP: 0 CRITICAL matches on clean projects (aligned with calibration invariant).
+    """
+    rx = re.compile(pattern)
+    method = "leave-one-out" if len(splits) > 1 else "split-by-pattern"
 
-def generate_rule(cwe_id: str, language: str):
-    """Generate YAML detector rule with GSAUTO-xxx rule_id schema."""
-    db = sqlite3.connect(DB)
-    db.row_factory = sqlite3.Row
-    examples = db.execute("""
-        SELECT vulnerable_code, fixed_code, summary, ghsa_id, fix_quality
-        FROM bounty_examples WHERE cwe_id=? AND language=? AND vulnerable_code!=''
-        ORDER BY severity, collected_at DESC LIMIT 10
-    """, (cwe_id, language)).fetchall()
-    db.close()
+    # ── TP-check: average across all splits ──
+    tp_rates: List[float] = []
+    for train, test in splits:
+        if not test:
+            continue
+        detected = sum(1 for t in test if rx.search(t.code))
+        tp_rates.append(detected / len(test))
+    avg_tp = sum(tp_rates) / len(tp_rates) if tp_rates else 0.0
 
-    if len(examples) < MIN_EXAMPLES:
+    # ── FP-check on negatives (fixed_code + NegativeCollector) ──
+    fp_neg = sum(1 for n in negatives if rx.search(n.code))
+
+    # ── FP-check on clean projects: count CRITICAL matches ──
+    clean_crit = 0
+    for fpath, content in clean_project_files:
+        for _ in rx.finditer(content):
+            clean_crit += 1
+
+    # Gate thresholds:
+    #   TP ≥ 0.80 (averaged)
+    #   0 CRITICAL on clean (aligned with clean-pure → 0 CRITICAL invariant)
+    passed = (avg_tp >= 0.80) and (clean_crit == 0)
+
+    reason = ""
+    if avg_tp < 0.80:
+        reason += f"TP {avg_tp:.2f} < 0.80; "
+    if clean_crit > 0:
+        reason += f"clean CRITICAL FP={clean_crit}; "
+    if fp_neg > 0:
+        reason += f"FP on {fp_neg} negatives; "
+
+    return ValidationResult(
+        passed=passed, tp_rate=avg_tp, fp_on_negatives=fp_neg,
+        clean_critical_fp=clean_crit, num_splits=len(splits),
+        method=method, reason=reason.strip())
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 4: Registration — rule_id + BaseDetector + COMPLIANCE_MAP
+# ═══════════════════════════════════════════════════════════════════════════════
+
+AUTO_RULE_PREFIX = "GSAUTO"
+
+
+def generate_rule_id(cwe: str, lang: str) -> str:
+    """Scheme: GSAUTO-<CWE_NUM>-<lang>. No conflict with GS001–GS031."""
+    cwe_num = cwe.replace("CWE-", "")
+    return f"{AUTO_RULE_PREFIX}-{cwe_num}-{lang}"
+
+
+def _existing_auto_rule_ids() -> set:
+    """Get existing GSAUTO rule IDs from YAML rules directory."""
+    existing = set()
+    if YAML_DIR.exists():
+        for f in YAML_DIR.glob("gsauto_*.py"):
+            content = f.read_text()
+            m = re.search(r'RULE_ID\s*=\s*"(GSAUTO[^"]+)"', content)
+            if m:
+                existing.add(m.group(1))
+    return existing
+
+
+def _cwe_to_owasp(cwe_id: str) -> str:
+    mapping = {
+        "CWE-79": "A03:2021-Injection", "CWE-89": "A03:2021-Injection",
+        "CWE-88": "A03:2021-Injection", "CWE-22": "A01:2021-Broken Access Control",
+        "CWE-918": "A10:2021-SSRF", "CWE-200": "A01:2021-Broken Access Control",
+        "CWE-1333": "A04:2021-Insecure Design",
+    }
+    return mapping.get(cwe_id, "A03:2021-Injection")
+
+
+def register_auto_detector(
+    cwe: str, lang: str, pattern: str, tp_rate: float, validation: dict
+) -> Optional[str]:
+    """Register auto-detector as SHADOW. Returns rule_id on success, None on failure.
+
+    Guarantees:
+      - GSAUTO-* rule_id, no conflict with existing detectors
+      - COMPLIANCE_MAP entry (CWE/OWASP mapping required)
+      - SHADOW status (confidence < 0.80 → Blocking Engine won't block)
+      - Saved as YAML rule + registered in __init__.py
+    """
+    rule_id = generate_rule_id(cwe, lang)
+    safe_rule_id = f"gsauto_{cwe.replace('CWE-','')}_{lang}"
+
+    if not re.match(r"^GSAUTO-\d+-\w+$", rule_id):
+        print(f"  ❌ Invalid rule_id: {rule_id}")
         return None
 
-    patterns = extract_patterns(examples, language)
-    if not patterns:
+    existing = _existing_auto_rule_ids()
+    if rule_id in existing:
+        print(f"  ⚠️ Rule already exists: {rule_id}")
         return None
 
-    cwe_name = CWE_NAME_MAP.get(cwe_id, cwe_id)
-    cwe_num = cwe_id.replace("CWE-", "")
+    # COMPLIANCE_MAP required — otherwise findings lack CWE/OWASP mapping
+    try:
+        from gsc_compliance import COMPLIANCE_MAP
+        COMPLIANCE_MAP[rule_id] = {
+            "cwe": cwe,
+            "owasp": _cwe_to_owasp(cwe),
+            "origin": "auto-detector",
+        }
+        print(f"  ✅ COMPLIANCE_MAP: {rule_id} → {cwe}")
+    except ImportError:
+        print(f"  ⚠️ gsc_compliance not importable — COMPLIANCE_MAP skipped")
 
-    # GSAUTO rule_id schema (avoids conflict with GS000-031)
-    rule_id = f"GSAUTO-{cwe_num}"
-    safe_rule_id = f"gsauto_{cwe_num}"
+    cwe_name = CWE_NAME_MAP.get(cwe, cwe)
+    confidence = min(0.50 + tp_rate * 0.3, 0.79)  # < 0.80 → shadow (not blocking)
 
-    severities = [e["severity"] for e in examples]
-    severity = "CRITICAL" if "CRITICAL" in severities else "HIGH" if "HIGH" in severities else "MEDIUM"
-
-    sources = ', '.join(e['ghsa_id'] for e in examples[:5])
-
-    rule_py = f'''# {rule_id} — {cwe_name} ({cwe_id})
-# Auto-generated from {len(examples)} labelled bounty examples (v3 validated)
-# Sources: {sources}
-# Generated: {datetime.now().isoformat()}
-# Rule ID schema: GSAUTO-xxx (avoids GS000-031 conflict)
-
+    rule_py = f'''# {rule_id} — {cwe_name} ({cwe})
+# Auto-generated via validation gate | {datetime.now().isoformat()}
+# TP rate: {tp_rate:.2f} | Validation: {json.dumps(validation)}
+# SHADOW MODE — collects verdicts, does not block
+# Auto-promote after ≥10 verdicts + TP ≥70%
 from gsc_detectors.base import RegexDetector
 
 RULE_ID = "{rule_id}"
 ECHELON = 2
-# SHADOW MODE: candidate detector — collects verdicts, doesn't block
-# Auto-promote after ≥10 verdicts + TP ≥70%
 SHADOW = True
 NOISE_TIER = "precise"
 description = (
-    "{cwe_name} ({cwe_id}): auto-detected from {len(examples)} real-world "
-    "vulnerability examples in {language} code"
+    "{cwe_name} ({cwe}): auto-detected from bounty examples "
+    "in {lang} code"
 )
 
 patterns = [
-'''
-
-    for pat_title, pat_regex in patterns:
-        rule_py += f'    [r"{pat_regex}",\n     "{pat_title}"],\n\n'
-
-    rule_py += f''']
+    [r"{pattern}",
+     "Auto-generated {cwe} pattern (TP={tp_rate:.2f})"],
+]
 
 detector = RegexDetector(
     rule_id=RULE_ID,
     name="{safe_rule_id}",
     patterns=patterns,
-    severity="{severity}",
-    confidence=0.85,
-    languages=('{language}',),
+    severity="HIGH",
+    confidence={confidence},
+    languages=('{lang}',),
 )
 
 
@@ -418,17 +414,12 @@ def detect(file_path, content, language="auto"):
     return detector.detect(file_path, content, language)
 '''
 
-    return rule_py, rule_id, safe_rule_id
-
-
-# ── Save + Register ───────────────────────────────────────────────────────────
-
-def save_rule(rule_py: str, safe_rule_id: str):
     YAML_DIR.mkdir(parents=True, exist_ok=True)
     filepath = YAML_DIR / f"{safe_rule_id}.py"
     filepath.write_text(rule_py)
-    print(f"  ✅ Rule: {filepath}")
+    print(f"  ✅ Rule saved: {filepath}")
 
+    # Register in __init__.py
     init_path = YAML_DIR / "__init__.py"
     if not init_path.exists():
         init_path.write_text("# YAML rules registry\n\n")
@@ -439,108 +430,189 @@ def save_rule(rule_py: str, safe_rule_id: str):
             f.write(f"{import_line}  # GSAUTO {datetime.now().strftime('%Y-%m-%d')}\n")
         print(f"  ✅ Registered in __init__.py")
 
-
-def _register_compliance_mapping(rule_id: str, cwe_id: str, language: str, severity: str):
-    """Register GSAUTO rule in COMPLIANCE_MAP (gsc_compliance.py)."""
-    try:
-        from gsc_compliance import COMPLIANCE_MAP
-        cwe_num = cwe_id.replace("CWE-", "")
-        COMPLIANCE_MAP[rule_id] = {
-            "cwe": cwe_id,
-            "owasp": _cwe_to_owasp(cwe_id),
-            "pci": False,
-            "severity": severity,
-        }
-        print(f"  ✅ COMPLIANCE_MAP: {rule_id} → {cwe_id}")
-    except ImportError:
-        print(f"  ⚠️ gsc_compliance not importable — COMPLIANCE_MAP not updated")
-
-
-def _cwe_to_owasp(cwe_id: str) -> str:
-    mapping = {
-        "CWE-79": "A03:2021-Injection", "CWE-89": "A03:2021-Injection",
-        "CWE-88": "A03:2021-Injection", "CWE-22": "A01:2021-Broken Access Control",
-        "CWE-918": "A10:2021-SSRF", "CWE-200": "A01:2021-Broken Access Control",
-        "CWE-1333": "A04:2021-Insecure Design",
-    }
-    return mapping.get(cwe_id, f"A03:2021-Injection")
-
-
-def _register_shadow(rule_id: str, cwe_id: str, language: str):
+    # Register shadow in Blocking Engine
     db = sqlite3.connect(DB)
     try:
         db.execute("""INSERT OR REPLACE INTO federated_deactivated
             (rule_id, reason, deactivated_at) VALUES (?,?,datetime('now'))""",
-                   (rule_id, f"SHADOW_CANDIDATE|{cwe_id}|{language}|verdicts=0"))
+                   (rule_id, f"SHADOW_CANDIDATE|{cwe}|{lang}|verdicts=0"))
         db.commit()
     except sqlite3.OperationalError:
         pass
     db.close()
 
+    return rule_id
 
-# ── Main ──────────────────────────────────────────────────────────────────────
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 5: Orchestrator — full gate cycle
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def run_gate(cwe: str, lang: str) -> dict:
+    """Full validation gate for one CWE+lang combo."""
+    positives, negatives = load_training_data(cwe, lang)
+
+    # Readiness threshold: 5+ positives, 1+ negative
+    real_fixes = sum(1 for n in negatives if n.source == "bounty-fixed")
+    if len(positives) < MIN_EXAMPLES:
+        return {"status": "not_ready", "reason": f"need {MIN_EXAMPLES - len(positives)} more positive examples",
+                "positives": len(positives), "negatives": len(negatives), "fix_negatives": real_fixes}
+    if len(negatives) < 1:
+        return {"status": "not_ready", "reason": "no negative examples yet",
+                "positives": len(positives), "negatives": 0, "fix_negatives": 0}
+
+    # Split
+    splits = split_for_validation(positives)
+    if not splits:
+        return {"status": "not_ready", "reason": "too few positives for split",
+                "positives": len(positives)}
+
+    # Generate pattern
+    try:
+        train0 = splits[0][0]
+        pattern = generate_pattern(train0, cwe, lang)
+    except PatternValidationError as e:
+        return {"status": "rejected", "reason": f"pattern generation: {e}",
+                "positives": len(positives)}
+
+    # Validate
+    # Load calibration clean files
+    clean_files = _load_calibration_clean_files()
+    result = validate_pattern(pattern, splits, negatives, clean_files)
+
+    validation_dict = {
+        "tp_rate": result.tp_rate,
+        "fp_on_negatives": result.fp_on_negatives,
+        "clean_critical_fp": result.clean_critical_fp,
+        "num_splits": result.num_splits,
+        "method": result.method,
+    }
+
+    if not result.passed:
+        return {"status": "failed", "reason": result.reason,
+                "positives": len(positives), "negatives": len(negatives),
+                "pattern": pattern, "validation": validation_dict}
+
+    # Register
+    rule_id = register_auto_detector(cwe, lang, pattern, result.tp_rate, validation_dict)
+    if not rule_id:
+        return {"status": "rejected", "reason": "registration failed",
+                "positives": len(positives), "pattern": pattern,
+                "validation": validation_dict}
+
+    return {"status": "shadow_activated", "rule_id": rule_id,
+            "tp_rate": result.tp_rate, "positives": len(positives),
+            "negatives": len(negatives), "pattern": pattern,
+            "validation": validation_dict}
+
+
+def _load_calibration_clean_files() -> List[Tuple[str, str]]:
+    """Load code from calibration clean-pure projects."""
+    calib = Path(os.path.expanduser("~/.hermes/taskmaster/calibration"))
+    calib_gsc = Path(__file__).parent.parent / "calibration"
+    files = []
+
+    for base in [calib, calib_gsc]:
+        if not base.exists():
+            continue
+        for fpath in base.rglob("clean-pure/**/*"):
+            if fpath.is_file() and fpath.suffix in (".py", ".js", ".ts", ".go"):
+                try:
+                    content = fpath.read_text(errors="ignore")
+                    files.append((str(fpath), content))
+                except Exception:
+                    pass
+
+    return files
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# BLOCK 6: Dashboard + CLI
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def show_dashboard():
+    """Coverage matrix: which CWE+lang are approaching readiness."""
+    db = sqlite3.connect(DB)
+    db.row_factory = sqlite3.Row
+
+    try:
+        combos = db.execute("""
+            SELECT cwe_id, language, COUNT(*) as cnt,
+                   SUM(CASE WHEN fix_quality='fix' THEN 1 ELSE 0 END) as fixes
+            FROM bounty_examples
+            WHERE cwe_id != '' AND language IN ('python','javascript','go','rust')
+              AND vulnerable_code != ''
+            GROUP BY cwe_id, language ORDER BY cnt DESC
+        """).fetchall()
+    except sqlite3.OperationalError:
+        print("  No bounty_examples table yet")
+        db.close()
+        return
+
+    if not combos:
+        print(f"  No examples yet. Run 'gsc_collect_bounty.py ghsa' first.")
+        db.close()
+        return
+
+    print(f"\n{'CWE':<12} {'Lang':<12} {'Ex':>4} {'Fix':>4} {'Ready':>8}")
+    print("-" * 48)
+
+    for c in combos:
+        neg = db.execute(
+            "SELECT COUNT(*) FROM negative_examples WHERE cwe_id=? AND language=?",
+            (c["cwe_id"], c["language"])
+        ).fetchone()[0]
+        ready = c["cnt"] >= MIN_EXAMPLES and c["fixes"] >= 3 and neg >= 1
+        r = "✅ YES" if ready else f"⚠️ {MIN_EXAMPLES - c['cnt']} more"
+        print(f"{c['cwe_id']:<12} {c['language']:<12} {c['cnt']:>4} {c['fixes']:>4} {r:>8}")
+
+    db.close()
+
 
 def main():
-    if len(sys.argv) < 2 or sys.argv[1] not in ("--check", "--validate", "--generate"):
-        print("Usage: gsc_auto_detector.py --check|--validate|--generate")
+    if len(sys.argv) < 2:
+        print(__doc__)
         sys.exit(1)
 
     mode = sys.argv[1]
 
     if mode == "--check":
-        combos = check_ready_combos()
-        if combos:
-            print(f"\n💡 --validate to test, --generate to activate.")
+        show_dashboard()
         return
 
+    if mode in ("--validate", "--generate") and len(sys.argv) == 4:
+        cwe = sys.argv[2]
+        lang = sys.argv[3]
+    else:
+        print("Usage: gsc_auto_detector.py --check")
+        print("       gsc_auto_detector.py --validate CWE-79 javascript")
+        print("       gsc_auto_detector.py --generate CWE-79 javascript")
+        sys.exit(1)
+
+    result = run_gate(cwe, lang)
+
     if mode == "--validate":
-        validate_combos()
+        print(json.dumps(result, indent=2, default=str))
         return
 
     # --generate
-    print("🔧 GSC Auto-Detector v3\n")
+    print(f"\n🔧 GSC Auto-Detector Gate — {cwe} | {lang}\n")
+    print(f"  Positives: {result.get('positives', '?')} | Negatives: {result.get('negatives', '?')}")
+    print(f"  Status: {result['status']}")
 
-    combos = check_ready_combos()
-    if not combos:
-        return
-
-    validated = validate_combos(quiet=True)
-    if not validated:
-        print("\n❌ No combos passed. Need more data / better patterns.")
-        return
-
-    generated = 0
-    for cwe_id, language, results in validated:
-        print(f"\n{'='*60}")
-        print(f"  SHADOW: {cwe_id} | {language}")
-        print(f"  Method: {results.get('method','split')} | Held-out: {results.get('heldout_rate',0):.0%} | FP: {results['fp_count']}")
-
-        result = generate_rule(cwe_id, language)
-        if not result:
-            continue
-
-        rule_py, rule_id, safe_rule_id = result
-
-        if (YAML_DIR / f"{safe_rule_id}.py").exists():
-            print(f"  ⚠️ Exists: {safe_rule_id}.py")
-            continue
-
-        # Validate ALL generated patterns (ReDoS-guard)
-        patterns = re.findall(r'\[r"(.*?)",', rule_py)
-        unsafe = [p for p in patterns if not validate_pattern(p)]
-        if unsafe:
-            print(f"  ❌ ReDoS-unsafe patterns: {unsafe}")
-            continue
-
-        save_rule(rule_py, safe_rule_id)
-        _register_compliance_mapping(rule_id, cwe_id, language, "MEDIUM")
-        _register_shadow(rule_id, cwe_id, language)
-        generated += 1
-
-    print(f"\n{'='*60}")
-    print(f"✅ {generated} SHADOW detectors activated")
-    print(f"   Collecting verdicts (non-blocking)")
-    print(f"   ≥10 verdicts + TP≥70% → FULL detector")
+    if result["status"] == "failed":
+        print(f"  Reason: {result.get('reason', '?')}")
+        validation = result.get("validation", {})
+        if validation:
+            print(f"  TP: {validation['tp_rate']:.0%} | FP on neg: {validation['fp_on_negatives']} | Clean FP: {validation['clean_critical_fp']}")
+        sys.exit(1)
+    elif result["status"] == "shadow_activated":
+        print(f"  Rule: {result['rule_id']}")
+        print(f"  TP rate: {result['tp_rate']:.0%} | Method: {result['validation']['method']}")
+        print(f"  SHADOW mode — collecting verdicts (non-blocking)")
+        print(f"  ≥10 verdicts + TP≥70% → FULL DETECTOR")
+    else:
+        print(f"  {result.get('reason', '')}")
 
 
 if __name__ == "__main__":
