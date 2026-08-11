@@ -27,6 +27,25 @@ CHAIN_BLOCK_CONFIDENCE: float = 0.90
 POC_BOOST: float = 0.05
 POC_BOOST_CAP: float = 0.95
 
+# ── Precision Gate (measured on 10 real projects, Aug 2026) ──
+# Detectors BELOW WARN_THRESHOLD → warn-only, never block
+# Detectors ABOVE BLOCK_THRESHOLD → full blocking
+# Unlisted detectors → default allow (backward compatible)
+PRECISION_GATE: dict[str, float] = {
+    # From precision-report: ~15-20% CRITICAL precision overall
+    "GS001": 0.15,     # Hardcoded secrets — high FP on configs
+    "GS005": 0.25,     # SQL injection — FP without taint source
+    "GS025": 0.10,     # AI provenance — mostly config values
+    "GS037": 0.20,     # Python vulns — broad patterns
+    "GS007": 0.05,     # IDOR — very noisy on real code
+    "GS015": 0.15,     # Entry points — many FPs
+    # Higher precision detectors
+    "GS004": 0.70,     # subprocess injection
+    "GS029": 0.60,     # Cross-repo secrets
+}
+PRECISION_WARN_THRESHOLD = 0.30
+PRECISION_BLOCK_THRESHOLD = 0.70
+
 
 class BlockingEngine:
     """Single source of blocking truth for all phases."""
@@ -105,15 +124,14 @@ class BlockingEngine:
 
     def apply(self, findings: list[dict], overrides: set[str],
               bypass: bool, chains: list[dict] | None = None) -> dict:
-        """Mutate findings; return summary for comment/metrics."""
+        """Mutate findings; return summary for comment/metrics.
 
+        🆕 Precision Gate: detectors with measured precision < 30% → warn-only.
+        """
         for f in findings:
             f["blocking"] = False
 
-        summary: dict[str, Any] = {
-            "blocked": [], "shadow_blocked": [], "skipped": [],
-            "chain_blocked": [], "shadow": self.shadow, "bypass": bypass,
-        }
+        summary = self._init_summary(bypass)
         if bypass:
             summary["bypass_reason"] = "label bypass"
             return summary
@@ -122,19 +140,27 @@ class BlockingEngine:
         if not thresholds:
             return summary
 
-        # ── Individual findings (Phase 4 core) ──
+        skipped_low_precision = []
+
         for f in findings:
             if f.get("confidence", 0.0) < 0.35:
                 continue
             if not self._meets_threshold(f, thresholds,
                                          self._effective_confidence(f)):
                 continue
-            allowed, why = self.detector_allowed(
-                f.get("rule_id", f.get("pattern_title", "")))
+            rule_id = f.get("rule_id", f.get("pattern_title", ""))
+
+            # 🆕 Precision Gate: low-precision detectors → warn, never block
+            if self._is_low_precision(rule_id):
+                f.setdefault("metadata", {})["blocking_skipped"] = (
+                    f"low measured precision ({PRECISION_GATE.get(rule_id, 0):.0%} < {PRECISION_WARN_THRESHOLD:.0%})")
+                skipped_low_precision.append(f.get("finding_key", "?"))
+                continue
+
+            allowed, why = self.detector_allowed(rule_id)
             if not allowed:
                 f.setdefault("metadata", {})["blocking_skipped"] = why
-                summary["skipped"].append(
-                    (f.get("finding_key", "?"), why))
+                summary["skipped"].append((f.get("finding_key", "?"), why))
                 continue
             if f.get("finding_key") in overrides:
                 f["metadata"] = f.get("metadata", {})
@@ -143,11 +169,37 @@ class BlockingEngine:
                 continue
             self._mark_blocking(f, summary)
 
+        if skipped_low_precision:
+            summary["precision_skipped"] = len(skipped_low_precision)
+
         # ── Chain blocking (Phase 5) ──
         if self.phase == "blocking-standard":
             self._apply_chain_blocking(findings, chains or [],
                                        overrides, summary)
         return summary
+
+    def _is_low_precision(self, rule_id: str) -> bool:
+        """Check if detector has measured precision below warn threshold."""
+        if not rule_id:
+            return False
+        # Check full rule_id, then base prefix
+        # GS025-hardcoded_secret → GS025; GSAUTO-88-python → GSAUTO (unlisted, allow)
+        prec = PRECISION_GATE.get(rule_id)
+        if prec is not None:
+            return prec < PRECISION_WARN_THRESHOLD
+        # Try base: everything before second dash (GS025-hardcoded → GS025)
+        parts = rule_id.split("-")
+        if len(parts) >= 2 and parts[0].startswith("GS"):
+            base = parts[0]
+            prec = PRECISION_GATE.get(base)
+        return prec is not None and prec < PRECISION_WARN_THRESHOLD
+
+    def _init_summary(self, bypass: bool) -> dict:
+        return {
+            "blocked": [], "shadow_blocked": [], "skipped": [],
+            "precision_skipped": 0,
+            "chain_blocked": [], "shadow": self.shadow, "bypass": bypass,
+        }
 
     def _mark_blocking(self, f: dict, summary: dict) -> None:
         f["metadata"] = f.get("metadata", {})
