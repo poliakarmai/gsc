@@ -2198,6 +2198,13 @@ def main():
     api.add_argument('--port', type=int, default=8766, help='Port (default: 8766)')
     api.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
 
+    # gsc threat-model 🆕 — attack surface analysis before scanning
+    tm = sub.add_parser('threat-model', help='AI threat modeling — analyze attack surface')
+    tm.add_argument('repo', help='Path to repository')
+    tm.add_argument('--quick', action='store_true', help='Quick mode')
+    tm.add_argument('--model', default='deepseek-chat', help='LLM model')
+    tm.add_argument('--output', '-o', help='Output directory')
+
     # gsc deep-reduce 🆕 — AI-first semantic scanner
     dr = sub.add_parser('deep-reduce', help='AI-first semantic vulnerability scanner')
     dr.add_argument('target', help='File or directory to scan')
@@ -2427,6 +2434,13 @@ def main():
             cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
+
+    elif args.command == "threat-model":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_threat_model.py"), args.repo]
+        if getattr(args, 'quick', False): cmd.append("--quick")
+        if hasattr(args, 'model'): cmd += ["--model", args.model]
+        if hasattr(args, 'output') and args.output: cmd += ["--output", args.output]
+        subprocess.run(cmd)
 
     elif args.command == "deep-reduce":
         cmd = [sys.executable, str(Path(__file__).parent / "gsc_deep_reducer.py"), args.target]
