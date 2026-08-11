@@ -25,6 +25,7 @@ from gsc_detectors.gs005_sql_injection import detect as gs005_detect
 MIN_SAMPLE = 2       # minimum trigger count for reliable score
 MAX_TPR_DROP = 0.03  # max allowed TPR loss when disabling a pattern
 FPR_TARGET = 0.30    # stop when FPR ≤ this
+MAX_DISABLE_PER_RUN = 10  # max patterns to disable in one run
 
 # ── Benchmark cases (vulnerable=True, fixed=False) ─────────────────────────
 
@@ -182,6 +183,84 @@ def overlap_coefficient(set1: set, set2: set) -> float:
     return len(set1 & set2) / min(len(set1), len(set2))
 
 
+# ── Hold-out protection against overfitting ────────────────────────────────
+
+def split_cases(ratio: float = 0.8, seed: int = 42) -> tuple[list, list]:
+    """Split negative cases: 80% train, 20% hold-out. Positive cases go to train."""
+    import random
+    pos = [(c, v) for c, v in BENCHMARK if v]
+    neg = [(c, v) for c, v in BENCHMARK if not v]
+    random.Random(seed).shuffle(neg)
+    split = int(len(neg) * ratio)
+    train = pos + neg[:split]
+    holdout = neg[split:]
+    return train, holdout
+
+
+def compute_fpr_on(cases: list, disabled: set[str]) -> float:
+    """FPR on a specific set of cases."""
+    fp = tn = 0
+    for code, is_vuln in cases:
+        if is_vuln:
+            continue
+        findings = _run((code, is_vuln), disabled)
+        if findings:
+            fp += 1
+        else:
+            tn += 1
+    return fp / (fp + tn) if (fp + tn) else 0
+
+
+def compute_tpr_on(cases: list, disabled: set[str]) -> float:
+    """TPR on a specific set of cases."""
+    tp = fn = 0
+    for code, is_vuln in cases:
+        if not is_vuln:
+            continue
+        findings = _run((code, is_vuln), disabled)
+        if findings: tp += 1
+        else: fn += 1
+    return tp / (tp + fn) if (tp + fn) else 0
+
+
+# ── Tuning report persistence ──────────────────────────────────────────────
+
+def save_tuning_report(result: dict, path: str = "benchmark/GS005_TUNING_REPORT.md"):
+    """Save tuning results as markdown report."""
+    lines = [
+        "# GS005 Tuning Report",
+        f"",
+        f"Baseline: TPR={result['baseline']['tpr']:.3f}, "
+        f"FPR={result['baseline']['fpr']:.3f}",
+        f"Final:    TPR={result['final']['tpr']:.3f}, "
+        f"FPR={result['final']['fpr']:.3f}",
+        f"",
+        f"Target FPR ≤ {FPR_TARGET}: "
+        f"{'✅' if result.get('target_reached', False) else '❌'}",
+        f"FPR improvement: {result['baseline']['fpr'] - result['final']['fpr']:+.3f} "
+        f"({(1 - result['final']['fpr']/max(result['baseline']['fpr'], 0.001))*100:+.0f}%)",
+        f"TPR change: {result['final']['tpr'] - result['baseline']['tpr']:+.3f}",
+        f"",
+        f"Hold-out FPR: {result.get('holdout_fpr', '?')}",
+        f"Отключено: {len(result.get('disabled', []))} "
+        f"(limit: {MAX_DISABLE_PER_RUN})",
+        f"Защищено (полезных): {result.get('protected_count', 0)}",
+        f"",
+        f"## Отключённые паттерны",
+        f"| pattern_id | FPR | TPR | FP | TP | Score |",
+        f"|---|---|---|---|---|---|",
+    ]
+    for d in result.get("disabled", []):
+        lines.append(
+            f"| {d['pid']} | {d.get('fp_rate', '?'):.3f} | "
+            f"{d.get('tp_rate', '?'):.3f} | {d['fp']} | {d['tp']} | "
+            f"{d.get('score', 0):+.3f} |"
+        )
+    out = Path(GSC / path)
+    out.write_text("\n".join(lines), encoding="utf-8")
+    print(f"\nReport saved: {out}")
+
+
 def find_correlated(pid: str, case_index: dict, threshold: float = 0.7) -> list[str]:
     """Find patterns that fire on same FP cases (overlap ≥70%)."""
     my_fp = case_index["fp"].get(pid, set())
@@ -231,6 +310,9 @@ def tune_gs005(dry_run: bool = True):
     for s in scored:
         if not s["reliable"]:
             continue
+        if len(disabled) >= MAX_DISABLE_PER_RUN:
+            print(f"  ⛔ MAX_DISABLE_PER_RUN ({MAX_DISABLE_PER_RUN}) reached")
+            break
         pid = s["pid"]
         new_tpr, new_fpr, safe = test_disable(pid, baseline_tpr)
         tried.append((pid, new_tpr, new_fpr, safe))
@@ -257,22 +339,48 @@ def tune_gs005(dry_run: bool = True):
     if not has_overlap:
         print("  No significant overlaps")
 
-    # 6. Apply
+    # 6. Hold-out validation (protection against overfitting)
+    train_set, holdout_set = split_cases()
+    if len(holdout_set) >= 2:
+        holdout_fpr_before = compute_fpr_on(holdout_set, set())
+        holdout_fpr_after = compute_fpr_on(holdout_set, disabled)
+        holdout_tpr = compute_tpr_on(train_set, disabled)
+        print(f"\nStep 6: Hold-out validation ({len(train_set)} train / {len(holdout_set)} hold-out)")
+        print(f"  FPR on hold-out: {holdout_fpr_before:.3f} → {holdout_fpr_after:.3f}")
+        if holdout_fpr_before > 0 and holdout_fpr_after >= holdout_fpr_before:
+            print(f"  ⚠️ No improvement on hold-out — possible overfitting!")
+    else:
+        holdout_fpr_after = None
+        holdout_tpr = compute_tpr(disabled)
+
+    # 7. Result
     final_tpr = compute_tpr(disabled)
     final_fpr = compute_fpr(disabled)
+    target_reached = final_fpr <= FPR_TARGET
     print(f"\n{'=' * 65}")
     print(f"Result: TPR {baseline_tpr:.3f}→{final_tpr:.3f} "
           f"({(final_tpr - baseline_tpr)*100:+.1f}%)  "
           f"FPR {baseline_fpr:.3f}→{final_fpr:.3f} "
-          f"({(final_fpr - baseline_fpr)*100:+.1f}%)")
-    print(f"Disabled: {len(disabled)} patterns")
+          f"({(final_fpr - baseline_fpr)*100:+.1f}%)  "
+          f"Target: {'✅' if target_reached else '❌'}")
+    print(f"Disabled: {len(disabled)} patterns (max: {MAX_DISABLE_PER_RUN})")
     for pid in sorted(disabled):
         s = next(x for x in scored if x["pid"] == pid)
         print(f"  {pid}: tp={s['tp']} fp={s['fp']} score={s['score']}")
+
+    result = {
+        "baseline": {"tpr": baseline_tpr, "fpr": baseline_fpr},
+        "final": {"tpr": final_tpr, "fpr": final_fpr},
+        "disabled": [s for s in scored if s["pid"] in disabled],
+        "protected_count": sum(1 for s in scored if s["reliable"] and s["pid"] not in disabled),
+        "target_reached": target_reached,
+        "holdout_fpr": f"{holdout_fpr_after:.3f}" if holdout_fpr_after is not None else "N/A",
+    }
     print(f"\nTime: {time.time() - t0:.1f}s")
 
     if dry_run:
-        print("\n[Dry run — no patterns actually disabled. Remove --dry-run to apply.]")
+        print("\n[Dry run — no patterns actually disabled. Use --apply to persist.]")
+        save_tuning_report(result)
         return disabled, scored
 
     # Apply to pattern_status table
@@ -295,6 +403,7 @@ def tune_gs005(dry_run: bool = True):
     except Exception as e:
         print(f"❌ Failed to apply: {e}")
 
+    save_tuning_report(result)
     return disabled, scored
 
 
