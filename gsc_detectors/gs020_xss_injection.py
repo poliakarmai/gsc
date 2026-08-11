@@ -186,7 +186,10 @@ def _is_false_positive(snippet: str, pattern: str) -> bool:
 
 _XSS_SANITIZERS = re.compile(
     r'(?:DOMPurify\.sanitize|escapeHtml|sanitizeHtml|encodeURIComponent|'
-    r'html\.escape|bleach\.clean|xss-filters|\.textContent\s*=)',
+    r'html\.escape|bleach\.clean|xss-filters|\.textContent\s*=|'
+    r'markupsafe\.escape|escape\s*\(|cgi\.escape|'
+    r'jinja2\.escape|\{\{\s*\w+\s*\|\s*e(?:scape)?\s*\}\}|'
+    r'esapi\.encoder|HtmlUtils\.htmlEscape)',
     re.IGNORECASE,
 )
 
@@ -198,10 +201,13 @@ _XSS_TAINT_SOURCES = re.compile(
     re.IGNORECASE,
 )
 
-# Patterns where context analysis applies (DOM-based, innerHTML-like)
+# Patterns where context analysis applies (all DOM + reflected XSS)
 _CONTEXT_AWARE_PATTERNS = frozenset({
     '.innerHTML', 'dangerouslySetInnerHTML', '.outerHTML',
     'insertAdjacentHTML', 'document.write',
+    # Python reflected XSS — sanitizer check applies
+    'f-string HTML', '.format() HTML', '%-formatting HTML',
+    'f-string script', 'template literal HTML',
 })
 
 
@@ -218,21 +224,16 @@ def _has_tainted_source(context: str) -> bool:
 def _adjust_xss_severity(
     severity: str, pattern: str, context: str
 ) -> str:
-    """Adjust XSS severity based on context analysis."""
-    # Only apply context analysis to DOM-based patterns
-    if not any(kw in pattern for kw in _CONTEXT_AWARE_PATTERNS):
-        return severity
-
+    """Adjust XSS severity based on sanitizer/taint context analysis."""
     has_sanitizer = _has_xss_sanitizer(context)
     has_taint = _has_tainted_source(context)
 
     if has_sanitizer:
-        # Sanitizer present — downgrade significantly
-        return "LOW"
+        return "LOW"          # sanitizer present — downgrade significantly
     if has_taint:
-        # Tainted source, no sanitizer — escalate
-        return "CRITICAL"
-    # Neither — keep original severity (developer should verify)
+        if severity not in ("CRITICAL", "HIGH"):
+            return "HIGH"     # tainted source, no sanitizer — escalate
+    # Neither — keep original severity
     return severity
 
 
