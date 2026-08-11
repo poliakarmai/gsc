@@ -484,6 +484,8 @@ class GSCDatabase:
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
             );
+
+            ALTER TABLE findings ADD COLUMN rule_id TEXT;
         """)
 
     def _apply_v027(self):

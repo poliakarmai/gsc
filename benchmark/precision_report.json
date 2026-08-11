@@ -1,0 +1,71 @@
+{
+  "scanned_at": "2026-08-11T10:24:37.506415+00:00",
+  "projects": [
+    {
+      "project": "flask-smorest",
+      "stars": 600,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.3
+    },
+    {
+      "project": "fastapi-users",
+      "stars": 4500,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "piccolo-api",
+      "stars": 160,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "sanic",
+      "stars": 18000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "httpie",
+      "stars": 34000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "thefuck",
+      "stars": 85000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "youtube-dl",
+      "stars": 132000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "pendulum",
+      "stars": 6200,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    },
+    {
+      "project": "loguru",
+      "stars": 20000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.3
+    },
+    {
+      "project": "rich",
+      "stars": 50000,
+      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
+      "elapsed": 0.2
+    }
+  ],
+  "summary": {
+    "total_projects": 10,
+    "total_findings": 0,
+    "total_critical": 0,
+    "total_high": 0
+  }
+}
