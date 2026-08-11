@@ -88,15 +88,20 @@ def cmd_scan():
 
         try:
             data = json.loads(result.stdout)
+            if isinstance(data, dict):
+                findings = data.get("findings", [])
+            elif isinstance(data, list):
+                findings = data
+            else:
+                findings = []
         except json.JSONDecodeError:
             print(f"    ❌ invalid JSON output")
             results.append({"project": proj["name"], "stars": proj["stars"],
                           "error": "invalid JSON", "elapsed": round(elapsed, 1)})
             continue
 
-        findings = data.get("findings", [])
-        critical = [f for f in findings if f.get("severity") == "CRITICAL"]
-        high = [f for f in findings if f.get("severity") == "HIGH"]
+        critical = [f for f in findings if f.get("severity") == "CRITICAL" or f.get("category") == "CRITICAL"]
+        high = [f for f in findings if f.get("severity") == "HIGH" or f.get("category") == "HIGH"]
 
         print(f"    📊 {len(findings)} findings: {len(critical)} CRITICAL, {len(high)} HIGH ({elapsed:.1f}s)")
 
