@@ -32,14 +32,17 @@ POC_BOOST_CAP: float = 0.95
 # Detectors ABOVE BLOCK_THRESHOLD → full blocking
 # Unlisted detectors → default allow (backward compatible)
 PRECISION_GATE: dict[str, float] = {
-    # From precision-report: ~15-20% CRITICAL precision overall
-    "GS001": 0.15,     # Hardcoded secrets — high FP on configs
-    "GS005": 0.25,     # SQL injection — FP without taint source
-    "GS025": 0.10,     # AI provenance — mostly config values
-    "GS037": 0.20,     # Python vulns — broad patterns
-    "GS007": 0.05,     # IDOR — very noisy on real code
-    "GS015": 0.15,     # Entry points — many FPs
-    # Higher precision detectors
+    # CRITICAL-dominant, low precision — warn-only
+    "GS001": 0.15,     # Hardcoded secrets — 47/47 CRITICAL in extractors
+    "GS005": 0.25,     # SQL injection — 82% FPR on OWASP Java
+    "GS025": 0.10,     # AI provenance — 125 findings, test configs
+    "GS037": 0.20,     # Language vulns — 17/22 CRITICAL, hardcoded API keys
+    "GS007": 0.05,     # Very noisy on real code
+    "GS015": 0.15,     # Entry points — almost all FP
+    "GS022": 0.10,     # Overly broad — 1050 findings, massive noise
+    "GS000-LEGACY": 0.05,  # Legacy — 730 unclassified
+    "GS019": 0.20,     # Rate limiting — 1 TP из 4 CRITICAL
+    # Higher precision — full blocking
     "GS004": 0.70,     # subprocess injection
     "GS029": 0.60,     # Cross-repo secrets
 }
