@@ -66,6 +66,25 @@ GROUND_TRUTH = [
               'with open(filename) as f: content = f.read()\n', "python"),
     ("GS004", 'child_process.exec("ls " + dir);\n',
               'child_process.execFile("ls", [dir]);\n', "javascript"),
+    # Additional GS004 Java patterns
+    ("GS004", 'Runtime.getRuntime().exec("cmd /c " + userInput);\n',
+              'ProcessBuilder pb = new ProcessBuilder("cmd", "/c", userInput); pb.start();\n', "java"),
+
+    # ═══ More GS005 — SQL Injection ═══
+    ("GS005", 'q = "SELECT * FROM t WHERE x=" + request.args.get("x")\n',
+              'q = "SELECT * FROM t WHERE x=?"; cursor.execute(q, (request.args.get("x"),))\n', "python"),
+    ("GS005", 'sql = "SELECT * FROM users WHERE id = %d" % user_id\n',
+              'sql = "SELECT * FROM users WHERE id = %s"; cursor.execute(sql, (user_id,))\n', "python"),
+    ("GS005", 'db.execute("SELECT * FROM logs WHERE msg=\'" + msg + "\'")\n',
+              'db.execute("SELECT * FROM logs WHERE msg=?", (msg,))\n', "python"),
+    ("GS005", "const q = `SELECT * FROM items WHERE name = '${name}'`;\n",
+              'const q = "SELECT * FROM items WHERE name = ?"; db.get(q, [name]);\n', "javascript"),
+
+    # ═══ More GS020 — XSS ═══
+    ("GS020", 'doc.write(\"<h2>\" + user + \"</h2>\");\n',
+              'const h2 = document.createElement(\"h2\"); h2.textContent = user;\n', "javascript"),
+    ("GS020", 'element.innerHTML = data;\n',
+              'element.textContent = data;\n', "javascript"),
 
     # ═══ GS029 — Hardcoded Secrets ═══
     ("GS029", 'API_KEY = "sk-1234567890abcdef1234567890abcdef"\n',
