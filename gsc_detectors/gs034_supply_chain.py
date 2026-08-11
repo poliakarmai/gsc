@@ -234,7 +234,7 @@ class GS034SupplyChainDetector:
 RULE_ID = "GS034"
 ECHELON = 1
 NOISE_TIER = "sensitive"
-description = "GS034: npm Supply Chain Attack — detect ChainDrop and similar npm worms"
+description = "GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json"
 
 
 def detect(ctx) -> list[dict]:
