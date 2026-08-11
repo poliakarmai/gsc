@@ -1,0 +1,42 @@
+[
+    {
+        "echelon": 1,
+        "category": "HIGH",
+        "title": "AD: Kerberoasting — service account with hardcoded password (no gMSA)",
+        "pattern_type": "regex",
+        "search_pattern": "(New-ADUser|Set-ADAccountPassword).*(ConvertTo-SecureString|\"password\"|-AccountPassword)",
+        "description": "Service account created with hardcoded password instead of gMSA. Allows offline Kerberoasting of SPN ticket.",
+        "language": "powershell",
+        "noise_tier": "precise"
+    },
+    {
+        "echelon": 2,
+        "category": "CRITICAL",
+        "title": "AD: NTLM Relay — LDAP/SMB signing disabled",
+        "pattern_type": "regex",
+        "search_pattern": "(LdapClientIntegrity|RequireSigning|EnableSecuritySignature|RequireSecuritySignature)\\s*[=:]\\s*0|(-Name\\s+[\"\\x27]?(LdapClientIntegrity|RequireSigning|EnableSecuritySignature|RequireSecuritySignature).*-Value\\s+0)",
+        "description": "LDAP/SMB signing explicitly disabled (registry key set to 0). Enables NTLM relay attacks to ADCS or LDAP (RBCD/shadow creds).",
+        "language": "powershell",
+        "noise_tier": "precise"
+    },
+    {
+        "echelon": 2,
+        "category": "HIGH",
+        "title": "AD: LAPS — overly permissive read ACL",
+        "pattern_type": "regex",
+        "search_pattern": "Set-AdmPwdReadPasswordPermission\\s+-Identity\\s+(\"Domain Users\"|\"Everyone\"|\"Authenticated Users\"|\"Domain Computers\")",
+        "description": "LAPS local admin password readable by overly broad group. Enables lateral movement across domain.",
+        "language": "powershell",
+        "noise_tier": "precise"
+    },
+    {
+        "echelon": 2,
+        "category": "HIGH",
+        "title": "AD: ADCS — certificate template without EPA",
+        "pattern_type": "regex",
+        "search_pattern": "(Add-CATemplate|New-CATemplate|Set-CATemplate)",
+        "description": "ADCS certificate template created/added — verify Extended Protection for Authentication (EPA) is enforced. Without EPA: NTLM relay to ADCS = domain admin.",
+        "language": "powershell",
+        "noise_tier": "normal"
+    }
+]
