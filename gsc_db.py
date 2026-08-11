@@ -434,12 +434,7 @@ class GSCDatabase:
         self.conn.executescript(SCHEMA_V028)
 
     def _apply_v029(self):
-        """Schema v29: finding state machine + verification tracking.
-
-        - finding_states: immutable state transition log
-        - ALTER findings: add current_state, state_updated_at
-        - verify_results: fix verification outcome history
-        """
+        """Schema v29: finding state machine + verification tracking + detector_status."""
         self.conn.executescript("""
             CREATE TABLE IF NOT EXISTS finding_states (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -477,6 +472,18 @@ class GSCDatabase:
             );
             CREATE INDEX IF NOT EXISTS idx_verify_results_key
                 ON verify_results(finding_key, created_at);
+
+            CREATE TABLE IF NOT EXISTS detector_status (
+                rule_id         TEXT PRIMARY KEY,
+                status          TEXT NOT NULL DEFAULT 'full',
+                confidence      REAL DEFAULT 0.85,
+                tp_rate         REAL DEFAULT 0.0,
+                verdicts        INTEGER DEFAULT 0,
+                tp_count        INTEGER DEFAULT 0,
+                fp_count        INTEGER DEFAULT 0,
+                created_at      TEXT DEFAULT (datetime('now')),
+                updated_at      TEXT DEFAULT (datetime('now'))
+            );
         """)
 
     def _apply_v027(self):

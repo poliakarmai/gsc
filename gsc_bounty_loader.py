@@ -48,20 +48,19 @@ class BountyLoader:
         Get top-K real-world fixes for a given CWE+language.
         Used by Proof-of-Fix: "here's how people fixed CWE-X in language Y before."
         
+        Only fix_quality='fix' — workaround is NOT a valid example.
+        Sorted by hunk_relevance DESC.
+        
         Returns list of {vulnerable_code, fixed_code, fix_context, fix_quality, summary}
         """
         db = self._connect()
         try:
-            # Prefer fix-quality examples (not workarounds)
             examples = db.execute("""
                 SELECT vulnerable_code, fixed_code, fix_context, fix_quality,
-                       summary, ghsa_id, cve_id
+                       summary, ghsa_id, cve_id, hunk_relevance
                 FROM bounty_examples
-                WHERE cwe_id = ? AND language = ? AND fixed_code != ''
-                ORDER BY 
-                    CASE fix_quality WHEN 'fix' THEN 0 WHEN 'patch' THEN 1 ELSE 2 END,
-                    hunk_relevance DESC,
-                    collected_at DESC
+                WHERE cwe_id = ? AND language = ? AND fix_quality = 'fix' AND fixed_code != ''
+                ORDER BY hunk_relevance DESC, collected_at DESC
                 LIMIT ?
             """, (cwe_id, language, k)).fetchall()
         except sqlite3.OperationalError:
@@ -82,14 +81,14 @@ class BountyLoader:
             for e in examples
         ]
 
-    def build_pof_prompt(self, cwe_id: str, language: str, current_code: str, k: int = 3) -> str:
+    def build_pof_prompt(self, cwe_id: str, language: str, current_code: str, k: int = 3) -> str | None:
         """
         Build a Proof-of-Fix prompt section with few-shot examples.
-        Inject this into the PoF generator's user prompt.
+        Returns None if no examples available → caller should use standard prompt.
         """
         fixes = self.get_few_shot_fixes(cwe_id, language, k)
         if not fixes:
-            return ""
+            return None  # Explicit fallback signal
 
         lines = [f"\n## 📚 Few-Shot: How developers fixed {cwe_id} in real {language} projects\n"]
         lines.append("Study these fixes before generating your own. Follow their pattern.\n")

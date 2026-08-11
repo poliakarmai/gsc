@@ -51,6 +51,22 @@ class BlockingEngine:
         return self._tp_cache
 
     def detector_allowed(self, rule_id: str) -> tuple[bool, str]:
+        """Check if detector is allowed. Shadow = scan but don't block.
+        Deactivated = skip entirely. Full = normal behavior.
+        """
+        # ── NEW: detector_status table (GSAUTO shadow detectors) ──
+        try:
+            from gsc_shadow_manager import ShadowDetectorManager
+            sm = ShadowDetectorManager(self.db)
+            status = sm.get_status(rule_id)
+            if status == "deactivated":
+                return False, "detector deactivated"
+            if status == "shadow":
+                return True, "shadow (scan only, non-blocking)"
+        except ImportError:
+            pass
+
+        # ── Existing logic ──
         det = rule_id.split("-")[0]
         if det == "GS028":
             if self.config.get("invariants_enforce"):
