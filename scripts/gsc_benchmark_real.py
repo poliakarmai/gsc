@@ -74,7 +74,7 @@ def cmd_scan():
 
         result = subprocess.run(
             [sys.executable, str(GSC / "gsc.py"), "scan", str(proj_dir),
-             "--ci", "--json", "--profile", "precision-hunt"],
+             "--ci", "--json"],
             capture_output=True, text=True, timeout=600,
             cwd=str(GSC))
 

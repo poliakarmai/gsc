@@ -1,0 +1,52 @@
+[
+  {
+    "finding_key": "c6f6aebdc8d4",
+    "rule_id": "GS025",
+    "category": "HIGH",
+    "echelon": 2,
+    "title": "World-readable file: renovate.json (664)",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/flask-smorest/renovate.json",
+    "line_number": 0,
+    "detail": "Permissions 664 \u2014 should be 600",
+    "pattern_title": "chmod: World-readable sensitive files"
+  },
+  {
+    "finding_key": "83ce73760972",
+    "rule_id": "GS025",
+    "category": "HIGH",
+    "echelon": 2,
+    "title": "World-readable file: .pre-commit-config.yaml (664)",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/flask-smorest/.pre-commit-config.yaml",
+    "line_number": 0,
+    "detail": "Permissions 664 \u2014 should be 600",
+    "pattern_title": "chmod: World-readable sensitive files"
+  },
+  {
+    "finding_key": "c3a9faf5c793",
+    "rule_id": "GS025",
+    "category": "HIGH",
+    "echelon": 2,
+    "title": "World-readable file: .readthedocs.yml (664)",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/flask-smorest/.readthedocs.yml",
+    "line_number": 0,
+    "detail": "Permissions 664 \u2014 should be 600",
+    "pattern_title": "chmod: World-readable sensitive files"
+  },
+  {
+    "rule_id": "GS009",
+    "severity": "supply-chain",
+    "category": "supply-chain",
+    "title": "",
+    "file_path": "",
+    "line": 0,
+    "line_number": 0,
+    "detail": "",
+    "fix_suggestion": "Check Bumblebee binary and Go installation.",
+    "references": [],
+    "noise_tier": "normal",
+    "echelon": 2,
+    "file": "N/A",
+    "message": "Bumblebee error: 'AuditContext' object has no attribute 'project_root'",
+    "pattern_title": "GS009 (Supply chain scanner: detects packages, editor extensions, M)"
+  }
+]
