@@ -2198,6 +2198,14 @@ def main():
     api.add_argument('--port', type=int, default=8766, help='Port (default: 8766)')
     api.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
 
+    # gsc agentless 🆕 — SSH-based host security assessment
+    al = sub.add_parser('agentless', help='Agentless SSH host security scan')
+    al.add_argument('host', help='Target hostname or IP')
+    al.add_argument('--user', '-u', default='root', help='SSH user')
+    al.add_argument('--key', '-i', help='SSH private key')
+    al.add_argument('--mode', choices=['hardening', 'threats', 'all'], default='all')
+    al.add_argument('--json', action='store_true', help='JSON output')
+
     # gsc threat-model 🆕 — attack surface analysis before scanning
     tm = sub.add_parser('threat-model', help='AI threat modeling — analyze attack surface')
     tm.add_argument('repo', help='Path to repository')
@@ -2434,6 +2442,14 @@ def main():
             cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
+
+    elif args.command == "agentless":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_agentless.py"), args.host]
+        if hasattr(args, 'user'): cmd += ["--user", args.user]
+        if hasattr(args, 'key') and args.key: cmd += ["--key", args.key]
+        if hasattr(args, 'mode'): cmd += ["--mode", args.mode]
+        if getattr(args, 'json', False): cmd.append("--json")
+        subprocess.run(cmd)
 
     elif args.command == "threat-model":
         cmd = [sys.executable, str(Path(__file__).parent / "gsc_threat_model.py"), args.repo]

@@ -226,7 +226,7 @@ def call_llm(prompt: str, api_key: str, model: str = "deepseek-chat") -> dict:
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.1,
-        "max_tokens": 16384,
+        "max_tokens": 32768,
         "stream": False,
     }
     
@@ -265,7 +265,7 @@ def call_llm(prompt: str, api_key: str, model: str = "deepseek-chat") -> dict:
         json_str += ']' * open_brackets
     
     try:
-        return json.loads(json_str)
+        return json.loads(json_str, strict=False)
     except json.JSONDecodeError as e:
         return {"error": f"JSON parse failed: {e}", "raw": content[:500]}
 
@@ -284,7 +284,7 @@ Path: {context['path']}
         prompt += f"\n### {name}\n```\n{content[:500]}\n```\n"
     
     prompt += f"\n## Routes Found ({context.get('route_count', 0)})"
-    for r in context.get('routes', [])[:15]:
+    for r in context.get('routes', [])[:8]:
         prompt += f"\n  {r['path']} → {r['file']}"
     
     prompt += "\n\n" + QUICK_DISCOVERY_PROMPT
