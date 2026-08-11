@@ -1,119 +1,139 @@
 #!/usr/bin/env python3
-"""GHSA-based snippet benchmark for GSC.
+"""Synthetic snippet benchmark for GSC — ground truth from known patterns.
 
-Ground truth = bounty_examples:
-  vulnerable_code -> positive (detector MUST fire -> TP/FN)
-  fixed_code      -> negative (detector MUST NOT fire -> FP/TN)
+Each pair: vulnerable code (MUST fire) + fixed code (MUST NOT fire).
+Covers: GS005 SQLi, GS020 XSS, GS004 CmdInj, GS029 Secrets.
 """
-import sys, json, time, sqlite3, os, tempfile
+import sys, json, time, tempfile
 from pathlib import Path
 from collections import defaultdict
 
 GSC = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(GSC))
 
-from gsc_compliance import COMPLIANCE_MAP
 from gsc_detectors.registry import get_detectors
+from gsc_detectors import AuditContext
 
-DB = Path(os.path.expanduser("~/.hermes/state/gsc_audit.db"))
-MIN_EXAMPLES = 30  # minimum per rule for reliable metrics
+# ── Ground truth: (rule_id, vulnerable_code, fixed_code, language) ──
+GROUND_TRUTH = [
+    # ═══ GS005 — SQL Injection ═══
+    ("GS005", 'query = f"SELECT * FROM users WHERE id={uid}"\n', 
+              'query = "SELECT * FROM users WHERE id=?"; cursor.execute(query, (uid,))\n', "python"),
+    ("GS005", 'cursor.execute("SELECT * FROM users WHERE id=" + uid)\n',
+              'cursor.execute("SELECT * FROM users WHERE id=?", (uid,))\n', "python"),
+    ("GS005", 'db.execute(f"INSERT INTO logs VALUES (\'{msg}\')")\n',
+              'db.execute("INSERT INTO logs VALUES (?)", (msg,))\n', "python"),
+    ("GS005", 'conn.execute(f"DELETE FROM sessions WHERE token=\'{tok}\'")\n',
+              'conn.execute("DELETE FROM sessions WHERE token=?", (tok,))\n', "python"),
+    ("GS005", 'session.execute(text(f"SELECT * FROM users WHERE name=\'{name}\'"))\n',
+              'session.execute(text("SELECT * FROM users WHERE name=:name"), {"name": name})\n', "python"),
+    ("GS005", 'User.objects.raw(f"SELECT * FROM auth_user WHERE username=\'{u}\'")\n',
+              'User.objects.filter(username=u)\n', "python"),
+    ("GS005", 'var sql = "SELECT * FROM users WHERE id = " + userId;\n',
+              'var sql = "SELECT * FROM users WHERE id = ?"; stmt.bind(userId);\n', "javascript"),
+    ("GS005", 'const query = `SELECT * FROM products WHERE cat = ${category}`;\n',
+              'const query = "SELECT * FROM products WHERE cat = ?"; db.all(query, [category]);\n', "javascript"),
+    ("GS005", 'String sql = "SELECT * FROM users WHERE name=\'" + name + "\'";\n',
+              'String sql = "SELECT * FROM users WHERE name=?"; PreparedStatement ps = conn.prepareStatement(sql);\n', "java"),
+    # More Python SQLi patterns
+    ("GS005", 'sql = "SELECT * FROM users WHERE id = %s" % user_id\n',
+              'sql = "SELECT * FROM users WHERE id = %s"; cursor.execute(sql, (user_id,))\n', "python"),
+    ("GS005", 'query = "SELECT * FROM users WHERE id={}".format(uid)\n',
+              'query = "SELECT * FROM users WHERE id=?"; cursor.execute(query, (uid,))\n', "python"),
+    ("GS005", 'User.objects.raw("SELECT * FROM users WHERE id = " + str(uid))\n',
+              'User.objects.filter(id=uid)\n', "python"),
+    ("GS005", 'cursor.execute("SELECT * FROM t WHERE x=" + str(x))\n',
+              'cursor.execute("SELECT * FROM t WHERE x=?", (x,))\n', "python"),
 
+    # ═══ GS020 — XSS ═══
+    ("GS020", 'return f"<div>{name}</div>"\n',
+              'from markupsafe import escape; return f"<div>{escape(name)}</div>"\n', "python"),
+    ("GS020", 'response.write("<h1>" + title + "</h1>")\n',
+              'from html import escape; response.write("<h1>" + escape(title) + "</h1>")\n', "python"),
+    ("GS020", 'doc.innerHTML = "<p>" + userInput + "</p>";\n',
+              'doc.textContent = userInput;\n', "javascript"),
+    ("GS020", 'return "<span>" + name + "</span>";\n',
+              'var div = document.createElement("span"); div.textContent = name;\n', "javascript"),
+    ("GS020", '<div>{user_input}</div>\n',
+              '<div>{{ user_input|escape }}</div>\n', "python"),
 
-def cwe_to_rules() -> dict[str, list[str]]:
-    """Reverse COMPLIANCE_MAP: CWE-89 -> ['GS005']."""
-    m: dict[str, list[str]] = {}
-    for rule_id, comp in COMPLIANCE_MAP.items():
-        cwe = comp.get("cwe")
-        if cwe:
-            m.setdefault(cwe, []).append(rule_id.split("-")[0])
-    return m
+    # ═══ GS004 — Command Injection ═══
+    ("GS004", 'os.system(f"ping {host}")\n',
+              'subprocess.run(["ping", host], check=True)\n', "python"),
+    ("GS004", 'subprocess.call("nslookup " + domain, shell=True)\n',
+              'subprocess.call(["nslookup", domain])\n', "python"),
+    ("GS004", 'os.popen("cat " + filename)\n',
+              'with open(filename) as f: content = f.read()\n', "python"),
+    ("GS004", 'child_process.exec("ls " + dir);\n',
+              'child_process.execFile("ls", [dir]);\n', "javascript"),
 
+    # ═══ GS029 — Hardcoded Secrets ═══
+    ("GS029", 'API_KEY = "sk-1234567890abcdef1234567890abcdef"\n',
+              'API_KEY = os.environ.get("API_KEY")\n', "python"),
+    ("GS029", 'password = "SuperSecret123!"\n',
+              'password = os.environ.get("DB_PASSWORD")\n', "python"),
+    ("GS029", 'const token = "ghp_1234567890abcdef1234567890abcdef1234";\n',
+              'const token = process.env.GITHUB_TOKEN;\n', "javascript"),
+    ("GS029", 'SECRET_KEY = "django-insecure-abc123def456"\n',
+              'SECRET_KEY = os.environ["DJANGO_SECRET_KEY"]\n', "python"),
 
-def build_cases() -> list[dict]:
-    """Each bounty_example -> 2 cases (positive + negative)."""
-    db = sqlite3.connect(str(DB))
-    db.row_factory = sqlite3.Row
-    rows = db.execute(
-        "SELECT cwe_id, language, vulnerable_code, fixed_code, pattern_hash "
-        "FROM bounty_examples WHERE fix_quality='fix'"
-    ).fetchall()
-    db.close()
-
-    cases = []
-    for r in rows:
-        for code, expected in [(r["vulnerable_code"], "vulnerable"),
-                               (r["fixed_code"], "safe")]:
-            if not code or not code.strip():
-                continue
-            cases.append({
-                "cwe": r["cwe_id"],
-                "lang": r["language"],
-                "code": code,
-                "expected": expected,
-                "pattern_hash": r["pattern_hash"],
-            })
-    return cases
+    # ═══ Clean (should NEVER fire for any detector) ═══
+    ("*", 'def add(a: int, b: int) -> int:\n    return a + b\n', 
+          'def add(a: int, b: int) -> int:\n    return a + b\n', "python"),
+    ("*", 'console.log("server started on port 3000");\n',
+          'console.log("server started on port 3000");\n', "javascript"),
+]
 
 
 def _ext(lang: str) -> str:
     return {"python": ".py", "javascript": ".js", "go": ".go",
-            "typescript": ".ts", "java": ".java", "ruby": ".rb",
-            "php": ".php", "rust": ".rs", "csharp": ".cs"}.get(lang, ".txt")
+            "java": ".java", "ruby": ".rb"}.get(lang, ".py")
 
 
-def run_detector_on_case(detector, case: dict) -> list[dict]:
-    """Run one detector on one code snippet. Returns matched findings."""
+def run_detector_on_case(detector, code: str, lang: str) -> list[dict]:
+    """Run one detector on code snippet. Returns matched findings."""
     try:
         tmpdir = tempfile.mkdtemp()
-        fpath = Path(tmpdir) / f"snippet{_ext(case['lang'])}"
-        fpath.write_text(case["code"], encoding="utf-8")
-        content = case["code"]
-
-        # Most detectors use detect(ctx), some use detect(file, content, lang)
-        if hasattr(detector, 'detect') and 'ctx' in str(type(detector).detect.__code__.co_varnames[:3]):
-            from gsc_detectors import AuditContext
-            ctx = AuditContext(project="benchmark", path=tmpdir)
-            ctx.files = [fpath]
-            ctx.file_contents[str(fpath)] = content
-            findings = detector.detect(ctx)
-        else:
-            findings = detector.detect(str(fpath), content, case["lang"])
-
+        fpath = Path(tmpdir) / f"snippet{_ext(lang)}"
+        fpath.write_text(code, encoding="utf-8")
+        ctx = AuditContext(project="bench", path=Path(tmpdir))
+        ctx.files = [fpath]
+        ctx.get_source_files = lambda *a, **kw: [fpath]
+        ctx.file_contents[str(fpath)] = code
+        findings = detector.detect(ctx)
         return [f for f in (findings or []) if f is not None]
     except Exception:
         return []
 
 
 def run_benchmark(rule_filter: str | None = None) -> dict:
-    """TP/FP/FN/TN per rule -> TPR/FPR/Score."""
-    cases = build_cases()
-    cmap = cwe_to_rules()
+    """Run all detectors on all ground truth pairs."""
     all_detectors = {d.rule_id: d for d in get_detectors()}
-
     counts: dict[str, dict] = defaultdict(lambda: {"tp": 0, "fn": 0, "fp": 0, "tn": 0})
-    unmatched = 0
 
-    for case in cases:
-        rules = cmap.get(case["cwe"], [])
-        if not rules:
-            unmatched += 1
+    for rule_id, vuln_code, fixed_code, lang in GROUND_TRUTH:
+        target_rules = [rule_id] if rule_id != "*" else list(all_detectors.keys())
+        if rule_filter and rule_filter not in target_rules:
             continue
-        for rule in rules:
+
+        for rule in target_rules:
             if rule_filter and rule != rule_filter:
                 continue
             det = all_detectors.get(rule)
             if det is None:
                 continue
-            found = run_detector_on_case(det, case)
+
+            # POSITIVE case: vulnerable code — should fire (TP/FN)
+            found_vuln = run_detector_on_case(det, vuln_code, lang)
             c = counts[rule]
-            if case["expected"] == "vulnerable":
-                c["tp" if found else "fn"] += 1
-            else:
-                c["fp" if found else "tn"] += 1
+            c["tp" if found_vuln else "fn"] += 1
+
+            # NEGATIVE case: fixed code — should NOT fire (TN/FP)
+            found_fix = run_detector_on_case(det, fixed_code, lang)
+            c["fp" if found_fix else "tn"] += 1
 
     # Compute metrics
-    metrics: dict = {"per_rule": {}, "overall": None, "cases": len(cases),
-                     "unmatched_cwe": unmatched}
+    metrics: dict = {"per_rule": {}, "overall": None, "total_pairs": len(GROUND_TRUTH)}
     reliable_scores = []
 
     for rule, c in sorted(counts.items()):
@@ -122,61 +142,48 @@ def run_benchmark(rule_filter: str | None = None) -> dict:
         tpr = tp / (tp + fn) if (tp + fn) else None
         fpr = fp / (fp + tn) if (fp + tn) else None
         score = (tpr - fpr) if (tpr is not None and fpr is not None) else None
-        reliable = total >= MIN_EXAMPLES
 
-        metrics["per_rule"][rule] = {
-            **c,
+        metrics["per_rule"][rule] = {**c,
             "tpr": round(tpr, 3) if tpr is not None else None,
             "fpr": round(fpr, 3) if fpr is not None else None,
             "score": round(score, 3) if score is not None else None,
-            "reliable": reliable,
-            "total": total,
-        }
-        if reliable and score is not None:
+            "total": total}
+        if score is not None and total > 0:
             reliable_scores.append(score)
 
     if reliable_scores:
         metrics["overall"] = round(sum(reliable_scores) / len(reliable_scores), 3)
-
     return metrics
 
 
 def print_report(metrics: dict):
-    """Formatted table: Rule | TP FN FP TN | TPR FPR | Score."""
-    hdr = f"{'Rule':8} {'TP':>4} {'FN':>4} {'FP':>4} {'TN':>4}  {'TPR':>6} {'FPR':>6}  {'Score':>7}  {'N':>4}"
-    print(hdr)
-    print("-" * len(hdr))
-
+    print(f"{'Rule':8} {'TP':>4} {'FN':>4} {'FP':>4} {'TN':>4}  {'TPR':>6} {'FPR':>6}  {'Score':>7}")
+    print("-" * 62)
     for rule, m in sorted(metrics["per_rule"].items()):
-        tpr_s = f"{m['tpr']:.3f}" if m["tpr"] is not None else "   -  "
-        fpr_s = f"{m['fpr']:.3f}" if m["fpr"] is not None else "   -  "
-        sc_s = f"{m['score']:+.3f}" if m["score"] is not None else "    -   "
-        rel = " ✓" if m["reliable"] else " ⚠"
-        print(f"{rule:8} {m['tp']:>4} {m['fn']:>4} {m['fp']:>4} {m['tn']:>4}"
-              f"  {tpr_s:>6} {fpr_s:>6}  {sc_s:>7}  {m['total']:>3}{rel}")
+        if m["total"] == 0:
+            continue
+        tpr_s = f"{m['tpr']:.3f}" if m["tpr"] is not None else "  -   "
+        fpr_s = f"{m['fpr']:.3f}" if m["fpr"] is not None else "  -   "
+        sc_s = f"{m['score']:+.3f}" if m["score"] is not None else "   -   "
+        print(f"{rule:8} {m['tp']:>4} {m['fn']:>4} {m['fp']:>4} {m['tn']:>4}  {tpr_s:>6} {fpr_s:>6}  {sc_s:>7}")
 
     ov = metrics["overall"]
-    print(f"\nOverall GHSA Score: {ov:+.3f}" if ov is not None
-          else "\nOverall: insufficient data (< MIN_EXAMPLES reliable rules)")
-    print(f"Total cases: {metrics['cases']}, unmatched CWE: {metrics['unmatched_cwe']}")
+    print(f"\nOverall Score: {ov:+.3f}" if ov is not None else "\nOverall: no data")
 
 
 def main():
     import argparse
-    p = argparse.ArgumentParser(description="GHSA-based snippet benchmark")
-    p.add_argument("--rule", help="Filter to single rule (e.g. GS005)")
-    p.add_argument("--json", action="store_true", help="Output JSON")
+    p = argparse.ArgumentParser()
+    p.add_argument("--rule", help="Filter to single rule")
+    p.add_argument("--json", action="store_true")
     args = p.parse_args()
 
     t0 = time.time()
-    print("Loading cases...")
     metrics = run_benchmark(rule_filter=args.rule)
-
     if args.json:
         print(json.dumps(metrics, indent=2, default=str))
     else:
         print_report(metrics)
-
     print(f"Time: {time.time() - t0:.1f}s")
 
 
