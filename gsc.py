@@ -2198,6 +2198,14 @@ def main():
     api.add_argument('--port', type=int, default=8766, help='Port (default: 8766)')
     api.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
 
+    # gsc deep-reduce 🆕 — AI-first semantic scanner
+    dr = sub.add_parser('deep-reduce', help='AI-first semantic vulnerability scanner')
+    dr.add_argument('target', help='File or directory to scan')
+    dr.add_argument('--model', default='deepseek-chat', help='Model (default: deepseek-chat)')
+    dr.add_argument('--confidence', type=int, default=50, help='Min confidence threshold')
+    dr.add_argument('--dry-run', action='store_true', help='Do not save to DB')
+    dr.add_argument('--limit', type=int, default=20, help='Max files to analyze')
+
     # gsc external-scan 🆕
     ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
     ext.add_argument('target', help='GitHub URL or local path')
@@ -2419,6 +2427,14 @@ def main():
             cmd = [sys.executable, str(Path(__file__).parent / "gsc_github_dorks.py"), args.org,
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
+
+    elif args.command == "deep-reduce":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_deep_reducer.py"), args.target]
+        if hasattr(args, 'model'): cmd += ["--model", args.model]
+        if hasattr(args, 'confidence'): cmd += ["--confidence", str(args.confidence)]
+        if getattr(args, 'dry_run', False): cmd.append("--dry-run")
+        if hasattr(args, 'limit'): cmd += ["--limit", str(args.limit)]
+        subprocess.run(cmd)
 
     elif args.command == "api":
         import uvicorn
