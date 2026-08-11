@@ -213,11 +213,24 @@ def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 
             if not poc_code or len(poc_code) < 20:
                 continue
             rej = rejudge_poc(poc_code)
-            f["metadata"]["rejudge_poc_verdict"] = rej.get("verdict", "?")
-            f["metadata"]["rejudge_poc_confidence"] = rej.get("confidence", 0)
-            # Downgrade if Rejudge says FALSE_POSITIVE
-            if "FALSE_POSITIVE" in rej.get("verdict", ""):
-                f["confidence"] = max(0.3, f.get("confidence", 0.7) - 0.3)
-    except Exception:
+            f["metadata"]["rejudge_verdict"] = rej.get("verdict", "?")
+            f["metadata"]["rejudge_confidence"] = rej.get("confidence", 0)
+            f["metadata"]["rejudge_models_agree"] = rej.get("models_agree", False)
+            
+            verdict = rej.get("verdict", "")
+            if verdict == "EXPLOITABLE":
+                # All models agree: real vulnerability → boost confidence
+                boost = 0.10 if rej.get("models_agree") else 0.05
+                old_conf = f.get("confidence", 0.7)
+                new_conf = min(0.95, old_conf + boost)
+                f["confidence"] = round(new_conf, 2)
+                f["metadata"]["poc_rejudge_boost"] = boost
+            elif verdict == "FALSE_POSITIVE":
+                # Models agree it's not exploitable → significant downgrade
+                old_conf = f.get("confidence", 0.7)
+                f["confidence"] = max(0.3, round(old_conf - 0.3, 2))
+                f["metadata"]["poc_rejudge_penalty"] = 0.3
+            # else NEEDS_REVIEW → no change, models disagree
+    except Exception as e:
         pass  # Rejudge unavailable — proceed without
     return findings

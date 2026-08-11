@@ -19,15 +19,28 @@ from typing import Optional
 
 REJUDGE_PATH = shutil.which("rejudge")
 
+def _get_api_key() -> str:
+    """Load DEEPSEEK_API_KEY from Hermes .env for Rejudge."""
+    for p in [Path(os.path.expanduser("~/.hermes/.env")),
+              Path(os.path.expanduser("~/.hermes/env")),
+              Path(".env")]:
+        if p.exists():
+            for line in p.read_text().splitlines():
+                if line.startswith("DEEPSEEK_API_KEY="):
+                    return line.split("=", 1)[1].strip().strip("\"'")
+    return os.environ.get("DEEPSEEK_API_KEY", "")
+
+
 def rejudge(prompt: str, timeout: int = 120) -> tuple[bool, str]:
     """Run Rejudge panel. Returns (passed, output)."""
     if not REJUDGE_PATH:
         return False, "Rejudge not installed"
     try:
+        env = {**os.environ, "DEEPSEEK_API_KEY": _get_api_key()}
         result = subprocess.run(
             [REJUDGE_PATH, prompt],
             capture_output=True, text=True, timeout=timeout,
-            env={**os.environ}
+            env=env
         )
         return result.returncode == 0, result.stdout.strip()
     except subprocess.TimeoutExpired:
@@ -66,7 +79,12 @@ def revalidate_findings(scan_json: str) -> dict:
 
 
 def validate_poc(poc_text: str) -> dict:
-    """Validate exploit PoC through Rejudge multi-model panel."""
+    """Validate exploit PoC through Rejudge multi-model panel.
+    
+    Returns EXPLOITABLE when all 3 models agree it's a real vulnerability.
+    Returns FALSE_POSITIVE when all 3 agree it's not exploitable.
+    Returns NEEDS_REVIEW when models disagree.
+    """
     prompt = f"""Review this security exploit proof-of-concept. Is it:
 
 1. Actually exploitable (not a false positive)?
@@ -79,11 +97,32 @@ PoC:
 Answer with: verdict (EXPLOITABLE / FALSE_POSITIVE / INCOMPLETE), confidence (0-100), and reasoning."""
 
     passed, output = rejudge(prompt, timeout=120)
-    exploitable = "EXPLOITABLE" in output.upper() and "FALSE_POSITIVE" not in output.upper()
+    
+    output_upper = output.upper()
+    exploitable_count = output_upper.count("EXPLOITABLE")
+    fp_count = output_upper.count("FALSE_POSITIVE")
+    incomplete_count = output_upper.count("INCOMPLETE")
+    
+    # Multi-model consensus
+    if fp_count >= 2 and exploitable_count == 0:
+        verdict = "FALSE_POSITIVE"
+    elif exploitable_count >= 2 and fp_count == 0:
+        verdict = "EXPLOITABLE"
+    elif exploitable_count == 3:
+        verdict = "EXPLOITABLE"  # Unanimous
+    elif fp_count == 3:
+        verdict = "FALSE_POSITIVE"  # Unanimous
+    else:
+        verdict = "NEEDS_REVIEW"
+    
+    confidence = _extract_confidence(output)
     
     return {
-        "verdict": "EXPLOITABLE" if exploitable else "NEEDS_REVIEW",
-        "confidence": _extract_confidence(output),
+        "verdict": verdict,
+        "confidence": confidence,
+        "models_agree": (exploitable_count == 3 or fp_count == 3),
+        "exploitable_votes": exploitable_count,
+        "fp_votes": fp_count,
         "output": output[:500]
     }
 
