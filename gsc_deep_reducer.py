@@ -127,8 +127,14 @@ def chunk_code(content: str, filepath: str, start_line: int = 1) -> list:
     return chunks
 
 
-def load_bounty_context(filepath: str) -> str:
-    """Load relevant bounty examples for the file's language to inject into prompt."""
+def load_bounty_context(filepath: str, code_snippet: str = "") -> str:
+    """Load relevant bounty examples for the file using retrieval-based matching.
+    
+    Args:
+        filepath: path to file (for language detection)
+        code_snippet: actual code chunk content (for relevance scoring)
+    Returns: prompt section with top-K relevant examples, or empty string
+    """
     ext_to_lang = {
         '.py': 'python', '.js': 'javascript', '.ts': 'javascript',
         '.tsx': 'javascript', '.jsx': 'javascript', '.go': 'go',
@@ -140,43 +146,30 @@ def load_bounty_context(filepath: str) -> str:
         return ""
     
     try:
-        db = sqlite3.connect(DB)
-        db.row_factory = sqlite3.Row
-        examples = db.execute(
-            """SELECT cwe_id, summary, severity, vulnerable_code, fixed_code
-               FROM bounty_examples
-               WHERE language = ? AND vulnerable_code != '' AND fixed_code != ''
-               ORDER BY 
-                   CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1 ELSE 2 END,
-                   collected_at DESC
-               LIMIT ?""",
-            (lang, BOUNTY_EXAMPLES_PER_PROMPT)
-        ).fetchall()
-        db.close()
-    except sqlite3.OperationalError:
-        return ""  # Table doesn't exist yet
+        from gsc_bounty_loader import BountyLoader
+        loader = BountyLoader()
+        if code_snippet:
+            return loader.build_enrichment_prompt(code_snippet, lang, k=BOUNTY_EXAMPLES_PER_PROMPT)
+        else:
+            examples = loader.get_relevant_examples("", lang, k=BOUNTY_EXAMPLES_PER_PROMPT)
+            if not examples:
+                return ""
+            lines = ["## 📚 Reference: Known vulnerability patterns in " + lang.capitalize()]
+            lines.append("The following are REAL vulnerabilities found in production code:")
+            for i, ex in enumerate(examples, 1):
+                lines.append(f"### Example {i}: {ex['cwe_id']} — {ex['summary']}")
+                lines.append(f"**Vulnerable pattern:**\n```{lang}\n{ex['vulnerable_code'][:600]}\n```")
+            return "\n".join(lines)
+    except ImportError:
+        pass
     
-    if not examples:
-        return ""
-    
-    lines = ["## 📚 Reference: Known vulnerability patterns in " + lang.capitalize()]
-    lines.append("The following are REAL vulnerabilities found in production code. Compare the code above against these patterns:\n")
-    
-    for i, ex in enumerate(examples, 1):
-        lines.append(f"### Example {i}: {ex['cwe_id']} — {ex['summary'][:120]}")
-        lines.append(f"Severity: {ex['severity']}")
-        lines.append(f"**Vulnerable pattern (what to look for):**")
-        lines.append(f"```{lang}\n{ex['vulnerable_code'][:600]}\n```")
-        lines.append(f"**Fixed version (how to fix):**")
-        lines.append(f"```{lang}\n{ex['fixed_code'][:600]}\n```")
-    
-    return "\n".join(lines)
+    return ""
 
 
 def analyze_chunk(chunk: dict, api_key: str, model: str) -> dict:
     """Send code chunk to DeepSeek for security analysis."""
-    # 🆕 Load bounty context for this file's language
-    bounty_context = load_bounty_context(chunk["filepath"])
+    # 🆕 Load bounty context for this file's language using retrieval
+    bounty_context = load_bounty_context(chunk["filepath"], chunk["content"])
     
     user_prompt = f"""File: {chunk['filepath']} (lines {chunk['start_line']}-{chunk['start_line'] + len(chunk['content'].split(chr(10))) - 1})
 
