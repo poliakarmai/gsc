@@ -48,37 +48,40 @@ TARGET_ECOS = {"pip", "npm", "go", "cargo"}
 CWE_HUNK_PATTERNS = {
     "CWE-22": [r'path', r'os\.path', r'\.\.\/', r'open\(', r'readfile', r'filepath',
                r'traversal', r'basename', r'join'],
-    "CWE-59": [r'symlink', r'follow', r'link', r'os\.readlink', r'lstat', r'resolve'],
+    "CWE-59": [r'symlink', r'follow', r'link', r'os\.readlink', r'lstat', r'resolve',
+               r'worktree'],
     "CWE-73": [r'pathspec', r'--path', r'file.*name', r'external.*control',
-              r'git.*option', r'unsafe'],
+              r'git.*option', r'unsafe', r'arbitrary.*file'],
     "CWE-79": [r'innerHTML', r'inner', r'sanitize', r'escape', r'dangerously',
-               r'setHTML', r'document\.write', r'DOMPurify', r'html'],
+               r'setHTML', r'document\.write', r'DOMPurify', r'html', r'xss'],
     "CWE-88": [r'argument.*injection', r'option.*forw', r'--[a-z]', r'check_unsafe',
-               r'allow_unsafe'],
+               r'allow_unsafe', r'unguarded'],
     "CWE-89": [r'SELECT', r'INSERT', r'UPDATE', r'DELETE', r'sql', r'query',
                r'parameterize', r'placeholder', r'execute'],
     "CWE-94": [r'eval\(', r'exec\(', r'Function\(', r'__import__'],
     "CWE-133": [r'format', r'f["\']', r'\.format\(', r'string.*interpolat'],
     "CWE-200": [r'debug', r'secret', r'disclos', r'expose', r'log', r'leak',
-                r'workspace', r'UUID'],
+                r'workspace', r'UUID', r'information', r'devtools'],
     "CWE-331": [r'entropy', r'random', r'secure', r'crypt', r'Math\.random\(\)',
-                r'crypto\.random', r'getRandom'],
+                r'crypto\.random', r'getRandom', r'insufficient', r'generat'],
     "CWE-384": [r'session', r'regenerate', r'fixation', r'forget', r'invalidate',
                 r'remember', r'clear\(\)', r'cookie'],
     "CWE-400": [r'memory', r'consume', r'allocation', r'resource', r'ToUnicode',
-                r'large', r'stream'],
+                r'large', r'stream', r'uncontrolled'],
     "CWE-407": [r'algorithmic', r'complexity', r'DoS', r'backtracking', r'loop',
-                r'regex.*ReDoS'],
+                r'regex.*ReDoS', r'language.*middleware'],
     "CWE-488": [r'memo', r'retain', r'cross.*user', r'SSR', r'cache',
-                r'session.*data', r'request'],
+                r'session.*data', r'request', r'exposure.*data'],
     "CWE-798": [r'SECRET_KEY', r'password', r'key', r'environ', r'getenv',
                 r'credential', r'hardcod'],
-    "CWE-834": [r'loop', r'iterate', r'range', r'while', r'for', r'limit'],
+    "CWE-834": [r'loop', r'iterate', r'range', r'while', r'for', r'limit',
+                r'excessive', r'CID.*font', r'width'],
     "CWE-918": [r'SSRF', r'request.*url', r'fetch\(', r'internal.*IP',
                 r'validate.*url', r'allow.*host'],
     "CWE-1333": [r'ReDoS', r'backtracking', r'exponential', r'regex', r'pattern',
-                 r'catastroph'],
+                 r'catastroph', r'pymdown', r'caret', r'tilde'],
 }
+HUNK_RELEVANCE_MIN = 0.3  # Minimum relevance to save (was 0.1)
 
 # Language extensions for negative example search
 LANG_EXTS = {
@@ -267,9 +270,38 @@ class GhsaCollector:
         STATE_PATH.parent.mkdir(parents=True, exist_ok=True)
         STATE_PATH.write_text(json.dumps(self.state, indent=2, default=str))
 
-    def collect(self, days: int = 7, limit: int = 30):
+    def _ghsa_exists_in_db(self, ghsa_id: str) -> bool:
+        """Check if GHSA already in bounty_examples (idempotency)."""
+        try:
+            row = self.db.execute(
+                "SELECT 1 FROM bounty_examples WHERE ghsa_id = ? LIMIT 1", (ghsa_id,)
+            ).fetchone()
+            return row is not None
+        except sqlite3.OperationalError:
+            return False
+
+    def _get_near_ready_cwes(self) -> list:
+        """Find CWE+lang combos closest to ready (4-5 examples) for prioritization."""
+        try:
+            rows = self.db.execute("""
+                SELECT cwe_id, COUNT(*) as cnt FROM bounty_examples
+                WHERE cwe_id != '' AND language IN ('python','javascript','go','rust')
+                GROUP BY cwe_id HAVING cnt >= 3 AND cnt < 5 ORDER BY cnt DESC
+            """).fetchall()
+            return [r[0] for r in rows]
+        except sqlite3.OperationalError:
+            return []
+
+    def collect(self, days: int = 7, limit: int = 30, prioritize_cwes: list = None):
         since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-        print(f"\n📡 GHSA Collector v2 — last {days} days, up to {limit} advisories...")
+        if prioritize_cwes:
+            print(f"\n📡 GHSA Collector v2 — last {days}d, up to {limit}, prioritizing {prioritize_cwes}...")
+        else:
+            print(f"\n📡 GHSA Collector v2 — last {days}d, up to {limit} advisories...")
+        
+        # 🆕 Prioritize by near-ready CWE combos
+        if prioritize_cwes is None:
+            prioritize_cwes = self._get_near_ready_cwes()
 
         url = "https://api.github.com/advisories"
         params = {"type": "reviewed", "per_page": min(limit, 100),
@@ -293,12 +325,27 @@ class GhsaCollector:
             if not advisories:
                 break
 
+            # 🆕 Sort advisories: prioritize CWE-close-to-ready first
+            if prioritize_cwes:
+                def _priority(adv):
+                    cwes = adv.get("cwes", [])
+                    cwe = cwes[0]["cwe_id"] if cwes else ""
+                    if cwe in prioritize_cwes:
+                        return prioritize_cwes.index(cwe)
+                    return 999
+                advisories = sorted(advisories, key=_priority)
+
             for adv in advisories:
                 ghsa_id = adv.get("ghsa_id", "")
                 published = adv.get("published_at", "")
                 if published < since and fetched > 0:
                     break
+                
+                # 🆕 Idempotency: skip if already in DB
                 if ghsa_id in self.state["processed_ghsa"]:
+                    self.skipped += 1
+                    continue
+                if self._ghsa_exists_in_db(ghsa_id):
                     self.skipped += 1
                     continue
 
@@ -357,8 +404,9 @@ class GhsaCollector:
                 continue
 
             top_hunk = ranked[0]
-            if top_hunk["relevance"] < 0.1:
-                continue  # Nothing security-relevant
+            if top_hunk["relevance"] < HUNK_RELEVANCE_MIN:
+                print(f"    ⏭️  Low relevance ({top_hunk['relevance']:.2f} < {HUNK_RELEVANCE_MIN})")
+                continue  # Nothing security-relevant enough
 
             vulnerable_code = "\n".join(top_hunk["removed"][:40])
             fixed_code = "\n".join(top_hunk["added"][:40])
