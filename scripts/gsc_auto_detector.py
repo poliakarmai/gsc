@@ -569,6 +569,77 @@ def show_dashboard():
     db.close()
 
 
+def _run_gate_all():
+    """Run gate on all ready CWE+lang combos. Called from nightly pipeline (step 4).
+
+    Key linkage: on PASS → ShadowManager.register_shadow() → detector_status (schema 29).
+    """
+    db = sqlite3.connect(DB)
+    db.row_factory = sqlite3.Row
+
+    try:
+        combos = db.execute("""
+            SELECT cwe_id, language, COUNT(*) as n,
+                   SUM(CASE WHEN fix_quality='fix' THEN 1 ELSE 0 END) as fixes
+            FROM bounty_examples
+            WHERE cwe_id != '' AND language IN ('python','javascript','go','rust')
+              AND vulnerable_code != ''
+            GROUP BY cwe_id, language
+            HAVING n >= ? AND fixes >= 3
+        """, (MIN_EXAMPLES,)).fetchall()
+    except sqlite3.OperationalError:
+        print("  No bounty_examples table yet")
+        db.close()
+        return
+
+    clean_files = _load_calibration_clean_files()
+    results = []
+
+    for c in combos:
+        cwe, lang = c["cwe_id"], c["language"]
+
+        # Check negative examples
+        neg = db.execute(
+            "SELECT COUNT(*) as c FROM negative_examples WHERE cwe_id=? AND language=?",
+            (cwe, lang)).fetchone()
+        if neg["c"] < 1:
+            results.append({"cwe": cwe, "lang": lang, "status": "not_ready",
+                           "reason": f"need 1+ negative (have {neg['c']})"})
+            continue
+
+        result = run_gate(cwe, lang)
+        result["cwe"] = cwe
+        result["lang"] = lang
+        results.append(result)
+
+        if result["status"] == "shadow_activated":
+            try:
+                from gsc_shadow_manager import ShadowDetectorManager
+                ShadowDetectorManager(db).register_shadow(
+                    result["rule_id"], tp_rate=result["tp_rate"])
+                print(f"  🔗 ShadowManager: {result['rule_id']} registered (TP={result['tp_rate']:.2f})")
+            except ImportError:
+                print(f"  ⚠️ ShadowManager not available")
+
+    db.close()
+
+    # Summary
+    activated = [r for r in results if r["status"] == "shadow_activated"]
+    failed = [r for r in results if r["status"] == "failed"]
+    not_ready = [r for r in results if r["status"] == "not_ready"]
+
+    print(f"\n{'='*60}")
+    print(f"  Gate results: {len(activated)} shadow, {len(failed)} failed, {len(not_ready)} not ready")
+    if activated:
+        for r in activated:
+            print(f"    ✅ {r['rule_id']}: TP={r['tp_rate']:.0%}")
+    if failed:
+        for r in failed:
+            print(f"    ❌ {r['cwe']} | {r['lang']}: {r.get('reason','?')}")
+
+    return results
+
+
 def main():
     if len(sys.argv) < 2:
         print(__doc__)
@@ -578,6 +649,10 @@ def main():
 
     if mode == "--check":
         show_dashboard()
+        return
+
+    if mode == "--run-gate":
+        _run_gate_all()
         return
 
     if mode in ("--validate", "--generate") and len(sys.argv) == 4:
