@@ -1,0 +1,102 @@
+{
+  "timestamp": "2026-08-11T15:10:37",
+  "test_cases": 2740,
+  "cwe_scores": {
+    "CWE-78": {
+      "cwe": "CWE-78",
+      "tp": 0,
+      "fp": 0,
+      "fn": 126,
+      "tn": 125,
+      "tpr": 0.0,
+      "fpr": 0.0,
+      "precision": 0,
+      "owasp_score": 0.0,
+      "total": 251
+    },
+    "CWE-79": {
+      "cwe": "CWE-79",
+      "tp": 0,
+      "fp": 0,
+      "fn": 246,
+      "tn": 209,
+      "tpr": 0.0,
+      "fpr": 0.0,
+      "precision": 0,
+      "owasp_score": 0.0,
+      "total": 455
+    },
+    "CWE-89": {
+      "cwe": "CWE-89",
+      "tp": 227,
+      "fp": 191,
+      "fn": 45,
+      "tn": 41,
+      "tpr": 0.835,
+      "fpr": 0.823,
+      "precision": 0.543,
+      "owasp_score": 0.011,
+      "total": 504
+    }
+  },
+  "owasp_score": 0.004,
+  "coverage": {
+    "total_owasp_cwes": 10,
+    "covered": [
+      {
+        "cwe": "CWE-78",
+        "desc": "OS Command Injection",
+        "rules": [
+          "GS004"
+        ]
+      },
+      {
+        "cwe": "CWE-79",
+        "desc": "Cross-site Scripting (XSS)",
+        "rules": [
+          "GS020"
+        ]
+      },
+      {
+        "cwe": "CWE-89",
+        "desc": "SQL Injection",
+        "rules": [
+          "GS001",
+          "GS005"
+        ]
+      }
+    ],
+    "uncovered": [
+      {
+        "cwe": "CWE-90",
+        "desc": "LDAP Injection"
+      },
+      {
+        "cwe": "CWE-134",
+        "desc": "Format String"
+      },
+      {
+        "cwe": "CWE-259",
+        "desc": "Hardcoded Password"
+      },
+      {
+        "cwe": "CWE-327",
+        "desc": "Broken/Risky Crypto"
+      },
+      {
+        "cwe": "CWE-501",
+        "desc": "Trust Boundary Violation"
+      },
+      {
+        "cwe": "CWE-614",
+        "desc": "Sensitive Cookie w/o Secure Flag"
+      },
+      {
+        "cwe": "CWE-643",
+        "desc": "XPath Injection"
+      }
+    ],
+    "coverage_pct": 30.0
+  },
+  "elapsed_s": 8.0
+}

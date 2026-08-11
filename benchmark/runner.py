@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""OWASP Benchmark runner — detector executor (v0.31)."""
+"""OWASP Benchmark runner — detector executor (v0.31, fixed for Benchmark Test naming)."""
 from pathlib import Path
 from typing import List
 from benchmark.adapter import TestCase
@@ -10,18 +10,40 @@ def _base_rule(rule_id: str) -> str:
 
 
 def scan_test_case(detectors, test_case: TestCase) -> List[dict]:
-    """Run all regex detectors on one test case."""
+    """Run all detectors on one test case via DetectorEntry.detect(ctx).
+    
+    OWASP Benchmark files are named BenchmarkTest*.java — they match the
+    '*Test.java' glob that AuditContext uses to skip test files.
+    We bypass this by populating ctx.files directly and using
+    read_file which doesn't filter.
+    """
+    from gsc_detectors import AuditContext
+
+    fp = Path(test_case.file_path)
+    # Create context with benchmark-mode bypass
+    ctx = AuditContext(project=test_case.test_id, path=fp.parent)
+    # Pre-populate files — detectors use get_source_files() which would
+    # filter BenchmarkTest*.java as test files via TEST_GLOBS.
+    # The GS005 detect() iterates ctx.get_source_files() internally.
+    # Fix: set ctx.files and override get_source_files behavior.
+    ctx.files = [fp]
+    ctx._benchmark_mode = True
+    # Override get_source_files to skip test-file filter for benchmark
+    _orig_get_source_files = ctx.get_source_files
+    ctx.get_source_files = lambda *a, **kw: ctx.files
     try:
-        content = Path(test_case.file_path).read_text(encoding="utf-8", errors="ignore")
+        ctx.file_contents[str(fp)] = fp.read_text(encoding="utf-8", errors="ignore")
     except OSError:
-        return []
+        pass
+
     findings = []
-    for detector in detectors:
-        if getattr(detector, "requires_llm", False):
+    for det in detectors:
+        if getattr(det, "requires_llm", False):
             continue
         try:
-            hits = detector.detect(test_case.file_path, content, "java")
-            findings.extend(hits)
+            hits = det.detect(ctx)
+            if hits:
+                findings.extend(hits)
         except Exception:
             continue
     return findings

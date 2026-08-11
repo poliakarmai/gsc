@@ -239,6 +239,11 @@ _PATTERNS: list[tuple[str, str, str, bool]] = [
      "Spring JDBC template with string concat", "java", False),
     (r'\.createQuery\s*\(\s*["\'].*["\']\s*\+\s*',
      "JPA/Hibernate createQuery with string concat", "java", False),
+    # OWASP Benchmark Java patterns (executeUpdate/executeQuery with SQL variable)
+    (r'String\s+\w+\s*=\s*["\'](?:SELECT|INSERT|UPDATE|DELETE).*["\']\s*\+\s*\w+',
+     "Java SQL built with string concat (INSERT/UPDATE/DELETE)", "java", False),
+    (r'(?:Statement|PreparedStatement)\s*\.\s*execute(?:Query|Update)\s*\(\s*\w+\s*\)',
+     "Java JDBC executeQuery/executeUpdate with SQL variable", "java", False),
 
     # ═══ GO ═════════════════════════════════════════════════════════════
 
