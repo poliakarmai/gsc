@@ -12,6 +12,8 @@
 
 | 5 | **manjurulhoque/doccure** | 80 | Hardcoded Django SECRET_KEY in `doccure/settings.py` — allows session forgery, CSRF bypass, password reset token forgery | CWE-798 | GS001 (Hardcoded Secrets) | [#14](https://github.com/manjurulhoque/doccure/pull/14) |
 
+| 6 | **liquidguru/docker-updater** | 74 | Session Fixation in `/login` — `session.clear()` without ID regeneration allows attacker to hijack authenticated session | CWE-384 | GS019 (Session Handling) | [#21](https://github.com/liquidguru/docker-updater/pull/21) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:

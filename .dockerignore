@@ -6,7 +6,6 @@ benchmark/
 gsc-vscode/
 enterprise/
 scripts/
-cloud/
 *.md
 .git
 __pycache__/

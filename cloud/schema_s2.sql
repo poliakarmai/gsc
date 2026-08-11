@@ -102,3 +102,27 @@ ALTER TABLE chains            FORCE ROW LEVEL SECURITY;
 ALTER TABLE mutation_alerts   FORCE ROW LEVEL SECURITY;
 ALTER TABLE overrides         FORCE ROW LEVEL SECURITY;
 ALTER TABLE published_comments FORCE ROW LEVEL SECURITY;
+
+-- ── S2.1: Job queue (workers.py) ──
+
+CREATE TABLE IF NOT EXISTS gsc_jobs (
+    job_id TEXT PRIMARY KEY,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id),
+    repo_url TEXT,
+    repo_path TEXT,
+    profile TEXT DEFAULT 'audit',
+    status TEXT DEFAULT 'queued',
+    findings_json TEXT,
+    error TEXT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    started_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ
+);
+
+CREATE INDEX IF NOT EXISTS idx_jobs_tenant ON gsc_jobs(tenant_id);
+CREATE INDEX IF NOT EXISTS idx_jobs_status ON gsc_jobs(status);
+
+ALTER TABLE gsc_jobs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY t_gsc_jobs ON gsc_jobs
+    USING (tenant_id = current_setting('app.tenant_id')::bigint);
+ALTER TABLE gsc_jobs FORCE ROW LEVEL SECURITY;

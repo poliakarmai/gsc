@@ -22,6 +22,12 @@ from cloud.observability import router as obs_router
 app = FastAPI(title="GSC Cloud", version="1.0")
 queue = ScanQueue()
 
+
+@app.get("/")
+@app.get("/health")
+def root_health():
+    return {"ok": True, "service": "GSC Cloud", "version": "1.0"}
+
 # Mount all routers
 app.include_router(auth_router)
 app.include_router(dash_router)

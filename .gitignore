@@ -7,3 +7,11 @@ node_modules/
 .DS_Store
 __pycache__/
 .env
+FastAPI-ML/
+HuixiangDou/
+VPN_oultine_engine-project/
+flaskdash/
+lyanna/
+calibration/repos/.gsc/
+cloud/nginx-production.conf
+cloud/static/

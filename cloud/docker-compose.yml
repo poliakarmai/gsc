@@ -57,7 +57,7 @@ services:
     build:
       context: ..
       dockerfile: cloud/Dockerfile
-    command: python -m cloud.worker
+    command: python -m cloud.workers
     environment:
       GSC_DATABASE_URL: ${GSC_DATABASE_URL:-postgresql://gsc_app:dev_app_pw@postgres:5432/gsc}
       GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}

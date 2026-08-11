@@ -7,11 +7,8 @@ RUN pip install --no-cache-dir -r /app/cloud/requirements.txt
 
 # Copy cloud backend modules (not in base image)
 COPY gsc_db_backend.py /app/gsc_db_backend.py
-RUN chown gsc:gsc /app/gsc_db_backend.py
 
 COPY cloud/ /app/cloud/
-RUN chown -R gsc:gsc /app/cloud/
-USER gsc
 
 # Override base image ENTRYPOINT (gsc CLI)
 ENTRYPOINT []

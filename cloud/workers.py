@@ -1,130 +1,110 @@
-"""cloud/workers.py — SaaS S2: background scan workers with SQLite job queue.
+"""cloud/workers.py — SaaS S2: background scan workers with PostgreSQL job queue.
 
 Workers pull jobs from gsc_jobs table, execute gsc.scan(), and store results.
-Compatible with S1 tenant isolation (scoped_query).
+Uses PgBackend for multi-tenant isolation (RLS + tenant_id filter).
 """
 from __future__ import annotations
 
-import hashlib
 import json
 import os
-import sqlite3
 import subprocess
 import sys
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Optional
 
-DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
+from gsc_db_backend import PgBackend
 
-# ── Schema migration (adds gsc_jobs table to schema 28) ─────────────
-
-JOB_SCHEMA_SQL = """
-CREATE TABLE IF NOT EXISTS gsc_jobs (
-    job_id TEXT PRIMARY KEY,
-    tenant_id TEXT NOT NULL,
-    repo_url TEXT,
-    repo_path TEXT,
-    profile TEXT DEFAULT 'audit',
-    status TEXT DEFAULT 'queued',  -- queued | running | done | failed
-    findings_json TEXT,
-    error TEXT,
-    created_at TEXT,
-    started_at TEXT,
-    completed_at TEXT,
-    FOREIGN KEY (tenant_id) REFERENCES tenants(tenant_id)
-);
-CREATE INDEX IF NOT EXISTS idx_jobs_tenant ON gsc_jobs(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_jobs_status ON gsc_jobs(status);
-"""
-
-def _ensure_schema():
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.executescript(JOB_SCHEMA_SQL)
-    conn.commit()
-    conn.close()
+DB_DSN = os.environ.get("GSC_DATABASE_URL", "postgresql://gsc_app:***@localhost:5432/gsc")
 
 # ── Job queue ───────────────────────────────────────────────────────
 
 @dataclass
 class ScanJob:
     job_id: str
-    tenant_id: str
+    tenant_id: int
     repo_path: str
     profile: str = "audit"
     status: str = "queued"
 
-def enqueue_scan(tenant_id: str, repo_path: str, profile: str = "audit") -> str:
+
+def _db(tenant_id: int = 0) -> PgBackend:
+    """Get DB connection. tenant_id=0 for admin queries (no RLS filter)."""
+    return PgBackend(DB_DSN, tenant_id)
+
+
+def enqueue_scan(tenant_id: int, repo_path: str, profile: str = "audit") -> str:
     """Submit a scan job. Returns job_id."""
-    _ensure_schema()
+    db = _db(tenant_id)
     job_id = uuid.uuid4().hex[:12]
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute(
-        "INSERT INTO gsc_jobs (job_id, tenant_id, repo_path, profile, status, created_at) "
-        "VALUES (?, ?, ?, ?, 'queued', ?)",
-        (job_id, tenant_id, repo_path, profile, datetime.now(timezone.utc).isoformat()),
+    db.execute(
+        "INSERT INTO gsc_jobs (job_id, tenant_id, repo_path, profile, status) "
+        "VALUES (?, ?, ?, ?, 'queued')",
+        (job_id, tenant_id, repo_path, profile),
     )
-    conn.commit()
-    conn.close()
+    db.commit()
     return job_id
 
+
 def get_next_job() -> Optional[ScanJob]:
-    """Pull next queued job. Returns None if queue empty."""
-    _ensure_schema()
-    conn = sqlite3.connect(str(DB_PATH))
-    row = conn.execute(
+    """Pull next queued job (admin query, reads all tenants). Returns None if queue empty."""
+    db = _db(0)  # admin context: read across tenants
+    row = db.fetchone(
         "SELECT job_id, tenant_id, repo_path, profile FROM gsc_jobs "
         "WHERE status = 'queued' ORDER BY created_at LIMIT 1"
-    ).fetchone()
-    if not row:
-        conn.close()
-        return None
-    job_id = row[0]
-    conn.execute(
-        "UPDATE gsc_jobs SET status = 'running', started_at = ? WHERE job_id = ?",
-        (datetime.now(timezone.utc).isoformat(), job_id),
     )
-    conn.commit()
-    conn.close()
-    return ScanJob(job_id=job_id, tenant_id=row[1], repo_path=row[2], profile=row[3] or "audit")
+    if not row:
+        return None
+    job_id = row["job_id"]
+    db.execute(
+        "UPDATE gsc_jobs SET status = 'running', started_at = now() WHERE job_id = ?",
+        (job_id,),
+    )
+    db.commit()
+    return ScanJob(
+        job_id=job_id,
+        tenant_id=row["tenant_id"],
+        repo_path=row["repo_path"],
+        profile=row["profile"] or "audit",
+    )
+
 
 def complete_job(job_id: str, findings: List[Dict], error: str = ""):
-    conn = sqlite3.connect(str(DB_PATH))
+    db = _db(0)
     status = "done" if not error else "failed"
-    conn.execute(
-        "UPDATE gsc_jobs SET status = ?, findings_json = ?, error = ?, completed_at = ? "
+    db.execute(
+        "UPDATE gsc_jobs SET status = ?, findings_json = ?, error = ?, completed_at = now() "
         "WHERE job_id = ?",
-        (status, json.dumps(findings), error, datetime.now(timezone.utc).isoformat(), job_id),
+        (status, json.dumps(findings), error, job_id),
     )
-    conn.commit()
-    conn.close()
+    db.commit()
+
 
 def get_job_status(job_id: str) -> Optional[Dict]:
-    conn = sqlite3.connect(str(DB_PATH))
-    row = conn.execute(
-        "SELECT job_id, tenant_id, repo_path, status, created_at, started_at, completed_at, error "
-        "FROM gsc_jobs WHERE job_id = ?", (job_id,)
-    ).fetchone()
-    conn.close()
+    db = _db(0)
+    row = db.fetchone(
+        "SELECT job_id, tenant_id, repo_path, status, created_at, "
+        "started_at, completed_at, error FROM gsc_jobs WHERE job_id = ?",
+        (job_id,),
+    )
     if not row:
         return None
-    return {"job_id": row[0], "tenant_id": row[1], "repo_path": row[2],
-            "status": row[3], "created_at": row[4], "started_at": row[5],
-            "completed_at": row[6], "error": row[7]}
+    return dict(row)
 
-def get_tenant_jobs(tenant_id: str, limit: int = 20) -> List[Dict]:
-    conn = sqlite3.connect(str(DB_PATH))
-    rows = conn.execute(
+
+def get_tenant_jobs(tenant_id: int, limit: int = 20) -> List[Dict]:
+    db = _db(tenant_id)
+    rows = db.query(
         "SELECT job_id, status, repo_path, created_at FROM gsc_jobs "
         "WHERE tenant_id = ? ORDER BY created_at DESC LIMIT ?",
-        (tenant_id, limit)
-    ).fetchall()
-    conn.close()
-    return [{"job_id": r[0], "status": r[1], "repo_path": r[2], "created_at": r[3]} for r in rows]
+        (tenant_id, limit),
+    )
+    return [dict(r) for r in rows]
+
 
 # ── Worker ──────────────────────────────────────────────────────────
 
@@ -145,9 +125,9 @@ def scan_repo(repo_path: str, profile: str = "audit") -> tuple[List[Dict], str]:
     except Exception as e:
         return [], str(e)
 
+
 def worker_loop(poll_interval: float = 5.0, max_jobs: int = 0):
     """Run worker loop: pull jobs, scan, repeat.
-
     max_jobs=0 → infinite loop. Set to N for testing (exit after N jobs).
     """
     completed = 0
@@ -160,17 +140,20 @@ def worker_loop(poll_interval: float = 5.0, max_jobs: int = 0):
         complete_job(job.job_id, findings, error)
         completed += 1
 
+
 def start_worker(daemon: bool = True) -> Thread:
     """Start worker in background thread."""
     t = Thread(target=worker_loop, daemon=daemon)
     t.start()
     return t
 
+
 # ── Self-test ───────────────────────────────────────────────────────
 
-def _test():
-    _ensure_schema()
-    print("gsc_jobs table exists ✅" if True else "")
-
 if __name__ == "__main__":
-    _test()
+    db = _db(0)
+    try:
+        db.execute("SELECT 1 FROM gsc_jobs LIMIT 0")
+        print("✅ gsc_jobs table accessible via PostgreSQL")
+    except Exception as e:
+        print(f"❌ DB error: {e}")
