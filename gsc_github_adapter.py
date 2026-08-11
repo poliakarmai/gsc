@@ -541,7 +541,19 @@ def run_pr_adapter(ctx: GitHubPRContext, profile: str = "pr-gate",
     token = ctx.token
     if (post_comment) and token:
         client = GitHubAPIClient(token)
-        upsert_comment(client, ctx, comment_body.strip(), dry_run)
+        comment_id = upsert_comment(client, ctx, comment_body.strip(), dry_run)
+        if comment_id and not dry_run:
+            try:
+                from gsc_db import GSCDatabase
+                db = GSCDatabase()
+                db.upsert_published_comment(
+                    repo=f"{ctx.owner}/{ctx.repo}",
+                    pr_number=ctx.pr_number,
+                    comment_id=comment_id,
+                    head_sha=ctx.head_sha or "",
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to record comment_id {comment_id}: {e}")
 
     # Check run
     if create_check and token:
