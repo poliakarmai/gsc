@@ -6,13 +6,13 @@ CALIB = Path("/tmp/gsc-calibration")
 
 VULN = {
     "sqli-demo": ("py", 'def q(x):\n    return db.execute(f"SELECT * FROM u WHERE id={x}")\n', "GS005"),
-    "xss-demo": ("py", 'def render(name):\n    return f"<div>{name}</div>"\n', "GS017"),
+    "xss-demo": ("py", 'def render(name):\n    return f"<div>{name}</div>"\n', "GS020"),
     "secrets-demo": ("py", 'password = "SuperSecret123!"\napi_key = "sk_live_abcdef"\n', "GS029"),
     "eval-demo": ("py", 'def exec(u): return eval(u)\n', "GS008"),
-    "pickle-demo": ("py", 'import pickle\ndef load(x): return pickle.loads(x)\n', "GS007"),
-    "bare-except-demo": ("py", 'try:\n    risky()\nexcept:\n    pass\n', "GS010"),
-    "assert-demo": ("py", 'def validate(x):\n    assert x > 0\n    return x\n', "GS018"),
-    "hardcoded-secret": ("py", 'API_TOKEN="ghp_abc123def456"\nsecret="mysecret"\n', "GS029"),
+    "pickle-demo": ("py", 'import pickle\ndef load(x): return pickle.loads(x)\n', "GS004"),
+    "bare-except-demo": ("py", 'try:\n    risky()\nexcept:\n    pass\n', "GS003"),
+    "assert-demo": ("py", 'def validate(x):\n    assert x > 0\n    return x\n', "GS015"),
+    "hardcoded-secret": ("py", 'API_TOKEN="ghp_abcdef123456"\nsecret="mysecret"\n', "GS029"),
     "iac-demo": ("dockerfile", 'FROM node:latest\nUSER root\nENV SECRET=x\n', "GS031"),
 }
 

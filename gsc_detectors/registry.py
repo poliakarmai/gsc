@@ -72,7 +72,7 @@ class DetectorEntry:
 def _lazy_gs024(ctx):
     """Lazy-load LLM SQLi detector — avoids API key requirement at import time."""
     try:
-        import gsc_detectors.gs020_llm_sqli as _gs024
+        import gsc_detectors.gs024_llm_sqli as _gs024
         return _gs024.detect(ctx)
     except Exception:
         return []
@@ -349,5 +349,7 @@ def run_detectors(
             continue
         if det.rule_id in ctx.skipped_detectors:
             continue
-        all_findings.extend(det.detect(ctx))
+        for f in det.detect(ctx):
+            if f is not None:  # make_finding returns None on empty rule_id
+                all_findings.append(f)
     return all_findings
