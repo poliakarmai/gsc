@@ -64,9 +64,20 @@ _SQL_CONCAT_OPS = re.compile(r'\|\||\s*\+\s*|\s*\.\s*')
 
 # ── Pattern definitions ───────────────────────────────────────────────────
 #
+# 76 patterns across 9 languages. Breakdown:
+#   Python 35: f-string(4) .format(2) %-fmt(2) concat(1) UNION(2) Blind(3)
+#              Time(1) Stacked(1) Django(8) SQLAlchemy(7) Flask(2) Second-order(4)
+#              Pandas(2) DynamoDB(2) Redis(1)
+#   JS/TS 13:  template(4) concat(2) Sequelize(3) Knex(2) MongoDB(4) NoSQL(1)
+#   PHP 9:     mysql(3) PDO(2) Laravel(3) pg_query(1)
+#   Ruby 6:    Rails/ActiveRecord(6)
+#   Java 4:    JDBC/Spring/JPA(4)
+#   C# 4:      SqlCommand/ADO.NET(4)
+#   Go 2:      fmt.Sprintf/db.Query(2)
+#   Rust 2:    sqlx::query(2)
+#   Generic 1: template literal in execute
+#
 # Each pattern: (regex, title, language, extra_context_required)
-# extra_context_required=True means the pattern only fires when user input
-# source is present nearby (reduces false positives).
 
 _PATTERNS: list[tuple[str, str, str, bool]] = [
 

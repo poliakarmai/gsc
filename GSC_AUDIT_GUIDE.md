@@ -1,7 +1,7 @@
 # GSC Audit Guide — для AI-агента
 
 > **Это актуальный источник правды.** PROJECT.md и AGENTS.md синхронизированы — все числа через `gsc_meta.py`.
-> Последнее обновление: 2026-08-07 | Версия кода: v1.2.0+ | Коммит: `6c169bd`
+> Последнее обновление: 2026-08-11 | Версия кода: v1.3.0 | Schema: 29 | Коммит: `b17fe6a`
 
 ## Назначение
 
@@ -35,7 +35,7 @@
 |------|-----------|----------|
 | `gsc.py` | CLI (50+ команд), `check_plugin_detectors` | `python3 gsc.py --help` — без ошибок |
 | `gsc_external.py` | External Scanner | `grep -c "HARDCODED\|_ECHELON_PATTERNS" gsc_external.py` → 0 |
-| `gsc_db.py` | SQLite, schema 28, авто-миграции | `TARGET_VERSION = 28` |
+| `gsc_db.py` | SQLite, schema 29, авто-миграции | `TARGET_VERSION = 29` |
 | `gsc_blocking.py` | Blocking Engine + Confidence V3 | CRITICAL≥0.90, HIGH≥0.85 |
 | `gsc_compliance.py` | CWE/OWASP/PCI mapping | `COMPLIANCE_MAP` содержит GS001–GS031 |
 
@@ -136,8 +136,8 @@ assert gs020, 'GS020 XSS not detected — check plugin pipeline'
 
 Ожидаемые rule_id:
 - `sqli-demo` → GS005, `xss-demo` → GS020, `secrets-demo` → GS029
-- `eval-demo` → GS008, `pickle-demo` → GS007, `bare-except-demo` → GS010
-- `assert-demo` → GS018, `hardcoded-secret` → GS029, `iac-demo` → GS031-DOCKER-*
+- `eval-demo` → GS008, `pickle-demo` → GS004, `bare-except-demo` → GS003
+- `assert-demo` → GS015, `hardcoded-secret` → GS029, `iac-demo` → GS031-DOCKER-*
 - `clean-pure` → 0 CRITICAL
 
 ### VSCode
@@ -161,7 +161,7 @@ cd gsc-vscode && npm install && npm run compile && npx tsc --noEmit && npm test
 | 6 | Federated: только `{tenant_hash, rule_id, tp, fp}` + DP | `gsc_federated.py` | |
 | 7 | Секреты: только fingerprint, не raw-значения | `gsc_secrets_core.py` | |
 | 8 | Единый fingerprint = sha256[:32] | `fingerprint_secret()` в core и crossrepo | |
-| 9 | Schema version = 28 | `gsc_db.py` `TARGET_VERSION` | |
+| 9 | Schema version = 29 | `gsc_db.py` `TARGET_VERSION` | |
 
 ---
 
@@ -192,7 +192,7 @@ grep -rn "ORIGINAL_PATTERNS" gsc_crossrepo_secrets.py && echo "❌" || echo "✅
 grep -rn "poc_before_exit != 0" gsc_proofoffix.py 2>/dev/null && echo "❌" || echo "✅"
 grep -rn "_ECHELON_PATTERNS\|HARDCODED" gsc_external.py gsc.py && echo "❌" || echo "✅"
 
-# Schema 28
+# Schema 29
 python3 -c "import sqlite3; c=sqlite3.connect('$HOME/.hermes/state/gsc_audit.db'); print(c.execute('SELECT MAX(version) FROM schema_version').fetchone()[0])"
 
 # Fingerprint identity (устойчиво к ImportError)
