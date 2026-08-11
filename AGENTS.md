@@ -63,6 +63,14 @@ gsc/
 
 DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 29)
 
+## Precision (август 2026)
+
+Первый замер на 10 реальных проектах (160–132K ⭐):
+- **2 695 находок** (129 CRITICAL, 244 HIGH)
+- **Precision CRITICAL: ~8–12%** (до фикса GS001 extractor)
+- Основной шум: GS001 на extractor/конфигах, тестовые секреты
+- Подробнее: `benchmark/PRECISION_REPORT.md`
+
 ## Быстрый старт
 
 ```bash
