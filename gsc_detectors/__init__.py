@@ -151,6 +151,30 @@ class AuditContext:
             self.file_contents[key] = filepath.read_text(errors="replace")
         return self.file_contents[key]
 
+    def get_disabled_patterns(self, rule_id: str) -> set[str]:
+        """Get disabled pattern IDs for a rule (cached per scan).
+
+        Used by GS005 decomposition — noisy patterns can be selectively
+        disabled via pattern_status table without code changes.
+        Falls back to empty set if DB unavailable or no pattern_status table.
+        """
+        if not hasattr(self, "_disabled_cache"):
+            self._disabled_cache = {}
+        if rule_id not in self._disabled_cache:
+            try:
+                import sqlite3
+                db = sqlite3.connect(
+                    str(Path.home() / ".hermes/state/gsc_audit.db"))
+                rows = db.execute(
+                    "SELECT pattern_id FROM pattern_status "
+                    "WHERE rule_id=? AND enabled=0", (rule_id,)
+                ).fetchall()
+                db.close()
+                self._disabled_cache[rule_id] = {r[0] for r in rows}
+            except Exception:
+                self._disabled_cache[rule_id] = set()
+        return self._disabled_cache[rule_id]
+
 
 class Detector(Protocol):
     """Detector interface — mirrors CVE Lite's DetectorFn."""

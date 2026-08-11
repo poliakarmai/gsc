@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 29
+TARGET_VERSION = 30
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -369,6 +369,8 @@ class GSCDatabase:
             self._apply_v028()
         if version < 29:
             self._apply_v029()
+        if version < 30:
+            self._apply_v030()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -486,6 +488,25 @@ class GSCDatabase:
             );
 
             ALTER TABLE findings ADD COLUMN rule_id TEXT;
+        """)
+
+    def _apply_v030(self):
+        """Schema v30: pattern_status for per-pattern precision tracking (GS005 decomposition)."""
+        self.conn.executescript("""
+            CREATE TABLE IF NOT EXISTS pattern_status (
+                pattern_id        TEXT PRIMARY KEY,
+                rule_id           TEXT NOT NULL,
+                enabled           INTEGER NOT NULL DEFAULT 1,
+                measured_precision REAL,
+                true_positives    INTEGER DEFAULT 0,
+                false_positives   INTEGER DEFAULT 0,
+                sample_size       INTEGER DEFAULT 0,
+                disabled_reason   TEXT,
+                disabled_at       TEXT,
+                updated_at        TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_pattern_status_rule
+                ON pattern_status(rule_id, enabled);
         """)
 
     def _apply_v027(self):

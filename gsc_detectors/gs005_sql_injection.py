@@ -2,232 +2,192 @@
 # Copyright (c) 2026 Алексей Поляков
 # Licensed under BSL 1.1 — see LICENSE
 
+"""GS005 — SQL/NoSQL Injection Detector (v2.0: pattern_id decomposition).
+
+76+ patterns across 9 languages. Each pattern has a unique pattern_id.
+Per-pattern precision can be tracked and noisy patterns selectively disabled.
 """
-GS005 — SQL/NoSQL Injection Patterns in Source Code.
-
-Detects:
-- String interpolation in SQL queries (f-strings, %, .format, + concat)
-- UNION-based injection (SELECT ... UNION SELECT)
-- Boolean-based blind (OR '1'='1, AND 1=1)
-- Time-based blind (SLEEP, pg_sleep, WAITFOR DELAY, BENCHMARK)
-- Stacked queries (multiple ;-separated statements)
-- Second-order injection (DB fetch → unsanitized query)
-- NoSQL injection (MongoDB $where/$regex, DynamoDB filter expressions)
-- ORM anti-patterns (Django raw/extra/RawSQL, SQLAlchemy text/literal, Sequelize)
-- Multi-language coverage: Python, Ruby, JS/TS, PHP, Java, Go, C#, Rust
-
-Inspired by:
-- OWASP A03:2021 — Injection
-- PortSwigger SQL Injection Labs
-- OWASP SQL Injection Prevention Cheat Sheet
-"""
-
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 from gsc_detectors import AuditContext, Finding
+from gsc_detectors.base import make_finding
+
+# ── assign_ids (inlined for module-relative import) ────────────────────────
+
+import re as _re
+
+_TYPE_MAP = {
+    "f-string": "FSTR", "format(": "FMT", "%.format": "FMT",
+    "concat": "CONCAT", "$where": "NOSQL", "MongoDB": "NOSQL",
+    "DynamoDB": "NOSQL", "Redis": "NOSQL",
+    "Django": "ORM", "SQLAlchemy": "ORM", "Sequelize": "ORM",
+    "Knex": "ORM", "Laravel": "ORM", "ActiveRecord": "ORM",
+    "createQuery": "ORM", "JDBC": "JDBC", "Statement": "JDBC",
+    "JPA": "JDBC", "Spring": "JDBC", "SqlCommand": "CSHARP",
+}
+_LANG_CODE = {"python": "PY", "javascript": "JS", "ruby": "RB",
+              "php": "PHP", "java": "JAVA", "go": "GO",
+              "csharp": "CS", "rust": "RS", "generic": "GEN"}
+
+
+def _assign_ids(patterns):
+    counters = {}
+    result = []
+    for regex, title, lang, needs_ctx in patterns:
+        ptype = "GEN"
+        for key, code in _TYPE_MAP.items():
+            if key.lower() in title.lower():
+                ptype = code; break
+        lcode = _LANG_CODE.get(lang, "X")
+        counters[(ptype, lcode)] = counters.get((ptype, lcode), 0) + 1
+        pid = f"GS005-{ptype}-{lcode}-{counters[(ptype, lcode)]:03d}"
+        result.append((pid, regex, title, lang, needs_ctx))
+    return result
 
 RULE_ID = "GS005"
 ECHELON = 2
 NOISE_TIER = "precise"
-description = (
-    "SQL/NoSQL injection: string interpolation in queries, UNION/Boolean/Time-based "
-    "injection patterns, stacked queries, second-order, ORM anti-patterns"
-)
+description = "GS005: SQL/NoSQL injection — 78 patterns, 9 languages, per-pattern precision tracking (v2.0)"
 
-# ── SQL keywords for context-aware filtering ──────────────────────────────
+# ── User input sources for context filtering ───────────────────────────────
 
-_SQL_KEYWORDS = re.compile(
-    r'\b(SELECT|INSERT|UPDATE|DELETE|CREATE|DROP|ALTER|TRUNCATE|MERGE|REPLACE|'
-    r'UNION|JOIN|FROM|WHERE|GROUP\s+BY|ORDER\s+BY|HAVING|LIMIT|OFFSET|'
-    r'SET|VALUES|INTO|EXEC|EXECUTE|CALL)\b',
+_USER_INPUT_SOURCES = re.compile(
+    r'(?:request\.(?:args|form|values|json|data|GET|POST|COOKIE|headers)|'
+    r'input\s*\(|sys\.argv|os\.environ\[|'
+    r'\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|'
+    r'\.(?:get_json|form_data|params)\s*\()',
     re.IGNORECASE,
 )
 
-# ── User-input source patterns (for second-order / reachability) ──────────
-
-_USER_INPUT_SOURCES = re.compile(
-    r'\b(request\.(GET|POST|args|form|json|data|cookies|headers)|'
-    r'params\[|req\.(query|body|params)|'
-    r'\\$\_(GET|POST|REQUEST|COOKIE)|'
-    r'input\s*\(|sys\.argv|os\.environ|'
-    r'readline|scanf|cin\s*>>|'
-    r'@RequestParam|@PathVariable|@RequestBody|'
-    r'c\.QueryParam|c\.FormValue|c\.Param\()',
+_SQL_KEYWORDS = re.compile(
+    r'\b(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|FROM|WHERE|'
+    r'JOIN|INTO|SET|VALUES|TABLE|UNION|ORDER\s+BY|GROUP\s+BY|'
+    r'HAVING|LIMIT|OFFSET|EXEC|EXECUTE)\b',
+    re.IGNORECASE,
 )
 
-# ── SQL concatenation operators per language ──────────────────────────────
 
-_SQL_CONCAT_OPS = re.compile(r'\|\||\s*\+\s*|\s*\.\s*')
+# ── Language extension map ─────────────────────────────────────────────────
 
-# ── Pattern definitions ───────────────────────────────────────────────────
-#
-# 76 patterns across 9 languages. Breakdown:
-#   Python 35: f-string(4) .format(2) %-fmt(2) concat(1) UNION(2) Blind(3)
-#              Time(1) Stacked(1) Django(8) SQLAlchemy(7) Flask(2) Second-order(4)
-#              Pandas(2) DynamoDB(2) Redis(1)
-#   JS/TS 13:  template(4) concat(2) Sequelize(3) Knex(2) MongoDB(4) NoSQL(1)
-#   PHP 9:     mysql(3) PDO(2) Laravel(3) pg_query(1)
-#   Ruby 6:    Rails/ActiveRecord(6)
-#   Java 4:    JDBC/Spring/JPA(4)
-#   C# 4:      SqlCommand/ADO.NET(4)
-#   Go 2:      fmt.Sprintf/db.Query(2)
-#   Rust 2:    sqlx::query(2)
-#   Generic 1: template literal in execute
-#
-# Each pattern: (regex, title, language, extra_context_required)
+_LANG_EXTS: dict[str, tuple[str, ...] | None] = {
+    "python": (".py", ".pyi", ".pyx"),
+    "javascript": (".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"),
+    "ruby": (".rb", ".erb"),
+    "php": (".php", ".phtml", ".php3", ".php4", ".php5"),
+    "java": (".java", ".jsp", ".jspx"),
+    "go": (".go",),
+    "csharp": (".cs", ".razor", ".cshtml"),
+    "rust": (".rs",),
+    "generic": None,
+}
 
-_PATTERNS: list[tuple[str, str, str, bool]] = [
+
+# ── _PATTERNS (raw, without pattern_ids) ───────────────────────────────────
+
+_RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
 
     # ═══ PYTHON ═══════════════════════════════════════════════════════
 
-    # --- String interpolation in execute() ---
-    (r'(?:execute|cursor\.execute|conn\.execute|session\.execute)\s*\(\s*f["\']',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*f["\']',
      "SQL f-string injection in execute()", "python", False),
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*%s.*%',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*%s.*["\']',
      "SQL %-formatting injection in execute()", "python", False),
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*\.format\(',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*\{.*\}.*["\']',
      "SQL .format() injection in execute()", "python", False),
     (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*["\']\s*\+\s*',
      "SQL string concatenation in execute()", "python", False),
-    (r'\.executemany\s*\(\s*f["\']',
+    (r'executemany\s*\(\s*f["\']',
      "SQL f-string injection in executemany()", "python", False),
 
-    # --- UNION-based injection ---
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*UNION\s+(?:ALL\s+)?SELECT',
-     "UNION SELECT injection — data extraction via UNION", "python", False),
-    (r'(?:execute|cursor\.execute)\s*\(\s*["\'].*SELECT.*FROM.*UNION.*SELECT',
+    # Boolean/Time blind SQLi
+    (r'\b(?:UNION)\s+SELECT\b', "UNION SELECT injection", "python", False),
+    (r"(?:UNION)\s+(?:ALL\s+)?SELECT\s+.*SELECT",
      "UNION SELECT injection with multi-table", "python", False),
+    (r'\bOR\s+[\'"]\d[\'"]\s*=\s*[\'"]\d[\'"]\b', "Boolean-based blind SQLi", "python", False),
+    (r'\bAND\s+[\'"]\d[\'"]\s*=\s*[\'"]\d[\'"]\b', "Boolean-based blind SQLi numeric", "python", False),
+    (r'\b(?:SLEEP|pg_sleep|WAITFOR\s+DELAY|BENCHMARK)\s*\(', "Time-based blind SQLi", "python", False),
 
-    # --- Boolean-based blind ---
-    (r"(?:execute|cursor\.execute)\s*\(\s*f?[\"'].*(?:'\s*OR\s*'1'\s*=\s*'1|'\s*OR\s+1\s*=\s*1|AND\s+'1'\s*=\s*'2)",
-     "Boolean-based blind SQLi ('OR '1'='1 / AND '1'='2)", "python", False),
-    (r'(?:execute|cursor\.execute)\s*\(\s*f?["\'].*OR\s+\d+\s*=\s*\d+\s*--',
-     "Boolean-based blind SQLi with numeric comparison", "python", False),
+    # Stacked queries
+    (r';\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP)\b', "Stacked query injection", "python", False),
 
-    # --- Time-based blind ---
-    (r'(?:execute|cursor\.execute)\s*\(\s*["\'].*\b(SLEEP\s*\(|pg_sleep\s*\(|WAITFOR\s+DELAY|BENCHMARK\s*\()',
-     "Time-based blind SQLi (SLEEP/pg_sleep/WAITFOR/BENCHMARK)", "python", False),
+    # Django ORM
+    (r'\.raw\s*\(\s*f["\']', "Django raw() with f-string", "python", False),
+    (r'\.raw\s*\(\s*["\'].*%s', "Django raw() with %-formatting", "python", False),
+    (r'\.extra\s*\(\s*where\s*=\s*["\'].*["\']\s*[\+%]', "Django extra() with dynamic WHERE", "python", False),
+    (r'\.extra\s*\(\s*tables\s*=\s*\[.*["\']\s*\+', "Django extra() with dynamic tables", "python", False),
+    (r'cursor\.execute\s*\(\s*.*SELECT.*\{.*\}.*FROM', "Django cursor.execute() with interpolation", "python", False),
+    (r'\.annotate\s*\(\s*.*RawSQL\s*\(', "Django RawSQL annotation injection", "python", False),
+    (r'\.annotate\s*\(\s*.*Func\s*\(\s*.*Value\s*\(', "Django Func+Value expression injection", "python", False),
+    (r'\.filter\s*\(\s*.*__\w+\s*=\s*.*\+', "Django filter() with string concat", "python", False),
 
-    # --- Stacked queries ---
-    (r'(?:execute|cursor\.execute)\s*\(\s*["\'].*;\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP|CREATE|ALTER)',
-     "Stacked queries — multiple statements in one execute()", "python", False),
+    # SQLAlchemy
+    (r'text\s*\(\s*f["\']', "SQLAlchemy text() with f-string", "python", False),
+    (r'text\s*\(\s*["\'].*\{.*\}.*["\']', "SQLAlchemy text() with .format()", "python", False),
+    (r'text\s*\(\s*["\'].*%s.*["\']', "SQLAlchemy text() with %-formatting", "python", False),
+    (r'text\s*\(\s*["\'].*["\']\s*\+', "SQLAlchemy text() with string concat", "python", False),
+    (r'\.execute\s*\(\s*text\s*\(', "SQLAlchemy execute(text()) pattern", "python", False),
+    (r'\.from_statement\s*\(\s*text\s*\(', "SQLAlchemy from_statement(text())", "python", False),
+    (r'session\.execute\s*\(\s*text\s*\(\s*f["\']', "SQLAlchemy session.execute(text(f))", "python", False),
 
-    # --- Django ORM ---
-    (r'\.raw\s*\(\s*f["\']',
-     "Django raw() with f-string — SQL injection", "python", False),
-    (r'\.raw\s*\(\s*["\'].*%s.*%',
-     "Django raw() with %-formatting", "python", False),
-    (r'\.raw\s*\(\s*["\'].*\.format\(',
-     "Django raw() with .format()", "python", False),
-    (r'\.extra\s*\(\s*(?:select|where|tables)\s*=\s*f["\']',
-     "Django extra() with f-string", "python", False),
-    (r'\.extra\s*\(\s*(?:select|where|tables)\s*=\s*["\'].*\{',
-     "Django extra() with .format()", "python", False),
-    (r'RawSQL\s*\(\s*f["\']',
-     "Django RawSQL with f-string", "python", False),
-    (r'RawSQL\s*\(\s*["\'].*%',
-     "Django RawSQL with %-formatting", "python", False),
-    (r'(?:\.annotate|\.alias)\s*\(\s*\w+\s*=\s*RawSQL\s*\(',
-     "Django annotate() with RawSQL", "python", False),
+    # Flask-SQLAlchemy
+    (r'db\.engine\.execute\s*\(\s*f["\']', "Flask-SQLAlchemy f-string SQL", "python", False),
+    (r'db\.session\.execute\s*\(\s*text\s*\(\s*f["\']', "Flask-SQLAlchemy text(f)", "python", False),
 
-    # --- SQLAlchemy ---
-    (r'text\s*\(\s*f["\']',
-     "SQLAlchemy text() with f-string", "python", False),
-    (r'text\s*\(\s*["\'].*%.*["\']\s*%',
-     "SQLAlchemy text() with %-formatting", "python", False),
-    (r'text\s*\(\s*["\'].*["\']\s*\+\s*',
-     "SQLAlchemy text() with string concatenation", "python", False),
-    (r'\.literal\s*\(\s*request\.',
-     "SQLAlchemy literal() with request data — injection", "python", False),
-    (r'(?:conn|engine)\.execute\s*\(\s*text\s*\(\s*f["\']',
-     "SQLAlchemy engine.execute(text(f\"...\"))", "python", False),
+    # Second-order SQLi
+    (r'(?:SELECT|INSERT|UPDATE|DELETE).*FROM\s+\w+\s+WHERE.*\[.*\]', "Second-order SQLi from stored data", "python", False),
+    (r'cursor\.execute\s*\(\s*\w+\s*\[', "execute with list unpacking", "python", False),
+    (r'cursor\.execute\s*\(\s*\w+\s*\.\w+\s*\[', "execute with nested attribute", "python", False),
+    (r'\.execute\s*\(\s*.*\w+\s*\[\s*[\"\']\w+[\"\']\s*\].*\)', "execute with dict unpacking", "python", False),
 
-    # --- Flask-SQLAlchemy ---
-    (r'db\.(?:session|engine)\.execute\s*\(\s*f["\']',
-     "Flask-SQLAlchemy execute() with f-string", "python", False),
-    (r'db\.(?:session|engine)\.execute\s*\(\s*["\'].*\{',
-     "Flask-SQLAlchemy execute() with .format()", "python", False),
+    # Pandas
+    (r'read_sql_query\s*\(\s*f["\']', "Pandas read_sql_query with f-string", "python", False),
+    (r'read_sql\s*\(\s*f["\']', "Pandas read_sql with f-string", "python", False),
 
-    # --- Second-order SQLi ---
-    # Two orders: (A) row extraction BEFORE execute (two-step), (B) row INSIDE execute(f"...") inline
-    (r'(?:row\[|row\.|record\[|record\.|result\[)\s*["\']?\w+["\']?\s*\].*'
-     r'(?:execute|cursor\.execute)\s*\(\s*f["\']',
-     "Second-order SQLi — DB data used unsanitized in f-string query", "python", True),
-    (r'(?:execute|cursor\.execute)\s*\(\s*f["\'].*'
-     r'(?:row\[|row\.|record\[|record\.|result\[)\s*["\']?\w+["\']?\s*\]',
-     "Second-order SQLi — inline DB data in f-string query", "python", True),
-    (r'(?:row\[|row\.|record\[)\s*["\']?\w+["\']?\s*\].*'
-     r'(?:execute|cursor\.execute)\s*\(\s*["\'].*%',
-     "Second-order SQLi — DB data used unsanitized in %-formatted query", "python", True),
-    (r'(?:execute|cursor\.execute)\s*\(\s*["\'].*%.*'
-     r'(?:row\[|row\.|record\[)\s*["\']?\w+["\']?\s*\]',
-     "Second-order SQLi — inline DB data in %-formatted query", "python", True),
+    # ═══ JAVASCRIPT / TYPESCRIPT ═══════════════════════════════════════
 
-    # ═══ RUBY ════════════════════════════════════════════════════════════
+    (r'\.(?:query|execute)\s*\(\s*`.*\$\{.*\}.*`', "Template literal SQL injection", "javascript", False),
+    (r'\.(?:query|execute)\s*\(\s*[\"\'].*[\"\']\s*\+\s*', "String concat SQL injection", "javascript", False),
+    (r'\.query\s*\(\s*.*SELECT.*\+', "query() with string concat", "javascript", False),
+    (r'\.execute\s*\(\s*.*INSERT.*\+', "execute() with INSERT concat", "javascript", False),
 
-    (r'\.where\s*\(\s*["\']\$\{',
-     "Rails where() with interpolation", "ruby", False),
-    (r'\.where\s*\(\s*["\'].*#\{',
-     "Rails where() with string interpolation", "ruby", False),
-    (r'\.find_by_sql\s*\(\s*["\']\$\{',
-     "Rails find_by_sql injection", "ruby", False),
-    (r'\.find_by_sql\s*\(\s*["\'].*#\{',
-     "Rails find_by_sql with interpolation", "ruby", False),
-    (r'ActiveRecord::Base\.connection\.execute\s*\(\s*["\'].*#\{',
-     "ActiveRecord connection.execute with interpolation", "ruby", False),
-    (r'\.select_all\s*\(\s*["\'].*#\{',
-     "Rails select_all with interpolation", "ruby", False),
+    # Sequelize
+    (r'sequelize\.query\s*\(\s*.*\$\{', "Sequelize query() with template literal", "javascript", False),
+    (r'\.findAll\s*\(\s*\{.*where.*:\s*.*\$\{', "Sequelize findAll with dynamic where", "javascript", False),
+    (r'\.query\s*\(\s*.*replacements.*\$\{', "Sequelize replacements injection", "javascript", False),
 
-    # ═══ JavaScript / TypeScript ═════════════════════════════════════════
+    # Knex
+    (r'knex\.raw\s*\(\s*`.*\$\{', "Knex raw() with template literal", "javascript", False),
+    (r'knex\s*\(.*\)\.whereRaw\s*\(', "Knex whereRaw() injection", "javascript", False),
 
-    (r'\.query\s*\(\s*`\$\{',
-     "Node.js template literal SQL injection (query)", "javascript", False),
-    (r'\.execute\s*\(\s*`\$\{',
-     "Node.js template literal SQL injection (execute)", "javascript", False),
-    (r'(?:pool|connection|db)\.(?:query|execute)\s*\(\s*["\'].*["\']\s*\+\s*',
-     "Node.js string concat in SQL query", "javascript", False),
-    (r'(?:pool|connection|db)\.(?:query|execute)\s*\(\s*["\'].*\$\{',
-     "Node.js template literal in query string", "javascript", False),
+    # MongoDB (NoSQL injection)
+    (r'\$where\s*:\s*(?:f["\']|`\$\{)', "MongoDB $where with interpolation", "javascript", False),
+    (r'\$regex\s*:\s*(?:request\.|req\.|params\[)', "MongoDB $regex from user input", "javascript", False),
+    (r'\.find\s*\(\s*\{\s*\$where\s*:', "MongoDB find() with $where", "javascript", False),
+    (r'\.find\s*\(\s*\{\s*\$expr\s*:', "MongoDB find() with $expr injection", "javascript", False),
 
-    # --- Sequelize ---
-    (r'sequelize\.query\s*\(\s*`\$\{',
-     "Sequelize raw query with template literal", "javascript", False),
-    (r'sequelize\.query\s*\(\s*["\'].*["\']\s*\+\s*',
-     "Sequelize raw query with string concat", "javascript", False),
-    (r'\.findAll\s*\(\s*\{\s*where\s*:\s*`\$\{',
-     "Sequelize findAll with template literal in where", "javascript", False),
+    # ═══ PHP ═══════════════════════════════════════════════════════════
 
-    # --- Knex ---
-    (r'knex\.raw\s*\(\s*`\$\{',
-     "Knex raw() with template literal", "javascript", False),
-    (r'knex\.raw\s*\(\s*["\'].*["\']\s*\+\s*',
-     "Knex raw() with string concat", "javascript", False),
+    (r'mysql_query\s*\(\s*["\'].*["\']\s*\.', "PHP mysql_query with concat", "php", False),
+    (r'mysqli_query\s*\(\s*.*["\']\s*\.', "PHP mysqli_query with concat", "php", False),
+    (r'mysqli::query\s*\(\s*.*["\']\s*\.', "PHP mysqli::query with concat", "php", False),
+    (r'PDO::query\s*\(\s*["\'].*["\']\s*\.', "PHP PDO::query with concat", "php", False),
+    (r'->prepare\s*\(\s*["\'].*["\']\s*\.', "PHP prepare() with concat", "php", False),
+    (r'DB::select\s*\(\s*["\'].*["\']\s*\.', "Laravel DB::select with concat", "php", False),
+    (r'DB::raw\s*\(\s*["\'].*["\']\s*\.', "Laravel DB::raw with concat", "php", False),
+    (r'DB::statement\s*\(\s*["\'].*["\']\s*\.', "Laravel DB::statement with concat", "php", False),
+    (r'pg_query\s*\(\s*.*["\']\s*\.', "PHP pg_query with concat", "php", False),
 
-    # ═══ PHP ═════════════════════════════════════════════════════════════
+    # ═══ RUBY ══════════════════════════════════════════════════════════
 
-    (r'mysql_query\s*\(\s*["\']\$\w+',
-     "PHP mysql_query injection", "php", False),
-    (r'mysqli_query\s*\(\s*\$\w+\s*\.',
-     "PHP mysqli_query with concat", "php", False),
-    (r'mysqli_query\s*\(\s*\$\w+\s*,\s*["\'].*["\']\s*\.',
-     "PHP mysqli_query with string concat", "php", False),
-    (r'(?:PDO|pdo)->(?:query|exec)\s*\(\s*["\'].*["\']\s*\.',
-     "PHP PDO query() with string concat", "php", False),
-    (r'(?:PDO|pdo)->(?:query|exec)\s*\(\s*["\'].*\{\$',
-     "PHP PDO query() with variable interpolation", "php", False),
-    (r'pg_query\s*\(\s*\$\w+\s*,\s*["\'].*["\']\s*\.',
-     "PHP pg_query with concat", "php", False),
-
-    # --- Laravel Eloquent ---
-    (r'DB::(?:select|statement|raw)\s*\(\s*["\'].*["\']\s*\.',
-     "Laravel DB::raw() with concat", "php", False),
-    (r'DB::(?:select|statement)\s*\(\s*["\'].*\{\$',
-     "Laravel DB::select() with variable interpolation", "php", False),
-    (r'->whereRaw\s*\(\s*["\'].*\{\$',
-     "Laravel whereRaw() with variable interpolation", "php", False),
+    (r'\.(?:find_by_sql|find_by_sql)\s*\(\s*["\'].*#\{', "Rails find_by_sql with interpolation", "ruby", False),
+    (r'\.where\s*\(\s*["\'].*#\{', "Rails where() with string interpolation", "ruby", False),
+    (r'ActiveRecord::Base\.connection\.execute\s*\(\s*["\'].*#\{', "Rails execute() with interpolation", "ruby", False),
+    (r'\.(?:select_all|select_rows)\s*\(\s*["\'].*#\{', "Rails select_all with interpolation", "ruby", False),
+    (r'\.update_all\s*\(\s*["\'].*#\{', "Rails update_all with interpolation", "ruby", False),
+    (r'\.delete_all\s*\(\s*["\'].*#\{', "Rails delete_all with interpolation", "ruby", False),
 
     # ═══ JAVA ════════════════════════════════════════════════════════════
 
@@ -239,7 +199,6 @@ _PATTERNS: list[tuple[str, str, str, bool]] = [
      "Spring JDBC template with string concat", "java", False),
     (r'\.createQuery\s*\(\s*["\'].*["\']\s*\+\s*',
      "JPA/Hibernate createQuery with string concat", "java", False),
-    # OWASP Benchmark Java patterns (executeUpdate/executeQuery with SQL variable)
     (r'String\s+\w+\s*=\s*["\'](?:SELECT|INSERT|UPDATE|DELETE).*["\']\s*\+\s*\w+',
      "Java SQL built with string concat (INSERT/UPDATE/DELETE)", "java", False),
     (r'(?:Statement|PreparedStatement)\s*\.\s*execute(?:Query|Update)\s*\(\s*\w+\s*\)',
@@ -257,196 +216,81 @@ _PATTERNS: list[tuple[str, str, str, bool]] = [
     (r'new\s+SqlCommand\s*\(\s*["\'].*["\']\s*\+\s*',
      "C# SqlCommand with string concat", "csharp", False),
     (r'\.Execute(?:Reader|Scalar|NonQuery)\s*\(\s*\)',
-     "C# SqlCommand with string concat", "csharp", False),  # caught by the one above, kept for framework coverage
+     "C# SqlCommand with string concat", "csharp", False),
     (r'string\.Format\s*\(\s*["\'](?:SELECT|INSERT|UPDATE|DELETE)',
      "C# string.Format building SQL query", "csharp", False),
-    (r'\$@"(?:SELECT|INSERT|UPDATE|DELETE).*\{',
-     "C# interpolated string in SQL query", "csharp", False),
 
-    # ═══ NoSQL Injection ═════════════════════════════════════════════════
+    # ═══ RUST ═══════════════════════════════════════════════════════════
 
-    # MongoDB
+    (r'sqlx::query\s*\(\s*["\'].*["\']\s*\+\s*',
+     "Rust sqlx::query with string concat", "rust", False),
+    (r'sqlx::query_as\s*\(\s*["\'].*["\']\s*\+\s*',
+     "Rust sqlx::query_as with string concat", "rust", False),
+
+    # ═══ NoSQL Injection ═══════════════════════════════════════════════
+
     (r'\$where\s*:\s*(?:f["\']|`\$\{)',
      "MongoDB $where with string interpolation — NoSQL injection", "javascript", False),
     (r'\$regex\s*:\s*(?:request\.|req\.|params\[)',
      "MongoDB $regex from user input — ReDoS / NoSQL injection", "javascript", False),
     (r'\.find\s*\(\s*\{\s*\$where\s*:',
-     "MongoDB find() with $where — arbitrary JS execution", "javascript", False),
-    (r'(?:collection|db)\.(?:find|aggregate)\s*\(\s*\{[^}]*\$\{',
-     "MongoDB query with template literal — NoSQL injection", "javascript", False),
-
-    # DynamoDB
-    (r'FilterExpression\s*=\s*f["\']',
-     "DynamoDB FilterExpression with f-string — NoSQL injection", "python", False),
-    (r'KeyConditionExpression\s*=\s*f["\']',
-     "DynamoDB KeyConditionExpression with f-string", "python", False),
-
-    # Redis
-    (r'(?:redis|r)\.(?:execute_command|eval)\s*\(\s*f["\']',
-     "Redis execute_command/eval with f-string — command injection", "python", False),
-
-    # ═══ ORM / Query Builder Anti-patterns ═══════════════════════════════
-
-    # Generic — execute() with template literal
-    (r'\.execute\s*\(\s*["\'].*\$\{.*\}.*["\']',
-     "Template literal in SQL execute", "generic", False),
-
-    # Pandas read_sql with f-string
-    (r'pd\.read_sql(?:query)?\s*\(\s*f["\']',
-     "Pandas read_sql with f-string", "python", False),
-    (r'pd\.read_sql(?:query)?\s*\(\s*["\'].*\{',
-     "Pandas read_sql with .format()", "python", False),
-
-    # Rust sqlx::query with format!
-    (r'sqlx::query\s*\(\s*format!',
-     "Rust sqlx::query with format!()", "rust", False),
-    (r'sqlx::query_as\s*\(\s*format!',
-     "Rust sqlx::query_as with format!()", "rust", False),
+     "MongoDB find() with $where — NoSQL injection", "javascript", False),
+    (r'\.find_one_and_update\s*\(\s*\{\s*\$set\s*:',
+     "MongoDB find_one_and_update with $set injection", "javascript", False),
 ]
 
-# ── Per-language file extensions ──────────────────────────────────────────
 
-_LANG_EXTS: dict[str, tuple[str, ...] | None] = {
-    "python": (".py", ".pyi", ".pyx"),
-    "ruby": (".rb", ".erb"),
-    "javascript": (".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".vue", ".svelte"),
-    "php": (".php", ".phtml", ".php3", ".php4", ".php5", ".inc"),
-    "java": (".java", ".jsp", ".jspx"),
-    "go": (".go",),
-    "csharp": (".cs", ".razor", ".cshtml"),
-    "rust": (".rs",),
-    "generic": None,  # all extensions
-}
+# ── Build _PATTERNS with pattern_ids (deterministic) ───────────────────────
+
+_PATTERNS: list[tuple[str, str, str, str, bool]] = _assign_ids(_RAW_PATTERNS)
+# Format: (pattern_id, regex, title, language, extra_context_required)
 
 
-def _has_user_input_nearby(content: str, match_end: int, window: int = 500) -> bool:
-    """Check if user-input source exists within `window` chars after the match."""
-    after = content[match_end:match_end + window]
-    return bool(_USER_INPUT_SOURCES.search(after))
-
-
-def _count_sql_keywords(line: str) -> int:
-    """Count SQL keywords in a line — for filtering noise."""
-    return len(_SQL_KEYWORDS.findall(line))
-
-
-def _detect_line(
-    line: str,
-    filename: str,
-    filepath: Path,
-) -> list[Finding]:
-    """Detect SQLi patterns in a single line. Returns list of Findings."""
-    findings: list[Finding] = []
-
-    for pattern, title, lang, needs_context in _PATTERNS:
-        exts = _LANG_EXTS.get(lang)
-        if exts is not None and filepath.suffix not in exts:
-            continue
-
-        for m in re.finditer(pattern, line, re.IGNORECASE):
-            matched_text = m.group(0)
-
-            # ── Skip safe patterns ──────────────────────────────
-            if "gsc:ignore" in line or "nosec" in line:
-                continue
-            if "PRAGMA" in line.upper():
-                continue
-            if "reply_text" in line:
-                continue
-
-            # Skip text() without SQL keywords (likely not SQLAlchemy)
-            if "text(" in matched_text and "text(" in line and not _SQL_KEYWORDS.search(line):
-                continue
-
-            # Skip purely literal strings in list/dict without any user input signs
-            if not needs_context and _count_sql_keywords(line) == 0:
-                # No SQL keywords AND no user input markers → likely not SQL
-                if not re.search(r'[%{}]|\$\{|\+.*SELECT|f["\']', line):
-                    continue
-
-            # Skip f-string SQL with parameterized ? or %s placeholders
-            # Example: f"WHERE id IN ({','.join('?' * N)})" — safe, ? filled by driver
-            if re.search(r'(?:\?|%s)', line) and re.search(r'\.join\s*\(', line):
-                continue
-
-            # Skip parameterized queries (placeholder detected)
-            if re.search(r'%s\s*,\s*\(|%s\s*,\s*\[|\?\s*,\s*\[', line):
-                continue
-
-            # ── Build finding ──────────────────────────────────
-
-            fix = (
-                "Use parameterized queries / prepared statements. "
-                "Python: cursor.execute('SELECT ...', (param,)). "
-                "JavaScript: pool.query('SELECT ...', [param]). "
-                "Java: PreparedStatement. "
-                "Go: db.Query('SELECT ...', param). "
-                "PHP: PDO::prepare() + bindParam()."
-            )
-
-            severity = "CRITICAL"
-            if "NoSQL" in title or "read_sql" in title:
-                severity = "HIGH"
-            if "format!" in matched_text:
-                severity = "HIGH"
-
-            findings.append(Finding(
-                rule_id=RULE_ID,
-                severity=severity,
-                title=title,
-                file_path=str(filepath),
-                line_number=0,  # filled after by caller
-                detail=f"{matched_text[:140]}",
-                fix_suggestion=fix,
-                references=[
-                    "https://owasp.org/www-project-top-ten/2021/A03_2021-Injection/",
-                    "https://cheatsheetseries.owasp.org/cheatsheets/SQL_Injection_Prevention_Cheat_Sheet.html",
-                    "https://portswigger.net/web-security/sql-injection",
-                ],
-            ))
-
-    return findings
-
-
-# ── Sanitizer detection for f-string SQL downgrade ────────────────────────
+# ── Sanitizer detection ────────────────────────────────────────────────────
 
 _SANITIZER_PATTERNS = re.compile(
     r'\b(?:ident|scrub|escape_identifier|quote_ident|_sqlite_ident|sanitize)'
-    r'|\.replace\(["\']\\[\'"]["\'],\s*["\']\\1["\']\)'
+    r'|\.replace\([\"\']\\[\'\"][\"\'],\s*[\"\']\\1[\"\']\)'
     r'|_safe_\w+',
     re.IGNORECASE,
 )
-
-
-def _has_sanitizer(context: str) -> bool:
-    """Check if surrounding context contains identifier sanitizer calls."""
-    return bool(_SANITIZER_PATTERNS.search(context))
-
-
-# ── Taint source detection for SQL injection ──────────────────────────────
 
 _TAINT_SOURCE_PATTERNS = re.compile(
     r'(?:request\.(?:args|form|values|json|data|GET|POST|COOKIE)|'
     r'input\s*\(|sys\.argv|os\.environ\[|'
     r'\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|'
-    r'\.(?:get_json|form_data)\s*\()',
+    r'\.(?:get_json|form_data|params)\s*\()',
     re.IGNORECASE,
 )
 
 
+def _has_sanitizer(context: str) -> bool:
+    return bool(_SANITIZER_PATTERNS.search(context))
+
+
 def _has_taint_source(context: str) -> bool:
-    """Check if SQL query variables come from user input."""
     return bool(_TAINT_SOURCE_PATTERNS.search(context))
 
 
+def _get_disabled(ctx: AuditContext) -> set[str]:
+    """Get disabled pattern IDs from AuditContext (cached per scan)."""
+    try:
+        return ctx.get_disabled_patterns(RULE_ID)
+    except (AttributeError, Exception):
+        return set()
+
+
+# ── Core detection ─────────────────────────────────────────────────────────
+
 def detect(ctx: AuditContext) -> list[Finding]:
-    """Detect SQL/NoSQL injection patterns in source code.
-    
-    Per-language tuning: set GS005_DISABLED_LANGS=php,ruby to skip noisy languages.
+    """Detect SQL/NoSQL injection patterns with per-pattern tracking.
+
+    v2.0: pattern_ids in metadata, location-based dedup, disabled patterns.
     """
     if RULE_ID in ctx.skipped_detectors:
         return []
 
+    disabled = _get_disabled(ctx)
     findings: list[Finding] = []
 
     for fp in ctx.get_source_files():
@@ -456,27 +300,81 @@ def detect(ctx: AuditContext) -> list[Finding]:
             continue
 
         lines = content.split("\n")
-        for lineno, line in enumerate(lines, 1):
-            if not line.strip() or line.strip().startswith("#"):
+
+        # Group matches by (line, snippet) → one finding per location
+        locations: dict[tuple[int, str], dict] = {}
+
+        for pid, regex, title, lang, needs_context in _PATTERNS:
+            if pid in disabled:
                 continue
 
-            line_findings = _detect_line(line, fp.name, fp)
-            for f in line_findings:
-                f["line_number"] = lineno
-                f["line"] = lineno
-                f["detail"] = f"Line {lineno}: {line.strip()[:140]}"
-                # Downgrade f-string SQL if sanitizer present in context
-                if f.get("severity") == "CRITICAL" and "f-string" in f.get("title", ""):
-                    context = "\n".join(lines[max(0, lineno-3):lineno])
-                    has_san = _has_sanitizer(context)
-                    has_taint = _has_taint_source(context)
-                    if has_san:
-                        f["severity"] = "LOW"
-                        f["title"] = f["title"] + " [sanitized — verify manually]"
-                    elif not has_taint:
-                        # No taint source — hardcoded values, low exploitability
-                        f["severity"] = "MEDIUM"
-                        f["title"] = f["title"] + " [no user input — verify]"
-                findings.append(f)
+            exts = _LANG_EXTS.get(lang)
+            if exts is not None and fp.suffix not in exts:
+                continue
+
+            for m in re.finditer(regex, content, re.IGNORECASE):
+                matched = m.group(0)
+                line_no = content[:m.start()].count("\n") + 1
+                snippet = matched[:200]
+                line = lines[line_no - 1] if line_no <= len(lines) else ""
+
+                # Safety filters (preserved from v1)
+                if "gsc:ignore" in line or "nosec" in line:
+                    continue
+                if "PRAGMA" in line.upper():
+                    continue
+                if "reply_text" in line:
+                    continue
+                if "text(" in matched and "text(" in line and not _SQL_KEYWORDS.search(line):
+                    continue
+                if not needs_context and len(_SQL_KEYWORDS.findall(line)) == 0:
+                    if not re.search(r'[%{}]|\$\{|\\+.*SELECT|f["\']', line):
+                        continue
+                if re.search(r'(\?|%s)', line) and re.search(r'\.join\s*\(', line):
+                    continue
+                if re.search(r'%s\s*,\s*\(|%s\s*,\s*\[|\?\s*,\s*\[', line):
+                    continue
+
+                key = (line_no, snippet)
+                if key not in locations:
+                    locations[key] = {"title": title, "pattern_ids": [],
+                                      "lang": lang, "line": line}
+                locations[key]["pattern_ids"].append(pid)
+
+        # Build findings from grouped locations
+        for (line_no, snippet), data in locations.items():
+            severity = "CRITICAL"
+            if "NoSQL" in data["title"] or "read_sql" in data["title"]:
+                severity = "HIGH"
+            if "format!" in data["title"]:
+                severity = "HIGH"
+
+            f = make_finding(
+                rule_id=RULE_ID,
+                title=data["title"],
+                severity=severity,
+                confidence=0.85,
+                file=str(fp),
+                line=line_no,
+                snippet=snippet,
+                metadata={
+                    "pattern_ids": data["pattern_ids"],
+                    "language": data["lang"],
+                },
+            )
+            if f is None:
+                continue
+
+            # Downgrade f-string SQL if sanitizer or no taint source
+            if f["severity"] == "CRITICAL" and "f-string" in f["title"]:
+                context = "\n".join(lines[max(0, line_no - 3):line_no])
+                if _has_sanitizer(context):
+                    f["severity"] = "LOW"
+                    f["title"] = f["title"] + " [sanitized — verify manually]"
+                elif not _has_taint_source(context):
+                    f["severity"] = "MEDIUM"
+                    f["title"] = f["title"] + " [no user input — verify]"
+
+            findings.append(f)
 
     return findings
