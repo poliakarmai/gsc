@@ -8,10 +8,10 @@ import os, sys, json, sqlite3
 from datetime import datetime
 
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
-BATCH_SIZE = 200
+BATCH_SIZE = 500
 
 
-def fetch_findings(limit=BATCH_SIZE):
+def fetch_findings(limit=BATCH_SIZE, with_context=False):
     """Output findings as JSON for agent to classify — prioritized by uncertainty."""
     db = sqlite3.connect(DB)
     db.row_factory = sqlite3.Row
@@ -32,21 +32,89 @@ def fetch_findings(limit=BATCH_SIZE):
         LIMIT ?
     """, (limit,)).fetchall()
     
+    # Preload bounty context if requested
+    bounty_map = {}
+    if with_context:
+        bounty_map = _load_bounty_map(db)
+    
     db.close()
     
     findings = []
     for r in rows:
-        findings.append({
+        fdata = {
             "id": r["id"],
             "category": r["category"],
             "title": r["title"] or "",
             "project": r["project"] or "",
             "file_path": f"{r['file_path']}:{r['line_number']}" if r['file_path'] and r['line_number'] else (r["file_path"] or "?"),
             "detail": (r["detail"] or "")[:200],
-        })
+        }
+        # Attach bounty context if available
+        if with_context:
+            lang = _guess_lang(r["file_path"] or "")
+            detail_text = (r["detail"] or "").lower()
+            fdata["bounty_context"] = _find_relevant_examples(bounty_map, lang, detail_text)
+        findings.append(fdata)
     
     print(json.dumps({"count": len(findings), "findings": findings}, ensure_ascii=False, indent=2))
     return len(findings)
+
+
+def _load_bounty_map(db):
+    """Load all bounty examples grouped by language."""
+    try:
+        examples = db.execute(
+            "SELECT language, cwe_id, summary, severity, vulnerable_code, fixed_code FROM bounty_examples"
+        ).fetchall()
+    except sqlite3.OperationalError:
+        return {}
+    
+    bmap = {}
+    for ex in examples:
+        lang = ex["language"] or "other"
+        bmap.setdefault(lang, []).append({
+            "cwe_id": ex["cwe_id"], "summary": ex["summary"][:120],
+            "severity": ex["severity"],
+            "vulnerable_code": (ex["vulnerable_code"] or "")[:400],
+            "fixed_code": (ex["fixed_code"] or "")[:400],
+        })
+    return bmap
+
+
+def _guess_lang(file_path: str) -> str:
+    ext = os.path.splitext(file_path or "")[1].lower()
+    return {
+        '.py': 'python', '.js': 'javascript', '.ts': 'javascript',
+        '.tsx': 'javascript', '.jsx': 'javascript', '.go': 'go',
+        '.rs': 'rust', '.rb': 'ruby', '.php': 'php',
+        '.java': 'java', '.cs': 'csharp', '.swift': 'swift',
+    }.get(ext, 'other')
+
+
+def _find_relevant_examples(bounty_map: dict, lang: str, detail: str) -> list:
+    """Find 2 most relevant bounty examples for a finding."""
+    candidates = bounty_map.get(lang, []) + bounty_map.get("other", [])
+    if not candidates:
+        return []
+    
+    # Score: CWE match in detail > severity match > random
+    scored = []
+    for ex in candidates:
+        score = 0
+        if ex["cwe_id"] and ex["cwe_id"].lower() in detail:
+            score += 10
+        if ex["severity"] in ("CRITICAL", "HIGH"):
+            score += 2
+        if any(kw in detail for kw in ex["summary"].lower().split()[:5]):
+            score += 3
+        scored.append((score, ex))
+    
+    scored.sort(key=lambda x: -x[0])
+    return [{"cwe_id": e["cwe_id"], "summary": e["summary"],
+             "severity": e["severity"],
+             "vulnerable_code": e["vulnerable_code"][:300],
+             "fixed_code": e["fixed_code"][:300]}
+            for _, e in scored[:2]]
 
 
 def update_db(results_json):
@@ -110,11 +178,17 @@ def update_db(results_json):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: batch_revalidate.py --fetch | --update '<json>'")
+        print("Usage: batch_revalidate.py --fetch [N] [--context] | --update '<json>'")
         sys.exit(1)
     
     if sys.argv[1] == "--fetch":
-        fetch_findings(int(sys.argv[2]) if len(sys.argv) > 2 else BATCH_SIZE)
+        with_context = "--context" in sys.argv
+        # Extract limit: --fetch N or --fetch --context N
+        limit = BATCH_SIZE
+        for i, a in enumerate(sys.argv):
+            if a == "--fetch" and i+1 < len(sys.argv) and sys.argv[i+1].isdigit():
+                limit = int(sys.argv[i+1])
+        fetch_findings(limit, with_context=with_context)
     elif sys.argv[1] == "--update":
         update_db(sys.argv[2] if len(sys.argv) > 2 else sys.stdin.read())
     else:
