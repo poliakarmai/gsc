@@ -778,34 +778,37 @@ def export_obsidian(db: sqlite3.Connection):
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 def main():
-    if len(sys.argv) < 2:
-        print(__doc__)
-        sys.exit(1)
+    import argparse
+    p = argparse.ArgumentParser(description="GSC Bounty Collector v2")
+    p.add_argument("mode", nargs="?", default="dashboard",
+                   choices=["ghsa", "negatives", "dashboard", "vrt", "all"])
+    p.add_argument("--days", type=int, default=7, help="Days of GHSA to collect (default: 7)")
+    p.add_argument("--limit", type=int, default=30, help="Max GHSA advisories (default: 30)")
+    args = p.parse_args()
 
-    mode = sys.argv[1]
     db = sqlite3.connect(str(DB_PATH))
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA busy_timeout=5000")
     ensure_bounty_schema(db)
 
     try:
-        if mode in ("ghsa", "all"):
+        if args.mode in ("ghsa", "all"):
             g = GhsaCollector(db)
-            g.collect(days=7, limit=30)
+            g.collect(days=args.days, limit=args.limit)
             export_obsidian(db)
 
-        if mode in ("negatives", "all"):
+        if args.mode in ("negatives", "all"):
             n = NegativeCollector(db)
             n.collect()
 
-        if mode == "dashboard":
+        if args.mode in ("dashboard", "all", "ghsa"):
             show_dashboard(db)
 
-        if mode in ("vrt", "all"):
+        if args.mode in ("vrt", "all"):
             v = VrtCollector(db)
             v.collect()
 
-        if mode != "dashboard":
+        if args.mode != "dashboard":
             show_dashboard(db)
     finally:
         db.close()
