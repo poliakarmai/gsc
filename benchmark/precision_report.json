@@ -1,71 +1,101 @@
 {
-  "scanned_at": "2026-08-11T10:24:37.506415+00:00",
+  "scanned_at": "2026-08-11T10:29:26.200012+00:00",
   "projects": [
     {
       "project": "flask-smorest",
       "stars": 600,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.3
+      "total": 4,
+      "critical": 0,
+      "high": 3,
+      "elapsed": 7.9,
+      "findings_file": "benchmark/real_world/flask-smorest_scan.json"
     },
     {
       "project": "fastapi-users",
       "stars": 4500,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 50,
+      "critical": 14,
+      "high": 5,
+      "elapsed": 10.1,
+      "findings_file": "benchmark/real_world/fastapi-users_scan.json"
     },
     {
       "project": "piccolo-api",
       "stars": 160,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 106,
+      "critical": 19,
+      "high": 24,
+      "elapsed": 15.7,
+      "findings_file": "benchmark/real_world/piccolo-api_scan.json"
     },
     {
       "project": "sanic",
       "stars": 18000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 243,
+      "critical": 11,
+      "high": 50,
+      "elapsed": 38.4,
+      "findings_file": "benchmark/real_world/sanic_scan.json"
     },
     {
       "project": "httpie",
       "stars": 34000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 131,
+      "critical": 1,
+      "high": 10,
+      "elapsed": 13.9,
+      "findings_file": "benchmark/real_world/httpie_scan.json"
     },
     {
       "project": "thefuck",
       "stars": 85000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 123,
+      "critical": 0,
+      "high": 101,
+      "elapsed": 12.5,
+      "findings_file": "benchmark/real_world/thefuck_scan.json"
     },
     {
       "project": "youtube-dl",
       "stars": 132000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 1884,
+      "critical": 73,
+      "high": 25,
+      "elapsed": 99.2,
+      "findings_file": "benchmark/real_world/youtube-dl_scan.json"
     },
     {
       "project": "pendulum",
       "stars": 6200,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 12,
+      "critical": 2,
+      "high": 2,
+      "elapsed": 14.7,
+      "findings_file": "benchmark/real_world/pendulum_scan.json"
     },
     {
       "project": "loguru",
       "stars": 20000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.3
+      "total": 19,
+      "critical": 2,
+      "high": 10,
+      "elapsed": 10.4,
+      "findings_file": "benchmark/real_world/loguru_scan.json"
     },
     {
       "project": "rich",
       "stars": 50000,
-      "error": "usage: gsc.py [-h]\n              {scan,init,dashboard,patterns,db,state,verify-fix,triage,explain,fix,doctor,config,metrics,encrypt-db,issue,revalidate,status,workspace,pof,policy,secrets,archaeology,",
-      "elapsed": 0.2
+      "total": 123,
+      "critical": 7,
+      "high": 14,
+      "elapsed": 45.0,
+      "findings_file": "benchmark/real_world/rich_scan.json"
     }
   ],
   "summary": {
     "total_projects": 10,
-    "total_findings": 0,
-    "total_critical": 0,
-    "total_high": 0
+    "total_findings": 2695,
+    "total_critical": 129,
+    "total_high": 244
   }
 }

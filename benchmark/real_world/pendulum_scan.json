@@ -1,0 +1,148 @@
+[
+  {
+    "finding_key": "1f624e656016",
+    "rule_id": "GS018",
+    "category": "MEDIUM",
+    "echelon": 1,
+    "title": "Python: assert in production",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/interval.py",
+    "line_number": 372,
+    "detail": "assert should not be used in production code \u2014 use proper validation",
+    "pattern_title": "Python: assert in production"
+  },
+  {
+    "finding_key": "541d64a6b271",
+    "rule_id": "GS029",
+    "category": "MEDIUM",
+    "echelon": 1,
+    "title": "CVE-2026-37270: Hardcoded credential",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/formatter.py",
+    "line_number": 351,
+    "detail": null,
+    "pattern_title": "CVE-2026-37270: Hardcoded credential"
+  },
+  {
+    "finding_key": "751d0e3d31dd",
+    "rule_id": "GS029",
+    "category": "MEDIUM",
+    "echelon": 1,
+    "title": "CVE-2026-37270: Hardcoded credential",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/difference_formatter.py",
+    "line_number": 102,
+    "detail": null,
+    "pattern_title": "CVE-2026-37270: Hardcoded credential"
+  },
+  {
+    "finding_key": "e3a857e4d087",
+    "rule_id": "GS029",
+    "category": "MEDIUM",
+    "echelon": 1,
+    "title": "CVE-2026-37270: Hardcoded credential",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/difference_formatter.py",
+    "line_number": 139,
+    "detail": null,
+    "pattern_title": "CVE-2026-37270: Hardcoded credential"
+  },
+  {
+    "finding_key": "751d0e3d31dd",
+    "rule_id": "GS029",
+    "category": "MEDIUM",
+    "echelon": 1,
+    "title": "CVE-2026-37270: Hardcoded credential",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/difference_formatter.py",
+    "line_number": 153,
+    "detail": null,
+    "pattern_title": "CVE-2026-37270: Hardcoded credential"
+  },
+  {
+    "rule_id": "GS003",
+    "severity": "LOW",
+    "category": "LOW",
+    "title": "Rust println! \u2014 debug leftover",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/rust/src/python/types/interval.rs",
+    "line": 27,
+    "line_number": 27,
+    "detail": "Line 27: println!(\"{} days\", 31);",
+    "fix_suggestion": "Replace with proper logging (logging.debug / logger.debug / slog). Or add `# gsc:ignore` if intentional.",
+    "references": [
+      "https://docs.python.org/3/howto/logging.html"
+    ],
+    "noise_tier": "normal",
+    "echelon": 1,
+    "pattern_title": "GS003 (Debug / diagnostic statements left in production code)"
+  },
+  {
+    "rule_id": "GS003",
+    "severity": "LOW",
+    "category": "LOW",
+    "title": "Rust println! \u2014 debug leftover",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/rust/src/python/types/interval.rs",
+    "line": 42,
+    "line_number": 42,
+    "detail": "Line 42: println!(\"{} days\", 31);",
+    "fix_suggestion": "Replace with proper logging (logging.debug / logger.debug / slog). Or add `# gsc:ignore` if intentional.",
+    "references": [
+      "https://docs.python.org/3/howto/logging.html"
+    ],
+    "noise_tier": "normal",
+    "echelon": 1,
+    "pattern_title": "GS003 (Debug / diagnostic statements left in production code)"
+  },
+  {
+    "finding_key": "541d64a6b271",
+    "rule_id": "GS029",
+    "category": "CRITICAL",
+    "echelon": 2,
+    "title": "Hardcoded encryption key",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/formatter.py",
+    "line_number": 351,
+    "detail": "Match:             key = \"translations.day_periods\"",
+    "pattern_title": "Hardcoded encryption key"
+  },
+  {
+    "finding_key": "e3a857e4d087",
+    "rule_id": "GS029",
+    "category": "CRITICAL",
+    "echelon": 2,
+    "title": "Hardcoded encryption key",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/src/pendulum/formatting/difference_formatter.py",
+    "line_number": 139,
+    "detail": "Match:                 key = \"custom.units_relative\"",
+    "pattern_title": "Hardcoded encryption key"
+  },
+  {
+    "rule_id": "GS009",
+    "severity": "supply-chain",
+    "category": "supply-chain",
+    "title": "",
+    "file_path": "",
+    "line": 0,
+    "line_number": 0,
+    "detail": "",
+    "fix_suggestion": "Check Bumblebee binary and Go installation.",
+    "references": [],
+    "noise_tier": "normal",
+    "echelon": 2,
+    "file": "N/A",
+    "message": "Bumblebee error: 'AuditContext' object has no attribute 'project_root'",
+    "pattern_title": "GS009 (Supply chain scanner: detects packages, editor extensions, M)"
+  },
+  {
+    "category": "HIGH",
+    "echelon": 3,
+    "title": "Rust: .clone() in hot path",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/rust/src/python/types/timezone.rs",
+    "line_number": 50,
+    "detail": "Clone in performance-critical code \u2014 consider references",
+    "pattern_title": "Rust: .clone() in hot path"
+  },
+  {
+    "category": "HIGH",
+    "echelon": 3,
+    "title": "Rust: .clone() in hot path",
+    "file_path": "/home/openclaw/gsc/benchmark/real_world/pendulum/rust/src/python/types/timezone.rs",
+    "line_number": 60,
+    "detail": "Clone in performance-critical code \u2014 consider references",
+    "pattern_title": "Rust: .clone() in hot path"
+  }
+]

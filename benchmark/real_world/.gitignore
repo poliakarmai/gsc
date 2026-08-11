@@ -1,2 +1,3 @@
 # Cloned benchmark projects — ignore
 benchmark/real_world/*/
+benchmark/real_world/*_scan.json
