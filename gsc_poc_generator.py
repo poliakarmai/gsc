@@ -204,4 +204,20 @@ def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 
             f["metadata"]["poc_format"] = poc.fmt
         elif poc is None and f.get("confidence", 0) < 0.85:
             f["confidence"] = round(f["confidence"] * POC_FAIL_PENALTY, 2)
+
+    # Rejudge PoC validation (multi-model consensus on exploit paths)
+    try:
+        from gsc_rejudge import validate_poc as rejudge_poc
+        for f in findings:
+            poc_code = f.get("metadata", {}).get("poc", "")
+            if not poc_code or len(poc_code) < 20:
+                continue
+            rej = rejudge_poc(poc_code)
+            f["metadata"]["rejudge_poc_verdict"] = rej.get("verdict", "?")
+            f["metadata"]["rejudge_poc_confidence"] = rej.get("confidence", 0)
+            # Downgrade if Rejudge says FALSE_POSITIVE
+            if "FALSE_POSITIVE" in rej.get("verdict", ""):
+                f["confidence"] = max(0.3, f.get("confidence", 0.7) - 0.3)
+    except Exception:
+        pass  # Rejudge unavailable — proceed without
     return findings

@@ -1119,6 +1119,34 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     result.llm_calls = llm_calls
     print(f"   LLM revalidated: {llm_calls}")
 
+    # Step 4.5: Rejudge multi-model consensus on top CRITICAL (if available)
+    rejudge_count = 0
+    if policy.get("rejudge_enabled", True):
+        try:
+            from gsc_rejudge import revalidate_findings as rejudge_findings
+            critical_enriched = [f for f in enriched if f.get("category") == "CRITICAL"][:5]
+            if critical_enriched:
+                # Build temp scan.json for Rejudge
+                import tempfile
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
+                    json.dump({"findings": critical_enriched}, tmp)
+                    tmp_path = tmp.name
+                rej_result = rejudge_findings(tmp_path)
+                os.unlink(tmp_path)
+                rejudge_count = rej_result.get("revalidated", 0)
+                # Boost confidence for findings Rejudge confirmed
+                if rej_result.get("status") == "ok" and rej_result.get("verdict"):
+                    for f in enriched:
+                        if f.get("category") == "CRITICAL":
+                            f["rejudge_verdict"] = rej_result["verdict"][:200]
+                            # Boost confidence if Rejudge confirmed TP
+                            if "TP" in rej_result["verdict"] or "true positive" in rej_result["verdict"].lower():
+                                f["confidence"] = min(1.0, f.get("confidence", 0.7) + 0.1)
+        except Exception:
+            pass  # Rejudge unavailable — continue without
+    if rejudge_count:
+        print(f"   Rejudge consensus: {rejudge_count} findings")
+
     # Step 5: V3 Scoring + finding_key
     for f in enriched:
         conf = compute_confidence_v3(f)
