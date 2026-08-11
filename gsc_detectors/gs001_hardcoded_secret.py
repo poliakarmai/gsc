@@ -134,7 +134,7 @@ def _is_valid_iban(candidate: str) -> bool:
 
 _EXCLUDE_PATHS_GS001 = re.compile(
     r'(?:/|^)(?:tests?|fixtures?|examples?|samples?|tutorials?|devscripts?|'
-    r'docs?|demo|mock|e2e)(?:/|$)', re.IGNORECASE)
+    r'docs?|demo|mock|e2e|extractors?|spiders?|crawlers?)(?:/|$)', re.IGNORECASE)
 
 _EXCLUDE_FILES_GS001 = re.compile(
     r'(?:^test_|_test\.|conftest\.|setup\.cfg|\.ini$)', re.IGNORECASE)
