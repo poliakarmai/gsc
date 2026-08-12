@@ -25,6 +25,7 @@
 |---|------|---------|---------|--------|
 | 21 | liquidguru/docker-updater | CWE-384 Session Fixation | 2026-08-11 | Maintainer: Flask client-side sessions |
 | 1261 | pallets-eco/flask-security | assert in production | 2026-08-08 | Not a bug (mypy type-checking) |
+| 1182 | the-broke-sommeliers/wine-cellar | SECRET_KEY + DEBUG=True in dev settings | 2026-08-12 | Intentional: dev-only file, prod configs exist separately |
 
 ## Other PRs (non-GSC)
 
