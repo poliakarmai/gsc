@@ -263,7 +263,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # 5. Hardcoded session secrets
         for match in SESSION_SECRET_HARDCODED.finditer(content):
-            secret_value = match.group(2) if match.lastindex and match.lastindex >= 2 else ""
+            secret_value = match.group(1)
             if any(skip in secret_value.lower() for skip in
                    ('***', 'your-', 'changeme', 'placeholder', 'example', 'os.environ')):
                 continue
