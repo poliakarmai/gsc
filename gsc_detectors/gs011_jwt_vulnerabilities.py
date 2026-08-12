@@ -30,6 +30,8 @@ JWT_SECRET_PATTERNS = [
      "Hardcoded JWT secret/key", "CRITICAL"),
     (re.compile(r'(?:secret|SECRET)_?(?:key|KEY)\s*[:=]\s*[\'"]([^\'"]{1,64})[\'"]', re.I),
      "Potential JWT signing secret (short)", "HIGH"),
+    (re.compile(r'(?:config|CONFIG)\s*\[[\'"]?(?:JWT_|JWT)?(?:SECRET|secret)[_\s]?(?:KEY|key)?[\'"]?\s*\]\s*=\s*[\'"]([^\'"]{4,})[\'"]', re.I),
+     "Hardcoded JWT secret via config dict-assignment (e.g. app.config['JWT_SECRET_KEY'])", "CRITICAL"),
 ]
 
 JWT_ALG_PATTERNS = [
@@ -87,7 +89,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
                            f"JWT secrets must be stored in environment variables or vaults.",
                     fix_suggestion="Move secret to environment variable or secrets manager. "
                                    "Rotate exposed secret immediately.",
-                    references=["Hacking APIs Ch.8 Attacking Authentication"]
+                    references=["Hacking APIs Ch.8 Attacking Authentication"],
+                    secret_value=secret_value,
                 ))
 
         # 2. Check for JWT algorithm vulnerabilities

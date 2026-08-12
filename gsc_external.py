@@ -162,10 +162,12 @@ SENSITIVE_FILES = {".env", ".envrc", ".secrets", "credentials.json", "secrets.ym
                     "id_rsa", "*.pem", "*.key", "*.p12", "*.pfx"}
 
 PLACEHOLDER_PATTERNS = [
-    r"changeme", r"example", r"placeholder", r"your[-_]?key", r"your[-_]?token",
-    r"dummy", r"fake", r"test[-_]?(key|token|secret|password)",
-    r"xxx+", r"<[A-Z_]+>", r"\$\{[A-Z_]+\}", r"\{\{[A-Z_]+\}\}",
-    r"__TODO__", r"FIXME", r"REPLACE_ME",
+    r"^changeme$", r"^example$", r"^placeholder$",
+    r"^your[-_]?key$", r"^your[-_]?token$",
+    r"^dummy$", r"^fake$",
+    r"^test[-_]?(key|token|secret|password)$",
+    r"^x+$", r"^<[A-Z_]+>$", r"^\$\{[A-Z_]+\}$", r"^\{\{[A-Z_]+\}\}$",
+    r"^__TODO__$", r"^FIXME$", r"^REPLACE_ME$",
 ]
 
 REDACTION_PATTERNS = [
@@ -208,11 +210,16 @@ FP_SIGNALS = [
 
 
 def detect_signals(finding: dict) -> tuple[list[str], list[str]]:
-    """Detect TP and FP signals from finding context + LLM reasoning."""
+    """Detect TP and FP signals from structured finding fields (NOT free-form LLM reasoning).
+
+    LLM `revalidation_reasoning` is intentionally excluded: it's free-form text that
+    routinely contains words like "placeholder", "documentation", "localhost", "correctly"
+    even when the verdict is true-positive — naive substring matching on it produces
+    false FP-signals and tanks confidence (see GSC calibration flask-jwt-auth regression).
+    """
     tp = []
     fp = []
     text = (
-        (finding.get("revalidation_reasoning") or "") + " " +
         (finding.get("title") or "") + " " +
         (finding.get("detail") or "")
     ).lower()
@@ -235,10 +242,25 @@ def detect_signals(finding: dict) -> tuple[list[str], list[str]]:
         if not any(kw in title for kw in ["secret", "token", "password", "key", "credential"]):
             fp.append("config_without_secret")
 
-    # Placeholder check
-    evidence = (finding.get("detail") or "") + (finding.get("title") or "")
-    if any(re.search(p, evidence, re.IGNORECASE) for p in PLACEHOLDER_PATTERNS):
-        fp.append("placeholder_value")
+    # Placeholder check — проверяем именно значение секрета (если извлечено), а не весь текст.
+    # Детекторы GS011/GS019 и подобные сохраняют извлечённое значение в finding["secret_value"].
+    secret_value = (finding.get("secret_value") or "").strip()
+    if secret_value:
+        # Точное совпадение значения с placeholder-маркером (не подстрока)
+        if any(re.fullmatch(p, secret_value, re.IGNORECASE) for p in PLACEHOLDER_PATTERNS):
+            fp.append("placeholder_value")
+    else:
+        # Fallback: поиск маркеров по тексту находки (для находок без извлечённого значения).
+        # Паттерны с ^...$ уже не ловят подстроки.
+        evidence = (finding.get("detail") or "") + (finding.get("title") or "")
+        if any(re.search(p, evidence, re.IGNORECASE) for p in PLACEHOLDER_PATTERNS):
+            fp.append("placeholder_value")
+
+    # Structured TP signal: детектор извлёк конкретное значение секрета, и оно не placeholder.
+    # Это сильный признак реальной уязвимости (а не текстового совпадения).
+    if secret_value and "placeholder_value" not in fp:
+        tp.append("real_hardcoded_secret")
+        tp.append("concrete_secret_value")
 
     return tp, fp
 
@@ -1158,6 +1180,10 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         fp = f.get("file_path", "?")
         snippet = (f.get("detail") or f.get("title") or "")[:100]
         f["finding_key"] = hashlib.sha256(f"{rule}|{fp}|{snippet}".encode()).hexdigest()[:12]
+        # secret_value was only needed for signal detection — redact before persisting
+        # (invariant #6: secret values are not stored, only fingerprints)
+        if f.get("secret_value"):
+            f["secret_value"] = "[REDACTED]"
 
     # ── v0.17–v0.18: Build source_map first (needed by PoC + chains) ──
     source_map = {}

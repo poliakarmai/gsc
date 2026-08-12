@@ -1,11 +1,11 @@
 {
-  "version": "2.0",
-  "scored_at": "2026-08-05T06:25:13.539305",
+  "version": "2.1",
+  "scored_at": "2026-08-12T13:30:00",
   "projects": [
     {
       "name": "flask-jwt-auth",
       "category": "vulnerable",
-      "url": "/tmp/gsc-calibration/flask-jwt-auth",
+      "url": "https://github.com/oleg-agapov/flask-jwt-auth.git",
       "total": 22,
       "confirmed": 0,
       "likely": 0,
@@ -18,7 +18,7 @@
     {
       "name": "dvpwa",
       "category": "vulnerable",
-      "url": "/tmp/gsc-calibration/dvpwa",
+      "url": "https://github.com/anxolerd/dvpwa.git",
       "total": 56,
       "confirmed": 0,
       "likely": 0,
@@ -31,7 +31,7 @@
     {
       "name": "vuln-flask",
       "category": "vulnerable",
-      "url": "/tmp/gsc-calibration/vuln-flask",
+      "url": "https://github.com/we45/Vulnerable-Flask-App.git",
       "total": 74,
       "confirmed": 3,
       "likely": 0,
@@ -45,7 +45,7 @@
     {
       "name": "pygoat",
       "category": "vulnerable",
-      "url": "/tmp/gsc-calibration/pygoat",
+      "url": "https://github.com/adeyosemanputra/pygoat.git",
       "total": 357,
       "confirmed": 2,
       "likely": 0,
@@ -59,20 +59,9 @@
       ]
     },
     {
-      "name": "flask-jwt-auth",
-      "category": "clean",
-      "url": "/tmp/gsc-calibration/flask-jwt-auth",
-      "total": 22,
-      "confirmed": 0,
-      "likely": 0,
-      "uncertain": 17,
-      "fp": 5,
-      "expected_vulns": []
-    },
-    {
       "name": "click",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/click",
+      "url": "https://github.com/pallets/click.git",
       "total": 23,
       "confirmed": 0,
       "likely": 0,
@@ -83,7 +72,7 @@
     {
       "name": "rich",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/rich",
+      "url": "https://github.com/Textualize/rich.git",
       "total": 158,
       "confirmed": 0,
       "likely": 0,
@@ -94,7 +83,7 @@
     {
       "name": "jinja",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/jinja",
+      "url": "https://github.com/pallets/jinja.git",
       "total": 52,
       "confirmed": 0,
       "likely": 0,
@@ -105,7 +94,7 @@
     {
       "name": "werkzeug",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/werkzeug",
+      "url": "https://github.com/pallets/werkzeug.git",
       "total": 152,
       "confirmed": 1,
       "likely": 0,
@@ -116,7 +105,7 @@
     {
       "name": "markupsafe",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/markupsafe",
+      "url": "https://github.com/pallets/markupsafe.git",
       "total": 5,
       "confirmed": 0,
       "likely": 0,
@@ -127,7 +116,7 @@
     {
       "name": "itsdangerous",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/itsdangerous",
+      "url": "https://github.com/pallets/itsdangerous.git",
       "total": 4,
       "confirmed": 0,
       "likely": 0,
@@ -138,7 +127,7 @@
     {
       "name": "httpx",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/httpx",
+      "url": "https://github.com/encode/httpx.git",
       "total": 140,
       "confirmed": 0,
       "likely": 0,
@@ -149,7 +138,7 @@
     {
       "name": "starlette",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/starlette",
+      "url": "https://github.com/encode/starlette.git",
       "total": 166,
       "confirmed": 0,
       "likely": 0,
@@ -160,7 +149,7 @@
     {
       "name": "uvicorn",
       "category": "clean",
-      "url": "/tmp/gsc-calibration/uvicorn",
+      "url": "https://github.com/encode/uvicorn.git",
       "total": 56,
       "confirmed": 0,
       "likely": 0,

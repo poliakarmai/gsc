@@ -101,6 +101,14 @@ SESSION_SECRET_HARDCODED = re.compile(
     re.IGNORECASE,
 )
 
+# Flask/object dict-assignment: app.config['SECRET_KEY'] = 'value'
+FLASK_CONFIG_SECRET_HARDCODED = re.compile(
+    r"(?:config|CONFIG)\s*\[['\"]?(?:SESSION_|FLASK_|APP_|CSRF_)?"
+    r"(?:SECRET|secret)[_\s]?(?:KEY|key)?['\"]?\s*\]\s*=\s*['\"]"
+    r"([^'\"]{4,})['\"]",
+    re.IGNORECASE,
+)
+
 # 6. Missing MFA for sensitive operations
 SENSITIVE_OPS = re.compile(
     r'def\s+(?:withdraw|transfer|payout|delete_account|'
@@ -267,6 +275,24 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 detail="Session/JWT secret hardcoded in source. Anyone with code access can forge tokens.",
                 fix_suggestion="Load from environment variable or secrets manager. Use random 64+ char secret.",
                 noise_tier="precise",
+                secret_value=secret_value,
+            ))
+
+        # 5b. Hardcoded secrets via Flask/object dict-assignment
+        for match in FLASK_CONFIG_SECRET_HARDCODED.finditer(content):
+            secret_value = match.group(1)
+            if any(skip in secret_value.lower() for skip in
+                   ('***', 'your-', 'changeme', 'placeholder', 'example', 'os.environ')):
+                continue
+            findings.append(Finding(
+                rule_id=RULE_ID, file_path=rel_path,
+                line=_lineno(content, match.start()),
+                severity="CRITICAL",
+                title=f"Hardcoded session/JWT secret (config dict-assignment): {match.group(0).strip()[:100]}",
+                detail="Session/JWT secret hardcoded via app.config[]. Anyone with code access can forge tokens.",
+                fix_suggestion="Load from environment variable or secrets manager. Use random 64+ char secret.",
+                noise_tier="precise",
+                secret_value=secret_value,
             ))
 
         # 6. Missing MFA on sensitive operations
