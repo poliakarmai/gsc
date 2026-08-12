@@ -304,64 +304,72 @@ class GhsaCollector:
             prioritize_cwes = self._get_near_ready_cwes()
 
         url = "https://api.github.com/advisories"
-        params = {"type": "reviewed", "per_page": min(limit, 100),
-                  "sort": "published", "direction": "desc"}
-
+        # 🆕 Итерируем по экосистемам — свежие advisories доминирует nuget (.NET),
+        # который глушит pip/npm/go. Фильтруем напрямую через API ecosystem=.
+        ecosystems = ["pip", "npm", "go", "rust"]
         fetched = 0
-        page = 1
 
-        while fetched < limit and page <= 3:
-            try:
-                resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
-                if resp.status_code in (403, 429):
-                    print(f"  ⚠️ Rate limited after {fetched}")
-                    break
-                if resp.status_code != 200:
-                    break
-                advisories = resp.json()
-            except Exception as e:
-                print(f"  ❌ GHSA API error: {e}")
+        for eco in ecosystems:
+            if fetched >= limit:
                 break
-            if not advisories:
-                break
+            params = {"type": "reviewed", "ecosystem": eco,
+                      "per_page": 100, "sort": "published", "direction": "desc"}
+            page = 1
 
-            # 🆕 Sort advisories: prioritize CWE-close-to-ready first
-            if prioritize_cwes:
-                def _priority(adv):
-                    cwes = adv.get("cwes", [])
-                    cwe = cwes[0]["cwe_id"] if cwes else ""
-                    if cwe in prioritize_cwes:
-                        return prioritize_cwes.index(cwe)
-                    return 999
-                advisories = sorted(advisories, key=_priority)
-
-            for adv in advisories:
-                ghsa_id = adv.get("ghsa_id", "")
-                published = adv.get("published_at", "")
-                if published < since and fetched > 0:
-                    break
-                
-                # 🆕 Idempotency: skip if already in DB
-                if ghsa_id in self.state["processed_ghsa"]:
-                    self.skipped += 1
-                    continue
-                if self._ghsa_exists_in_db(ghsa_id):
-                    self.skipped += 1
-                    continue
-
-                fetched += 1
-                print(f"  [{fetched}] {ghsa_id}: {adv.get('summary','?')[:80]}")
-
+            while fetched < limit and page <= 5:
                 try:
-                    self._process_advisory(adv)
+                    resp = requests.get(url, headers=HEADERS, params=params, timeout=30)
+                    if resp.status_code in (403, 429):
+                        print(f"  ⚠️ Rate limited after {fetched} (ecosystem={eco})")
+                        break
+                    if resp.status_code != 200:
+                        break
+                    advisories = resp.json()
                 except Exception as e:
-                    print(f"    ❌ {e}")
-                    self.errors += 1
+                    print(f"  ❌ GHSA API error: {e}")
+                    break
+                if not advisories:
+                    break
 
-                self.state["processed_ghsa"].append(ghsa_id)
-                time.sleep(0.5)
+                # 🆕 Sort advisories: prioritize CWE-close-to-ready first
+                if prioritize_cwes:
+                    def _priority(adv):
+                        cwes = adv.get("cwes", [])
+                        cwe = cwes[0]["cwe_id"] if cwes else ""
+                        if cwe in prioritize_cwes:
+                            return prioritize_cwes.index(cwe)
+                        return 999
+                    advisories = sorted(advisories, key=_priority)
 
-            page += 1
+                for adv in advisories:
+                    ghsa_id = adv.get("ghsa_id", "")
+                    published = adv.get("published_at", "")
+                    if published < since and fetched > 0:
+                        break
+                    
+                    # 🆕 Idempotency: skip if already in DB
+                    if ghsa_id in self.state["processed_ghsa"]:
+                        self.skipped += 1
+                        continue
+                    if self._ghsa_exists_in_db(ghsa_id):
+                        self.skipped += 1
+                        continue
+
+                    fetched += 1
+                    print(f"  [{fetched}] {ghsa_id}: {adv.get('summary','?')[:80]}")
+
+                    try:
+                        self._process_advisory(adv)
+                    except Exception as e:
+                        print(f"    ❌ {e}")
+                        self.errors += 1
+
+                    self.state["processed_ghsa"].append(ghsa_id)
+                    time.sleep(0.5)
+
+                if fetched >= limit:
+                    break
+                page += 1
 
         self.state["processed_ghsa"] = self.state["processed_ghsa"][-2000:]
         self.state["last_ghsa_run"] = datetime.now(timezone.utc).isoformat()
