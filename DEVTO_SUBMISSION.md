@@ -46,10 +46,11 @@ while (temp.firstChild) element.appendChild(temp.firstChild);
 
 ## Impact
 
-- **Severity:** HIGH (CVSS 7.5) — reflected XSS, CWE-79
+- **Severity:** MEDIUM (CVSS 5.4) — reflected XSS, CWE-79, no-auth context
 - **Affected versions:** All versions before fix
 - **Vector:** Search functionality — accessible to any unauthenticated user
-- **Exploit:** One click by victim → attacker-controlled JavaScript execution → session hijacking, credential theft
+- **Exploit:** One click by victim → attacker-controlled JavaScript execution → data exfiltration of analysis results
+- **Note:** Cyberbro has no authentication, so credential theft is not applicable
 
 ## Why `.innerHTML` is Dangerous
 
