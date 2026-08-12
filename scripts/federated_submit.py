@@ -30,6 +30,7 @@ def main():
                SUM(CASE WHEN revalidation_verdict = 'FP' THEN 1 ELSE 0 END) as fp
         FROM findings
         WHERE revalidation_verdict IN ('TP', 'FP', 'FIX')
+          AND category IN ('CRITICAL', 'HIGH')
         GROUP BY category
         HAVING total >= 5
     """).fetchall()

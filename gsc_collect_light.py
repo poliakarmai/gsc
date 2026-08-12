@@ -36,6 +36,26 @@ HEADERS = {
 
 # GitHub token for authenticated API access
 _GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+if not _GITHUB_TOKEN:
+    # Fallback for cron environments without the token exported:
+    # 1) gh CLI auth (already authorized), 2) ~/.hermes/.env
+    try:
+        import subprocess as _sp
+        _GITHUB_TOKEN = _sp.run(
+            ["gh", "auth", "token"], capture_output=True, text=True, timeout=10
+        ).stdout.strip()
+    except Exception:
+        _GITHUB_TOKEN = ""
+if not _GITHUB_TOKEN:
+    try:
+        _env_path = os.path.expanduser("~/.hermes/.env")
+        with open(_env_path) as _f:
+            for _line in _f:
+                if _line.startswith("GITHUB_TOKEN="):
+                    _GITHUB_TOKEN = _line.split("=", 1)[1].strip().strip('"').strip("'")
+                    break
+    except Exception:
+        _GITHUB_TOKEN = ""
 
 # ── Pattern extraction from CVE descriptions ───────────────────────────────
 
