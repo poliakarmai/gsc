@@ -13,5 +13,6 @@ VPN_oultine_engine-project/
 flaskdash/
 lyanna/
 calibration/repos/.gsc/
+calibration/reports/
 cloud/nginx-production.conf
 cloud/static/
