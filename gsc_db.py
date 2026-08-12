@@ -336,6 +336,11 @@ class GSCDatabase:
 
     def __init__(self, path: Path = DB_PATH):
         self.path = path
+        # Ensure parent dir exists — CI runners may not have ~/.hermes/state/
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            pass  # fall through to connect() which will raise a clear error
         self.conn = sqlite3.connect(str(path))
         self.conn.row_factory = sqlite3.Row
         self._migrate()
@@ -384,7 +389,10 @@ class GSCDatabase:
             try:
                 self.conn.execute(alter)
             except sqlite3.OperationalError as e:
-                if "duplicate column" not in str(e).lower():
+                msg = str(e).lower()
+                # Fresh DB: table doesn't exist yet → SCHEMA_V019 below creates it fully.
+                # Old DB: only skip genuine "duplicate column".
+                if "duplicate column" not in msg and "no such table" not in msg:
                     raise
         self.conn.executescript(SCHEMA_V019)
         for idx in INDEXES_V019:

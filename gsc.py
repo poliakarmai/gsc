@@ -860,30 +860,37 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
         print("⚠️  GSC DB not found — findings not saved")
         return
 
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute(
-        "INSERT INTO audit_runs (project, started_at) VALUES (?, datetime('now'))",
-        (project,)
-    )
-    run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
-
-    for f in findings:
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
         conn.execute(
-            """INSERT OR IGNORE INTO findings
-               (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at)
-               VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'))""",
-            (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
-             f["title"], f.get("file_path", ""), f.get("line_number", 0),
-             f.get("detail", ""))
+            "INSERT INTO audit_runs (project, started_at) VALUES (?, datetime('now'))",
+            (project,)
         )
+        run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]
-    conn.execute(
-        "UPDATE audit_runs SET finished_at = datetime('now'), total_findings = ?, new_findings = ? WHERE id = ?",
-        (total, total, run_id)
-    )
-    conn.commit()
-    conn.close()
+        for f in findings:
+            conn.execute(
+                """INSERT OR IGNORE INTO findings
+                   (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at)
+                   VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'))""",
+                (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
+                 f["title"], f.get("file_path", ""), f.get("line_number", 0),
+                 f.get("detail", ""))
+            )
+
+        total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]
+        conn.execute(
+            "UPDATE audit_runs SET finished_at = datetime('now'), total_findings = ?, new_findings = ? WHERE id = ?",
+            (total, total, run_id)
+        )
+        conn.commit()
+        conn.close()
+    except sqlite3.OperationalError:
+        # Fresh/empty DB (no tables, e.g. CI runner) — persistence is optional
+        if not quiet:
+            print("⚠️  GSC DB schema missing — findings not saved (fresh DB?)")
+        return
+
     if not quiet:
         print(f"💾 Saved: {total} findings (run #{run_id})")
 
@@ -978,16 +985,20 @@ def load_patterns(project: str, echelon: int = None) -> list[dict]:
 
     # Try DB first
     if DB_PATH.exists():
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        query = "SELECT * FROM patterns WHERE (project = ? OR project = '*')"
-        params = [project]
-        if echelon:
-            query += " AND echelon = ?"
-            params.append(echelon)
-        rows = conn.execute(query, params).fetchall()
-        patterns = [dict(r) for r in rows]
-        conn.close()
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            conn.row_factory = sqlite3.Row
+            query = "SELECT * FROM patterns WHERE (project = ? OR project = '*')"
+            params = [project]
+            if echelon:
+                query += " AND echelon = ?"
+                params.append(echelon)
+            rows = conn.execute(query, params).fetchall()
+            patterns = [dict(r) for r in rows]
+            conn.close()
+        except sqlite3.OperationalError:
+            # Fresh/empty DB (no patterns table, e.g. CI runner) — fall back to seed files
+            patterns = []
 
     # Fallback: load from seed files
     if not patterns:

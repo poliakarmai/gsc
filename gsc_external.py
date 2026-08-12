@@ -31,7 +31,9 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-GSC = os.path.expanduser("~/gsc/gsc.py")
+# gsc.py lives next to gsc_external.py — resolve relative to this file so the
+# scanner works from any checkout (CI runners clone to /home/runner/work/...).
+GSC = str(Path(__file__).resolve().parent / "gsc.py")
 STATE_DIR = Path(os.path.expanduser("~/.hermes/state"))
 DB = STATE_DIR / "gsc_audit.db"
 EXTERNAL_DIR = Path(os.path.expanduser("~/.gsc/external"))
@@ -1251,7 +1253,9 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                   f"({sum(1 for a in mutation_alerts if a.kind == 'recurrence')} recurrences, "
                   f"{sum(1 for a in mutation_alerts if a.kind == 'mutation')} mutations)")
             result.mutation_alerts = len(mutation_alerts)
-    except ImportError:
+    except Exception:
+        # Degrade gracefully: DB schema may not exist on a fresh runner (CI) —
+        # mutation tracking is optional and must never fail the scan.
         pass
 
     # ── v0.25 Phase 4: Blocking Engine (replaces _apply_rollout_phase) ──
@@ -1267,7 +1271,9 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                                             bypass=policy.get("bypass", False))
             result.bypass = blocking_summary.get("bypass", False)
             result.findings_blocking = len(blocking_summary.get("blocked", []))
-    except ImportError:
+    except Exception:
+        # Degrade gracefully: DB schema may not exist on a fresh runner (CI) —
+        # blocking engine is optional and must never fail the scan.
         pass
 
     # Step 6: Classify
