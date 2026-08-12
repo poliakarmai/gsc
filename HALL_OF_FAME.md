@@ -14,6 +14,10 @@
 
 | 6 | **liquidguru/docker-updater** | 74 | Session Fixation in `/login` — `session.clear()` without ID regeneration allows attacker to hijack authenticated session | CWE-384 | GS019 (Session Handling) | [#21](https://github.com/liquidguru/docker-updater/pull/21) |
 
+| 7 | **cabotage/cabotage-app** | 37 | Hardcoded Flask security secrets (`SECRET_KEY="my_precious"`, `SECURITY_PASSWORD_SALT`, `SECURITY_TOTP_SECRETS`, `REGISTRY_AUTH_SECRET`) — allows session forgery, CSRF bypass, TOTP bypass, registry auth bypass | CWE-798 | GS001 (Hardcoded Secrets), GS011 (JWT), GS019 (Session) | [#388](https://github.com/cabotage/cabotage-app/pull/388) |
+
+| 8 | **the-broke-sommeliers/wine-cellar** | 53 | Hardcoded Django `SECRET_KEY` with `django-insecure-` prefix + `DEBUG=True` unconditionally — allows session forgery, CSRF bypass, debug info leak | CWE-798, CWE-489 | GS001 (Hardcoded Secrets), GS025-debug_mode | [#1182](https://github.com/the-broke-sommeliers/wine-cellar/pull/1182) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:
