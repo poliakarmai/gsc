@@ -33,9 +33,9 @@ have to triage, verify, and fix manually.
 | Stage | What GSC does | Who else does this? |
 |---|---|---|
 | **Detect** | 38 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
-| **Prove** | Auto-generates a working exploit (PoC) | 🟡 *partial* — PT AI, Checkmarx (exploitability) |
+| **Prove** | Auto-generates a working exploit (PoC) | 🟡 *partial* — PT Application Inspector (exploit confirmation), Checkmarx (exploitability) |
 | **Fix** | Auto-generates a minimal patch via LLM | 🟡 Snyk DeepCode Fix, Sonar AI CodeFix, GitHub Copilot Autofix |
-| **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🟢 *rare* — few close the full PoC→patch→re-verify loop |
+| **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🟢 *rare* — few close the full PoC→patch→re-verify loop (closest: PT Application Inspector) |
 | **Heal** | Opens a PR with the verified fix | 🟡 Snyk/Semgrep/Mend auto-PR (without PoF verification) |
 | **Predict** | Forecasts where the *next* vulnerability appears | 🟢 *no known equivalent* |
 | **Learn** | Self-tunes: auto-deactivates noisy patterns | 🟢 *rare* — self-learning feedback loop |
