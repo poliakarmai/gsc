@@ -380,7 +380,8 @@ class PoFSandbox:
                                      elapsed=SANDBOX_TIMEOUT, error="timeout")
             stdout = proc.stdout[:MAX_OUTPUT_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BYTES]
-            has_marker = bool(SUCCESS_MARKERS.search(stdout))
+            # NOT_EXPLOITED содержит EXPLOITED — отсекаем ложный success-маркер
+            has_marker = bool(SUCCESS_MARKERS.search(stdout)) and "NOT_EXPLOITED" not in stdout
             success = proc.returncode == 0 and has_marker
             return SandboxResult(success=success, exit_code=proc.returncode,
                                  stdout=stdout, stderr=stderr, elapsed=round(elapsed, 2))
@@ -436,8 +437,8 @@ class PoFSandbox:
             stdout = proc.stdout[:MAX_OUTPUT_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BYTES]
 
-            # Check for success marker
-            has_marker = bool(SUCCESS_MARKERS.search(stdout))
+            # Check for success marker (NOT_EXPLOITED содержит EXPLOITED — отсекаем)
+            has_marker = bool(SUCCESS_MARKERS.search(stdout)) and "NOT_EXPLOITED" not in stdout
             success = proc.returncode == 0 and has_marker
 
             return SandboxResult(

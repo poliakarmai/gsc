@@ -57,6 +57,7 @@ def users():
 def health():
     return "ok"
 
+reset_and_seed()
+
 if __name__ == "__main__":
-    reset_and_seed()
     app.run(host="127.0.0.1", port=int(os.environ.get("PORT", "5000")))
