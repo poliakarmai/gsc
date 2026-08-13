@@ -14,7 +14,7 @@ Env vars:
 import os, sys, json, subprocess, tempfile
 from pathlib import Path
 
-GSC = os.path.expanduser("~/gsc/gsc.py")
+GSC = str(Path(__file__).resolve().parents[1] / "gsc.py")
 
 
 def get_pr_info() -> dict:

@@ -55,7 +55,7 @@ def rescan_fix(repo_path: str, finding_key: str, detector_id: str = "") -> list[
         result = subprocess.run(
             ["python3", "-m", "gsc", "scan", repo_path, "--ci", "--json"],
             capture_output=True, text=True, timeout=120,
-            cwd=os.path.expanduser("~/gsc"),
+            cwd=str(Path(__file__).resolve().parent),
         )
         if result.returncode != 0:
             return [{"error": f"Scan failed: {result.stderr[:200]}"}]
@@ -101,7 +101,7 @@ def run_dast(repo_path: str, finding_key: str) -> list[dict]:
         gen = subprocess.run(
             ["python3", "gsc.py", "nuclei", "export", "--finding-key", finding_key],
             capture_output=True, text=True, timeout=60,
-            cwd=os.path.expanduser("~/gsc"),
+            cwd=str(Path(__file__).resolve().parent),
         )
         if gen.returncode != 0:
             return []  # can't generate template — skip DAST

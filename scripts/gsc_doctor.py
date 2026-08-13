@@ -49,7 +49,7 @@ else:
     check("GSC Database", False, "not found — run gsc patterns --seed 200")
 
 # Seed patterns
-seed_dir = os.path.expanduser("~/gsc/patterns")
+seed_dir = str(Path(__file__).resolve().parents[1] / "patterns")
 if os.path.isdir(seed_dir):
     files = [f for f in os.listdir(seed_dir) if f.endswith('.json')]
     names = [f.replace('.json','') for f in files]

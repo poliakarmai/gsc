@@ -76,7 +76,7 @@ def metrics_rollout() -> dict:
             m["errors"].append(f"Feedback error: {e}")
 
     # Calibration
-    calib_reports = list(Path(os.path.expanduser("~/gsc")).rglob("calibration/reports/*/calibration_report.json"))
+    calib_reports = list((Path(__file__).resolve().parents[1] / "calibration/reports").rglob("*/calibration_report.json"))
     if calib_reports:
         try:
             latest = sorted(calib_reports)[-1]

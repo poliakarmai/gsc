@@ -3,7 +3,10 @@
 import subprocess, sys, os, json, tempfile, shutil
 from pathlib import Path
 
-GSC = os.path.expanduser("~/gsc/gsc.py")
+# F-01 (audit): resolve gsc.py relative to this file, not a hardcoded ~/gsc home
+# path — a fresh checkout elsewhere previously ran a non-existent path and returned
+# empty findings (7 false failures).
+GSC = str(Path(__file__).resolve().parents[1] / "gsc.py")
 PASS = FAIL = 0
 
 def check(name, condition, detail=""):
