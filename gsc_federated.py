@@ -13,7 +13,7 @@ NEVER: code, snippets, file paths, finding_keys.
 
 from __future__ import annotations
 
-import hashlib, json, math, random, sys
+import hashlib, hmac, json, math, os, random, ssl, sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -63,17 +63,38 @@ def collect_local_metrics(db, min_verdicts: int = 3) -> Dict[str, Dict[str, int]
 class FederatedClient:
     def __init__(self, db, server_url: str, api_key: str,
                  enabled: bool = True, epsilon: float = 1.0,
-                 min_verdicts: int = 3):
+                 min_verdicts: int = 3, hmac_key: str = ""):
         self.db = db
         self.server_url = server_url.rstrip("/")
         self.api_key = api_key
         self.enabled = enabled
         self.epsilon = epsilon
         self.min_verdicts = min_verdicts
+        # Audit #2 §3.4: payload integrity via HMAC (MITM protection).
+        self.hmac_key = hmac_key or os.environ.get("GSC_FEDERATED_HMAC_KEY", "")
 
     def _tenant_hash(self) -> str:
         seed = getattr(self.db, "tenant_id", "local")
         return hashlib.sha256(f"gsc-tenant:{seed}".encode()).hexdigest()[:16]
+
+    def _sign(self, body: bytes) -> str:
+        """HMAC-SHA256 hex signature of the request body ("" if no key configured)."""
+        if not self.hmac_key:
+            return ""
+        return hmac.new(self.hmac_key.encode(), body, hashlib.sha256).hexdigest()
+
+    def _request(self, path: str, body: bytes, method: str = "POST"):
+        """TLS-enforced signed request. Rejects non-HTTPS (audit #2 §3.4, MITM)."""
+        if not self.server_url.startswith("https://"):
+            raise ValueError("federated server must be HTTPS (MITM protection)")
+        import urllib.request as request
+        ctx = ssl.create_default_context()  # verify server certificate
+        req = request.Request(f"{self.server_url}{path}", data=body or None, method=method)
+        req.add_header("x-api-key", self.api_key)
+        req.add_header("Content-Type", "application/json")
+        if body and self.hmac_key:
+            req.add_header("x-signature", self._sign(body))
+        return request.urlopen(req, timeout=HTTP_TIMEOUT, context=ctx)
 
     def _log(self, action: str, detail: str):
         self.db.conn.execute(
@@ -95,13 +116,8 @@ class FederatedClient:
                 metrics[rid]["fp"] = add_laplace_noise(metrics[rid]["fp"], self.epsilon)
         payload = {"tenant_hash": self._tenant_hash(), "metrics": metrics}
         try:
-            import urllib.request as request
             body = json.dumps(payload).encode()
-            req = request.Request(f"{self.server_url}/api/v1/federated/submit",
-                                  data=body, method="POST")
-            req.add_header("x-api-key", self.api_key)
-            req.add_header("Content-Type", "application/json")
-            with request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            with self._request("/api/v1/federated/submit", body) as resp:
                 ok = resp.status == 200
             self._log("submit", f"rules={len(metrics)} ok={ok}")
             return ok
@@ -114,10 +130,7 @@ class FederatedClient:
         if not self.enabled:
             return {}
         try:
-            import urllib.request as request
-            req = request.Request(f"{self.server_url}/api/v1/federated/weights")
-            req.add_header("x-api-key", self.api_key)
-            with request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
+            with self._request("/api/v1/federated/weights", b"", method="GET") as resp:
                 weights = json.loads(resp.read())
         except Exception as e:
             self._log("fetch", f"error={e}")
