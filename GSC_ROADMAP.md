@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 06.08.2026** | Ядро: v0.26 production, 29 детекторов | Cloud: спроектирован (S1–S4) | VSCode: v0.32 scaffold
+> **Статус на 13.08.2026** | Ядро: v1.3.0, 38 детекторов | Аудит безопасности 28/28 закрыто | Cloud: спроектирован (S1–S4) | VSCode: v0.37
 
 Сводная дорожная карта по всем трекам: ядро, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -10,7 +10,9 @@
 
 | Трек | Статус | Что осталось |
 |---|---|---|
-| Ядро сканера (v0.11→v0.26) | ✅ готово (29 детекторов) | ничего |
+| Ядро сканера (v0.11→v1.3) | ✅ готово (38 детекторов) | ничего |
+| Аудит безопасности (28 замечаний) | ✅ 28/28 закрыто (8 коммитов 13.08) | только физический packages split |
+| Packages split (core/cli/cloud) | 🟡 логический ✅ (`e06c355`), физический ⏳ | перенос ~40 модулей (3–5 дней) |
 | Production rollout Phase 0–5 | ✅ завершён | наблюдение |
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
 | SaaS Cloud (S1–S4) | 📝 спроектирован | реализация (~4 мес) |
@@ -85,6 +87,25 @@
 | 0.5 | Trademark на название/логотип | ❌ 1 нед (заявка) |
 | 0.6 | Зафиксировать доказательства авторства | ❌ 1 час |
 
+### Трек 0.5. Packages split — физический рефакторинг (3–5 дней)
+
+> Аудит A-01. Логический уровень уже закрыт в `e06c355` (deps + extras + artifacts).
+> Здесь — физический перенос в `gsc_core/` `gsc_cli/` `gsc_cloud/` с shim-совместимостью.
+
+**Цель:** убрать конкурирующие runtime-слои (gsc.py, gsc_external.py, server.py, cloud/, enterprise/ в одном checkout) и дать чистый seam для S1 PgBackend.
+
+| # | Порция | Содержание | Проверка |
+|---|---|---|---|
+| 0.5.1 | `gsc_core/` | `gsc_db.py`, `gsc_blocking.py`, `gsc_detectors/`, `gsc_invariant_engine.py`, `gsc_ast_dataflow.py`, `gsc_compliance.py`, `gsc_sca.py`, `gsc_epss.py`, `gsc_federated.py` | `tests/test_schema_integrity.py` + `tests/test_corpus.py` зелёные |
+| 0.5.2 | `gsc_cli/` | `gsc.py`, `gsc_external.py`, `gsc_orchestrator.py`, `gsc_github_adapter.py`, `gsc_collect_light.py`, PoC/Chain/Mutation/Revalidate/ProofOfFix/SelfHealing/Archaeology/Forecast/NLPolicy/CrossRepo/Nuclei/DAST/SBOM/SPDX/IaC/DeepReducer/PoFSandbox/Meta + `scripts/`; entry `gsc = "gsc_cli.main:main"` | `gsc scan` + `gsc external-scan` smoke |
+| 0.5.3 | `gsc_cloud/` | `server.py` + `cloud/` (github_auth, pr_commands, sso, user_auth, agent_api, api_v2, worker, mutations_cloud) | TestClient smoke (signup/stats/findings) |
+| 0.5.4 | dev/collector | `gsc_collector/` → core; `tests/`+`benchmark/`+`calibration/` только dev (не в wheel) | wheel без dev-артефактов |
+| 0.5.5 | shim + cleanup | shim-модули (`gsc_db.py` → re-export из `gsc_core`) на переходный период; обновить cron-скрипты; удалить `build/lib` | `compileall` + полный прогон тестов + cron не сломан |
+
+**Инварианты:** каждый шаг — зелёные тесты перед/после; shim-слой живёт до миграции всех cron-скриптов; `build/lib` (вторичная копия) удаляется в 0.5.5.
+
+**Зависимость:** выполняется ДО S1 (PgBackend требует чистого core/cloud разделения).
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
@@ -120,11 +141,11 @@ Scaffold есть (gsc-vscode, v0.32). Осталось: GscClient, diagnostics,
 ```
 Трек 0 (CLA + trademark, 1 день)
    │
-   ├──► Трек 1 S1 ──► S2 ──► S3 ──► S4 ──► Cloud 1.0 GA
-   │         │         │       │
-   │         ├──► Трек 2 (agent) ──┘
-   │         │
-   └──► Трек 3 (VSCode, параллельно)
+   └──► Трек 0.5 (packages split, 3–5 дней) ──► Трек 1 S1 ──► S2 ──► S3 ──► S4 ──► Cloud 1.0 GA
+                 │         │         │       │
+                 ├──► Трек 2 (agent) ─┘
+                 │
+                 └──► Трек 3 (VSCode, параллельно)
 ```
 
 Трек 4 (бизнес) параллельно всему: one-pager → пилоты (после S2) → платежи (после S3).
@@ -135,7 +156,7 @@ Scaffold есть (gsc-vscode, v0.32). Осталось: GscClient, diagnostics,
 
 | Период | Фокус | Результат |
 |---|---|---|
-| Авг 2026 | Трек 0 (CLA, gitleaks, аудит) + CONTRIBUTING.md + one-pager | Юридически чистый репо |
+| Авг 2026 | Трек 0 (CLA, gitleaks, аудит) + **Трек 0.5 packages split** + CONTRIBUTING.md + one-pager | Юридически чистый репо + чистые core/cli/cloud |
 | Авг–Сен 2026 | S1 + S2 + VSCode | GitHub App, 3–5 пилотов |
 | Окт–Дек 2026 | S3 + первые платежи | Private beta Cloud |
 | Янв–Мар 2027 | S4 + Enterprise agent | Cloud 1.0 GA |
@@ -163,4 +184,4 @@ CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3
 
 ---
 
-*Обновлено: 06.08.2026*
+*Обновлено: 13.08.2026*
