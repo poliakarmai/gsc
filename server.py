@@ -103,7 +103,7 @@ def ensure_cloud_schema():
             completed_at TEXT
         );
         CREATE TABLE IF NOT EXISTS findings (
-            finding_key TEXT PRIMARY KEY,
+            finding_key TEXT,
             rule_id TEXT,
             title TEXT,
             severity TEXT DEFAULT 'UNKNOWN',
@@ -112,7 +112,8 @@ def ensure_cloud_schema():
             line INTEGER,
             snippet TEXT,
             tenant_id INTEGER NOT NULL,
-            created_at TEXT DEFAULT (datetime('now'))
+            created_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (tenant_id, finding_key)
         );
         CREATE TABLE IF NOT EXISTS sessions (
             token TEXT PRIMARY KEY,
@@ -125,6 +126,48 @@ def ensure_cloud_schema():
     conn.commit()
 
 ensure_cloud_schema()
+
+
+def _migrate_findings_composite_key():
+    """C-02 (audit): findings.finding_key was a global PRIMARY KEY, so INSERT OR
+    REPLACE could delete another tenant's row and reassign it to the new tenant.
+    Rebuild the table with composite PRIMARY KEY (tenant_id, finding_key)."""
+    try:
+        row = conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='findings'"
+        ).fetchone()
+        if not row:
+            return
+        ddl = row["sql"] if isinstance(row, sqlite3.Row) else (row[0] if row else "")
+        if "PRIMARY KEY (tenant_id, finding_key)" in ddl:
+            return  # already migrated
+        conn.executescript("""
+            ALTER TABLE findings RENAME TO findings_old;
+            CREATE TABLE findings (
+                finding_key TEXT,
+                rule_id TEXT,
+                title TEXT,
+                severity TEXT DEFAULT 'UNKNOWN',
+                confidence REAL DEFAULT 0.85,
+                file TEXT,
+                line INTEGER,
+                snippet TEXT,
+                tenant_id INTEGER NOT NULL,
+                created_at TEXT DEFAULT (datetime('now')),
+                PRIMARY KEY (tenant_id, finding_key)
+            );
+            INSERT OR REPLACE INTO findings
+                (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id,created_at)
+            SELECT finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id,created_at
+            FROM findings_old;
+            DROP TABLE findings_old;
+        """)
+        conn.commit()
+    except Exception as e:
+        print(f"[migrate findings] {e}", flush=True)
+
+
+_migrate_findings_composite_key()
 
 # ═══════════════════════════════════════════════════════════
 # Auth
