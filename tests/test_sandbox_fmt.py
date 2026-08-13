@@ -102,3 +102,32 @@ def test_curl_serves_ssti_flask_app():
     r = PoFSandbox()._execute(poc, target, fmt="curl")
     assert r.success is True, f"stderr={r.stderr}"
     assert "VULNERABLE" in r.stdout
+
+
+def test_curl_serves_multimodule_flask_app(tmp_path):
+    """Phase 3 e2e: serve a multi-module Flask project (app.py + views.py)."""
+    if not _sandbox_has_flask():
+        import pytest
+        pytest.skip("flask not installed in sandbox venv")
+    (tmp_path / "app.py").write_text(
+        "from flask import Flask\nfrom views import bp\n"
+        "app = Flask(__name__)\napp.register_blueprint(bp)\n")
+    (tmp_path / "views.py").write_text(
+        "from flask import Blueprint, request, render_template_string\n"
+        "bp = Blueprint('bp', __name__)\n\n"
+        "@bp.route('/')\n"
+        "def index():\n"
+        "    return render_template_string(request.args.get('input', ''))\n")
+    from gsc_poc_deterministic import get_deterministic_poc
+    poc = get_deterministic_poc("GS020")._generate_code()
+    r = PoFSandbox()._execute(poc, "", fmt="curl", project_dir=str(tmp_path))
+    assert r.success is True, f"stderr={r.stderr}"
+    assert "VULNERABLE" in r.stdout
+
+
+def test_detect_app_creation():
+    from gsc_pof_sandbox import _detect_app_creation, _detect_framework
+    assert _detect_app_creation("from flask import Flask\napp = Flask(__name__)") == "flask"
+    # bare import (Blueprint) must NOT be detected as app creation
+    assert _detect_app_creation("from flask import Blueprint\nbp = Blueprint('bp', __name__)") is None
+    assert _detect_framework("from flask import Blueprint") == "flask"  # broad still works

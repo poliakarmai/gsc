@@ -65,6 +65,43 @@ def _detect_framework(target_code: str) -> str | None:
     return None
 
 
+def _detect_app_creation(target_code: str) -> str | None:
+    """Detect `app = Framework(...)` creation (not a bare import) — stricter than
+    _detect_framework, which also matches `from flask import Blueprint`."""
+    import re
+    m = re.search(r'\b(app|application)\s*=\s*(Flask|FastAPI|Sanic|Bottle)\s*\(', target_code)
+    if m:
+        return m.group(2).lower()
+    return None
+
+
+def _find_web_entrypoint(project_dir: str) -> tuple[str, str] | None:
+    """Locate a web app entrypoint inside a (multi-module) project directory.
+
+    Returns (framework, dotted_module_name) relative to project_dir, or None.
+    Phase 3: serve real-world projects, not just single-file apps.
+    """
+    import os
+    skip = {'.git', 'node_modules', 'venv', '.venv', 'build', 'dist',
+            '__pycache__', '.next', 'tests', 'test', 'site-packages'}
+    for root, dirs, files in os.walk(project_dir):
+        dirs[:] = [d for d in dirs if d not in skip]
+        for fn in files:
+            if not fn.endswith('.py'):
+                continue
+            p = os.path.join(root, fn)
+            try:
+                txt = open(p, encoding='utf-8', errors='ignore').read()
+            except Exception:
+                continue
+            fw = _detect_app_creation(txt)
+            if fw:
+                rel = os.path.relpath(p, project_dir)
+                mod = rel.replace(os.sep, '.').removesuffix('.py')
+                return fw, mod
+    return None
+
+
 def _sandbox_env(workdir: str) -> dict:
     """Build a minimal env without host secrets (audit F-05)."""
     env = {k: os.environ[k] for k in SANDBOX_ENV_WHITELIST if k in os.environ}
@@ -200,15 +237,19 @@ class PoFSandbox:
 
     # ── Execute PoC in sandbox ────────────────────────────────────
 
-    def _execute(self, poc_code: str, target_code: str, fmt: str = "python") -> SandboxResult:
+    def _execute(self, poc_code: str, target_code: str, fmt: str = "python",
+                 project_dir: str | None = None) -> SandboxResult:
         """Dispatch by PoC format (fix: curl/bash PoCs were run as Python → TypeError).
 
         fmt: 'python'/'py' → import target + run as Python;
              'curl'/'bash'/'shell'/'sh' → run via bash -c (secret-free env + limits).
+
+        project_dir: for curl PoCs, if set and TARGET_URL is referenced, serve the
+        whole (multi-module) project as a live HTTP server (Phase 3).
         """
         fmt = (fmt or "python").lower()
         if fmt in ("curl", "bash", "shell", "sh"):
-            return self._execute_shell(poc_code, target_code)
+            return self._execute_shell(poc_code, target_code, project_dir=project_dir)
         return self._execute_python(poc_code, target_code)
 
     def _serve_target(self, target_code: str, workdir: Path):
@@ -243,16 +284,78 @@ class PoFSandbox:
             pass
         return None
 
-    def _execute_shell(self, poc_code: str, target_code: str) -> SandboxResult:
-        """Run a shell/curl PoC via bash -c. If it references TARGET_URL and the
-        target is a single-file web app, serve it on a free port and substitute."""
+    def _serve_project(self, project_dir: str, workdir: Path):
+        """Serve a multi-module web project (Phase 3). Returns (Popen, url) or None."""
+        import os
+        found = _find_web_entrypoint(project_dir)
+        if not found:
+            return None
+        fw, mod = found
+        port = _free_port()
+        # Symlink the project into workdir so multi-module imports resolve.
+        target_dir = workdir / "project"
+        try:
+            os.symlink(project_dir, target_dir, target_is_directory=True)
+        except Exception:
+            try:
+                import shutil
+                shutil.copytree(
+                    project_dir, target_dir, symlinks=True,
+                    ignore=shutil.ignore_patterns(
+                        '.git', 'node_modules', 'venv', '.venv', 'build',
+                        'dist', '__pycache__', '.next'),
+                )
+            except Exception:
+                return None
+        if fw == "fastapi":
+            wrapper = (f"import uvicorn\nfrom {mod} import app\n"
+                       f"uvicorn.run(app, host='127.0.0.1', port={port}, log_level='error')\n")
+        else:
+            wrapper = (f"from {mod} import app\n"
+                       f"app.run(host='127.0.0.1', port={port})\n")
+        (workdir / "serve_project.py").write_text(wrapper)
+        env = _sandbox_env(str(workdir))
+        env["PYTHONPATH"] = str(target_dir)
+        try:
+            proc = subprocess.Popen(
+                [self._python, str(workdir / "serve_project.py")],
+                cwd=str(target_dir), env=env,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+        except Exception:
+            return None
+        import urllib.request
+        url = f"http://127.0.0.1:{port}"
+        for _ in range(30):
+            try:
+                urllib.request.urlopen(url, timeout=0.4)
+                return proc, url
+            except Exception:
+                if proc.poll() is not None:
+                    return None
+                time.sleep(0.25)
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        return None
+
+    def _execute_shell(self, poc_code: str, target_code: str,
+                       project_dir: str | None = None) -> SandboxResult:
+        """Run a shell/curl PoC via bash -c. If it references TARGET_URL, serve the
+        target: a whole (multi-module) project if project_dir is set, else a
+        single-file app — then substitute the live URL."""
         workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
         workdir.mkdir(parents=True, exist_ok=True)
         server = None
         try:
             script = poc_code
-            if "TARGET_URL" in script and target_code.strip():
-                served = self._serve_target(target_code, workdir)
+            if "TARGET_URL" in script:
+                served = None
+                if project_dir and os.path.isdir(project_dir):
+                    served = self._serve_project(project_dir, workdir)
+                if served is None and target_code.strip():
+                    served = self._serve_target(target_code, workdir)
                 if served is not None:
                     server, url = served
                     script = script.replace("TARGET_URL", url)

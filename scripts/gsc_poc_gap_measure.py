@@ -54,7 +54,7 @@ def measure(repo: str, poc_budget: int = 5, max_run: int = 0) -> dict:
         poc = f["metadata"]["poc"]
         src = source_map.get(f.get("file_path", ""), "")
         fmt = f.get("metadata", {}).get("poc_format", "python")
-        res = sandbox._execute(poc, src, fmt=fmt)
+        res = sandbox._execute(poc, src, fmt=fmt, project_dir=repo)
         run += 1
         if res.success:
             passed += 1
