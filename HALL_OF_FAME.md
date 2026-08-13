@@ -18,6 +18,8 @@
 
 | 8 | **the-broke-sommeliers/wine-cellar** | 53 | Hardcoded Django `SECRET_KEY` with `django-insecure-` prefix + `DEBUG=True` unconditionally — allows session forgery, CSRF bypass, debug info leak | CWE-798, CWE-489 | GS001 (Hardcoded Secrets), GS025-debug_mode | [#1182](https://github.com/the-broke-sommeliers/wine-cellar/pull/1182) |
 
+| 9 | **BrowserlessAPI/VortexPanel** | 22 | OS Command Injection in file manager — `subprocess.run(shell=True)` interpolates unsanitized user input (`q` in `/api/files/search`, `path` in `/api/files/scan`, `src`/`dst`/`output` in extract/compress); `safe_path()` only normalizes paths, doesn't escape shell metacharacters → authenticated RCE | CWE-78 | GS025 (CVE pattern) | [#19](https://github.com/BrowserlessAPI/VortexPanel/pull/19) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:

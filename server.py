@@ -5,13 +5,14 @@ SaaS MVP: scan, findings, billing, GitHub auth.
 Deploy: docker build -t gsc-api . && docker run -d -p 8081:8000 gsc-api
 """
 
-import os, sys, json, uuid, hashlib, secrets, subprocess, tempfile, time
+import os, sys, json, uuid, hashlib, hmac, secrets, subprocess, tempfile, time
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from typing import Optional
+from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Body
+from fastapi import FastAPI, HTTPException, Query, Body, Header, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -138,12 +139,42 @@ def create_tenant(name: str, plan: str = "free") -> tuple[str, int]:
     return raw_key, tid
 
 def verify_api_key(raw_key: str) -> Optional[int]:
-    """Return tenant_id or None."""
+    """Return tenant_id or None (constant-time hash comparison, audit S-10)."""
     h = hashlib.sha256(raw_key.encode()).hexdigest()
-    row = conn.execute(
-        "SELECT tenant_id FROM api_keys WHERE key_hash=? AND revoked_at IS NULL", (h,)
-    ).fetchone()
-    return row["tenant_id"] if row else None
+    prefix = raw_key[:8] if len(raw_key) >= 8 else raw_key
+    rows = conn.execute(
+        "SELECT tenant_id, key_hash FROM api_keys WHERE key_prefix=? AND revoked_at IS NULL",
+        (prefix,)
+    ).fetchall()
+    for r in rows:
+        if hmac.compare_digest(r["key_hash"], h):
+            return r["tenant_id"]
+    return None
+
+
+def get_tenant_from_key(
+    authorization: Optional[str] = Header(None),
+    x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    api_key: Optional[str] = Query(None),
+) -> int:
+    """Resolve tenant id from Authorization: Bearer / X-API-Key header.
+
+    Legacy ``?api_key=`` query fallback kept for compatibility but deprecated —
+    query params leak into access logs/history (audit S-10).
+    """
+    raw = None
+    if authorization and authorization.lower().startswith("bearer "):
+        raw = authorization[7:].strip()
+    elif x_api_key:
+        raw = x_api_key.strip()
+    elif api_key:
+        raw = api_key
+    if not raw:
+        raise HTTPException(401, "Missing API key (use Authorization: Bearer <key>)")
+    tid = verify_api_key(raw)
+    if tid is None:
+        raise HTTPException(401, "Invalid API key")
+    return tid
 
 def create_session(tenant_id: int, github_user: str) -> str:
     """Create JWT session token. Returns token string."""
@@ -207,6 +238,32 @@ def _normalize_finding(f: dict) -> dict:
         "snippet": f.get("snippet") or f.get("detail") or "",
     }
 
+
+ALLOWED_GIT_HOSTS = {
+    h.strip().lower() for h in os.environ.get(
+        "GSC_ALLOWED_GIT_HOSTS", "github.com,gitlab.com,bitbucket.org"
+    ).split(",") if h.strip()
+}
+
+
+def _validate_target(target: str) -> None:
+    """Reject non-HTTPS, non-allowlisted, or SSRF-prone git targets (audit S-09).
+
+    Only https:// to a known public host is accepted; credentials-in-URL,
+    file://, ssh://, git:// and private/link-local hosts are rejected up front
+    so an arbitrary target can't be used as an SSRF/egress primitive.
+    """
+    parsed = urlparse(target)
+    if parsed.scheme != "https":
+        raise HTTPException(400, "Only https:// git targets are allowed")
+    host = (parsed.hostname or "").lower()
+    if not host or host not in ALLOWED_GIT_HOSTS:
+        raise HTTPException(400, "Target host is not in the allowlist")
+    if parsed.username or parsed.password:
+        raise HTTPException(400, "Credentials in the target URL are not allowed")
+    if not parsed.path or parsed.path == "/":
+        raise HTTPException(400, "Repository path is required")
+
 # ═══════════════════════════════════════════════════════════
 # Health
 # ═══════════════════════════════════════════════════════════
@@ -227,34 +284,53 @@ def health():
 # Scan
 # ═══════════════════════════════════════════════════════════
 
-@app.post("/api/v2/scan", response_model=ScanResponse)
-def scan(req: ScanRequest):
+@app.post("/api/v2/scan", status_code=202)
+async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
     tid = verify_api_key(req.api_key)
     if tid is None:
         raise HTTPException(401, "Invalid API key")
 
+    # SSRF guard: reject arbitrary/non-allowlisted git targets (audit S-09)
+    _validate_target(req.target)
+
     scan_id = str(uuid.uuid4())[:12]
 
-    # Check plan limits
-    tenant = conn.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
+    # Atomic quota reservation (audit C-06): claim a slot only if under limit.
+    # UPDATE ... WHERE scans_used < limit closes the check-then-act race.
+    tenant = conn.execute("SELECT plan FROM tenants WHERE id=?", (tid,)).fetchone()
+    if not tenant:
+        raise HTTPException(404, "Tenant not found")
     limits = {"free": 10, "pro": 100, "team": 500, "enterprise": 99999}
     max_scans = limits.get(tenant["plan"], 10)
-    if tenant["scans_used"] >= max_scans:
+    cur = conn.execute(
+        "UPDATE tenants SET scans_used = scans_used + 1 WHERE id=? AND scans_used < ?",
+        (tid, max_scans)
+    )
+    conn.commit()
+    if cur.rowcount == 0:
         raise HTTPException(429, f"Monthly scan limit ({max_scans}) reached. Upgrade to Pro.")
 
     conn.execute(
-        "INSERT INTO scan_jobs (id, tenant_id, target, profile, status) VALUES (?,?,?,?,'running')",
+        "INSERT INTO scan_jobs (id, tenant_id, target, profile, status) VALUES (?,?,?,?,'queued')",
         (scan_id, tid, req.target, req.profile)
     )
     conn.commit()
 
-    # Run GSC scan in temp dir
+    # Run clone/scan off the HTTP worker (audit C-06) — no blocking, no DoS.
+    background_tasks.add_task(_run_scan, scan_id, tid, req.target, req.profile)
+    return {"scan_id": scan_id, "status": "queued", "message": "Scan queued; poll /api/v2/scans"}
+
+
+def _run_scan(scan_id: str, tid: int, target: str, profile: str):
+    """Background scan worker: clone + scan + store. Never raises to the client."""
+    conn.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
+    conn.commit()
     findings = []
     try:
         with tempfile.TemporaryDirectory() as tmp:
             # Clone shallow
             clone = subprocess.run(
-                ["git", "clone", "--depth", "1", "--filter=blob:none", req.target, tmp],
+                ["git", "clone", "--depth", "1", "--filter=blob:none", target, tmp],
                 capture_output=True, timeout=60
             )
             if clone.returncode != 0:
@@ -266,9 +342,7 @@ def scan(req: ScanRequest):
                 capture_output=True, text=True, timeout=120
             )
             if result.returncode == 0 and result.stdout.strip():
-                # Strip any leading non-JSON lines (warnings, etc.)
                 stdout_clean = result.stdout.strip()
-                # Find the first '[' — JSON array starts there
                 json_start = stdout_clean.find('[')
                 if json_start > 0:
                     stdout_clean = stdout_clean[json_start:]
@@ -277,10 +351,8 @@ def scan(req: ScanRequest):
                     findings = []
 
         # Store findings
-        breakdown = {}
         for f in findings[:500]:  # cap at 500
             nf = _normalize_finding(f)
-            breakdown[nf["severity"]] = breakdown.get(nf["severity"], 0) + 1
             conn.execute(
                 """INSERT OR REPLACE INTO findings
                    (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id)
@@ -294,18 +366,11 @@ def scan(req: ScanRequest):
             "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=datetime('now') WHERE id=?",
             (len(findings), scan_id)
         )
-        conn.execute("UPDATE tenants SET scans_used = scans_used + 1 WHERE id=?", (tid,))
         conn.commit()
-
-        return ScanResponse(scan_id=scan_id, status="done", findings_count=len(findings), severity_breakdown=breakdown)
-
     except Exception as e:
         conn.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
         conn.commit()
-        # Log detail server-side; return generic message (audit S-06).
-        # Never leak paths, git output, or internal names to clients.
         print(f"[scan {scan_id}] failed: {e}", flush=True)
-        raise HTTPException(500, "Scan failed")
 
 # ═══════════════════════════════════════════════════════════
 # Findings
@@ -313,15 +378,11 @@ def scan(req: ScanRequest):
 
 @app.get("/api/v2/findings")
 def findings(
-    api_key: str = Query(...),
     severity: str = Query(None),
     rule_id: str = Query(None),
     limit: int = Query(50, le=500),
+    tid: int = Depends(get_tenant_from_key),
 ):
-    tid = verify_api_key(api_key)
-    if tid is None:
-        raise HTTPException(401, "Invalid API key")
-
     sql = "SELECT * FROM findings WHERE tenant_id = ?"
     params: list = [tid]
 
@@ -343,11 +404,7 @@ def findings(
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/v2/scans")
-def scans(api_key: str = Query(...)):
-    tid = verify_api_key(api_key)
-    if tid is None:
-        raise HTTPException(401, "Invalid API key")
-
+def scans(tid: int = Depends(get_tenant_from_key)):
     rows = conn.execute(
         "SELECT * FROM scan_jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50", (tid,)
     ).fetchall()
@@ -504,9 +561,19 @@ def exchange_code(payload: dict = Body(...)):
     return {"token": session_token, "github_user": row["github_user"]}
 
 @app.get("/api/v2/auth/session")
-def session_info(token: str = Query(...)):
-    """Validate session token and return tenant info."""
-    tid = verify_session(token)
+def session_info(
+    authorization: Optional[str] = Header(None),
+    token: Optional[str] = Query(None),
+):
+    """Validate session token and return tenant info (token via header preferred)."""
+    raw = None
+    if authorization and authorization.lower().startswith("bearer "):
+        raw = authorization[7:].strip()
+    elif token:
+        raw = token  # legacy query fallback
+    if not raw:
+        raise HTTPException(401, "Missing session token")
+    tid = verify_session(raw)
     if tid is None:
         raise HTTPException(401, "Invalid or expired session")
     tenant = conn.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
@@ -517,11 +584,7 @@ def session_info(token: str = Query(...)):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/v2/stats")
-def stats(api_key: str = Query(...)):
-    tid = verify_api_key(api_key)
-    if tid is None:
-        raise HTTPException(401, "Invalid API key")
-
+def stats(tid: int = Depends(get_tenant_from_key)):
     tenant = conn.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
     total_findings = conn.execute(
         "SELECT COUNT(*) as c FROM findings WHERE tenant_id=?", (tid,)

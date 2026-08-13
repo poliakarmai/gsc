@@ -6,6 +6,7 @@
 
 | # | Repo | Finding | Created | Status |
 |---|------|---------|---------|--------|
+| 19 | BrowserlessAPI/VortexPanel | CWE-78 Command Injection (file manager) | 2026-08-13 | ⏳ Waiting |
 | 1005 | aio-libs/aiohttp-security | CWE-384 Session Fixation | 2026-08-09 | 🔄 Discussion (3 comments) |
 | 1 | rajat-gohil/Movie-Recommender | CWE-502 pickle.load() | 2026-08-11 | ⏳ Bot only |
 | 1 | Danielbrgs/health_insurance_predictor | CWE-502 pickle.load() | 2026-08-11 | ⏳ Waiting |
