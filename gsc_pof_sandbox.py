@@ -122,6 +122,7 @@ class PoFSandbox:
         patched_code: str,
         poc_code: str,
         language: str = "python",
+        fmt: str = "python",
     ) -> FixVerification:
         """Full fix verification cycle.
 
@@ -133,14 +134,14 @@ class PoFSandbox:
             return FixVerification(verified=False, reason=f"Sandbox only supports Python, got {language}")
 
         # Step 1: PoC against vulnerable code
-        before = self._execute(poc_code, vulnerable_code)
+        before = self._execute(poc_code, vulnerable_code, fmt=fmt)
         if before.error:
             return FixVerification(verified=False, before=before, reason=f"before execution error: {before.error}")
         if not before.success:
             return FixVerification(verified=False, before=before, reason="PoC did not trigger on vulnerable code (possible FP)")
 
         # Step 2: PoC against patched code
-        after = self._execute(poc_code, patched_code)
+        after = self._execute(poc_code, patched_code, fmt=fmt)
         if after.error:
             return FixVerification(verified=False, before=before, after=after, reason=f"after execution error: {after.error}")
         if after.success:
@@ -151,7 +152,54 @@ class PoFSandbox:
 
     # ── Execute PoC in sandbox ────────────────────────────────────
 
-    def _execute(self, poc_code: str, target_code: str) -> SandboxResult:
+    def _execute(self, poc_code: str, target_code: str, fmt: str = "python") -> SandboxResult:
+        """Dispatch by PoC format (fix: curl/bash PoCs were run as Python → TypeError).
+
+        fmt: 'python'/'py' → import target + run as Python;
+             'curl'/'bash'/'shell'/'sh' → run via bash -c (secret-free env + limits).
+        """
+        fmt = (fmt or "python").lower()
+        if fmt in ("curl", "bash", "shell", "sh"):
+            return self._execute_shell(poc_code, target_code)
+        return self._execute_python(poc_code, target_code)
+
+    def _execute_shell(self, poc_code: str, target_code: str) -> SandboxResult:
+        """Run a shell/curl PoC via bash -c in the same secret-free, limited env."""
+        workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
+        workdir.mkdir(parents=True, exist_ok=True)
+        try:
+            t0 = time.time()
+            try:
+                proc = subprocess.run(
+                    ["bash", "-c", poc_code],
+                    capture_output=True, text=True,
+                    timeout=SANDBOX_TIMEOUT,
+                    cwd=str(workdir),
+                    env=_sandbox_env(str(workdir)),
+                    preexec_fn=_sandbox_limits,
+                )
+                elapsed = time.time() - t0
+            except subprocess.TimeoutExpired:
+                return SandboxResult(success=False, exit_code=-1, stdout="",
+                                     stderr=f"TIMEOUT after {SANDBOX_TIMEOUT}s",
+                                     elapsed=SANDBOX_TIMEOUT, error="timeout")
+            stdout = proc.stdout[:MAX_OUTPUT_BYTES]
+            stderr = proc.stderr[:MAX_OUTPUT_BYTES]
+            has_marker = bool(SUCCESS_MARKERS.search(stdout))
+            success = proc.returncode == 0 and has_marker
+            return SandboxResult(success=success, exit_code=proc.returncode,
+                                 stdout=stdout, stderr=stderr, elapsed=round(elapsed, 2))
+        except Exception as e:
+            return SandboxResult(success=False, exit_code=-1, stdout="", stderr=str(e),
+                                 elapsed=0, error=str(e))
+        finally:
+            try:
+                import shutil
+                shutil.rmtree(workdir, ignore_errors=True)
+            except Exception:
+                pass
+
+    def _execute_python(self, poc_code: str, target_code: str) -> SandboxResult:
         """Execute PoC against target code in sandbox venv."""
         # Write target code and PoC to temp files
         workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
@@ -253,8 +301,9 @@ def verify_pof(
         FixVerification with verified=True only if PoC succeeds before fix
         and fails after fix.
     """
+    fmt = (finding.get("metadata", {}) or {}).get("poc_format", "python")
     sandbox = PoFSandbox(project_dir)
-    return sandbox.verify_fix(vulnerable_code, patched_code, poc_code, language)
+    return sandbox.verify_fix(vulnerable_code, patched_code, poc_code, language, fmt=fmt)
 
 
 if __name__ == "__main__":

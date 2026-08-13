@@ -159,7 +159,8 @@ def attach_deterministic_pocs(findings: list[dict]) -> list[dict]:
         rule_id = f.get("rule_id", f.get("title", ""))
         poc = get_deterministic_poc(rule_id)
         if poc:
-            f.setdefault("metadata", {})["poc"] = poc.payload
+            f.setdefault("metadata", {})["poc"] = poc._generate_code()
+            f["metadata"]["poc_payload"] = poc.payload
             f["metadata"]["poc_impact"] = poc.impact
             f["metadata"]["poc_format"] = poc.fmt
             f["metadata"]["poc_deterministic"] = True
