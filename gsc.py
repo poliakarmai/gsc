@@ -649,8 +649,12 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
                     continue
                 parts = line.split(":", 2)
                 if len(parts) >= 2:
+                    cat = p.get("category", "MEDIUM")
+                    # code-quality patterns (noise_tier='quality') are not security vulns
+                    if p.get("noise_tier") == "quality":
+                        cat = "INFO"
                     findings.append({
-                        "category": p.get("category", "MEDIUM"),
+                        "category": cat,
                         "echelon": 3,
                         "title": p["title"],
                         "file_path": parts[0],
