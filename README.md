@@ -137,6 +137,26 @@ gsc export-nuclei scan.json -o templates/
 gsc scan-dast https://staging.example.com --severity critical
 ```
 
+### 🤖 MCP Server — your AI agent becomes a security scanner
+GSC speaks **Model Context Protocol** — Claude Code, Cursor, Cline, Windsurf and
+Copilot can run scans, read findings and verify exploits **inside their own
+context**, then fix the code in the same session:
+
+```json
+{ "mcpServers": { "gsc": {
+    "command": "python3", "args": ["gsc_mcp_server.py"], "cwd": "/path/to/gsc"
+} } }
+```
+
+```text
+User: scan ~/my-project and fix CRITICALs
+Agent: scan_repo() → 3 CRITICAL → verify_finding() → exploit confirmed
+       → patches the code → re-scan → scan-diff shows "fixed: 1"
+```
+
+Read-only tools (`scan_repo`, `list_findings`, `verify_finding`); PoCs run in an
+isolated sandbox. Full guide: **[docs/MCP_SERVER.md](docs/MCP_SERVER.md)**.
+
 ---
 
 ## 🏗️ Architecture
