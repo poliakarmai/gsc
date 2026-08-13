@@ -1,0 +1,18 @@
+{
+  "id": "ssti_01_render",
+  "class": "ssti",
+  "cwe": "CWE-1336",
+  "framework": "flask",
+  "language": "python",
+  "expected_rule_id": "GS037",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/render",
+    "method": "GET",
+    "param": "name",
+    "payload": "{{7*7}}"
+  },
+  "success_indicator": "49",
+  "poc_format": "bash",
+  "clean": false
+}

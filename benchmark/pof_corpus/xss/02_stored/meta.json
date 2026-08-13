@@ -1,0 +1,18 @@
+{
+  "id": "xss_02_stored",
+  "class": "xss",
+  "cwe": "CWE-79",
+  "framework": "fastapi",
+  "language": "python",
+  "expected_rule_id": "GS020",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/board",
+    "method": "GET",
+    "param": "comment-text",
+    "payload": "<script>alert(1)</script>"
+  },
+  "success_indicator": "<script>alert(1)</script>",
+  "poc_format": "bash",
+  "clean": false
+}

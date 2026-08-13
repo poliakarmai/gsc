@@ -1,0 +1,18 @@
+{
+  "id": "redirect_01_next",
+  "class": "redirect",
+  "cwe": "CWE-601",
+  "framework": "flask",
+  "language": "python",
+  "expected_rule_id": "GS022",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/go",
+    "method": "GET",
+    "param": "next",
+    "payload": "http://evil.example.com"
+  },
+  "success_indicator": "evil.example.com",
+  "poc_format": "bash",
+  "clean": false
+}

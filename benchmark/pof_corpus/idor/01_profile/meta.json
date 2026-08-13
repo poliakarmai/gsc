@@ -1,0 +1,18 @@
+{
+  "id": "idor_01_profile",
+  "class": "idor",
+  "cwe": "CWE-639",
+  "framework": "fastapi",
+  "language": "python",
+  "expected_rule_id": "GS007",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/profile/{user_id}",
+    "method": "GET",
+    "param": "user_id",
+    "payload": "/profile/2?token=tok_alice"
+  },
+  "success_indicator": "bob-secret@ex.com",
+  "poc_format": "bash",
+  "clean": false
+}

@@ -1,0 +1,18 @@
+{
+  "id": "cmdi_01_echo",
+  "class": "cmdi",
+  "cwe": "CWE-78",
+  "framework": "flask",
+  "language": "python",
+  "expected_rule_id": "GS004",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/ping",
+    "method": "GET",
+    "param": "host",
+    "payload": ";id"
+  },
+  "success_indicator": "uid=",
+  "poc_format": "bash",
+  "clean": false
+}

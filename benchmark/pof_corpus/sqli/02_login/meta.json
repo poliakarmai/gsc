@@ -1,0 +1,18 @@
+{
+  "id": "sqli_02_login",
+  "class": "sqli",
+  "cwe": "CWE-89",
+  "framework": "fastapi",
+  "language": "python",
+  "expected_rule_id": "GS005",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/login",
+    "method": "GET",
+    "param": "username",
+    "payload": "admin' --"
+  },
+  "success_indicator": "\"role\": \"admin\"",
+  "poc_format": "bash",
+  "clean": false
+}

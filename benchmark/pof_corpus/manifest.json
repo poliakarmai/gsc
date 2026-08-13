@@ -1,0 +1,156 @@
+{
+  "corpus_version": "1.0",
+  "generated": "2026-08-13",
+  "apps": [
+    {
+      "id": "sqli_01_search",
+      "class": "sqli",
+      "cwe": "CWE-89",
+      "framework": "flask",
+      "expected_rule_id": "GS005",
+      "vulnerable_dir": "sqli/01_search/vulnerable",
+      "patched_dir": "sqli/01_search/patched",
+      "clean": false
+    },
+    {
+      "id": "sqli_02_login",
+      "class": "sqli",
+      "cwe": "CWE-89",
+      "framework": "fastapi",
+      "expected_rule_id": "GS005",
+      "vulnerable_dir": "sqli/02_login/vulnerable",
+      "patched_dir": "sqli/02_login/patched",
+      "clean": false
+    },
+    {
+      "id": "sqli_03_second_order",
+      "class": "sqli",
+      "cwe": "CWE-89",
+      "framework": "flask",
+      "expected_rule_id": "GS005",
+      "vulnerable_dir": "sqli/03_second_order/vulnerable",
+      "patched_dir": "sqli/03_second_order/patched",
+      "clean": false
+    },
+    {
+      "id": "xss_01_reflected",
+      "class": "xss",
+      "cwe": "CWE-79",
+      "framework": "flask",
+      "expected_rule_id": "GS020",
+      "vulnerable_dir": "xss/01_reflected/vulnerable",
+      "patched_dir": "xss/01_reflected/patched",
+      "clean": false
+    },
+    {
+      "id": "xss_02_stored",
+      "class": "xss",
+      "cwe": "CWE-79",
+      "framework": "fastapi",
+      "expected_rule_id": "GS020",
+      "vulnerable_dir": "xss/02_stored/vulnerable",
+      "patched_dir": "xss/02_stored/patched",
+      "clean": false
+    },
+    {
+      "id": "ssti_01_render",
+      "class": "ssti",
+      "cwe": "CWE-1336",
+      "framework": "flask",
+      "expected_rule_id": "GS037",
+      "vulnerable_dir": "ssti/01_render/vulnerable",
+      "patched_dir": "ssti/01_render/patched",
+      "clean": false
+    },
+    {
+      "id": "cmdi_01_echo",
+      "class": "cmdi",
+      "cwe": "CWE-78",
+      "framework": "flask",
+      "expected_rule_id": "GS004",
+      "vulnerable_dir": "cmdi/01_echo/vulnerable",
+      "patched_dir": "cmdi/01_echo/patched",
+      "clean": false
+    },
+    {
+      "id": "ssrf_01_fetch",
+      "class": "ssrf",
+      "cwe": "CWE-918",
+      "framework": "flask",
+      "expected_rule_id": "GS021",
+      "vulnerable_dir": "ssrf/01_fetch/vulnerable",
+      "patched_dir": "ssrf/01_fetch/patched",
+      "clean": false
+    },
+    {
+      "id": "path_01_download",
+      "class": "path_traversal",
+      "cwe": "CWE-22",
+      "framework": "flask",
+      "expected_rule_id": "GS037",
+      "vulnerable_dir": "path_traversal/01_download/vulnerable",
+      "patched_dir": "path_traversal/01_download/patched",
+      "clean": false
+    },
+    {
+      "id": "idor_01_profile",
+      "class": "idor",
+      "cwe": "CWE-639",
+      "framework": "fastapi",
+      "expected_rule_id": "GS007",
+      "vulnerable_dir": "idor/01_profile/vulnerable",
+      "patched_dir": "idor/01_profile/patched",
+      "clean": false
+    },
+    {
+      "id": "deser_01_pickle",
+      "class": "deserialization",
+      "cwe": "CWE-502",
+      "framework": "flask",
+      "expected_rule_id": "GS037",
+      "vulnerable_dir": "deserialization/01_pickle/vulnerable",
+      "patched_dir": "deserialization/01_pickle/patched",
+      "clean": false
+    },
+    {
+      "id": "xxe_01_parse",
+      "class": "xxe",
+      "cwe": "CWE-611",
+      "framework": "flask",
+      "expected_rule_id": "GS037",
+      "vulnerable_dir": "xxe/01_parse/vulnerable",
+      "patched_dir": "xxe/01_parse/patched",
+      "clean": false
+    },
+    {
+      "id": "redirect_01_next",
+      "class": "redirect",
+      "cwe": "CWE-601",
+      "framework": "flask",
+      "expected_rule_id": "GS022",
+      "vulnerable_dir": "redirect/01_next/vulnerable",
+      "patched_dir": "redirect/01_next/patched",
+      "clean": false
+    },
+    {
+      "id": "clean_01_safe",
+      "class": "clean",
+      "cwe": null,
+      "framework": "flask",
+      "expected_rule_id": null,
+      "vulnerable_dir": "clean/01_safe/vulnerable",
+      "patched_dir": null,
+      "clean": true
+    },
+    {
+      "id": "clean_02_safe",
+      "class": "clean",
+      "cwe": null,
+      "framework": "fastapi",
+      "expected_rule_id": null,
+      "vulnerable_dir": "clean/02_safe/vulnerable",
+      "patched_dir": null,
+      "clean": true
+    }
+  ]
+}

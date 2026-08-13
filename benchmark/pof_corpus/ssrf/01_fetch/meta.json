@@ -1,0 +1,18 @@
+{
+  "id": "ssrf_01_fetch",
+  "class": "ssrf",
+  "cwe": "CWE-918",
+  "framework": "flask",
+  "language": "python",
+  "expected_rule_id": "GS021",
+  "vuln": {
+    "file": "app.py",
+    "endpoint": "/fetch",
+    "method": "GET",
+    "param": "url",
+    "payload": "http://127.0.0.1:PORT/secret"
+  },
+  "success_indicator": "TOP_SECRET_FLAG_12345",
+  "poc_format": "bash",
+  "clean": false
+}
