@@ -1,6 +1,6 @@
-# SPDX-License-Identifier: BUSL-1.1
+# SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Алексей Поляков
-# Licensed under BSL 1.1 — see LICENSE
+# Licensed under Apache License 2.0 — see LICENSE
 
 """GS005 — SQL/NoSQL Injection Detector (v2.0: pattern_id decomposition).
 
