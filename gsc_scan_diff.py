@@ -1,7 +1,7 @@
 """Compare two GSC scan JSON files → new / fixed / severity_changed / unchanged.
 
-Inspired by deep-eye's ``core/scan_diff.py`` (MIT) — reimplemented against GSC's
-finding shape (rule_id, file_path, line_number, title, category-as-severity).
+Diffing by GSC's finding shape (rule_id, file_path, line_number, title,
+category-as-severity).
 
 Use case: track drift between two CI runs — what broke, what got fixed, what
 changed severity — so the "heal" loop and release gates have a stable diff.
