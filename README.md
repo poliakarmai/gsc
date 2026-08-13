@@ -32,16 +32,16 @@ have to triage, verify, and fix manually.
 
 | Stage | What GSC does | Who else does this? |
 |---|---|---|
-| **Detect** | 25+ detectors + LLM revalidation | Semgrep, Snyk, CodeQL |
-| **Prove** | Auto-generates a working exploit (PoC) | 🔴 *Nobody* |
-| **Fix** | Auto-generates a minimal patch via LLM | 🔴 *Nobody* |
-| **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🔴 *Nobody* |
-| **Heal** | Opens a PR with the verified fix | 🔴 *Nobody* |
-| **Predict** | Forecasts where the *next* vulnerability appears | 🔴 *Nobody* |
-| **Learn** | Self-tunes: auto-deactivates noisy patterns | 🔴 *Nobody* |
+| **Detect** | 38 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
+| **Prove** | Auto-generates a working exploit (PoC) | 🟡 *partial* — PT AI, Checkmarx (exploitability) |
+| **Fix** | Auto-generates a minimal patch via LLM | 🟡 Snyk DeepCode Fix, Sonar AI CodeFix, GitHub Copilot Autofix |
+| **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🟢 *rare* — few close the full PoC→patch→re-verify loop |
+| **Heal** | Opens a PR with the verified fix | 🟡 Snyk/Semgrep/Mend auto-PR (without PoF verification) |
+| **Predict** | Forecasts where the *next* vulnerability appears | 🟢 *no known equivalent* |
+| **Learn** | Self-tunes: auto-deactivates noisy patterns | 🟢 *rare* — self-learning feedback loop |
 
-> **Semgrep, Snyk, CodeQL, Sn1per — they all see a slice of "now."**
-> **GSC sees the past, present, and future of every vulnerability.**
+> **Most scanners see a slice of "now." GSC's differentiator is the closed loop:**
+> **a verified fix, not just another alert — detect → prove → fix → verify → heal.**
 
 ---
 
