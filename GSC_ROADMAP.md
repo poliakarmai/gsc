@@ -17,7 +17,7 @@
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
 | SaaS Cloud (S1–S4) | 📝 спроектирован | реализация (~4 мес) |
 | Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
-| VSCode extension | 🟡 v0.32 + `.vsix` собран | публикация в Marketplace (2 нед) |
+| VSCode extension | ✅ v0.32 + `.vsix` + **Open VSX опубликован** | GitHub Releases + VSCode Marketplace (РФ ❌) |
 | Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅; Phase 2 HTTP-runner ✅ | #1 runtime validator ⏳ |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
@@ -134,9 +134,11 @@
 
 Runner + activation key + ingest API + кэш/offline + air-gap экспорт. Запускать после S1.
 
-### Трек 3. VSCode extension (2 недели + Marketplace)
+### Трек 3. VSCode extension (Open VSX ✅, VSCode Marketplace ❌ РФ)
 
-Scaffold есть (gsc-vscode, v0.32). Осталось: GscClient, diagnostics, CodeLens-вердикты, chains webview, публикация.
+Scaffold есть (gsc-vscode, v0.32). **Опубликовано в Open VSX** (13.08): `poliakarmai.gsc-security v1.0.0`
+(`open-vsx.org/extension/poliakarmai/gsc-security`) — VSCodium/Gitpod/Theia/CodeSpaces.
+VSCode Marketplace (Azure DevOps) недоступен из РФ — заменён на Open VSX + GitHub Releases.
 
 ### Трек 4. Бизнес и продажа (параллельно)
 
