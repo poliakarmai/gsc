@@ -100,13 +100,15 @@ class DeterministicPoC:
     def _generate_code(self) -> str:
         """Generate executable PoC code based on kind."""
         if self.fmt == "curl":
-            # Curl-based PoC — inject payload into URL/form parameter
-            escaped = self.payload.replace("'", "'\\''")
+            # Curl-based PoC — inject payload into a URL query parameter via
+            # --data-urlencode so spaces/metachars ({{ 7 * 7 }}, ' OR '1'='1)
+            # are percent-encoded and reach the server intact.
             return (
                 f"# Deterministic {self.kind} PoC\n"
                 f"# Replace TARGET_URL with the actual endpoint\n"
                 f"# Payload: {self.payload}\n"
-                f"curl -s 'TARGET_URL?input={escaped}' | grep -q '{self.marker}' "
+                f"curl -s -G 'TARGET_URL' --data-urlencode \"input={self.payload}\" "
+                f"| grep -q '{self.marker}' "
                 f"&& echo VULNERABLE && exit 0 "
                 f"|| echo SAFE && exit 1"
             )

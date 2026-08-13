@@ -62,3 +62,43 @@ def test_verify_fix_uses_fmt():
     # This test only asserts the fmt parameter is accepted and threaded through
     # without raising (the reject path is language != python).
     assert v is not None
+
+
+def test_detect_framework():
+    from gsc_pof_sandbox import _detect_framework
+    assert _detect_framework("from flask import Flask\napp = Flask(__name__)") == "flask"
+    assert _detect_framework("from fastapi import FastAPI\napp = FastAPI()") == "fastapi"
+    assert _detect_framework("import os\nprint(1)") is None
+
+
+def test_free_port_is_int():
+    from gsc_pof_sandbox import _free_port
+    assert isinstance(_free_port(), int)
+
+
+def _sandbox_has_flask() -> bool:
+    import subprocess
+    from gsc_pof_sandbox import SANDBOX_ROOT
+    py = SANDBOX_ROOT / "venv" / "bin" / "python3"
+    if not py.exists():
+        return False
+    return subprocess.run([str(py), "-c", "import flask"], capture_output=True).returncode == 0
+
+
+def test_curl_serves_ssti_flask_app():
+    """Phase 2 e2e: serve a Flask SSTI app and hit it with a deterministic curl PoC."""
+    if not _sandbox_has_flask():
+        import pytest
+        pytest.skip("flask not installed in sandbox venv")
+    from gsc_poc_deterministic import get_deterministic_poc
+    target = (
+        "from flask import Flask, request, render_template_string\n"
+        "app = Flask(__name__)\n\n"
+        "@app.route('/')\n"
+        "def index():\n"
+        "    return render_template_string(request.args.get('input', ''))\n"
+    )
+    poc = get_deterministic_poc("GS020")._generate_code()
+    r = PoFSandbox()._execute(poc, target, fmt="curl")
+    assert r.success is True, f"stderr={r.stderr}"
+    assert "VULNERABLE" in r.stdout

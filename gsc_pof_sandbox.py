@@ -33,6 +33,37 @@ SANDBOX_ENV_WHITELIST = {
 SANDBOX_MEM_LIMIT = 512 * 1024 * 1024   # 512 MB address space
 SANDBOX_FSIZE_LIMIT = 16 * 1024 * 1024  # 16 MB max file write
 
+# Phase 2: run a web target as a live HTTP server so curl-PoCs (SQLi/SSRF/IDOR/
+# SSTI/auth-bypass) have a real TARGET_URL to hit. Best-effort: only standalone
+# single-file apps are served; multi-module apps fall back to "SAFE" (no endpoint).
+SERVE_TEMPLATES = {
+    "flask": "from target_app import app\napp.run(host='127.0.0.1', port={port})\n",
+    "sanic": "from target_app import app\napp.run(host='127.0.0.1', port={port})\n",
+    "bottle": "from target_app import app\napp.run(host='127.0.0.1', port={port})\n",
+    "fastapi": "import uvicorn\nfrom target_app import app\nuvicorn.run(app, host='127.0.0.1', port={port}, log_level='error')\n",
+}
+
+
+def _free_port() -> int:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.bind(("127.0.0.1", 0))
+        return s.getsockname()[1]
+
+
+def _detect_framework(target_code: str) -> str | None:
+    """Heuristic web-framework detection from target source (single-file apps)."""
+    t = target_code.lower()
+    if "fastapi(" in t or "from fastapi" in t or "import fastapi" in t:
+        return "fastapi"
+    if "flask(" in t or "from flask" in t or "import flask" in t:
+        return "flask"
+    if "sanic(" in t or "from sanic" in t or "import sanic" in t:
+        return "sanic"
+    if "bottle(" in t or "from bottle" in t or "import bottle" in t:
+        return "bottle"
+    return None
+
 
 def _sandbox_env(workdir: str) -> dict:
     """Build a minimal env without host secrets (audit F-05)."""
@@ -54,6 +85,23 @@ def _sandbox_limits():
         resource.setrlimit(resource.RLIMIT_AS, (SANDBOX_MEM_LIMIT, SANDBOX_MEM_LIMIT))
         resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
         resource.setrlimit(resource.RLIMIT_FSIZE, (SANDBOX_FSIZE_LIMIT, SANDBOX_FSIZE_LIMIT))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+    except Exception:
+        pass
+
+
+def _sandbox_limits_shell():
+    """Limits for shell/curl PoC execution.
+
+    RLIMIT_AS is omitted: a bash forked from a Python parent inherits a large
+    virtual address space, so a 512 MB AS cap makes every fork() of external
+    commands (curl/grep) fail with EAGAIN. Keep CPU/FSIZE/NPROC/NOFILE.
+    """
+    try:
+        import resource
+        resource.setrlimit(resource.RLIMIT_CPU, (SANDBOX_TIMEOUT, SANDBOX_TIMEOUT + 5))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (SANDBOX_FSIZE_LIMIT, SANDBOX_FSIZE_LIMIT))
+        resource.setrlimit(resource.RLIMIT_NPROC, (256, 256))
         resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
     except Exception:
         pass
@@ -163,20 +211,60 @@ class PoFSandbox:
             return self._execute_shell(poc_code, target_code)
         return self._execute_python(poc_code, target_code)
 
+    def _serve_target(self, target_code: str, workdir: Path):
+        """Serve a single-file web app on a free local port. Returns (Popen, url) or None."""
+        fw = _detect_framework(target_code)
+        if fw is None:
+            return None
+        port = _free_port()
+        (workdir / "target_app.py").write_text(target_code)
+        (workdir / "serve.py").write_text(SERVE_TEMPLATES[fw].format(port=port))
+        try:
+            proc = subprocess.Popen(
+                [self._python, str(workdir / "serve.py")],
+                cwd=str(workdir), env=_sandbox_env(str(workdir)),
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            )
+        except Exception:
+            return None
+        import urllib.request
+        url = f"http://127.0.0.1:{port}"
+        for _ in range(20):
+            try:
+                urllib.request.urlopen(url, timeout=0.3)
+                return proc, url
+            except Exception:
+                if proc.poll() is not None:
+                    return None  # server exited
+                time.sleep(0.2)
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        return None
+
     def _execute_shell(self, poc_code: str, target_code: str) -> SandboxResult:
-        """Run a shell/curl PoC via bash -c in the same secret-free, limited env."""
+        """Run a shell/curl PoC via bash -c. If it references TARGET_URL and the
+        target is a single-file web app, serve it on a free port and substitute."""
         workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
         workdir.mkdir(parents=True, exist_ok=True)
+        server = None
         try:
+            script = poc_code
+            if "TARGET_URL" in script and target_code.strip():
+                served = self._serve_target(target_code, workdir)
+                if served is not None:
+                    server, url = served
+                    script = script.replace("TARGET_URL", url)
             t0 = time.time()
             try:
                 proc = subprocess.run(
-                    ["bash", "-c", poc_code],
+                    ["bash", "-c", script],
                     capture_output=True, text=True,
                     timeout=SANDBOX_TIMEOUT,
                     cwd=str(workdir),
                     env=_sandbox_env(str(workdir)),
-                    preexec_fn=_sandbox_limits,
+                    preexec_fn=_sandbox_limits_shell,
                 )
                 elapsed = time.time() - t0
             except subprocess.TimeoutExpired:
@@ -193,6 +281,12 @@ class PoFSandbox:
             return SandboxResult(success=False, exit_code=-1, stdout="", stderr=str(e),
                                  elapsed=0, error=str(e))
         finally:
+            if server is not None:
+                try:
+                    server.terminate()
+                    server.wait(timeout=3)
+                except Exception:
+                    pass
             try:
                 import shutil
                 shutil.rmtree(workdir, ignore_errors=True)
