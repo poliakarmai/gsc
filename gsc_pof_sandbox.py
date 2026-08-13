@@ -268,12 +268,14 @@ class PoFSandbox:
             )
         except Exception:
             return None
-        import urllib.request
+        import urllib.request, urllib.error
         url = f"http://127.0.0.1:{port}"
         for _ in range(20):
             try:
                 urllib.request.urlopen(url, timeout=0.3)
                 return proc, url
+            except urllib.error.HTTPError:
+                return proc, url  # 4xx/5xx от живого сервера — это ОК
             except Exception:
                 if proc.poll() is not None:
                     return None  # server exited
@@ -324,12 +326,14 @@ class PoFSandbox:
             )
         except Exception:
             return None
-        import urllib.request
+        import urllib.request, urllib.error
         url = f"http://127.0.0.1:{port}"
         for _ in range(30):
             try:
                 urllib.request.urlopen(url, timeout=0.4)
                 return proc, url
+            except urllib.error.HTTPError:
+                return proc, url  # 4xx/5xx от живого сервера (нет route на /) — это ОК
             except Exception:
                 if proc.poll() is not None:
                     return None
