@@ -1906,6 +1906,32 @@ def cmd_sbom(args):
     return 0
 
 
+def cmd_supply_chain(args):
+    """gsc supply-chain — link code findings to reachable vulnerable dependencies."""
+    import json
+    from pathlib import Path
+    from gsc_supply_chain_chains import compose_supply_chains
+
+    scan_file = getattr(args, 'scan', 'scan.json')
+    try:
+        findings = json.loads(Path(scan_file).read_text())
+    except Exception:
+        print(f"Cannot read scan: {scan_file}")
+        return 1
+    findings = findings if isinstance(findings, list) else findings.get("findings", [])
+
+    chains = compose_supply_chains(args.repo, findings)
+    if getattr(args, 'json', False):
+        print(json.dumps(chains, indent=2, ensure_ascii=False))
+    else:
+        for c in chains:
+            print(f"[{c['composed_severity']}] {c['package']}=={c['version']} "
+                  f"{c['cve']} x {c['code_severity']} code flaw @ "
+                  f"{c['usage_file']}:{c['usage_line']} (cvss {c['combined_cvss']})")
+        print(f"\n{len(chains)} supply-chain links")
+    return 0
+
+
 
 def cmd_iac(args):
     """gsc iac — IaC misconfiguration scan."""
@@ -2218,6 +2244,13 @@ def main():
     p_sbom.add_argument('--with-vex', action='store_true')
     p_sbom.add_argument('--output', '-o')
     p_sbom.set_defaults(func=cmd_sbom)
+
+    # gsc supply-chain (cross-layer: code findings x reachable vulnerable deps)
+    p_schain = sub.add_parser('supply-chain', help='Supply-chain chains: code flaw x reachable CVE')
+    p_schain.add_argument('--repo', default='.')
+    p_schain.add_argument('--scan', default='scan.json', help='GSC scan JSON with findings')
+    p_schain.add_argument('--json', action='store_true')
+    p_schain.set_defaults(func=cmd_supply_chain)
 
     # gsc iac (v0.34: IaC scanning)
     p_iac = sub.add_parser('iac', help='IaC misconfiguration scan (v0.34)')
@@ -2580,6 +2613,8 @@ def main():
                     break
             else:
                 print(f"Chain {args.chain_key} not found")
+    elif args.command == "supply-chain":
+        sys.exit(cmd_supply_chain(args))
     elif args.command == "mutations":
         from gsc_db import GSCDatabase
         db = GSCDatabase()
@@ -2697,6 +2732,11 @@ def main():
                 state = "on " if inv.enabled else "off"
                 print(f"[{state}] {inv.id:10s} {inv.type:11s} "
                       f"{inv.severity:9s} {inv.name}")
+    elif hasattr(args, 'func'):
+        # Commands registered via set_defaults(func=...) — sca, sbom, epss,
+        # federated, iac, benchmark, sbom-verify. This fallback was missing,
+        # so they silently fell through to print_help() (dead commands).
+        args.func(args)
     else:
         parser.print_help()
 

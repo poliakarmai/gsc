@@ -1,0 +1,25 @@
+{
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "serialNumber": "urn:uuid:7792ea8a-0398-4acc-b860-fa0b2cbf93d6",
+  "metadata": {
+    "timestamp": "2026-08-13T06:18:00.108489+00:00",
+    "tools": [
+      {
+        "vendor": "GSC",
+        "name": "gsc-sbom",
+        "version": "0.33"
+      }
+    ]
+  },
+  "components": [
+    {
+      "type": "library",
+      "bom-ref": "330ad5782a1304b0",
+      "name": "requests",
+      "version": "2.19.0",
+      "purl": "pkg:pypi/requests@2.19.0"
+    }
+  ]
+}
