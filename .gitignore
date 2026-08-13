@@ -29,3 +29,6 @@ calibration/repos/.gsc/
 calibration/reports/
 cloud/nginx-production.conf
 cloud/static/
+
+# VSCode extension artifacts (distributed via GitHub Releases / Open VSX)
+gsc-vscode/*.vsix
