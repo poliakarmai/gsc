@@ -14,6 +14,7 @@ Run:  python3 gsc_mcp_server.py     (stdio transport)
 """
 from __future__ import annotations
 
+import os
 import sys
 from pathlib import Path
 
@@ -131,14 +132,48 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
         return {"error": "no PoC attached to this finding", "finding_key": finding_key}
 
     fmt = meta.get("poc_format", "python")
-    src = target.get("snippet") or target.get("detail") or ""
-    r = PoFSandbox()._execute(poc, src, fmt=fmt)
+
+    # C-01 (audit): PoC must run against the REAL source file/project, not a
+    # stripped snippet/detail — a SAFE on a snippet means "snippet didn't run",
+    # not "vuln not exploitable". Resolve file_path against the repo root and
+    # pass project_dir so curl PoCs get a live multi-module server.
+    project_root = os.path.abspath(repo_path)
+    file_path = target.get("file_path") or target.get("file") or ""
+    src = ""
+    src_from_file = False
+    if file_path:
+        fp = Path(file_path)
+        if not fp.is_absolute():
+            fp = Path(project_root) / fp
+        try:
+            src = fp.read_text(errors="replace")
+            src_from_file = True
+        except OSError:
+            src = ""
+    if not src:
+        src = target.get("snippet") or target.get("detail") or ""
+
+    try:
+        r = PoFSandbox()._execute(poc, src, fmt=fmt, project_dir=project_root)
+    except Exception as e:  # sandbox/runner failure — do not report as SAFE
+        return {
+            "finding_key": finding_key,
+            "rule_id": target.get("rule_id"),
+            "severity": _severity(target),
+            "file": target.get("file_path") or target.get("file"),
+            "status": "execution_error",
+            "error": str(e),
+        }
+
+    status = "verified" if r.success else "not_reproducible"
 
     return {
         "finding_key": finding_key,
         "rule_id": target.get("rule_id"),
         "severity": _severity(target),
         "file": target.get("file_path") or target.get("file"),
+        "status": status,
+        "source": "file" if src_from_file else "snippet-fallback",
         "exploit_success": r.success,
         "exit_code": r.exit_code,
         "stdout": r.stdout[:2000],
