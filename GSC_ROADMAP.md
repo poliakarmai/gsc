@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 13.08.2026** | Ядро: v1.3.0, 38 детекторов | Аудит безопасности 28/28 закрыто | Cloud: спроектирован (S1–S4) | VSCode: v0.37
+> **Статус на 13.08.2026** | Ядро: v1.3.0, 38 детекторов | Аудит безопасности 28/28 закрыто | Cloud: спроектирован (S1–S4) | VSCode: v0.32 (`.vsix` собран) | Киллер-фичи #2/#3 + Phase 2 + federated Step 2 ✅
 
 Сводная дорожная карта по всем трекам: ядро, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -17,7 +17,8 @@
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
 | SaaS Cloud (S1–S4) | 📝 спроектирован | реализация (~4 мес) |
 | Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
-| VSCode extension | 📝 спроектирован (scaffold есть) | доделать (2 нед) |
+| VSCode extension | 🟡 v0.32 + `.vsix` собран | публикация в Marketplace (2 нед) |
+| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅; Phase 2 HTTP-runner ✅ | #1 runtime validator ⏳ |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
 ---
@@ -86,6 +87,7 @@
 | 0.4 | Аудит лицензий зависимостей (нет GPL) | ❌ 1 час |
 | 0.5 | Trademark на название/логотип | ❌ 1 нед (заявка) |
 | 0.6 | Зафиксировать доказательства авторства | ❌ 1 час |
+| 0.7 | **Пересмотр лицензии**: BSL → Apache 2.0 + Commercial dual (решение владельца — главный множитель цены) | ⏳ решение |
 
 ### Трек 0.5. Packages split — физический рефакторинг (3–5 дней)
 
@@ -106,6 +108,19 @@
 
 **Зависимость:** выполняется ДО S1 (PgBackend требует чистого core/cloud разделения).
 
+### Трек 0.6. Runtime Validator — IAST-lite (из экспертизы #1)
+
+> Proof-of-Fix верификация по факту runtime-эксплуатации, не по stdout-маркеру.
+> Решение принято (13.08): phased **D → B → F**, без eBPF `--privileged` (откатывает F-05).
+
+| # | Порция | Содержание | Проверка |
+|---|---|---|---|
+| 0.6.1 | Phase 1 (in-process) | monkeypatch `subprocess`/`requests`/`open` в `sitecustomize.py` внутри sandbox-venv, лог факта вызова с аргументами | покрытие ≥80% Python-кейсов |
+| 0.6.2 | Phase 2 (strace) | `strace -f -e trace=open,connect,execve` из родителя для JS/Go/бинарников | фильтр по workdir |
+| 0.6.3 | Phase 3 (Falco/Tetragon) | отдельный privileged-агент в K8s, только enterprise on-prem (>10 тенантов) | изоляция от GSC core |
+
+**Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`).
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
@@ -113,7 +128,7 @@
 | S1 | Docker-образ, PgBackend + RLS, tenants/api_keys, Redis queue + worker, /api/v2, metering | 3–4 нед |
 | S2 | GitHub App (install/webhooks), порт chains/mutations/overrides в PG, /gsc через webhook | 3 нед |
 | S3 | Dashboard (Next.js), GitHub OAuth, Stripe checkout + webhook, квоты/402 | 4–5 нед |
-| S4 | Audit log + hash chain, SSO OIDC, retention/deletion, SOC 2 prep, Marketplace, GA-гейт | 6–8 нед |
+| S4 | Audit log + hash chain, SSO OIDC, retention/deletion, SOC 2 Type I→II + ISO27001 prep, Marketplace, GA-гейт | 6–8 нед |
 
 ### Трек 2. Enterprise hybrid agent (2–3 недели)
 
@@ -133,6 +148,8 @@ Scaffold есть (gsc-vscode, v0.32). Осталось: GscClient, diagnostics,
 | 4.4 | Пилоты: 3–5 команд | после S2 |
 | 4.5 | Конверсия пилотов в Team/Business | после S3 |
 | 4.6 | Листинги: GitHub Marketplace, Product Hunt, VSCode Marketplace | после S4 |
+| 4.7 | Интеграции: GitHub Advanced Security + GitLab Ultimate (native, не только PR Adapter) | после S3 |
+| 4.8 | Решение по лицензии: Apache 2.0 + Commercial dual (множитель цены, см. Трек 0.7) | немедленно |
 
 ---
 
