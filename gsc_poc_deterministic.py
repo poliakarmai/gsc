@@ -25,9 +25,9 @@ DETERMINISTIC_RULES: dict[str, tuple[str, str, str, str]] = {
         "curl"
     ),
     "GS020": (
-        "ssti",
-        "{{ 7 * 7 }}",
-        "49",
+        "xss",
+        "<script>alert(1)</script>",
+        "<script>alert(1)</script>",
         "curl"
     ),
     "YAML-A7E2F001": (
@@ -40,6 +40,36 @@ DETERMINISTIC_RULES: dict[str, tuple[str, str, str, str]] = {
         "command_injection",
         "; echo VULNERABLE #",
         "VULNERABLE",
+        "curl"
+    ),
+    "GS004": (
+        "command_injection",
+        "; id",
+        "uid=",
+        "curl"
+    ),
+    "GS005": (
+        "sql_injection",
+        "' OR '1'='1",
+        "PWNED",
+        "curl"
+    ),
+    "GS007": (
+        "idor",
+        "2",
+        "secret",
+        "curl"
+    ),
+    "GS021": (
+        "ssrf",
+        "http://127.0.0.1/secret",
+        "TOP_SECRET",
+        "curl"
+    ),
+    "GS022": (
+        "open_redirect",
+        "http://evil.example.com",
+        "evil.example.com",
         "curl"
     ),
 }
@@ -74,6 +104,38 @@ PATH_TRAVERSAL_PAYLOADS = [
     ("../../etc/passwd", "root:x:0:0", "Linux — /etc/passwd"),
     ("../../../etc/passwd", "root:x:0:0", "Linux — deep traversal"),
     ("..\\..\\..\\windows\\win.ini", "[fonts]", "Windows — win.ini"),
+]
+
+# XSS (reflected/stored) — unescaped <script> in response
+XSS_PAYLOADS = [
+    ("<script>alert(1)</script>", "<script>alert(1)</script>", "Reflected XSS — script echoed unescaped"),
+    ("<img src=x onerror=alert(1)>", "<img src=x", "Reflected XSS — onerror handler"),
+]
+
+# SSRF — force server to fetch internal resource
+SSRF_PAYLOADS = [
+    ("http://127.0.0.1/secret", "TOP_SECRET", "SSRF — loopback internal endpoint"),
+    ("http://169.254.169.254/latest/meta-data/", "instance-id", "SSRF — cloud metadata"),
+]
+
+# IDOR — access another user's resource without ownership check
+IDOR_PAYLOADS = [
+    ("2", "secret", "IDOR — access object id=2 without authorization"),
+]
+
+# Unsafe deserialization — pickle payload that reveals a marker
+DESER_PAYLOADS = [
+    ("__reduce__", "DESER_PWNED", "Unsafe deserialization — pickle __reduce__ executed"),
+]
+
+# XXE — external entity reads local file
+XXE_PAYLOADS = [
+    ("<!ENTITY xxe SYSTEM \"file:///etc/passwd\">", "root:", "XXE — external entity reads /etc/passwd"),
+]
+
+# Open redirect — next param redirects to external host
+REDIRECT_PAYLOADS = [
+    ("http://evil.example.com", "evil.example.com", "Open redirect — Location header to external host"),
 ]
 
 
@@ -127,14 +189,18 @@ class DeterministicPoC:
         return f"# {self.kind} PoC: {self.payload}\n"
 
 
-def get_deterministic_poc(rule_id: str) -> DeterministicPoC | None:
-    """Get a deterministic PoC for a given rule_id. Returns None if not available."""
+def get_deterministic_poc(rule_id: str, title: str = "") -> DeterministicPoC | None:
+    """Get a deterministic PoC for a given rule_id. Returns None if not available.
+
+    title is used for the keyword fallback (multi-class rules like GS037 where the
+    rule_id alone doesn't distinguish SSTI/pickle/XXE/path-traversal).
+    """
     for prefix, (kind, payload, marker, fmt) in DETERMINISTIC_RULES.items():
         if rule_id.startswith(prefix):
             return DeterministicPoC(payload, marker, kind, fmt)
 
-    # Fallback: check finding title for SSTI/command injection keywords
-    title_lower = rule_id.lower()
+    # Fallback: check title (or rule_id) for vulnerability-class keywords
+    title_lower = (title or rule_id).lower()
     if any(kw in title_lower for kw in ("ssti", "template_injection", "jinja2", "render_template")):
         payload, marker, _ = SSTI_PAYLOADS[0]
         return DeterministicPoC(payload, marker, "ssti")
@@ -147,9 +213,33 @@ def get_deterministic_poc(rule_id: str) -> DeterministicPoC | None:
         payload, marker, _ = SQLI_PAYLOADS[0]
         return DeterministicPoC(payload, marker, "sqli")
 
-    if any(kw in title_lower for kw in ("path_traversal", "lfi", "directory_traversal")):
+    if any(kw in title_lower for kw in ("traversal", "lfi", "directory_traversal", "path_join")):
         payload, marker, _ = PATH_TRAVERSAL_PAYLOADS[0]
         return DeterministicPoC(payload, marker, "path_traversal")
+
+    if any(kw in title_lower for kw in ("xss", "cross_site", "cross-site", "script_injection")):
+        payload, marker, _ = XSS_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "xss")
+
+    if any(kw in title_lower for kw in ("ssrf", "server_side_request", "server-side")):
+        payload, marker, _ = SSRF_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "ssrf")
+
+    if any(kw in title_lower for kw in ("idor", "insecure_direct_object", "broken_access", "ownership")):
+        payload, marker, _ = IDOR_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "idor")
+
+    if any(kw in title_lower for kw in ("deserialization", "pickle", "unpickle", "marshal", "unsafe_deserial")):
+        payload, marker, _ = DESER_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "deserialization")
+
+    if any(kw in title_lower for kw in ("xxe", "xml_external", "external_entity", "entity_expansion")):
+        payload, marker, _ = XXE_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "xxe")
+
+    if any(kw in title_lower for kw in ("open_redirect", "unvalidated_redirect", "redirect_injection")):
+        payload, marker, _ = REDIRECT_PAYLOADS[0]
+        return DeterministicPoC(payload, marker, "open_redirect")
 
     return None
 
@@ -158,8 +248,9 @@ def attach_deterministic_pocs(findings: list[dict]) -> list[dict]:
     """Attach deterministic PoCs to findings that support them. Mutates in-place."""
     count = 0
     for f in findings:
-        rule_id = f.get("rule_id", f.get("title", ""))
-        poc = get_deterministic_poc(rule_id)
+        rule_id = f.get("rule_id", "") or ""
+        title = f.get("title", f.get("pattern_title", "")) or ""
+        poc = get_deterministic_poc(rule_id, title)
         if poc:
             f.setdefault("metadata", {})["poc"] = poc._generate_code()
             f["metadata"]["poc_payload"] = poc.payload

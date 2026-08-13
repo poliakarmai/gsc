@@ -45,10 +45,11 @@ def test_deterministic_attaches_full_code_not_payload():
     findings = [{"rule_id": "GS020", "file_path": "app.py", "line": 1}]
     attach_deterministic_pocs(findings)
     poc = findings[0]["metadata"]["poc"]
-    # Full curl command, not the bare payload "{{ 7 * 7 }}"
+    # Full curl command, not the bare payload
     assert "curl -s" in poc
     assert findings[0]["metadata"]["poc_format"] == "curl"
-    assert findings[0]["metadata"]["poc_payload"] == "{{ 7 * 7 }}"
+    # GS020 is XSS now (was SSTI before the detector/PoC re-map)
+    assert findings[0]["metadata"]["poc_payload"] == "<script>alert(1)</script>"
 
 
 def test_verify_fix_uses_fmt():

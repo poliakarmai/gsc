@@ -429,6 +429,16 @@ def _rank(level):
 # ── Generate PoC code for a finding ────────────────────────
 def _generate_poc_code(finding: dict, source_code: str) -> Optional[str]:
     sys.path.insert(0, str(Path(__file__).parent))
+    # 1) deterministic PoC (no LLM) — covers SQLi/CMDI/IDOR/XSS/SSRF/redirect
+    #    and (via title keywords) SSTI/pickle/XXE/path-traversal.
+    from gsc_poc_deterministic import get_deterministic_poc
+    det = get_deterministic_poc(
+        finding.get("rule_id", ""),
+        finding.get("title", finding.get("pattern_title", "")),
+    )
+    if det:
+        return det._generate_code()
+    # 2) fall back to LLM PoC generator
     from gsc_poc_generator import PoCGenerator
     gen = PoCGenerator(budget=1)
     poc = gen.generate(finding, source_code)
