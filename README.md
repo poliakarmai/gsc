@@ -10,7 +10,7 @@ Not just another scanner. GSC **proves** vulnerabilities with generated exploits
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)]()
 [![Detectors](https://img.shields.io/badge/detectors-38-blue)]()
 [![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
-[![License](https://img.shields.io/badge/license-BSL%201.1-blue)]()
+[![License](https://img.shields.io/badge/license-Apache%202.0%20%2B%20Commercial-blue)](LICENSE)
 [![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
 [![Hall of Fame](https://img.shields.io/badge/hall%20of%20fame-5%20finds-gold)](HALL_OF_FAME.md)
 
@@ -236,7 +236,8 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 
 ## 📄 License
 
-Business Source License 1.1 (BSL 1.1). See [LICENSE](LICENSE).
+**Dual-licensed:** [Apache License 2.0](LICENSE) for open use + [Commercial License](COMMERCIAL.md)
+for operating a competing hosted/managed SAST service. See [COMMERCIAL.md](COMMERCIAL.md) for details.
 
 ---
 
