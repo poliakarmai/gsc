@@ -34,9 +34,13 @@ def collect(token: str) -> dict:
     stats = {"processed": 0, "errors": 0}
     for row in rows:
         try:
-            reactions = gh_get(
-                f"{API}/repos/{row['repo']}/issues/comments/"
-                f"{row['comment_id']}/reactions", token)
+            cid = row['comment_id']
+            if cid and cid > 0:
+                url = f"{API}/repos/{row['repo']}/issues/comments/{cid}/reactions"
+            else:
+                # GSC content in PR body (not a comment) — use issue reactions
+                url = f"{API}/repos/{row['repo']}/issues/{row['pr_number']}/reactions"
+            reactions = gh_get(url, token)
         except Exception as e:
             stats["errors"] += 1
             print(f"  {row['repo']}#{row['pr_number']}: {e}", file=sys.stderr)

@@ -9,7 +9,10 @@ description = "Git Security Checker — AI-powered SAST with 38 detectors, auto-
 readme = "README.md"
 license = {text = "BUSL-1.1"}
 requires-python = ">=3.10"
-dependencies = []
+dependencies = [
+    "PyYAML>=6.0",
+    "requests>=2.31",
+]
 authors = [{name = "Alexey Polyakov", email = "poliakarmai@github.com"}]
 keywords = ["security", "audit", "static-analysis", "sast", "sast-tool", "vulnerability-scanner", "appsec", "devsecops"]
 classifiers = [
@@ -28,7 +31,19 @@ classifiers = [
 gsc = "gsc:main"
 
 [project.optional-dependencies]
-test = ["pytest>=8", "pytest-cov>=5"]
+# Audit A-01: runtime surface split by extras — install what you need.
+cli = ["httpx>=0.28", "uvicorn>=0.34"]
+cloud = [
+    "fastapi>=0.141",
+    "uvicorn[standard]>=0.34",
+    "pydantic>=2.13",
+    "httpx>=0.28",
+    "python-jose[cryptography]>=3.5",
+    "stripe>=12.0",
+]
+collector = ["Scrapy>=2.11"]
+dev = ["pytest>=8", "pytest-cov>=5", "fakeredis>=2.23"]
+all = ["gsc-security[cli,cloud,collector,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/poliakarmai/gsc"
@@ -37,5 +52,8 @@ Issues = "https://github.com/poliakarmai/gsc/issues"
 Hall-of-Fame = "https://github.com/poliakarmai/gsc/blob/master/HALL_OF_FAME.md"
 
 [tool.setuptools]
-py-modules = ["gsc"]
-packages = ["gsc_detectors", "gsc_detectors.yaml_rules", "scripts", "tests", "enterprise"]
+py-modules = ["gsc", "server"]
+
+[tool.setuptools.packages.find]
+include = ["gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
+exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenchmark*", "HuixiangDou*", "gsc-vscode*", "example_projects*"]

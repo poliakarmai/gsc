@@ -7,6 +7,19 @@ node_modules/
 .DS_Store
 __pycache__/
 .env
+# Audit A-01: generated artifacts + databases must not enter source control/sdist
+build/
+dist/
+*.db
+*.sqlite
+*.sqlite3
+*.pkl
+*.whl
+*.tar.gz
+.repowise/
+venv/
+.venv/
+OWASPBenchmark/
 FastAPI-ML/
 HuixiangDou/
 VPN_oultine_engine-project/

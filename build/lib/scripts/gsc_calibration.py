@@ -126,17 +126,30 @@ def run_calibration(dataset_path: str = None, fail_on_regression: bool = False,
         scan_ok = False
         out_dir = None
         try:
-            target = url if url else f"/tmp/gsc-calibration/{name}"
-            if not Path(target).exists() and url:
-                subprocess.run(["git", "clone", "--depth", "1", "--filter=blob:none",
-                               url, target], timeout=60)
+            target = Path(f"/tmp/gsc-calibration/{name}")
+            url = proj.get("url", "")
+            # Clone if missing and we have a URL
+            if not target.exists():
+                if not url:
+                    raise RuntimeError(f"No URL and {target} missing — cannot scan")
+                clone = subprocess.run(
+                    ["git", "clone", "--depth", "1", "--filter=blob:none",
+                     url, str(target)],
+                    capture_output=True, text=True, timeout=120
+                )
+                if clone.returncode != 0:
+                    raise RuntimeError(f"Clone failed: {(clone.stderr or clone.stdout).strip()[:120]}")
+            elif not any(target.iterdir()):
+                raise RuntimeError(f"Target {target} exists but is empty")
 
             r = subprocess.run(
-                [sys.executable, str(GSC_EXTERNAL), "scan", target,
+                [sys.executable, str(GSC_EXTERNAL), "scan", str(target),
                  "--profile", "developer-review",
                  "--format", "json"],
-                capture_output=True, text=True, timeout=180
+                capture_output=True, text=True, timeout=300
             )
+            if r.returncode != 0:
+                raise RuntimeError(f"Scan failed (exit {r.returncode}): {(r.stderr or r.stdout).strip()[:120]}")
 
             # Find generated report
             from gsc_external import EXTERNAL_DIR, generate_sarif

@@ -87,6 +87,9 @@ def cmd_scan(args):
         print(f"   Echelons: {'all 3' if not args.echelon else args.echelon}")
         print()
 
+    # Audit A-06: collect skipped/failed stage warnings — surfaced in SARIF.
+    scan_warnings: list[str] = []
+
     # 1. Load patterns (suppress in CI mode)
     quiet = getattr(args, 'ci', False) or getattr(args, 'json', False) or getattr(args, 'sarif', False)
     if not quiet:
@@ -118,16 +121,19 @@ def cmd_scan(args):
                     fsm.mark_scanned(fp, candidates_count=1)
             fsm.release_locks()
             fsm.close()
-        except Exception:
-            pass  # Non-fatal — resume tracking is optional
+        except Exception as e:
+            # Audit A-06: surface the failure instead of swallowing it.
+            scan_warnings.append(f"resume tracking failed: {e}")
+            print(f"[gsc] warning: resume tracking failed ({e})", file=sys.stderr)
 
     # 2.5 Framework-aware filter (reduce FP)
     try:
         sys.path.insert(0, str(Path(__file__).parent / "scripts"))
         from framework_aware import filter_findings as fw_filter
         findings = fw_filter(findings)
-    except Exception:
-        pass
+    except Exception as e:
+        scan_warnings.append(f"framework-aware filter failed: {e}")
+        print(f"[gsc] warning: framework-aware filter failed ({e})", file=sys.stderr)
 
     # 2.7 LLM Verification — deep analysis of CRITICAL/HIGH findings
     if getattr(args, 'deep', False) or getattr(args, 'llm', False):
@@ -145,6 +151,7 @@ def cmd_scan(args):
             if not quiet:
                 print(f"🧠 LLM verified: {before} CRITICAL/HIGH → {after_real} real, {after_fp} FP")
         except Exception as e:
+            scan_warnings.append(f"LLM verification failed: {e}")
             if not quiet:
                 print(f"⚠️ LLM verification skipped: {e}")
 
@@ -153,8 +160,8 @@ def cmd_scan(args):
         try:
             from gsc_reachability import analyze_reachability
             findings = analyze_reachability(findings, str(project_path))
-        except Exception:
-            pass
+        except Exception as e:
+            scan_warnings.append(f"reachability analysis failed: {e}")
 
     # 2.7 Clear file cache to prevent memory leak
     _file_cache.clear()
@@ -180,12 +187,13 @@ def cmd_scan(args):
                 findings.extend(detect_dockerfile(str(fpath), content))
             elif fpath.suffix in (".yaml",".yml") and _is_kubernetes(content):
                 findings.extend(detect_kubernetes(str(fpath), content))
-    except ImportError: pass
+    except ImportError as e:
+        scan_warnings.append(f"IaC detectors unavailable: {e}")
 
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
     elif args.sarif:
-        print(json.dumps(export_sarif(findings, project), indent=2))
+        print(json.dumps(export_sarif(findings, project, scan_warnings), indent=2))
     elif args.compliance:
         print_compliance(findings, args.compliance)
     else:
@@ -240,8 +248,8 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
                             f["echelon"] = 2
                             f["pattern_title"] = f"GS028-{f.get('metadata',{}).get('invariant_id','?')} (GS028 invariant)"
                         findings.extend(inv_findings)
-        except Exception:
-            pass  # invariants are optional, don't crash the scan
+        except Exception as e:
+            print(f"[gsc] warning: invariants stage failed ({e})", file=sys.stderr)  # audit A-06
 
     return findings
 
@@ -649,8 +657,12 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
                     continue
                 parts = line.split(":", 2)
                 if len(parts) >= 2:
+                    cat = p.get("category", "MEDIUM")
+                    # code-quality patterns (noise_tier='quality') are not security vulns
+                    if p.get("noise_tier") == "quality":
+                        cat = "INFO"
                     findings.append({
-                        "category": p.get("category", "MEDIUM"),
+                        "category": cat,
                         "echelon": 3,
                         "title": p["title"],
                         "file_path": parts[0],
@@ -826,7 +838,7 @@ def print_compliance(findings: list[dict], framework: str):
                 print("  🟢 Compliant")
 
 
-def export_sarif(findings: list[dict], project: str) -> dict:
+def export_sarif(findings: list[dict], project: str, warnings: list[str] | None = None) -> dict:
     """Export findings as SARIF 2.1.0 for GitHub Code Scanning."""
     rules = {}
     results = []
@@ -847,10 +859,23 @@ def export_sarif(findings: list[dict], project: str) -> dict:
             "locations": [{"physicalLocation": {"artifactLocation": {"uri": f.get("file_path", "")}, "region": {"startLine": f.get("line_number", 1)}}}]
         })
 
+    # Audit A-06: surface skipped/failed stages as SARIF toolExecutionNotifications
+    # so a detector failure is never silently reported as a "clean" scan.
+    invocation = {
+        "executionSuccessful": not warnings,
+        "toolExecutionNotifications": [
+            {
+                "level": "warning",
+                "message": {"text": w},
+            }
+            for w in (warnings or [])
+        ],
+    }
+
     return {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results}]
+        "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results, "invocations": [invocation]}]
     }
 
 
@@ -860,30 +885,46 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
         print("⚠️  GSC DB not found — findings not saved")
         return
 
-    conn = sqlite3.connect(str(DB_PATH))
-    conn.execute(
-        "INSERT INTO audit_runs (project, started_at) VALUES (?, datetime('now'))",
-        (project,)
-    )
-    run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    try:
+        from gsc_db import compute_finding_key
+    except ImportError:
+        compute_finding_key = None  # standalone (no gsc_db) — skip key
 
-    for f in findings:
+    try:
+        conn = sqlite3.connect(str(DB_PATH))
         conn.execute(
-            """INSERT OR IGNORE INTO findings
-               (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at)
-               VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'))""",
-            (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
-             f["title"], f.get("file_path", ""), f.get("line_number", 0),
-             f.get("detail", ""))
+            "INSERT INTO audit_runs (project, started_at) VALUES (?, datetime('now'))",
+            (project,)
         )
+        run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
-    total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]
-    conn.execute(
-        "UPDATE audit_runs SET finished_at = datetime('now'), total_findings = ?, new_findings = ? WHERE id = ?",
-        (total, total, run_id)
-    )
-    conn.commit()
-    conn.close()
+        for f in findings:
+            rule = f.get("pattern_title") or f.get("rule_id")
+            fk = compute_finding_key(
+                rule, f.get("file_path"),
+                f.get("detail") or f.get("title")) if compute_finding_key else None
+            conn.execute(
+                """INSERT OR IGNORE INTO findings
+                   (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at, rule_id, pattern_title, finding_key)
+                   VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'),?,?,?)""",
+                (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
+                 f["title"], f.get("file_path", ""), f.get("line_number", 0),
+                 f.get("detail", ""), f.get("rule_id"), f.get("pattern_title"), fk)
+            )
+
+        total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]
+        conn.execute(
+            "UPDATE audit_runs SET finished_at = datetime('now'), total_findings = ?, new_findings = ? WHERE id = ?",
+            (total, total, run_id)
+        )
+        conn.commit()
+        conn.close()
+    except sqlite3.OperationalError:
+        # Fresh/empty DB (no tables, e.g. CI runner) — persistence is optional
+        if not quiet:
+            print("⚠️  GSC DB schema missing — findings not saved (fresh DB?)")
+        return
+
     if not quiet:
         print(f"💾 Saved: {total} findings (run #{run_id})")
 
@@ -978,16 +1019,20 @@ def load_patterns(project: str, echelon: int = None) -> list[dict]:
 
     # Try DB first
     if DB_PATH.exists():
-        conn = sqlite3.connect(str(DB_PATH))
-        conn.row_factory = sqlite3.Row
-        query = "SELECT * FROM patterns WHERE (project = ? OR project = '*')"
-        params = [project]
-        if echelon:
-            query += " AND echelon = ?"
-            params.append(echelon)
-        rows = conn.execute(query, params).fetchall()
-        patterns = [dict(r) for r in rows]
-        conn.close()
+        try:
+            conn = sqlite3.connect(str(DB_PATH))
+            conn.row_factory = sqlite3.Row
+            query = "SELECT * FROM patterns WHERE (project = ? OR project = '*')"
+            params = [project]
+            if echelon:
+                query += " AND echelon = ?"
+                params.append(echelon)
+            rows = conn.execute(query, params).fetchall()
+            patterns = [dict(r) for r in rows]
+            conn.close()
+        except sqlite3.OperationalError:
+            # Fresh/empty DB (no patterns table, e.g. CI runner) — fall back to seed files
+            patterns = []
 
     # Fallback: load from seed files
     if not patterns:
@@ -2198,15 +2243,42 @@ def main():
     api.add_argument('--port', type=int, default=8766, help='Port (default: 8766)')
     api.add_argument('--host', default='127.0.0.1', help='Host (default: 127.0.0.1)')
 
+    # gsc agentless 🆕 — SSH-based host security assessment
+    al = sub.add_parser('agentless', help='Agentless SSH host security scan')
+    al.add_argument('host', help='Target hostname or IP')
+    al.add_argument('--user', '-u', default='root', help='SSH user')
+    al.add_argument('--key', '-i', help='SSH private key')
+    al.add_argument('--mode', choices=['hardening', 'threats', 'all'], default='all')
+    al.add_argument('--json', action='store_true', help='JSON output')
+
+    # gsc threat-model 🆕 — attack surface analysis before scanning
+    tm = sub.add_parser('threat-model', help='AI threat modeling — analyze attack surface')
+    tm.add_argument('repo', help='Path to repository')
+    tm.add_argument('--quick', action='store_true', help='Quick mode')
+    tm.add_argument('--model', default='deepseek-chat', help='LLM model')
+    tm.add_argument('--output', '-o', help='Output directory')
+
+    # gsc deep-reduce 🆕 — AI-first semantic scanner
+    dr = sub.add_parser('deep-reduce', help='AI-first semantic vulnerability scanner')
+    dr.add_argument('target', help='File or directory to scan')
+    dr.add_argument('--model', default='deepseek-chat', help='Model (default: deepseek-chat)')
+    dr.add_argument('--confidence', type=int, default=50, help='Min confidence threshold')
+    dr.add_argument('--dry-run', action='store_true', help='Do not save to DB')
+    dr.add_argument('--limit', type=int, default=20, help='Max files to analyze')
+
     # gsc external-scan 🆕
     ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
     ext.add_argument('target', help='GitHub URL or local path')
     ext.add_argument('--mode', choices=['full', 'pr', 'diff'], default='full')
+    ext.add_argument('--profile', help='Scan profile (e.g. pr-gate); validated by gsc_external')
     ext.add_argument('--scan-mode', choices=['quick', 'standard', 'deep'], help='Scan depth (overrides profile settings)')
     ext.add_argument('--ref', default='main', help='Branch/tag')
+    ext.add_argument('--base', default='', help='Base ref for diff mode (e.g. origin/main)')
+    ext.add_argument('--head', default='HEAD', help='Head ref for diff mode')
     ext.add_argument('--max-llm', type=int, default=50, help='Max LLM calls')
-    ext.add_argument('--output', '-o', help='Output file')
+    ext.add_argument('--output', '-o', help='Output directory')
     ext.add_argument('--format', choices=['json', 'markdown', 'sarif'], default='markdown')
+    ext.add_argument('--fail-on-blocking', action='store_true', help='Exit 1 if blocking findings')
 
     # gsc report 🆕
     rep = sub.add_parser('report', help='Generate report from scan JSON')
@@ -2250,6 +2322,7 @@ def main():
     gh.add_argument('--github-context', help='Path to GITHUB_EVENT_PATH JSON')
     gh.add_argument('--dry-run', action='store_true', help='Do not post to GitHub')
     gh.add_argument('--post-comment', action='store_true', help='Post comment to PR')
+    gh.add_argument('--create-check', action='store_true', help='Create GitHub check run')
     gh.add_argument('--fail-on-blocking', action='store_true', help='Exit 1 if blocking')
 
     # gsc calibration 🆕 v0.14
@@ -2420,6 +2493,29 @@ def main():
                    "--limit", str(args.limit), "--days", str(args.days)]
             subprocess.run(cmd)
 
+    elif args.command == "agentless":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_agentless.py"), args.host]
+        if hasattr(args, 'user'): cmd += ["--user", args.user]
+        if hasattr(args, 'key') and args.key: cmd += ["--key", args.key]
+        if hasattr(args, 'mode'): cmd += ["--mode", args.mode]
+        if getattr(args, 'json', False): cmd.append("--json")
+        subprocess.run(cmd)
+
+    elif args.command == "threat-model":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_threat_model.py"), args.repo]
+        if getattr(args, 'quick', False): cmd.append("--quick")
+        if hasattr(args, 'model'): cmd += ["--model", args.model]
+        if hasattr(args, 'output') and args.output: cmd += ["--output", args.output]
+        subprocess.run(cmd)
+
+    elif args.command == "deep-reduce":
+        cmd = [sys.executable, str(Path(__file__).parent / "gsc_deep_reducer.py"), args.target]
+        if hasattr(args, 'model'): cmd += ["--model", args.model]
+        if hasattr(args, 'confidence'): cmd += ["--confidence", str(args.confidence)]
+        if getattr(args, 'dry_run', False): cmd.append("--dry-run")
+        if hasattr(args, 'limit'): cmd += ["--limit", str(args.limit)]
+        subprocess.run(cmd)
+
     elif args.command == "api":
         import uvicorn
         from gsc_api import app
@@ -2452,6 +2548,7 @@ def main():
                         *(["--github-context", args.github_context] if hasattr(args, "github_context") and args.github_context else []),
                         *(["--dry-run"] if hasattr(args, "dry_run") and args.dry_run else []),
                         *(["--post-comment"] if hasattr(args, "post_comment") and args.post_comment else []),
+                        *(["--create-check"] if hasattr(args, "create_check") and args.create_check else []),
                         *(["--fail-on-blocking"] if hasattr(args, "fail_on_blocking") and args.fail_on_blocking else []),
                         ])
 

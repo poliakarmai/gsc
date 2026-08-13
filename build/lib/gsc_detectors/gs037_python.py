@@ -68,10 +68,10 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
     # --- Hardcoded Secrets ---
     ("hardcoded_password",
      r'(?i)(?:password|passwd|pass|pwd|secret)\s*[:=]\s*["\'][^"\']{3,}["\']',
-     "CRITICAL", 0.85),
+     "HIGH", 0.70),
     ("hardcoded_api_key",
      r'(?i)(?:API_KEY|api_key|api_key|SECRET_KEY)\s*=\s*["\'][A-Za-z0-9_-]{16,}["\']',
-     "CRITICAL", 0.90),
+     "HIGH", 0.70),
     ("hardcoded_token",
      r'(?i)(?:token|auth_token|access_token)\s*=\s*["\'](?:sk-|ghp_|gho_)[A-Za-z0-9]{20,}["\']',
      "CRITICAL", 0.92),
