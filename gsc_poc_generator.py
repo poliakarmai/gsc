@@ -112,7 +112,7 @@ class PoCGenerator:
     def __init__(self, budget: int = 5):
         self.budget = budget
 
-    def generate(self, finding: dict, source_code: str) -> Optional[PoC]:
+    def generate(self, finding: dict, source_code: str, feedback: Optional[str] = None) -> Optional[PoC]:
         if self.budget <= 0:
             return None
         if finding.get("confidence", 0) < POC_MIN_CONFIDENCE:
@@ -131,7 +131,7 @@ class PoCGenerator:
             return None
 
         self.budget -= 1
-        prompt = self._build_prompt(finding, source_code, matched_kind, matched_fmt)
+        prompt = self._build_prompt(finding, source_code, matched_kind, matched_fmt, feedback)
         raw = _call_llm(
             "You are a security researcher generating minimal PoC exploits. "
             "Use ONLY placeholder values. Never include real secrets.",
@@ -151,11 +151,18 @@ class PoCGenerator:
         poc.validated = _syntax_ok(poc.code, poc.fmt)
         return poc
 
-    def _build_prompt(self, f: dict, code: str, kind: str, fmt: str) -> str:
+    def _build_prompt(self, f: dict, code: str, kind: str, fmt: str, feedback: Optional[str] = None) -> str:
         line = f.get("line", f.get("line_number", 1))
         lines = code.splitlines()
         start = max(0, line - 1 - POC_WINDOW_LINES // 2)
         ctx = "\n".join(lines[start:start + POC_WINDOW_LINES])
+        feedback_block = ""
+        if feedback:
+            feedback_block = (
+                f"\n\nPrevious attempt FAILED in the sandbox. Improve the PoC based on this output:\n"
+                f"```\n{feedback[:600]}\n```\n"
+                f"Fix the error and keep the SAME EXPLOIT CONTRACT.\n"
+            )
         return (
             f"Generate a minimal proof-of-concept exploit.\n\n"
             f"Rule: {f.get('rule_id', '?')} ({kind})\n"
@@ -168,6 +175,7 @@ class PoCGenerator:
             f"- On FAILURE, print nothing special and exit non-zero. The marker is the ONLY trusted success signal.\n"
             f'If the target is safe, print "SAFE" and exit 1.\n'
             f'Output JSON: {{"code": "...", "impact": "one sentence"}}'
+            + feedback_block
         )
 
     def _parse(self, raw: str, fmt: str) -> Optional[PoC]:

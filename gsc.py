@@ -1932,6 +1932,44 @@ def cmd_supply_chain(args):
     return 0
 
 
+def cmd_exploit_refine(args):
+    """gsc exploit-refine — iterate a PoC until sandbox success (feedback loop)."""
+    import json
+    from pathlib import Path
+    from gsc_exploit_refiner import ExploitRefiner
+
+    try:
+        findings = json.loads(Path(args.scan).read_text())
+    except Exception:
+        print(f"Cannot read scan: {args.scan}")
+        return 1
+    findings = findings if isinstance(findings, list) else findings.get("findings", [])
+
+    target = next((f for f in findings if f.get("finding_key") == args.key), None)
+    if target is None and findings:
+        target = findings[0]
+    if target is None:
+        print("No finding to refine")
+        return 1
+
+    fp = target.get("file_path", "")
+    try:
+        source = (Path(args.repo) / fp).read_text(errors="ignore") if fp else ""
+    except OSError:
+        source = ""
+
+    report = ExploitRefiner(target, source, args.max_iter).refine()
+    if getattr(args, 'json', False):
+        print(json.dumps(report, indent=2, ensure_ascii=False))
+    else:
+        if report["success"]:
+            print(f"[ok] PoC succeeded at iteration {report['iterations']} "
+                  f"(reward {report['reward']})")
+        else:
+            print(f"[no] no working PoC after {report['iterations']} attempts")
+    return 0 if report["success"] else 1
+
+
 
 def cmd_iac(args):
     """gsc iac — IaC misconfiguration scan."""
@@ -2251,6 +2289,15 @@ def main():
     p_schain.add_argument('--scan', default='scan.json', help='GSC scan JSON with findings')
     p_schain.add_argument('--json', action='store_true')
     p_schain.set_defaults(func=cmd_supply_chain)
+
+    # gsc exploit-refine (feedback-driven PoC refinement loop)
+    p_eref = sub.add_parser('exploit-refine', help='Refine PoC via sandbox feedback loop')
+    p_eref.add_argument('--repo', default='.')
+    p_eref.add_argument('--scan', default='scan.json', help='GSC scan JSON with findings')
+    p_eref.add_argument('--key', help='finding_key to refine (default: first finding)')
+    p_eref.add_argument('--max-iter', type=int, default=5)
+    p_eref.add_argument('--json', action='store_true')
+    p_eref.set_defaults(func=cmd_exploit_refine)
 
     # gsc iac (v0.34: IaC scanning)
     p_iac = sub.add_parser('iac', help='IaC misconfiguration scan (v0.34)')
@@ -2615,6 +2662,8 @@ def main():
                 print(f"Chain {args.chain_key} not found")
     elif args.command == "supply-chain":
         sys.exit(cmd_supply_chain(args))
+    elif args.command == "exploit-refine":
+        sys.exit(cmd_exploit_refine(args))
     elif args.command == "mutations":
         from gsc_db import GSCDatabase
         db = GSCDatabase()
