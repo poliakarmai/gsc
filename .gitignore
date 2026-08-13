@@ -17,6 +17,7 @@ dist/
 *.whl
 *.tar.gz
 .repowise/
+graphify-out/
 venv/
 .venv/
 OWASPBenchmark/
