@@ -2240,11 +2240,15 @@ def main():
     ext = sub.add_parser('external-scan', help='External project scan — clone + audit + report')
     ext.add_argument('target', help='GitHub URL or local path')
     ext.add_argument('--mode', choices=['full', 'pr', 'diff'], default='full')
+    ext.add_argument('--profile', help='Scan profile (e.g. pr-gate); validated by gsc_external')
     ext.add_argument('--scan-mode', choices=['quick', 'standard', 'deep'], help='Scan depth (overrides profile settings)')
     ext.add_argument('--ref', default='main', help='Branch/tag')
+    ext.add_argument('--base', default='', help='Base ref for diff mode (e.g. origin/main)')
+    ext.add_argument('--head', default='HEAD', help='Head ref for diff mode')
     ext.add_argument('--max-llm', type=int, default=50, help='Max LLM calls')
-    ext.add_argument('--output', '-o', help='Output file')
+    ext.add_argument('--output', '-o', help='Output directory')
     ext.add_argument('--format', choices=['json', 'markdown', 'sarif'], default='markdown')
+    ext.add_argument('--fail-on-blocking', action='store_true', help='Exit 1 if blocking findings')
 
     # gsc report 🆕
     rep = sub.add_parser('report', help='Generate report from scan JSON')
@@ -2288,6 +2292,7 @@ def main():
     gh.add_argument('--github-context', help='Path to GITHUB_EVENT_PATH JSON')
     gh.add_argument('--dry-run', action='store_true', help='Do not post to GitHub')
     gh.add_argument('--post-comment', action='store_true', help='Post comment to PR')
+    gh.add_argument('--create-check', action='store_true', help='Create GitHub check run')
     gh.add_argument('--fail-on-blocking', action='store_true', help='Exit 1 if blocking')
 
     # gsc calibration 🆕 v0.14
@@ -2513,6 +2518,7 @@ def main():
                         *(["--github-context", args.github_context] if hasattr(args, "github_context") and args.github_context else []),
                         *(["--dry-run"] if hasattr(args, "dry_run") and args.dry_run else []),
                         *(["--post-comment"] if hasattr(args, "post_comment") and args.post_comment else []),
+                        *(["--create-check"] if hasattr(args, "create_check") and args.create_check else []),
                         *(["--fail-on-blocking"] if hasattr(args, "fail_on_blocking") and args.fail_on_blocking else []),
                         ])
 

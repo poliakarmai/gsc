@@ -31,23 +31,11 @@ jobs:
 
       - name: GSC PR scan (blocking-standard)
         run: |
-          gsc external-scan . \
+          gsc github-scan . \
             --profile pr-gate \
-            --mode diff --base "origin/${{ github.base_ref }}" --head HEAD \
+            --github-context "$GITHUB_EVENT_PATH" \
             --post-comment --create-check \
-            --fail-on-blocking \
-            ${GSC_BYPASS:+--bypass} \
-            -o scan.json
+            ${{ contains(github.event.pull_request.labels.*.name, 'gsc-bypass') && '' || '--fail-on-blocking' }}
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GSC_BYPASS: >-
-            ${{ contains(github.event.pull_request.labels.*.name,
-                'gsc-bypass') && '1' || '' }}
-
-      - name: Upload scan artifacts (debug)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: gsc-pr-${{ github.run_id }}
-          path: scan.json
-          retention-days: 14
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,7 +10,7 @@ Handles: findings, chains, feedback, metrics, schema versioning.
 Auto-migrates on first access. Creates timestamped backups.
 """
 
-import json, os, shutil, sqlite3
+import json, os, re, shutil, sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -18,6 +18,116 @@ from typing import Optional
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
 TARGET_VERSION = 30
+
+# Canonical base schema (v1). These tables are the foundation every migration
+# and query assumes. They MUST exist before any ALTER TABLE runs — fresh
+# installs otherwise crash at v19/v29 ALTERs (audit C-03).
+SCHEMA_BASE = """
+CREATE TABLE IF NOT EXISTS schema_version (
+    version INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    started_at TEXT DEFAULT (datetime('now')),
+    finished_at TEXT,
+    total_findings INTEGER,
+    new_findings INTEGER,
+    confirmed_findings INTEGER,
+    model TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_audit_runs_project ON audit_runs(project);
+
+CREATE TABLE IF NOT EXISTS patterns (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    category TEXT NOT NULL CHECK(category IN ('CRITICAL','HIGH','MEDIUM','LOW')),
+    echelon INTEGER NOT NULL CHECK(echelon BETWEEN 1 AND 3),
+    title TEXT NOT NULL,
+    pattern_type TEXT NOT NULL CHECK(pattern_type IN ('grep','regex','semantic','config','structural')),
+    search_pattern TEXT NOT NULL,
+    description TEXT,
+    false_positive_count INTEGER DEFAULT 0,
+    true_positive_count INTEGER DEFAULT 1,
+    last_seen_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    active INTEGER DEFAULT 1,
+    deactivated_at TEXT,
+    effectiveness REAL,
+    language TEXT,
+    noise_tier TEXT DEFAULT 'normal',
+    pattern_hash TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_patterns_project ON patterns(project, echelon);
+
+CREATE TABLE IF NOT EXISTS findings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    run_id INTEGER REFERENCES audit_runs(id),
+    project TEXT NOT NULL,
+    echelon INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    title TEXT NOT NULL,
+    file_path TEXT,
+    line_number INTEGER,
+    detail TEXT,
+    pattern_id INTEGER REFERENCES patterns(id),
+    status TEXT DEFAULT 'open' CHECK(status IN ('open','confirmed','false_positive','fixed','by_design')),
+    fixed_at TEXT,
+    created_at TEXT DEFAULT (datetime('now')),
+    reviewed_at TEXT,
+    pattern_title TEXT,
+    noise_tier TEXT DEFAULT 'normal',
+    revalidation_verdict TEXT,
+    revalidation_reasoning TEXT,
+    revalidation_checked_at TEXT,
+    revalidation_git_fixed TEXT,
+    pattern_fingerprint TEXT,
+    resolved_at TEXT,
+    mutation_parent TEXT,
+    resolved_by TEXT,
+    current_state TEXT DEFAULT 'new',
+    state_updated_at TEXT,
+    revalidation_reason TEXT,
+    revalidated_at TEXT,
+    confidence_score REAL,
+    rule_id TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_findings_project ON findings(project, status);
+CREATE INDEX IF NOT EXISTS idx_findings_fp ON findings(pattern_fingerprint);
+CREATE INDEX IF NOT EXISTS idx_findings_resolved ON findings(resolved_at);
+
+CREATE TABLE IF NOT EXISTS feedback (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    finding_key TEXT NOT NULL,
+    verdict TEXT NOT NULL,
+    reason TEXT DEFAULT '',
+    source TEXT DEFAULT 'cli',
+    actor TEXT DEFAULT '',
+    pr_number INTEGER,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_feedback_key ON feedback(finding_key);
+CREATE INDEX IF NOT EXISTS idx_feedback_verdict ON feedback(verdict);
+
+CREATE TABLE IF NOT EXISTS file_state (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project TEXT NOT NULL,
+    file_path TEXT NOT NULL,
+    file_hash TEXT,
+    status TEXT DEFAULT 'pending',
+    candidates_count INTEGER DEFAULT 0,
+    findings_count INTEGER DEFAULT 0,
+    last_scan_run TEXT,
+    last_scan_at TEXT,
+    locked_by_run_id TEXT,
+    analysis_history TEXT DEFAULT '[]',
+    created_at TEXT DEFAULT (datetime('now')),
+    UNIQUE(project, file_path)
+);
+CREATE INDEX IF NOT EXISTS idx_file_state_project ON file_state(project, status);
+CREATE INDEX IF NOT EXISTS idx_file_state_locked ON file_state(locked_by_run_id);
+"""
 
 SCHEMA_V018 = """
 CREATE TABLE IF NOT EXISTS schema_version (
@@ -348,6 +458,7 @@ class GSCDatabase:
     # ── Migration ──────────────────────────────────────────────
 
     def _migrate(self):
+        self._ensure_base_schema()
         version = self._schema_version()
         if version >= TARGET_VERSION:
             return
@@ -383,17 +494,43 @@ class GSCDatabase:
         )
         self.conn.commit()
 
+    def _ensure_base_schema(self):
+        """Create base tables if absent (fresh install). Idempotent.
+
+        Fixes audit C-03: the migration chain assumed findings/audit_runs/
+        patterns/feedback/file_state already existed, so a clean checkout
+        crashed at the first ALTER TABLE. This creates them up-front.
+        """
+        row = self.conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='findings'"
+        ).fetchone()
+        if row:
+            return
+        self.conn.executescript(SCHEMA_BASE)
+        self.conn.commit()
+
+    def _add_column_if_missing(self, table: str, column: str, definition: str):
+        """Idempotent ALTER TABLE ADD COLUMN (audit C-04)."""
+        cols = {r["name"] for r in self.conn.execute(
+            f"PRAGMA table_info({table})").fetchall()}
+        if column not in cols:
+            self.conn.execute(
+                f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+
     def _apply_v019(self):
         self.conn.execute("PRAGMA journal_mode=WAL")
         for alter in ALTERS_V019:
-            try:
-                self.conn.execute(alter)
-            except sqlite3.OperationalError as e:
-                msg = str(e).lower()
-                # Fresh DB: table doesn't exist yet → SCHEMA_V019 below creates it fully.
-                # Old DB: only skip genuine "duplicate column".
-                if "duplicate column" not in msg and "no such table" not in msg:
-                    raise
+            # "ALTER TABLE findings ADD COLUMN <col> <type>" — parse and route
+            # through _add_column_if_missing so fresh + partial DBs are safe.
+            m = re.match(r"ALTER TABLE (\w+) ADD COLUMN (\w+) (.+)", alter, re.I)
+            if m:
+                self._add_column_if_missing(m.group(1), m.group(2), m.group(3))
+            else:
+                try:
+                    self.conn.execute(alter)
+                except sqlite3.OperationalError as e:
+                    if "duplicate column" not in str(e).lower():
+                        raise
         self.conn.executescript(SCHEMA_V019)
         for idx in INDEXES_V019:
             try:
@@ -408,17 +545,15 @@ class GSCDatabase:
         self.conn.executescript(SCHEMA_V023)
 
     def _apply_v022(self):
-        # Safe: check if feedback table exists before ALTER
-        row = self.conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table' AND name='feedback'"
-        ).fetchone()
-        if not row:
-            return  # feedback table doesn't exist yet — skip
         for alter in ALTERS_V022:
-            try:
-                self.conn.execute(alter)
-            except sqlite3.OperationalError:
-                pass  # column already exists
+            m = re.match(r"ALTER TABLE (\w+) ADD COLUMN (\w+) (.+)", alter, re.I)
+            if m:
+                self._add_column_if_missing(m.group(1), m.group(2), m.group(3))
+            else:
+                try:
+                    self.conn.execute(alter)
+                except sqlite3.OperationalError:
+                    pass
         for idx in INDEXES_V022:
             try:
                 self.conn.execute(idx)
@@ -438,6 +573,8 @@ class GSCDatabase:
     def _apply_v024(self):
         """Schema v24: cross-repo secret fingerprints + sightings."""
         self.conn.executescript(SCHEMA_V024)
+        # autofixed column — apply idempotently (was previously never applied)
+        self._add_column_if_missing("findings", "autofixed", "INTEGER DEFAULT 0")
 
     def _apply_v028(self):
         """Schema v28: epss_cache for EPSS exploitability lookups."""
@@ -462,9 +599,6 @@ class GSCDatabase:
                 ON finding_states(finding_key, created_at);
             CREATE INDEX IF NOT EXISTS idx_finding_states_state
                 ON finding_states(to_state, created_at);
-
-            ALTER TABLE findings ADD COLUMN current_state TEXT DEFAULT 'new';
-            ALTER TABLE findings ADD COLUMN state_updated_at TEXT;
 
             CREATE TABLE IF NOT EXISTS verify_results (
                 id              INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -494,9 +628,12 @@ class GSCDatabase:
                 created_at      TEXT DEFAULT (datetime('now')),
                 updated_at      TEXT DEFAULT (datetime('now'))
             );
-
-            ALTER TABLE findings ADD COLUMN rule_id TEXT;
         """)
+        # Idempotent column adds (audit C-04) — previously raw ALTER TABLE,
+        # which crashed on re-run / fresh DB with "duplicate column name".
+        self._add_column_if_missing("findings", "current_state", "TEXT DEFAULT 'new'")
+        self._add_column_if_missing("findings", "state_updated_at", "TEXT")
+        self._add_column_if_missing("findings", "rule_id", "TEXT")
 
     def _apply_v030(self):
         """Schema v30: pattern_status for per-pattern precision tracking (GS005 decomposition)."""

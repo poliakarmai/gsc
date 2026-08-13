@@ -117,15 +117,25 @@
     <script>
         // ── OAuth handling ──
         const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
-        const githubUser = params.get('github_user');
+        const code = params.get('code');
 
-        if (token && githubUser) {
-            // Store session and clean URL
-            sessionStorage.setItem('gsc_token', token);
-            sessionStorage.setItem('gsc_github_user', githubUser);
-            window.history.replaceState({}, '', '/');
-            showUser(githubUser);
+        if (code) {
+            // Exchange one-time code for a session token (POST body, never URL)
+            fetch('/api/v2/auth/exchange', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({code: code})
+            })
+            .then(r => { if (!r.ok) throw new Error('auth exchange failed'); return r.json(); })
+            .then(data => {
+                sessionStorage.setItem('gsc_token', data.token);
+                sessionStorage.setItem('gsc_github_user', data.github_user);
+                window.history.replaceState({}, '', '/');
+                showUser(data.github_user);
+            })
+            .catch(() => {
+                window.history.replaceState({}, '', '/');
+            });
         } else {
             // Check existing session
             const savedUser = sessionStorage.getItem('gsc_github_user');

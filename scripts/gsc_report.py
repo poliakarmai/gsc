@@ -13,7 +13,7 @@ def export_html(project: str = None, output: str = None):
     conn.row_factory = sqlite3.Row
 
     where = f"WHERE project = '{project}'" if project else "WHERE 1=1"
-    total = conn.execute("SELECT COUNT(*) FROM findings " + where  # gsc:ignore — where is internal var, not user input).fetchone()[0]
+    total = conn.execute("SELECT COUNT(*) FROM findings " + where).fetchone()[0]  # gsc:ignore — where is internal var, not user input
     crit = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='CRITICAL'").fetchone()[0]
     high = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='HIGH'").fetchone()[0]
     medium = conn.execute("SELECT COUNT(*) FROM findings {where} AND category='MEDIUM'").fetchone()[0]

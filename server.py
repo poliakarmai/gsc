@@ -11,7 +11,7 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Body
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -46,7 +46,22 @@ SESSION_TTL_HOURS = 24
 # ═══════════════════════════════════════════════════════════
 
 app = FastAPI(title="GSC Cloud API", version="1.3.0", docs_url="/docs")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
+
+# CORS: explicit allowlist from env (audit S-04). No wildcard — a wildcard
+# combined with a cookie/API-key auth model enables cross-origin abuse.
+CORS_ORIGINS = [
+    o.strip() for o in os.environ.get(
+        "GSC_CORS_ORIGINS",
+        "http://localhost:8081,http://localhost:3000"
+    ).split(",") if o.strip()
+]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=CORS_ORIGINS,
+    allow_methods=["GET", "POST"],
+    allow_headers=["Content-Type", "Authorization"],
+    allow_credentials=False,
+)
 
 # ═══════════════════════════════════════════════════════════
 # Schema init
@@ -172,6 +187,26 @@ class ScanResponse(BaseModel):
     findings_count: int
     severity_breakdown: dict = {}
 
+
+def _normalize_finding(f: dict) -> dict:
+    """Normalize a scanner finding (category/file_path/line_number/detail)
+    to the cloud API schema (severity/file/line/snippet). Audit C-05.
+
+    The core scanner emits category/file_path/line_number/detail; the cloud
+    findings table expects severity/file/line/snippet. Without this, every
+    row lands as UNKNOWN / empty path / line 0.
+    """
+    return {
+        "finding_key": f.get("finding_key") or f.get("pattern_fingerprint") or "",
+        "rule_id": f.get("rule_id") or f.get("pattern_title") or f.get("pattern_id") or "",
+        "title": f.get("title", ""),
+        "severity": f.get("severity") or f.get("category") or "UNKNOWN",
+        "confidence": f.get("confidence") or f.get("confidence_score") or 0.85,
+        "file": f.get("file") or f.get("file_path") or "",
+        "line": f.get("line") or f.get("line_number") or 0,
+        "snippet": f.get("snippet") or f.get("detail") or "",
+    }
+
 # ═══════════════════════════════════════════════════════════
 # Health
 # ═══════════════════════════════════════════════════════════
@@ -244,15 +279,15 @@ def scan(req: ScanRequest):
         # Store findings
         breakdown = {}
         for f in findings[:500]:  # cap at 500
-            sev = f.get("severity", "UNKNOWN")
-            breakdown[sev] = breakdown.get(sev, 0) + 1
+            nf = _normalize_finding(f)
+            breakdown[nf["severity"]] = breakdown.get(nf["severity"], 0) + 1
             conn.execute(
                 """INSERT OR REPLACE INTO findings
                    (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id)
                    VALUES (?,?,?,?,?,?,?,?,?)""",
-                (f.get("finding_key", ""), f.get("rule_id", ""), f.get("title", ""),
-                 sev, f.get("confidence", 0.85), f.get("file", ""),
-                 f.get("line", 0), f.get("snippet", ""), tid)
+                (nf["finding_key"], nf["rule_id"], nf["title"],
+                 nf["severity"], nf["confidence"], nf["file"],
+                 nf["line"], nf["snippet"], tid)
             )
 
         conn.execute(
@@ -267,7 +302,10 @@ def scan(req: ScanRequest):
     except Exception as e:
         conn.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
         conn.commit()
-        raise HTTPException(500, str(e))
+        # Log detail server-side; return generic message (audit S-06).
+        # Never leak paths, git output, or internal names to clients.
+        print(f"[scan {scan_id}] failed: {e}", flush=True)
+        raise HTTPException(500, "Scan failed")
 
 # ═══════════════════════════════════════════════════════════
 # Findings
@@ -333,10 +371,14 @@ def billing_plans():
 # ═══════════════════════════════════════════════════════════
 
 @app.post("/api/v2/auth/signup")
-def signup(github_user: str = Query(...), plan: str = Query("free")):
-    """Quick signup with GitHub username. Returns API key."""
-    api_key, tid = create_tenant(github_user, plan)
-    return {"api_key": api_key, "tenant_id": tid, "plan": plan, "message": "Save this key — it won't be shown again."}
+def signup(github_user: str = Query(...)):
+    """Quick signup with GitHub username. Returns API key.
+
+    Plan is assigned server-side only (default 'free'); billing/webhook may
+    upgrade it later. Clients must not self-select a plan (audit S-01).
+    """
+    api_key, tid = create_tenant(github_user, "free")
+    return {"api_key": api_key, "tenant_id": tid, "plan": "free", "message": "Save this key — it won't be shown again."}
 
 # ═══════════════════════════════════════════════════════════
 # GitHub OAuth
@@ -347,6 +389,9 @@ def github_login(redirect: str = Query("/")):
     """Redirect user to GitHub OAuth."""
     if not GITHUB_CLIENT_ID:
         raise HTTPException(500, "GitHub OAuth not configured — set GITHUB_CLIENT_ID")
+    # Validate redirect: only same-origin relative paths (prevents open redirect, S-05)
+    if not redirect.startswith("/") or redirect.startswith("//"):
+        redirect = "/"
     state = secrets.token_urlsafe(16)
     # Store state temporarily for CSRF protection
     conn.execute(
@@ -369,14 +414,22 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     if not GITHUB_CLIENT_SECRET:
         raise HTTPException(500, "GitHub OAuth not configured — set GITHUB_CLIENT_SECRET")
 
-    # Verify state
+    # Verify state (one-time: consume atomically, reject replay — audit S-02)
+    state_key = f"state:{state}"
     state_row = conn.execute(
         "SELECT github_user FROM sessions WHERE token=? AND expires_at > datetime('now')",
-        (f"state:{state}",)
+        (state_key,)
     ).fetchone()
+    if not state_row:
+        raise HTTPException(400, "Invalid or expired OAuth state")
+    conn.execute("DELETE FROM sessions WHERE token=?", (state_key,))
+    conn.commit()
+
     redirect_url = "/"
-    if state_row and state_row["github_user"] and state_row["github_user"].startswith("redirect:"):
-        redirect_url = state_row["github_user"].split(":", 1)[1]
+    if state_row["github_user"] and state_row["github_user"].startswith("redirect:"):
+        candidate = state_row["github_user"].split(":", 1)[1]
+        if candidate.startswith("/") and not candidate.startswith("//"):
+            redirect_url = candidate
 
     # Exchange code for access token
     async with httpx.AsyncClient() as client:
@@ -420,11 +473,35 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
         tid = cur.lastrowid
         conn.commit()
 
-    # Create session
-    session_token = create_session(tid, github_user)
+    # Issue a one-time, short-lived authorization code (audit S-03). The real
+    # JWT session is created at /api/v2/auth/exchange — never placed in a URL.
+    auth_code = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,datetime('now','+5 minutes'))",
+        (f"code:{auth_code}", tid, github_user)
+    )
+    conn.commit()
 
-    # Redirect to frontend with token
-    return RedirectResponse(f"{redirect_url}?token={session_token}&github_user={github_user}")
+    return RedirectResponse(f"{redirect_url}?code={auth_code}")
+
+@app.post("/api/v2/auth/exchange")
+def exchange_code(payload: dict = Body(...)):
+    """Exchange a one-time auth code for a session token (POST body, not URL)."""
+    code = payload.get("code", "")
+    if not code:
+        raise HTTPException(400, "Missing code")
+    key = f"code:{code}"
+    row = conn.execute(
+        "SELECT tenant_id, github_user FROM sessions WHERE token=? AND expires_at > datetime('now')",
+        (key,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(401, "Invalid or expired code")
+    # One-time: consume the code atomically before issuing a session
+    conn.execute("DELETE FROM sessions WHERE token=?", (key,))
+    conn.commit()
+    session_token = create_session(row["tenant_id"], row["github_user"])
+    return {"token": session_token, "github_user": row["github_user"]}
 
 @app.get("/api/v2/auth/session")
 def session_info(token: str = Query(...)):
@@ -531,9 +608,14 @@ def dashboard():
         pass  # Generic fallback for scan/finding queries
 
     # Build HTML with Chart.js
-    severity_json = json.dumps(stats["by_severity"])
-    rule_json = json.dumps(stats["by_rule"])
-    pr_json = json.dumps(stats["pr_feedback"])
+    # Audit S-08: escape "</" so external data can't break out of the <script>
+    # tag; JS side additionally uses textContent/escaping for the PR table.
+    def _json_safe(obj) -> str:
+        return json.dumps(obj, ensure_ascii=False).replace("</", "<\\/")
+
+    severity_json = _json_safe(stats["by_severity"])
+    rule_json = _json_safe(stats["by_rule"])
+    pr_json = _json_safe(stats["pr_feedback"])
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -651,20 +733,24 @@ if (ruleData && Object.keys(ruleData).length > 0) {{
 
 // PR table
 const prTable = document.getElementById('prTable');
+const escapeHtml = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}}[c]));
+const safeRepo = (s) => /^[A-Za-z0-9._/-]+$/.test(String(s ?? '')) ? String(s) : '';
 if (prData && prData.length > 0) {{
-    prTable.innerHTML = '<tr><th>Repo</th><th>PR</th><th>Status</th><th>Response</th><th>Comments</th></tr>' +
-        prData.map(p => {{
-            const stateClass = p.merged ? 'merged' : (p.pr_state || 'open');
-            const icon = p.merged ? '🟣' : (p.pr_state === 'closed' ? '🔴' : '🟢');
-            const responseIcon = p.author_response === 'accepted' ? '✅' : (p.author_response === 'dismissed' ? '❌' : '');
-            return `<tr>
-                <td>${{p.repo}}</td>
-                <td><a href="https://github.com/${{p.repo}}/pull/${{p.pr_number}}" style="color:#58a6ff">#${{p.pr_number}}</a></td>
-                <td class="${{stateClass}}">${{icon}} ${{p.merged ? 'merged' : p.pr_state}}</td>
-                <td>${{responseIcon}} ${{p.author_response}}</td>
-                <td>${{p.comment_count}}</td>
-            </tr>`;
-        }}).join('');
+    const rows = prData.map(p => {{
+        const stateClass = p.merged ? 'merged' : (p.pr_state || 'open');
+        const icon = p.merged ? '🟣' : (p.pr_state === 'closed' ? '🔴' : '🟢');
+        const responseIcon = p.author_response === 'accepted' ? '✅' : (p.author_response === 'dismissed' ? '❌' : '');
+        const repo = safeRepo(p.repo);
+        const repoLink = repo ? `<a href="https://github.com/${{repo}}/pull/${{p.pr_number}}" style="color:#58a6ff">#${{p.pr_number}}</a>` : `#${{p.pr_number}}`;
+        return `<tr>
+            <td>${{escapeHtml(repo || p.repo)}}</td>
+            <td>${{repoLink}}</td>
+            <td class="${{escapeHtml(stateClass)}}">${{icon}} ${{escapeHtml(p.merged ? 'merged' : p.pr_state)}}</td>
+            <td>${{responseIcon}} ${{escapeHtml(p.author_response)}}</td>
+            <td>${{escapeHtml(p.comment_count)}}</td>
+        </tr>`;
+    }}).join('');
+    prTable.innerHTML = '<tr><th>Repo</th><th>PR</th><th>Status</th><th>Response</th><th>Comments</th></tr>' + rows;
 }} else {{
     prTable.innerHTML = '<tr><td colspan="5" style="color:#8b949e;text-align:center">No PRs tracked yet. Scan a repo and create a PR to see feedback here.</td></tr>';
 }}

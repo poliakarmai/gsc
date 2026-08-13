@@ -31,34 +31,34 @@ jobs:
           gsc external-scan . \
             --profile pr-gate \
             --mode diff --base "origin/${{ github.base_ref }}" --head HEAD \
-            --dry-run \
-            -o dryrun_scan.json
+            -o gsc_out
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
 
       - name: Render reports
         run: |
-          gsc report dryrun_scan.json --format markdown -o dryrun_report.md
-          gsc report dryrun_scan.json --format sarif -o dryrun_report.sarif.json
+          gsc report gsc_out/scan.json --format markdown -o dryrun_report.md
+          gsc report gsc_out/scan.json --format sarif -o dryrun_report.sarif.json
 
       - name: Redact reports
-        run: python3 scripts/gsc_redact_report.py dryrun_scan.json dryrun_report.md
+        run: python3 scripts/gsc_redact_report.py gsc_out/scan.json dryrun_report.md
 
       - name: Step summary
-        run: python3 scripts/gsc_dryrun_summary.py dryrun_scan.json >> "$GITHUB_STEP_SUMMARY"
+        run: python3 scripts/gsc_dryrun_summary.py gsc_out/scan.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gsc-dryrun-${{ github.run_id }}
           path: |
-            dryrun_scan.json
+            gsc_out/scan.json
+            gsc_out/summary.json
             dryrun_report.md
             dryrun_report.sarif.json
           retention-days: 14
 
       - name: Report metrics (best-effort)
-        run: python3 scripts/gsc_report_dryrun.py dryrun_scan.json || true
+        run: python3 scripts/gsc_report_dryrun.py gsc_out/scan.json || true
         env:
           GSC_API_URL: ${{ vars.GSC_API_URL }}
           GSC_API_KEY: ${{ secrets.GSC_API_KEY }}
