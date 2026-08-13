@@ -129,7 +129,7 @@
 |---|---|---|
 | 0.7.1 | pytest collectible (sys.exit guard + rename custom runner) | ✅ 105 passed / 4 skipped |
 | 0.7.2 | README overclaims «*Nobody*» → evidence-backed таблица | ✅ |
-| 0.7.3 | MCP server (scan/findings/explain/fix/verify tools) | ❌ новый трек |
+| 0.7.3 | MCP server (scan/findings/explain/fix/verify tools) | ✅ read-only (scan_repo/list_findings/verify_finding) |
 | 0.7.4 | Traction: 5 design partners, 2 paid pilots | ⏳ бизнес |
 | 0.7.5 | IP: assignment, contributor waivers, SPDX, clean chain-of-title | ⏳ юрид. |
 | 0.7.6 | Benchmark: 100–150 fixtures + сравнение Semgrep/CodeQL/Bandit | ❌ новый трек |
