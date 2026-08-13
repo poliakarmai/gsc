@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_spdx.py — SPDX 2.3 + signing tests (+7)."""
 import sys, os, re
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_spdx import (generate_spdx, cdx_to_spdx, _spdx_id, _dl,

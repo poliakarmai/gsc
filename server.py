@@ -34,6 +34,11 @@ conn.row_factory = sqlite3.Row
 conn.execute("PRAGMA journal_mode=WAL")
 conn.execute("PRAGMA busy_timeout=5000")
 
+# NOTE (audit A-07): this is a single global connection intended for
+# single-process / single-worker local mode. For multi-tenant production use
+# a per-request connection (FastAPI dependency) or PostgreSQL; SQLite is not
+# a concurrent multi-writer store.
+
 # ── GitHub OAuth config ──
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "")

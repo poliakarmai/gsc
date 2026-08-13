@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_exclusive_modes_workspace.py — Scan Modes + Workspace (+4)."""
 import sys, os, tempfile
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_scan_modes import SCAN_MODES

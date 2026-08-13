@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_integration_final.py — final integration: orchestrator + format consistency (v0.39)."""
 import sys, os, hashlib
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_orchestrator import GSCOrchestrator, PipelineResult

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_exclusive_pof.py — Proof-of-Fix + Self-Healing tests (+7)."""
 import sys, os
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_poc_generator import SUCCESS_MARKERS

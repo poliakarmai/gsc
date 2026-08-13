@@ -1,6 +1,6 @@
 """tests/test_cloud_s2.py — SaaS S2: workers + job queue."""
 import os, sys, json, subprocess, tempfile
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from cloud.workers import (

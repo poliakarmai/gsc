@@ -21,6 +21,43 @@ MAX_OUTPUT_BYTES = 10_000
 SUCCESS_MARKERS = re.compile(r'(VULNERABLE|EXPLOITED|PWNED|LEAKED|SUCCESS|BREACH)', re.I)
 SANDBOX_ROOT = Path(os.path.expanduser("~/.hermes/state/gsc_sandbox"))
 
+# Audit F-05: pass a minimal, secret-free environment into the sandbox. A PoC
+# must NOT inherit DEEPSEEK_API_KEY / GITHUB_TOKEN / other host secrets — that
+# would turn a "verified fix" into a credential-exfiltration primitive.
+SANDBOX_ENV_WHITELIST = {
+    "PATH", "HOME", "LANG", "LC_ALL", "PYTHONPATH",
+    "TMPDIR", "TEMP", "TMP", "SHELL",
+}
+
+# Hard resource limits for the PoC child (CPU / RAM / processes / file size).
+SANDBOX_MEM_LIMIT = 512 * 1024 * 1024   # 512 MB address space
+SANDBOX_FSIZE_LIMIT = 16 * 1024 * 1024  # 16 MB max file write
+
+
+def _sandbox_env(workdir: str) -> dict:
+    """Build a minimal env without host secrets (audit F-05)."""
+    env = {k: os.environ[k] for k in SANDBOX_ENV_WHITELIST if k in os.environ}
+    env["PYTHONPATH"] = workdir
+    env["PYTHONUNBUFFERED"] = "1"
+    return env
+
+
+def _sandbox_limits():
+    """Apply hard CPU/memory/process/file limits to the PoC child (audit F-05).
+
+    Best-effort: if ``resource`` is unavailable (e.g. non-POSIX) we degrade to
+    subprocess timeout + output cap only.
+    """
+    try:
+        import resource
+        resource.setrlimit(resource.RLIMIT_CPU, (SANDBOX_TIMEOUT, SANDBOX_TIMEOUT + 5))
+        resource.setrlimit(resource.RLIMIT_AS, (SANDBOX_MEM_LIMIT, SANDBOX_MEM_LIMIT))
+        resource.setrlimit(resource.RLIMIT_NPROC, (64, 64))
+        resource.setrlimit(resource.RLIMIT_FSIZE, (SANDBOX_FSIZE_LIMIT, SANDBOX_FSIZE_LIMIT))
+        resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+    except Exception:
+        pass
+
 
 @dataclass
 class SandboxResult:
@@ -45,12 +82,12 @@ class FixVerification:
 class PoFSandbox:
     """Execute PoCs in isolated environment to verify fixes."""
 
-    def __init__(self, project_dir: str | None = None):
+    def __init__(self, project_dir: str | None = None, install_deps: bool = False):
         self.project_dir = Path(project_dir) if project_dir else None
         self.venv_dir = SANDBOX_ROOT / "venv"
-        self._ensure_venv()
+        self._ensure_venv(install_deps=install_deps)
 
-    def _ensure_venv(self):
+    def _ensure_venv(self, install_deps: bool = False):
         """Create isolated venv if not exists."""
         if self.venv_dir.exists():
             return
@@ -58,8 +95,10 @@ class PoFSandbox:
         builder = venv.EnvBuilder(with_pip=True, clear=True)
         builder.create(str(self.venv_dir))
 
-        # Install project dependencies if available
-        if self.project_dir:
+        # Audit F-05: installing a scanned repo's requirements.txt executes
+        # arbitrary build steps / pulls untrusted packages. Off by default;
+        # opt-in with install_deps=True only for trusted internal repos.
+        if install_deps and self.project_dir:
             req_file = self.project_dir / "requirements.txt"
             if req_file.exists():
                 pip = str(self.venv_dir / "bin" / "pip")
@@ -135,7 +174,8 @@ class PoFSandbox:
                     capture_output=True, text=True,
                     timeout=SANDBOX_TIMEOUT,
                     cwd=str(workdir),
-                    env={**os.environ, "PYTHONPATH": str(workdir)},
+                    env=_sandbox_env(str(workdir)),
+                    preexec_fn=_sandbox_limits,
                 )
                 elapsed = time.time() - t0
             except subprocess.TimeoutExpired:

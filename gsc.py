@@ -118,16 +118,17 @@ def cmd_scan(args):
                     fsm.mark_scanned(fp, candidates_count=1)
             fsm.release_locks()
             fsm.close()
-        except Exception:
-            pass  # Non-fatal — resume tracking is optional
+        except Exception as e:
+            # Audit A-06: surface the failure instead of swallowing it.
+            print(f"[gsc] warning: resume tracking failed ({e})", file=sys.stderr)
 
     # 2.5 Framework-aware filter (reduce FP)
     try:
         sys.path.insert(0, str(Path(__file__).parent / "scripts"))
         from framework_aware import filter_findings as fw_filter
         findings = fw_filter(findings)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"[gsc] warning: framework-aware filter failed ({e})", file=sys.stderr)
 
     # 2.7 LLM Verification — deep analysis of CRITICAL/HIGH findings
     if getattr(args, 'deep', False) or getattr(args, 'llm', False):
@@ -240,8 +241,8 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
                             f["echelon"] = 2
                             f["pattern_title"] = f"GS028-{f.get('metadata',{}).get('invariant_id','?')} (GS028 invariant)"
                         findings.extend(inv_findings)
-        except Exception:
-            pass  # invariants are optional, don't crash the scan
+        except Exception as e:
+            print(f"[gsc] warning: invariants stage failed ({e})", file=sys.stderr)  # audit A-06
 
     return findings
 

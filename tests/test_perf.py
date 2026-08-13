@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_perf.py — performance: caches, degradation, migration (+4, v0.36)."""
 import sys, os, sqlite3
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 passed, failed = 0, 0

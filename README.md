@@ -7,8 +7,8 @@
 Not just another scanner. GSC **proves** vulnerabilities with generated exploits,
 **fixes** them with verified patches, and **heals** your codebase with automatic PRs.
 
-[![Tests](https://img.shields.io/badge/tests-35%2F35-brightgreen)]()
-[![Detectors](https://img.shields.io/badge/detectors-39-blue)]()
+[![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)]()
+[![Detectors](https://img.shields.io/badge/detectors-38-blue)]()
 [![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
 [![License](https://img.shields.io/badge/license-BSL%201.1-blue)]()
 [![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
@@ -156,7 +156,7 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
-└── SQLite DB — schema 25, WAL, 403K fingerprints
+└── SQLite DB — schema 30, WAL, 403K fingerprints
 ```
 
 **Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)
@@ -212,7 +212,7 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 
 ## 🧪 Quality
 
-- **78/78 tests** (67 corpus + 11 nuclei integration)
+- **Test suite** — `pip install -e '.[test]' && pytest` (corpus + nuclei + schema integrity)
 - **17/17 calibration projects** (11 clean + 6 vulnerable)
 - Hard chain assertion with retry (2-of-3, temperature 0)
 - Production rollout Phase 0–5 complete (blocking-standard)

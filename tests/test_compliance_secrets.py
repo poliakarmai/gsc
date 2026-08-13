@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_compliance_secrets.py — compliance + GS029 tests (+7)."""
 import sys, os
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_compliance import compliance_for, enrich_finding

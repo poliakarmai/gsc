@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_pipeline_refactor.py — unified pipeline contract tests."""
 import sys, os
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_detectors.base import make_finding, RegexDetector, BaseDetector

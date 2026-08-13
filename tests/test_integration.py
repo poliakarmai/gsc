@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_integration.py — end-to-end pipeline tests (+10, v0.36)."""
 import sys, os, json
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_sca import Package

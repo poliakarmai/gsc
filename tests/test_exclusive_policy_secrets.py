@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_exclusive_policy_secrets.py — NL Policy + Cross-Repo Secrets (+5)."""
 import sys, os, re
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_nlpolicy import compile_policy, PolicyError

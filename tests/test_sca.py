@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_sca.py — SCA parser + severity + bump tests (+7)."""
 import sys, os, json, tempfile
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_sca import (extract_version, parse_requirements, parse_go_mod,

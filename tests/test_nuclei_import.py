@@ -3,7 +3,7 @@
 import sys, os, tempfile, json
 from pathlib import Path
 
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_nuclei_import import NucleiTemplate, import_nuclei_directory, list_templates

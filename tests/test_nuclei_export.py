@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_nuclei_export.py — nuclei export round-trip tests (+5)."""
 import sys, os
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_nuclei_export import (

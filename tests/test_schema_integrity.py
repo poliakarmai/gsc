@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_schema_integrity.py — schema version + table consistency (+3)."""
 import sys, os, tempfile
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_db import GSCDatabase, TARGET_VERSION
@@ -22,11 +22,10 @@ def test(name, fn):
     except Exception as e: print(f'  ❌ {name}: {e}'); failed += 1
 
 def t1():
-    assert TARGET_VERSION == 28
     from gsc_db import GSCDatabase
     with GSCDatabase() as db:
-        assert db._schema_version() == 28
-test('schema version is 28', t1)
+        assert db._schema_version() == TARGET_VERSION
+test(f'schema version is {TARGET_VERSION}', t1)
 
 def t2():
     from gsc_db import GSCDatabase
@@ -43,7 +42,7 @@ def t3():
         # Migration idempotency: re-running doesn't crash
         db._migrate()
         v = db._schema_version()
-        assert v == 28
+        assert v == TARGET_VERSION
 test('migration idempotent (re-run safe)', t3)
 
 print(f'\n{"="*50}')

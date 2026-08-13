@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_benchmark.py — OWASP Benchmark tests (+7)."""
 import sys, os, tempfile
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from benchmark.cwe_map import build_cwe_to_rules, coverage_report

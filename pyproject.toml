@@ -27,6 +27,9 @@ classifiers = [
 [project.scripts]
 gsc = "gsc:main"
 
+[project.optional-dependencies]
+test = ["pytest>=8", "pytest-cov>=5"]
+
 [project.urls]
 Homepage = "https://github.com/poliakarmai/gsc"
 Repository = "https://github.com/poliakarmai/gsc.git"

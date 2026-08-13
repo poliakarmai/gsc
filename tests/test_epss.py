@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_epss.py — EPSS exploitability tests (+7)."""
 import sys, os
-os.chdir('/home/openclaw/gsc')
+os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
 from gsc_epss import extract_cve_id, compute_risk, enrich_sca_findings, EpssClient
