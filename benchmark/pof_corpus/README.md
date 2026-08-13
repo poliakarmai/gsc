@@ -56,5 +56,27 @@ deterministic PoC на все классы корпуса.
 cd benchmark/pof_corpus
 python3 validate_corpus.py            # сертификация (13/13)
 python3 measure_pof.py --detect-only  # detect baseline
-python3 measure_pof.py                # + gsc pof generate (LLM-PoC, медленно)
+python3 measure_pof_full.py           # полный цикл PoF (detect → PoC → verify)
 ```
+
+## Baseline: полный PoF-цикл (после фиксов sandbox)
+
+`python3 measure_pof_full.py` — для каждого TP: PoC против vulnerable (должен EXPLOIT)
+→ PoC против patched (должен FAIL) → verified через GSC sandbox (`gsc_pof_sandbox`).
+
+| Метрика | Значение |
+|---|---|
+| Detect | 8/13 (61.5%) |
+| **PoF verified (полный цикл)** | **8/13 — 100% от найденных** |
+| FP на clean | 0/2 |
+
+**Вывод:** PoF-механизм (киллер-фича) работает безупречно — 100% найденных уязвимостей
+прошли полный цикл `найти → доказать эксплуатацию → верифицировать фикс`. Bottleneck —
+**детекторы** (61.5% detect), а не PoF.
+
+## Исправленные баги (найдены при прогоне)
+
+1. `_serve_project/_serve_target` health-check: 404 (нет route на `/`) считался «сервер мёртв».
+2. `SUCCESS_MARKERS` regex: `NOT_EXPLOITED` ⊃ `EXPLOITED` → ложный success.
+3. `gsc_proofoffix._find_finding`: list-shaped scan report → `AttributeError`.
+4. Корпус: `reset_and_seed()` на module level (sandbox импортирует `app`, не `__main__`).
