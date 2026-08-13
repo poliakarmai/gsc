@@ -1,5 +1,11 @@
 {
   "mcpServers": {
+    "gsc": {
+      "command": "python3",
+      "args": ["gsc_mcp_server.py"],
+      "cwd": "/home/openclaw/gsc",
+      "description": "GSC security: scan_repo, list_findings, verify_finding (read-only)"
+    },
     "repowise": {
       "command": "repowise",
       "args": [
