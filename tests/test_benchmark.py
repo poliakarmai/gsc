@@ -12,7 +12,7 @@ from benchmark.runner import is_detected
 passed = 0
 failed = 0
 
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try:
         fn()
@@ -26,7 +26,7 @@ def test(name, fn):
 def t1():
     cwe_map = build_cwe_to_rules()
     assert "GS001" in cwe_map.get("CWE-89", [])
-test('cwe_map reverse: GS001 → CWE-89', t1)
+run_case('cwe_map reverse: GS001 → CWE-89', t1)
 
 
 def t2():
@@ -35,7 +35,7 @@ def t2():
     assert cov["coverage_pct"] < 100.0
     uncov = {u["cwe"] for u in cov["uncovered"]}
     assert "CWE-79" in uncov
-test('coverage report: uncovered CWEs', t2)
+run_case('coverage report: uncovered CWEs', t2)
 
 
 def t3():
@@ -48,7 +48,7 @@ def t3():
     assert exp["BenchmarkTest00001"] == (False, "CWE-328")
     assert exp["BenchmarkTest00002"] == (True, "CWE-89")
     os.unlink(tmp.name)
-test('parse expected CSV', t3)
+run_case('parse expected CSV', t3)
 
 
 def t4():
@@ -57,21 +57,21 @@ def t4():
     assert abs(s.fpr - 10/100) < 1e-6
     assert abs(s.precision - 80/90) < 1e-6
     assert abs(s.owasp_score - 0.70) < 1e-6
-test('CweScore math', t4)
+run_case('CweScore math', t4)
 
 
 def t5():
     s = CweScore(cwe="CWE-79", tp=0, fp=0, fn=0, tn=0)
     assert s.tpr == 0.0 and s.fpr == 0.0 and s.precision == 0.0
     assert s.owasp_score == 0.0
-test('CweScore division-by-zero guard', t5)
+run_case('CweScore division-by-zero guard', t5)
 
 
 def t6():
     findings = [{"rule_id": "GS001-subvariant"}]
     assert is_detected(findings, ["GS001"]) is True
     assert is_detected(findings, ["GS017"]) is False
-test('is_detected base_rule match', t6)
+run_case('is_detected base_rule match', t6)
 
 
 def t7():
@@ -80,9 +80,10 @@ def t7():
         "CWE-79": CweScore(cwe="CWE-79", tp=0, fp=0, fn=0, tn=0),
     }
     assert overall_score(scores) == 1.0  # only CWE-89 counted
-test('overall_score skips empty CWE', t7)
+run_case('overall_score skips empty CWE', t7)
 
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

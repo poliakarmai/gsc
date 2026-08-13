@@ -12,7 +12,7 @@ KNOWN_PREFIXES = {"GS001","GS002","GS003","GS004","GS005","GS007","GS008","GS009
                   "GS028","GS029","GS030","GS031"}
 
 passed, failed = 0, 0
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try: fn(); print(f'  ✅ {name}'); passed += 1
     except Exception as e: print(f'  ❌ {name}: {e}'); failed += 1
@@ -21,24 +21,25 @@ def t1():
     for rule_id in COMPLIANCE_MAP:
         prefix = rule_id.split("-")[0]
         assert prefix in KNOWN_PREFIXES, f"Unknown rule_id in COMPLIANCE_MAP: {rule_id}"
-test('all COMPLIANCE_MAP rules have valid prefix', t1)
+run_case('all COMPLIANCE_MAP rules have valid prefix', t1)
 
 def t2():
     gs004 = compliance_for("GS004")
     gs024 = compliance_for("GS024")
     covered = gs004.get("cwe") == "CWE-78" or gs024.get("cwe") == "CWE-78"
     assert covered, "CWE-78 (Command Injection) not covered by any detector"
-test('CWE-78 covered by GS004 or GS024', t2)
+run_case('CWE-78 covered by GS004 or GS024', t2)
 
 def t3():
     assert compliance_for("GS025-permissive_cors")["cwe"] == "CWE-1188"
     assert compliance_for("GS030-PYSEC-2018-58")["cwe"] == "CWE-1104"
-test('compliance fallback by prefix for sub-rules', t3)
+run_case('compliance fallback by prefix for sub-rules', t3)
 
 def t4():
     assert compliance_for("GS999-unknown") == {}
-test('unknown rule returns empty dict', t4)
+run_case('unknown rule returns empty dict', t4)
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

@@ -12,7 +12,7 @@ from gsc_federated import (
 passed = 0
 failed = 0
 
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try:
         fn()
@@ -28,7 +28,7 @@ def t1():
     assert _base_rule("GS025-permissive_cors") == "GS025"
     assert _base_rule("GS030-PYSEC-2018-58") == "GS030"
     assert _base_rule("GS001") == "GS001"
-test('base_rule extraction', t1)
+run_case('base_rule extraction', t1)
 
 
 def t2():
@@ -36,7 +36,7 @@ def t2():
     for _ in range(100):
         assert add_laplace_noise(0, 1.0) >= 0
         assert add_laplace_noise(5, 1.0) >= 0
-test('laplace noise non-negative', t2)
+run_case('laplace noise non-negative', t2)
 
 
 def t3():
@@ -47,7 +47,7 @@ def t3():
     assert f["confidence"] < 0.80
     assert f["metadata"]["federated_adjusted"] == "penalty"
     assert f["metadata"]["global_tp_rate"] == 0.3
-test('adjust_confidence penalty', t3)
+run_case('adjust_confidence penalty', t3)
 
 
 def t4():
@@ -57,7 +57,7 @@ def t4():
     adjust_confidence(f, fake)
     assert f["confidence"] > 0.80
     assert f["metadata"]["federated_adjusted"] == "boost"
-test('adjust_confidence boost', t4)
+run_case('adjust_confidence boost', t4)
 
 
 def t5():
@@ -67,7 +67,7 @@ def t5():
     original = f["confidence"]
     adjust_confidence(f, fake)
     assert f["confidence"] == original
-test('adjust_confidence no global data', t5)
+run_case('adjust_confidence no global data', t5)
 
 
 def t6():
@@ -79,7 +79,7 @@ def t6():
     assert "finding_key" not in payload
     assert "/" not in payload
     assert all(k.startswith("GS") for k in metrics.keys())
-test('privacy: no code leak in metrics', t6)
+run_case('privacy: no code leak in metrics', t6)
 
 
 def t7():
@@ -103,9 +103,10 @@ def t7():
         assert is_globally_deactivated(db, "GS099") == True
         assert is_globally_deactivated(db, "GS001") == False
         assert is_globally_deactivated(db, "GS002") == False
-test('auto_deactivate_global', t7)
+run_case('auto_deactivate_global', t7)
 
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

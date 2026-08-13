@@ -14,7 +14,7 @@ from gsc_nuclei_export import (
 passed = 0
 failed = 0
 
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try:
         fn()
@@ -32,7 +32,7 @@ def t1():
     assert request["method"] == "GET"
     assert "{{BaseURL}}" in request["path"][0]
     assert "id=1" in request["path"][0]
-test('parse curl GET', t1)
+run_case('parse curl GET', t1)
 
 
 def t2():
@@ -43,7 +43,7 @@ def t2():
     assert request["method"] == "POST"
     assert request["body"] == '{"id":"1"}'
     assert request["headers"]["Content-Type"] == "application/json"
-test('parse curl POST', t2)
+run_case('parse curl POST', t2)
 
 
 def t3():
@@ -56,14 +56,14 @@ def t3():
     assert request["method"] == "GET"
     assert "{{BaseURL}}" in request["path"][0]
     assert "id=1" in request["path"][0]
-test('parse python requests GET', t3)
+run_case('parse python requests GET', t3)
 
 
 def t4():
     poc = 'print("VULNERABLE: SQL injection works")'
     markers = _extract_markers(poc)
     assert "VULNERABLE" in markers
-test('extract VULNERABLE marker', t4)
+run_case('extract VULNERABLE marker', t4)
 
 
 def t5():
@@ -88,7 +88,7 @@ def t5():
     assert "severity: critical" in yaml_text
     assert "{{BaseURL}}" in yaml_text
     assert "VULNERABLE" in yaml_text
-test('full finding → nuclei YAML round-trip', t5)
+run_case('full finding → nuclei YAML round-trip', t5)
 
 
 def t6():
@@ -97,9 +97,10 @@ def t6():
     poc = "# complex Python code that can't be parsed\n..."
     template = export_finding_to_nuclei(finding, poc)
     assert template is None, "unparseable PoC should skip"
-test('skip unparseable PoC', t6)
+run_case('skip unparseable PoC', t6)
 
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

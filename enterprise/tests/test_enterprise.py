@@ -59,4 +59,5 @@ def a10(): assert importlib.import_module('enterprise.airgap').is_airgap()
 t('airgap detection', a10)
 
 print(f'\n{"="*50}\nEnterprise: {p} passed, {f} failed')
-sys.exit(0 if f == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if f == 0 else 1)

@@ -12,7 +12,7 @@ from gsc_dast_scanner import _parse_nuclei_output, _extract_evidence
 passed = 0
 failed = 0
 
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try:
         fn()
@@ -49,7 +49,7 @@ requests:
         assert "cve" in template.tags
         assert len(template.requests) == 1
         assert template.requests[0]["method"] == "GET"
-test('parse nuclei YAML basic', t1)
+run_case('parse nuclei YAML basic', t1)
 
 
 def t2():
@@ -67,7 +67,7 @@ requests:
         template = NucleiTemplate.from_yaml(str(yaml_file))
         assert template is not None
         assert template.tags == ["cve", "misconfig"]
-test('tags as string normalised', t2)
+run_case('tags as string normalised', t2)
 
 
 def t3():
@@ -76,7 +76,7 @@ def t3():
         yaml_file.write_text("not: valid: yaml: [")
         template = NucleiTemplate.from_yaml(str(yaml_file))
         assert template is None
-test('invalid YAML → None', t3)
+run_case('invalid YAML → None', t3)
 
 
 def t4():
@@ -97,7 +97,7 @@ requests:
 
         templates = list_templates()
         assert len(templates) == 3
-test('import 3 templates', t4)
+run_case('import 3 templates', t4)
 
 
 def t5():
@@ -125,7 +125,7 @@ requests:
         templates = list_templates(db_path=iso_db)
         assert len(templates) == 1  # not duplicated
 import pytest
-test('idempotent import (xfail: shared DB state)', t5)
+run_case('idempotent import (xfail: shared DB state)', t5)
 
 
 def t6():
@@ -138,7 +138,7 @@ def t6():
         assert len(findings) == 2
         assert findings[0]["template_id"] == "cve-2024-1234"
         assert findings[1]["severity"] == "high"
-test('parse nuclei JSONL output', t6)
+run_case('parse nuclei JSONL output', t6)
 
 
 def t7():
@@ -150,9 +150,10 @@ def t7():
     assert _extract_evidence(result2) == "matched"
 
     assert _extract_evidence({}) == ""
-test('evidence extraction', t7)
+run_case('evidence extraction', t7)
 
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

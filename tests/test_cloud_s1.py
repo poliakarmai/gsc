@@ -83,4 +83,5 @@ def t5():
 t('scan v2 unauthorized', t5)
 
 print(f'\n{"="*50}\nResults: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

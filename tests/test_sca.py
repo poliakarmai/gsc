@@ -11,7 +11,7 @@ from gsc_sca import (extract_version, parse_requirements, parse_go_mod,
 passed = 0
 failed = 0
 
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try:
         fn()
@@ -30,7 +30,7 @@ def t1():
     assert extract_version("!=1.5") is None
     assert extract_version("*") is None
     assert extract_version("") is None
-test('extract_version', t1)
+run_case('extract_version', t1)
 
 
 def t2():
@@ -47,7 +47,7 @@ def t2():
     assert "prod.txt" not in names
     django = next(p for p in pkgs if p.name == "django")
     assert django.version == "2.2"
-test('parse_requirements', t2)
+run_case('parse_requirements', t2)
 
 
 def t3():
@@ -58,7 +58,7 @@ def t3():
     pkgs = parse_go_mod("go.mod", content)
     assert pkgs[0].version == "1.7.0"
     assert pkgs[0].ecosystem == "Go"
-test('parse_go_mod strips v', t3)
+run_case('parse_go_mod strips v', t3)
 
 
 def t4():
@@ -68,7 +68,7 @@ def t4():
     nv = {p.name: p.version for p in pkgs}
     assert nv["lodash"] == "4.17.15"
     assert nv["jest"] == "27.0.0"
-test('parse_package_json', t4)
+run_case('parse_package_json', t4)
 
 
 def t5():
@@ -77,7 +77,7 @@ def t5():
     assert _cvss_to_severity(5.0) == "MEDIUM"
     assert _cvss_to_severity(2.0) == "LOW"
     assert _normalize_severity("MODERATE") == "MEDIUM"
-test('severity mapping', t5)
+run_case('severity mapping', t5)
 
 
 def t6():
@@ -87,7 +87,7 @@ def t6():
                                                  {"fixed": "2.20.0"}]}]}]}
     assert extract_fixed_version(vuln, "requests") == "2.20.0"
     assert extract_fixed_version(vuln, "flask") is None
-test('extract_fixed_version', t6)
+run_case('extract_fixed_version', t6)
 
 
 def t7():
@@ -100,9 +100,10 @@ def t7():
     assert "requests==2.20.0" in fix["patched"]
     assert "requests==2.19.0" not in fix["patched"]
     assert "flask==1.0" in fix["patched"]
-test('sca bump fix', t7)
+run_case('sca bump fix', t7)
 
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

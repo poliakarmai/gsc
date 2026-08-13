@@ -5,12 +5,12 @@ sys.path.insert(0, '.')
 
 from cloud.workers import (
     enqueue_scan, get_next_job, complete_job, get_job_status,
-    get_tenant_jobs, scan_repo, JOB_SCHEMA_SQL,
+    get_tenant_jobs, scan_repo,
 )
 
 passed = 0; failed = 0
 
-def test(name, fn, expect=True):
+def run_case(name, fn, expect=True):
     global passed, failed
     try:
         result = fn()
@@ -61,12 +61,13 @@ def t6():
     assert get_next_job() is None  # queue drained
     return True
 
-test("enqueue returns job_id", t1)
-test("get_next_job + complete_job", t2)
-test("failed job retains error", t3)
-test("get_tenant_jobs lists all", t4)
-test("scan_repo on calib project", t5)
-test("empty queue → None", t6)
+run_case("enqueue returns job_id", t1)
+run_case("get_next_job + complete_job", t2)
+run_case("failed job retains error", t3)
+run_case("get_tenant_jobs lists all", t4)
+run_case("scan_repo on calib project", t5)
+run_case("empty queue → None", t6)
 
 print(f'\n{"="*40}\n{passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

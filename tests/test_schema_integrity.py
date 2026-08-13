@@ -16,7 +16,7 @@ EXPECTED_TABLES_V28 = {
 }
 
 passed, failed = 0, 0
-def test(name, fn):
+def run_case(name, fn):
     global passed, failed
     try: fn(); print(f'  ✅ {name}'); passed += 1
     except Exception as e: print(f'  ❌ {name}: {e}'); failed += 1
@@ -25,7 +25,7 @@ def t1():
     from gsc_db import GSCDatabase
     with GSCDatabase() as db:
         assert db._schema_version() == TARGET_VERSION
-test(f'schema version is {TARGET_VERSION}', t1)
+run_case(f'schema version is {TARGET_VERSION}', t1)
 
 def t2():
     from gsc_db import GSCDatabase
@@ -34,7 +34,7 @@ def t2():
         actual = {r["name"] for r in rows}
     missing = EXPECTED_TABLES_V28 - actual
     assert not missing, f"Missing tables: {missing}"
-test(f'all {len(EXPECTED_TABLES_V28)} expected tables present', t2)
+run_case(f'all {len(EXPECTED_TABLES_V28)} expected tables present', t2)
 
 def t3():
     from gsc_db import GSCDatabase
@@ -43,8 +43,9 @@ def t3():
         db._migrate()
         v = db._schema_version()
         assert v == TARGET_VERSION
-test('migration idempotent (re-run safe)', t3)
+run_case('migration idempotent (re-run safe)', t3)
 
 print(f'\n{"="*50}')
 print(f'Results: {passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)

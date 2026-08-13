@@ -49,4 +49,5 @@ def t6():
 t('BaseDetector contract implemented', t6)
 
 print(f'\n{"="*50}\n{passed} passed, {failed} failed')
-sys.exit(0 if failed == 0 else 1)
+if __name__ == "__main__":
+    sys.exit(0 if failed == 0 else 1)
