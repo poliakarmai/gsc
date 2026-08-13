@@ -121,6 +121,24 @@
 
 **Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`).
 
+### Трек 0.7. Sale-Readiness (из sell-side аудита, 13.08)
+
+> Готовность к due-diligence покупателя. Блокеры P0→P1 из `GSC_SALE_ANALYSIS.pdf`.
+
+| # | Задача | Статус |
+|---|---|---|
+| 0.7.1 | pytest collectible (sys.exit guard + rename custom runner) | ✅ 105 passed / 4 skipped |
+| 0.7.2 | README overclaims «*Nobody*» → evidence-backed таблица | ✅ |
+| 0.7.3 | MCP server (scan/findings/explain/fix/verify tools) | ❌ новый трек |
+| 0.7.4 | Traction: 5 design partners, 2 paid pilots | ⏳ бизнес |
+| 0.7.5 | IP: assignment, contributor waivers, SPDX, clean chain-of-title | ⏳ юрид. |
+| 0.7.6 | Benchmark: 100–150 fixtures + сравнение Semgrep/CodeQL/Bandit | ❌ новый трек |
+| 0.7.7 | Enterprise hardening: sandbox threat model, egress policy, LLM no-LLM/retention | ❌ P1 |
+| 0.7.8 | Repo hygiene: build artifacts, `.next`, `.repowise`, stable/experimental split | 🟡 частично |
+
+**Позиционирование:** «verified remediation engine» (PoC → patch → re-verify), **не** «SAST-конкурент Snyk».
+Оценка sell-side: $100–500K tech / $50–150K acqui-hire сейчас; $1–3M после 3–6 мес доказательств (benchmark, pilots).
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
