@@ -87,6 +87,9 @@ def cmd_scan(args):
         print(f"   Echelons: {'all 3' if not args.echelon else args.echelon}")
         print()
 
+    # Audit A-06: collect skipped/failed stage warnings — surfaced in SARIF.
+    scan_warnings: list[str] = []
+
     # 1. Load patterns (suppress in CI mode)
     quiet = getattr(args, 'ci', False) or getattr(args, 'json', False) or getattr(args, 'sarif', False)
     if not quiet:
@@ -120,6 +123,7 @@ def cmd_scan(args):
             fsm.close()
         except Exception as e:
             # Audit A-06: surface the failure instead of swallowing it.
+            scan_warnings.append(f"resume tracking failed: {e}")
             print(f"[gsc] warning: resume tracking failed ({e})", file=sys.stderr)
 
     # 2.5 Framework-aware filter (reduce FP)
@@ -128,6 +132,7 @@ def cmd_scan(args):
         from framework_aware import filter_findings as fw_filter
         findings = fw_filter(findings)
     except Exception as e:
+        scan_warnings.append(f"framework-aware filter failed: {e}")
         print(f"[gsc] warning: framework-aware filter failed ({e})", file=sys.stderr)
 
     # 2.7 LLM Verification — deep analysis of CRITICAL/HIGH findings
@@ -146,6 +151,7 @@ def cmd_scan(args):
             if not quiet:
                 print(f"🧠 LLM verified: {before} CRITICAL/HIGH → {after_real} real, {after_fp} FP")
         except Exception as e:
+            scan_warnings.append(f"LLM verification failed: {e}")
             if not quiet:
                 print(f"⚠️ LLM verification skipped: {e}")
 
@@ -154,8 +160,8 @@ def cmd_scan(args):
         try:
             from gsc_reachability import analyze_reachability
             findings = analyze_reachability(findings, str(project_path))
-        except Exception:
-            pass
+        except Exception as e:
+            scan_warnings.append(f"reachability analysis failed: {e}")
 
     # 2.7 Clear file cache to prevent memory leak
     _file_cache.clear()
@@ -181,12 +187,13 @@ def cmd_scan(args):
                 findings.extend(detect_dockerfile(str(fpath), content))
             elif fpath.suffix in (".yaml",".yml") and _is_kubernetes(content):
                 findings.extend(detect_kubernetes(str(fpath), content))
-    except ImportError: pass
+    except ImportError as e:
+        scan_warnings.append(f"IaC detectors unavailable: {e}")
 
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
     elif args.sarif:
-        print(json.dumps(export_sarif(findings, project), indent=2))
+        print(json.dumps(export_sarif(findings, project, scan_warnings), indent=2))
     elif args.compliance:
         print_compliance(findings, args.compliance)
     else:
@@ -831,7 +838,7 @@ def print_compliance(findings: list[dict], framework: str):
                 print("  🟢 Compliant")
 
 
-def export_sarif(findings: list[dict], project: str) -> dict:
+def export_sarif(findings: list[dict], project: str, warnings: list[str] | None = None) -> dict:
     """Export findings as SARIF 2.1.0 for GitHub Code Scanning."""
     rules = {}
     results = []
@@ -852,10 +859,23 @@ def export_sarif(findings: list[dict], project: str) -> dict:
             "locations": [{"physicalLocation": {"artifactLocation": {"uri": f.get("file_path", "")}, "region": {"startLine": f.get("line_number", 1)}}}]
         })
 
+    # Audit A-06: surface skipped/failed stages as SARIF toolExecutionNotifications
+    # so a detector failure is never silently reported as a "clean" scan.
+    invocation = {
+        "executionSuccessful": not warnings,
+        "toolExecutionNotifications": [
+            {
+                "level": "warning",
+                "message": {"text": w},
+            }
+            for w in (warnings or [])
+        ],
+    }
+
     return {
         "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
         "version": "2.1.0",
-        "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results}]
+        "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results, "invocations": [invocation]}]
     }
 
 

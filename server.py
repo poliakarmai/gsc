@@ -143,11 +143,12 @@ def create_tenant(name: str, plan: str = "free") -> tuple[str, int]:
     conn.commit()
     return raw_key, tid
 
-def verify_api_key(raw_key: str) -> Optional[int]:
+def verify_api_key(raw_key: str, db=None) -> Optional[int]:
     """Return tenant_id or None (constant-time hash comparison, audit S-10)."""
+    db = db or conn
     h = hashlib.sha256(raw_key.encode()).hexdigest()
     prefix = raw_key[:8] if len(raw_key) >= 8 else raw_key
-    rows = conn.execute(
+    rows = db.execute(
         "SELECT tenant_id, key_hash FROM api_keys WHERE key_prefix=? AND revoked_at IS NULL",
         (prefix,)
     ).fetchall()
@@ -157,10 +158,27 @@ def verify_api_key(raw_key: str) -> Optional[int]:
     return None
 
 
+def get_db():
+    """Per-request SQLite connection (audit A-07).
+
+    Each request gets its own connection (WAL + busy_timeout), isolated from
+    the module-global ``conn``. This is the seam where a PostgreSQL pool slots
+    in for multi-tenant production — swap the backend here, endpoints unchanged.
+    """
+    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA busy_timeout=5000")
+    try:
+        yield db
+    finally:
+        db.close()
+
+
 def get_tenant_from_key(
     authorization: Optional[str] = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
     api_key: Optional[str] = Query(None),
+    db=Depends(get_db),
 ) -> int:
     """Resolve tenant id from Authorization: Bearer / X-API-Key header.
 
@@ -176,7 +194,7 @@ def get_tenant_from_key(
         raw = api_key
     if not raw:
         raise HTTPException(401, "Missing API key (use Authorization: Bearer <key>)")
-    tid = verify_api_key(raw)
+    tid = verify_api_key(raw, db)
     if tid is None:
         raise HTTPException(401, "Invalid API key")
     return tid
