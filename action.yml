@@ -54,7 +54,7 @@ runs:
       shell: bash
 
     - name: Install GSC
-      run: pip install git+https://github.com/poliakarmai/gsc.git@master
+      run: pip install git+https://github.com/poliakarmai/gsc.git@v1.3.0
       shell: bash
 
     - name: Run GSC Scan

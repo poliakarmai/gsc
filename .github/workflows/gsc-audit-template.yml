@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: GSC Security Audit
-        uses: poliakarmai/gsc@master
+        uses: poliakarmai/gsc@v1.3.0
         with:
           path: '.'
           deep_scan: true

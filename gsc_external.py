@@ -994,13 +994,14 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
 
     # Phase 1: auto-degrade to regex-only on empty API key or quick mode
     use_llm_flag = True
-    # Check os.environ first, then .env file (Hermes stores keys in ~/.hermes/.env)
+    # Check os.environ first, then trusted env files. NOTE: do NOT read a
+    # `.env` from the current directory — a scanned repo could plant its own
+    # and hijack the key (audit S-07).
     _api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not _api_key:
         for _env_path in [
             os.path.expanduser("~/.hermes/.env"),
             os.path.expanduser("~/.hermes/env"),
-            ".env",
         ]:
             if os.path.exists(_env_path):
                 try:
@@ -1133,10 +1134,10 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         rule = f.get("rule_id") or f.get("pattern_title", "")
         if rule in policy.get("disabled_rules", []):
             continue
-        # LLM revalidate
-        if policy.get("llm_enabled") and llm_calls < max_llm:
+        # LLM revalidate (audit A-02: honor use_llm_flag, not just policy)
+        if use_llm_flag and policy.get("llm_enabled") and llm_calls < max_llm:
             if f.get("category") in policy.get("llm_severities", ["CRITICAL", "HIGH"]):
-                f = _revalidate(f, target_path)
+                f = _revalidate(f, target_path, policy.get("llm_severities"))
                 llm_calls += 1
         enriched.append(f)
 
@@ -1343,9 +1344,12 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     return result
 
 
-def _revalidate(finding: dict, project_path: Path) -> dict:
+def _revalidate(finding: dict, project_path: Path, severities=None) -> dict:
     f = dict(finding)
-    if f.get("category") not in ("CRITICAL", "HIGH"):
+    # Audit A-03: honor the profile's llm_severities instead of hardcoding
+    # CRITICAL/HIGH — the 'audit' profile promises MEDIUM review too.
+    allowed = tuple(severities) if severities else ("CRITICAL", "HIGH")
+    if f.get("category") not in allowed:
         return f
 
     fp = f.get("file_path", "")
