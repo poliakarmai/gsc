@@ -16,7 +16,7 @@ Usage:
   gsc api --port 8766
 """
 
-import os, sys, json, sqlite3, uuid, time, threading
+import os, sys, json, sqlite3, uuid, time, threading, re
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
@@ -128,12 +128,31 @@ def _db_execute(sql: str, params: tuple = ()):
     finally:
         conn.close()
 
+_SCAN_ID_RE = re.compile(r"^[a-f0-9]{12}$")
+
+
+def _safe_scan_path(scan_id: str) -> Path:
+    """C-04 (audit): validate scan_id + resolve() containment — no path traversal.
+
+    scan_id is uuid4().hex[:12]; reject anything that isn't a 12-hex token, and
+    double-check the resolved path stays inside SCANS_DIR even if the token were
+    malformed.
+    """
+    if not _SCAN_ID_RE.match(scan_id or ""):
+        raise ValueError(f"invalid scan_id: {scan_id!r}")
+    base = SCANS_DIR.resolve()
+    candidate = (SCANS_DIR / f"{scan_id}.json").resolve()
+    if not candidate.is_relative_to(base):
+        raise ValueError("scan path escapes SCANS_DIR")
+    return candidate
+
+
 def _save_scan_state(scan_id: str, state: dict):
-    path = SCANS_DIR / f"{scan_id}.json"
+    path = _safe_scan_path(scan_id)
     path.write_text(json.dumps(state, indent=2, default=str))
 
 def _load_scan_state(scan_id: str) -> dict:
-    path = SCANS_DIR / f"{scan_id}.json"
+    path = _safe_scan_path(scan_id)
     if path.exists():
         return json.loads(path.read_text())
     return {"scan_id": scan_id, "status": "unknown"}
@@ -218,7 +237,10 @@ async def scan(req: ScanRequest, bg: BackgroundTasks, x_api_key: str = Header(..
 @app.get("/api/v1/scan/{scan_id}")
 async def get_scan(scan_id: str):
     """Get scan status + results."""
-    state = _load_scan_state(scan_id)
+    try:
+        state = _load_scan_state(scan_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     if state.get("status") == "unknown":
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     return state
