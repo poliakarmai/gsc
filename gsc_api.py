@@ -50,7 +50,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-API_KEY = os.environ.get("GSC_API_KEY", "gsc-dev-key")
+# S-01 (audit): no default secret. Fail closed unless GSC_API_KEY is set or the
+# operator explicitly opts into local development with GSC_DEV_MODE=1.
+API_KEY = os.environ.get("GSC_API_KEY", "")
+DEV_MODE = os.environ.get("GSC_DEV_MODE", "").lower() in ("1", "true", "yes")
+
+if not API_KEY and not DEV_MODE:
+    raise RuntimeError(
+        "GSC_API_KEY is not set and GSC_DEV_MODE is not enabled. "
+        "Set GSC_API_KEY to a strong secret (or GSC_DEV_MODE=1 for local dev). "
+        "Refusing to start with an insecure default key."
+    )
+
+if not API_KEY:
+    # explicit dev mode only — never a silent production default
+    API_KEY = "gsc-dev-key"
 
 # ── Schemas ───────────────────────────────────────────────
 
