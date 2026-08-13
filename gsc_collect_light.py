@@ -328,14 +328,16 @@ class GscCollector:
 
         # Save finding
         try:
+            from gsc_db import compute_finding_key
             self.db.execute(
                 """INSERT INTO findings
                    (project, rule_id, category, title, file_path,
-                    detail, noise_tier, pattern_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                    detail, noise_tier, pattern_id, finding_key)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 ("gsc-collector", detector or "COLLECTED", severity,
                  title[:200], source_url, snippet[:500], "normal",
-                 pattern_id)
+                 pattern_id,
+                 compute_finding_key(detector or "COLLECTED", source_url, snippet[:500]))
             )
             self.findings_added += 1
         except Exception:

@@ -67,17 +67,19 @@ class GscDatabasePipeline:
 
         # 2. Insert finding
         try:
+            from gsc_db import compute_finding_key
             self.conn.execute(
                 """INSERT INTO findings
                    (project, rule_id, category, severity, title, file_path,
                     line_number, detail, fix_suggestion, references, noise_tier,
-                    source, url, pattern_id)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    source, url, pattern_id, finding_key)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 ("gsc-collector", finding["rule_id"], finding["category"],
                  finding["severity"], finding["title"], finding["file_path"],
                  finding["line"], finding["detail"], finding["fix_suggestion"],
                  json.dumps(finding["references"]), finding["noise_tier"],
-                 finding["source"], finding["url"], pattern_id)
+                 finding["source"], finding["url"], pattern_id,
+                 compute_finding_key(finding["rule_id"], finding["file_path"], finding["detail"]))
             )
             self.items_processed += 1
         except Exception as e:

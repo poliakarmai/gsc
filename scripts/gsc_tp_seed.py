@@ -61,6 +61,7 @@ TP_SEEDS = [
 
 
 def seed():
+    from gsc_db import compute_finding_key
     db = sqlite3.connect(DB)
     now = datetime.now(timezone.utc).isoformat()
     inserted = 0
@@ -91,13 +92,15 @@ def seed():
                 """INSERT OR IGNORE INTO findings 
                    (project, category, title, file_path, detail, pattern_id,
                     status, revalidation_verdict, revalidation_checked_at, 
-                    revalidation_reasoning, echelon, noise_tier, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, 'confirmed', 'TP', ?, ?, 2, 'seed', ?)""",
+                    revalidation_reasoning, echelon, noise_tier, created_at, rule_id, finding_key)
+                   VALUES (?, ?, ?, ?, ?, ?, 'confirmed', 'TP', ?, ?, 2, 'seed', ?, ?, ?)""",
                 (
                     seed["project"], seed["category"], seed["title"],
                     seed["file_path"], seed["detail"], fp,
                     now, f"TP seed from {seed['pr']} ({seed['cwe']})",
                     now,
+                    seed.get("pattern"),
+                    compute_finding_key(seed.get("pattern"), seed["file_path"], seed["detail"]),
                 ),
             )
             print(f"  ✅ INSERTED {seed['project']}{seed['pr']} → TP")

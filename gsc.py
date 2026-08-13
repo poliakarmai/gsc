@@ -866,6 +866,11 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
         return
 
     try:
+        from gsc_db import compute_finding_key
+    except ImportError:
+        compute_finding_key = None  # standalone (no gsc_db) — skip key
+
+    try:
         conn = sqlite3.connect(str(DB_PATH))
         conn.execute(
             "INSERT INTO audit_runs (project, started_at) VALUES (?, datetime('now'))",
@@ -874,13 +879,17 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
         run_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
 
         for f in findings:
+            rule = f.get("pattern_title") or f.get("rule_id")
+            fk = compute_finding_key(
+                rule, f.get("file_path"),
+                f.get("detail") or f.get("title")) if compute_finding_key else None
             conn.execute(
                 """INSERT OR IGNORE INTO findings
-                   (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at)
-                   VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'))""",
+                   (run_id, project, echelon, category, title, file_path, line_number, detail, status, created_at, rule_id, pattern_title, finding_key)
+                   VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'),?,?,?)""",
                 (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
                  f["title"], f.get("file_path", ""), f.get("line_number", 0),
-                 f.get("detail", ""))
+                 f.get("detail", ""), f.get("rule_id"), f.get("pattern_title"), fk)
             )
 
         total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]

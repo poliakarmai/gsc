@@ -249,6 +249,7 @@ def find_files(target_path: str) -> list:
 
 def save_to_db(findings: list, project: str, run_id: str):
     """Save AI findings to GSC database."""
+    from gsc_db import compute_finding_key
     db = sqlite3.connect(DB)
     now = datetime.now(timezone.utc).isoformat()
     
@@ -256,32 +257,36 @@ def save_to_db(findings: list, project: str, run_id: str):
         fp = hashlib.sha256(
             f"{f.get('title','')}|{json.dumps(f.get('cwe',['']))}|{f.get('file_path','')}|{f.get('line_start',0)}".encode()
         ).hexdigest()[:16]
+        detail_json = json.dumps({
+            'cwe': f.get('cwe', []),
+            'explanation': f.get('explanation', ''),
+            'remediation': f.get('remediation', ''),
+            'source': 'deep-reducer-ai',
+        })
+        # AI findings carry no rule_id/pattern_title → rule=None (matches get_finding)
+        fk = compute_finding_key(None, f.get('file_path', ''), detail_json)
         
         db.execute("""
             INSERT OR IGNORE INTO findings 
             (project, category, title, file_path, line_number, detail,
              pattern_id, echelon, status, created_at, run_id,
-             revalidation_verdict, confidence_score)
+             revalidation_verdict, confidence_score, finding_key)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?,
-                    ?, ?)
+                    ?, ?, ?)
         """, (
             project,
             f.get('severity', 'MEDIUM'),
             f.get('title', 'Untitled'),
             f.get('file_path', ''),
             f.get('line_start', 0),
-            json.dumps({
-                'cwe': f.get('cwe', []),
-                'explanation': f.get('explanation', ''),
-                'remediation': f.get('remediation', ''),
-                'source': 'deep-reducer-ai',
-            }),
+            detail_json,
             fp,
             3,  # echelon: AI-generated
             now,
             run_id,
             None,  # Not revalidated yet
             f.get('confidence', 50),
+            fk,
         ))
     db.commit()
     db.close()

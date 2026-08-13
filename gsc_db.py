@@ -10,14 +10,14 @@ Handles: findings, chains, feedback, metrics, schema versioning.
 Auto-migrates on first access. Creates timestamped backups.
 """
 
-import json, os, re, shutil, sqlite3
+import json, os, re, shutil, sqlite3, hashlib
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 30
+TARGET_VERSION = 31
 
 # Canonical base schema (v1). These tables are the foundation every migration
 # and query assumes. They MUST exist before any ALTER TABLE runs — fresh
@@ -91,11 +91,13 @@ CREATE TABLE IF NOT EXISTS findings (
     revalidation_reason TEXT,
     revalidated_at TEXT,
     confidence_score REAL,
-    rule_id TEXT
+    rule_id TEXT,
+    finding_key TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_findings_project ON findings(project, status);
 CREATE INDEX IF NOT EXISTS idx_findings_fp ON findings(pattern_fingerprint);
 CREATE INDEX IF NOT EXISTS idx_findings_resolved ON findings(resolved_at);
+CREATE INDEX IF NOT EXISTS idx_findings_key ON findings(finding_key);
 
 CREATE TABLE IF NOT EXISTS feedback (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -440,6 +442,18 @@ CREATE INDEX IF NOT EXISTS idx_overrides_pr
 """
 
 
+def compute_finding_key(rule: str, file_path: str, snippet: str) -> str:
+    """Stable finding key = sha256(rule|file|snippet)[:12] (invariant #1).
+
+    MUST match get_finding exactly. ``rule`` = pattern_title or rule_id or "?",
+    ``snippet`` = (detail or title)[:100]. Every INSERT path that feeds this
+    lookup must compute the same key or lookups silently miss (audit A-05).
+    """
+    rule = rule or "?"
+    file_path = file_path or "?"
+    snippet = (snippet or "")[:100]
+    return hashlib.sha256(f"{rule}|{file_path}|{snippet}".encode()).hexdigest()[:12]
+
 
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
@@ -487,6 +501,8 @@ class GSCDatabase:
             self._apply_v029()
         if version < 30:
             self._apply_v030()
+        if version < 31:
+            self._apply_v031()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -654,6 +670,30 @@ class GSCDatabase:
                 ON pattern_status(rule_id, enabled);
         """)
 
+    def _apply_v031(self):
+        """Schema v31: finding_key column + index + backfill (audit A-05)."""
+        self._add_column_if_missing("findings", "finding_key", "TEXT")
+        self.conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_findings_key ON findings(finding_key)")
+        # Backfill legacy rows (finding_key NULL) in chunks — idempotent.
+        try:
+            rows = self.conn.execute(
+                "SELECT id, pattern_title, rule_id, file_path, detail, title "
+                "FROM findings WHERE finding_key IS NULL").fetchall()
+            for i, r in enumerate(rows):
+                fk = compute_finding_key(
+                    r["pattern_title"] or r["rule_id"],
+                    r["file_path"],
+                    (r["detail"] or r["title"] or ""),
+                )
+                self.conn.execute(
+                    "UPDATE findings SET finding_key=? WHERE id=?", (fk, r["id"]))
+                if i % 10000 == 0:
+                    self.conn.commit()
+            self.conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
     def _apply_v027(self):
         """Schema v27: federated learning tables."""
         self.conn.executescript(SCHEMA_V027)
@@ -739,23 +779,30 @@ class GSCDatabase:
     # ── Findings ───────────────────────────────────────────────
 
     def get_finding(self, key: str):
-        """Look up finding by finding_key (sha256[:12])."""
-        rows = self.conn.execute(
-            "SELECT * FROM findings WHERE 1=0"
-        ).fetchall()  # Check if table exists
+        """Look up finding by finding_key (sha256[:12]).
+
+        O(1) via the ``finding_key`` index; falls back to a scan of legacy
+        rows that predate the column (finding_key NULL).
+        """
         try:
-            # finding_key is computed, not stored — scan all
+            row = self.conn.execute(
+                "SELECT * FROM findings WHERE finding_key=?", (key,)
+            ).fetchone()
+            if row:
+                return dict(row)
+        except sqlite3.OperationalError:
+            return None
+        # Fallback: legacy rows without a stored finding_key (NULL) — rare.
+        try:
             rows = self.conn.execute(
-                "SELECT * FROM findings"
+                "SELECT * FROM findings WHERE finding_key IS NULL"
             ).fetchall()
-            import hashlib
             for r in rows:
                 d = dict(r)
-                rule = d.get("pattern_title", d.get("rule_id", "?"))
-                fp = d.get("file_path", "?")
-                snippet = (d.get("detail") or d.get("title") or "")[:100]
-                fk = hashlib.sha256(f"{rule}|{fp}|{snippet}".encode()).hexdigest()[:12]
-                if fk == key:
+                rule = d.get("pattern_title") or d.get("rule_id")
+                fp = d.get("file_path")
+                snippet = (d.get("detail") or d.get("title") or "")
+                if compute_finding_key(rule, fp, snippet) == key:
                     return d
         except sqlite3.OperationalError:
             pass
