@@ -35,6 +35,6 @@ Contact the Licensor:
 
 - **Owner:** Алексей Поляков (poliakarmai)
 - **Repo:** https://github.com/poliakarmai/gsc
-- **Email:** (add contact here)
+- **Email:** armyanao@gmail.com
 
 Pricing is negotiated per use case (revenue share, flat annual, or hybrid).
