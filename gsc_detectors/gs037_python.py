@@ -29,6 +29,8 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
     ("pickle_rce",
      r'(?i)pickle\.(?:loads?|load)\s*\(\s*(?:request\.(?:data|form|args|json)|input\b)',
      "CRITICAL", 0.98),
+    ("pickle_load_any",
+     r'(?i)pickle\.(?:loads?|load)\s*\(', "HIGH", 0.70),
 
     # --- eval/exec ---
     ("eval_user_input",

@@ -431,7 +431,7 @@ def _derive_rule_id(pattern: dict) -> str:
     if "xss" in title: return "GS020"
     if "secret" in title or "credential" in title or "token" in title or "encrypt" in title or "exposed" in title or "hardcoded" in title: return "GS029"
     if "eval" in title: return "GS008"
-    if "pickle" in title or "deserial" in title: return "GS007"
+    if "pickle" in title or "deserial" in title: return "GS037"
     if "except" in title: return "GS010"
     if "assert" in title: return "GS018"
     if "docker" in title or "container" in title: return "GS031"

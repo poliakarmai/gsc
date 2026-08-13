@@ -66,7 +66,7 @@ python3 measure_pof_full.py           # полный цикл PoF (detect → Po
 
 | Метрика | Значение |
 |---|---|
-| Detect | **13/13 (100%)** |
+| Detect | **13/13 (TP=13, MISLABELED=0, FN=0)** |
 | **PoF verified (полный цикл)** | **13/13 — 100%** |
 | FP на clean | 0/2 |
 

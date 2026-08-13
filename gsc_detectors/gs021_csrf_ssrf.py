@@ -48,6 +48,9 @@ SSRF_PATTERNS: list[tuple[str, str, str]] = [
     # URL fetching with user input
     (r'(?:urllib|requests|http\.client|axios|fetch|got|node-fetch)\.(?:get|post|request|fetch)\s*\(.*(?:request\.|params\[|req\.(?:query|body|params)|user_input|input\()',
      "SSRF: HTTP request with user-controlled URL", "CRITICAL"),
+    # Indirect taint — request to a variable (likely a user-supplied URL)
+    (r'(?:requests|urllib\.request|httpx)\.(?:get|post|head|put|request)\s*\(\s*[a-zA-Z_]\w*\s*\)',
+     "SSRF: HTTP request to a variable (verify URL is not user-controlled)", "HIGH"),
     (r'file_get_contents\s*\(\s*\$_(?:GET|POST|REQUEST)', "SSRF: PHP file_get_contents with user input", "CRITICAL"),
     (r'curl_exec\s*\(.*\$_(?:GET|POST|REQUEST)', "SSRF: PHP curl_exec with user-controlled URL", "CRITICAL"),
     (r'open-uri|open\(.*(?:params|request)', "SSRF: Ruby open-uri with user input", "HIGH"),
@@ -87,9 +90,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if _is_false_positive(snippet):
                     continue
                 findings.append(Finding(
-                    rule_id=RULE_ID, severity=severity, category="csrf",
-                    file=rel_path, line=line_no, snippet=snippet.strip()[:200],
-                    message=message, cwe="CWE-352",
+                    rule_id=RULE_ID, severity=severity, category=severity,
+                    title=message, file_path=rel_path, line=line_no,
+                    detail=snippet.strip()[:200], cwe="CWE-352",
                     cvss={"HIGH":"7.5","MEDIUM":"5.3","INFO":"0.0"}.get(severity,"5.0"),
                 ))
 
@@ -100,9 +103,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if _is_false_positive(snippet):
                     continue
                 findings.append(Finding(
-                    rule_id=RULE_ID, severity=severity, category="ssrf",
-                    file=rel_path, line=line_no, snippet=snippet.strip()[:200],
-                    message=message, cwe="CWE-918",
+                    rule_id=RULE_ID, severity=severity, category=severity,
+                    title=message, file_path=rel_path, line=line_no,
+                    detail=snippet.strip()[:200], cwe="CWE-918",
                     cvss={"CRITICAL":"9.1","HIGH":"7.5","INFO":"0.0"}.get(severity,"5.0"),
                 ))
 
