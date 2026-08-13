@@ -79,6 +79,10 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
     # --- Path Traversal ---
     ("path_traversal_open",
      r'(?i)(?:open|file)\s*\(\s*(?:os\.path\.join|f["\']).*(?:request\.|input)', "HIGH", 0.80),
+    ("path_traversal_join",
+     r'(?i)os\.path\.join\s*\([^)]*(?:filename|file_name|file_path|path)\b', "HIGH", 0.70),
+    ("path_traversal_send_file",
+     r'(?i)send_file\s*\(\s*[a-zA-Z_]\w*\s*\)', "HIGH", 0.65),
 
     # --- SQL Injection ---
     ("sql_injection_format",
@@ -97,6 +101,8 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
     # --- XXE ---
     ("xxe_lxml",
      r'(?i)(?:etree\.parse|etree\.fromstring|etree\.XML)\s*\(', "HIGH", 0.60),
+    ("xxe_sax",
+     r'(?i)feature_external_(?:ges|entities)\s*[,\s]+True', "HIGH", 0.85),
 
     # --- marshal RCE ---
     ("marshal_rce",
@@ -117,7 +123,7 @@ def _finding(rule_id: str, severity: str, title: str, file_path: str,
     key = hashlib.sha256(f"{rule_id}{file_path}{snippet}".encode()).hexdigest()[:12]
     return {
         "finding_key": key, "rule_id": rule_id, "title": title,
-        "severity": severity, "confidence": confidence,
+        "severity": severity, "category": severity, "confidence": confidence,
         "file_path": file_path, "line_number": line_no,
         "detail": f"{title} at line {line_no}",
         "snippet": snippet,

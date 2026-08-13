@@ -118,13 +118,13 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=adjusted_severity,
-                    category="injection",
-                    file=rel_path,
+                    category=adjusted_severity,
+                    title=message,
+                    file_path=rel_path,
                     line=line_no,
-                    snippet=snippet.strip()[:200],
-                    message=message,
+                    detail=snippet.strip()[:200],
                     cwe="CWE-79" if "XSS" in message else "CWE-94" if "SSTI" in message else "CWE-80",
-                    cvss=_cvss_for_severity(severity),
+                    cvss=_cvss_for_severity(adjusted_severity),
                 ))
 
         for pattern, message, severity in HTML_INJECTION_PATTERNS:
@@ -134,11 +134,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=severity,
-                    category="injection",
-                    file=rel_path,
+                    category=severity,
+                    title=message,
+                    file_path=rel_path,
                     line=line_no,
-                    snippet=snippet.strip()[:200],
-                    message=message,
+                    detail=snippet.strip()[:200],
                     cwe="CWE-80",
                     cvss="5.3",
                 ))

@@ -38,10 +38,11 @@ def detect(findings, app):
         return ("FP" if crit else "TN"), None, None
 
     exp_rule = app["expected_rule_id"]
-    # 1) точное совпадение rule_id на app.py
+    # 1) правило с префиксом expected (GS037-path_traversal_join → GS037) на app.py
     for f in findings:
-        if f.get("rule_id") == exp_rule and "app.py" in (f.get("file_path") or ""):
-            return "TP", f, exp_rule
+        rid = f.get("rule_id") or ""
+        if rid.startswith(exp_rule) and "app.py" in (f.get("file_path") or ""):
+            return "TP", f, rid
     # 2) любая CRITICAL/HIGH на app.py (гибко — SSTI может быть GS020 или GS037)
     for f in findings:
         if f.get("category") in ("CRITICAL", "HIGH") and "app.py" in (f.get("file_path") or ""):

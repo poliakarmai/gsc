@@ -35,8 +35,9 @@ def detect(findings, app):
         return ("FP" if crit else "TN"), None, None
     exp = app["expected_rule_id"]
     for f in findings:
-        if f.get("rule_id") == exp and "app.py" in (f.get("file_path") or ""):
-            return "TP", f, exp
+        rid = f.get("rule_id") or ""
+        if rid.startswith(exp) and "app.py" in (f.get("file_path") or ""):
+            return "TP", f, rid
     for f in findings:
         if f.get("category") in ("CRITICAL", "HIGH") and "app.py" in (f.get("file_path") or ""):
             return "MISLABELED", f, f.get("rule_id")

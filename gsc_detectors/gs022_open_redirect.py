@@ -73,9 +73,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if _is_false_positive(snippet):
                     continue
                 findings.append(Finding(
-                    rule_id=RULE_ID, severity=severity, category="redirect",
-                    file=rel_path, line=line_no, snippet=snippet.strip()[:200],
-                    message=message, cwe="CWE-601",
+                    rule_id=RULE_ID, severity=severity, category=severity,
+                    title=message, file_path=rel_path, line=line_no,
+                    detail=snippet.strip()[:200], cwe="CWE-601",
                     cvss={"CRITICAL":"8.1","HIGH":"6.1","MEDIUM":"4.3","INFO":"0.0"}.get(severity,"4.3"),
                 ))
 
