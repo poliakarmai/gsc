@@ -11,14 +11,16 @@ services:
       - GSC_DIR=/app
       - GSC_DB=/data/gsc_cloud.db
       - PORT=8001
-      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-Iv23liEjWuUFpei2kF9b}
-      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-27666cc763243f72137a30acd24a0e00b23d6c72}
+      - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
+      - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
       - GITHUB_REDIRECT_URI=${GITHUB_REDIRECT_URI:-http://localhost:8081/api/v2/auth/github/callback}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
     volumes:
       - gsc_data:/data
-      - /var/run/docker.sock:/var/run/docker.sock  # for isolated scans
+      # NOTE: docker.sock intentionally NOT mounted — PoC execution runs in-process
+      # (subprocess + rlimits), not via Docker. Mounting the socket would give the
+      # API container control of the host Docker daemon (audit S-03).
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
