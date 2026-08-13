@@ -23,7 +23,7 @@ from typing import Optional
 import subprocess
 
 try:
-    from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header
+    from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
 except ImportError:
@@ -248,7 +248,7 @@ async def scan(req: ScanRequest, bg: BackgroundTasks, x_api_key: str = Header(..
         "message": f"Scan started. Poll GET /api/v1/scan/{scan_id} for results.",
     }
 
-@app.get("/api/v1/scan/{scan_id}")
+@app.get("/api/v1/scan/{scan_id}", dependencies=[Depends(verify_api_key)])
 async def get_scan(scan_id: str):
     """Get scan status + results."""
     try:
@@ -259,7 +259,7 @@ async def get_scan(scan_id: str):
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     return state
 
-@app.get("/api/v1/scans")
+@app.get("/api/v1/scans", dependencies=[Depends(verify_api_key)])
 async def list_scans(limit: int = Query(20, le=100)):
     """List recent scans, newest first."""
     scans = []
@@ -276,7 +276,7 @@ async def list_scans(limit: int = Query(20, le=100)):
             pass
     return {"scans": scans, "total": len(scans)}
 
-@app.get("/api/v1/findings/{project}")
+@app.get("/api/v1/findings/{project}", dependencies=[Depends(verify_api_key)])
 async def get_findings(
     project: str,
     severity: Optional[str] = Query(None, description="CRITICAL|HIGH|MEDIUM|LOW"),
@@ -309,7 +309,7 @@ async def get_findings(
         })
     return {"findings": findings, "total": len(findings), "offset": offset, "limit": limit}
 
-@app.post("/api/v1/feedback")
+@app.post("/api/v1/feedback", dependencies=[Depends(verify_api_key)])
 async def submit_feedback(req: FeedbackRequest):
     """Submit TP/FP verdict on a finding."""
     # Find finding by sha256 key
@@ -333,7 +333,7 @@ async def submit_feedback(req: FeedbackRequest):
 
     return {"status": "ok", "finding_key": req.finding_key, "verdict": verdict}
 
-@app.get("/api/v1/metrics")
+@app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
 async def get_metrics():
     """Rollout metrics."""
     patterns = _db_query("SELECT COUNT(*) as cnt FROM patterns WHERE active=1")
@@ -352,7 +352,7 @@ async def get_metrics():
     }
 
 
-@app.get("/api/v1/chains")
+@app.get("/api/v1/chains", dependencies=[Depends(verify_api_key)])
 async def get_chains(target: Optional[str] = None, status: Optional[str] = None, limit: int = Query(100, le=500)):
     """Query chain history from SQLite (not from last report)."""
     try:
@@ -390,7 +390,7 @@ async def create_workspace(req: WorkspaceCreate, x_api_key: str = Header(..., al
     return {"status": "created", "name": req.name}
 
 
-@app.get("/api/v1/workspaces")
+@app.get("/api/v1/workspaces", dependencies=[Depends(verify_api_key)])
 async def list_workspaces():
     """List all workspaces."""
     from gsc_workspace import workspace_list
@@ -422,7 +422,7 @@ async def scan_workspace(name: str, req: WorkspaceScan, x_api_key: str = Header(
     return {"status": "scanning", "workspace": name, "scan_mode": req.scan_mode}
 
 
-@app.get("/api/v1/workspaces/{name}/report")
+@app.get("/api/v1/workspaces/{name}/report", dependencies=[Depends(verify_api_key)])
 async def workspace_report(name: str, fmt: str = "markdown"):
     """Get workspace report."""
     from gsc_workspace import workspace_report
