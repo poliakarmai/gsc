@@ -801,27 +801,35 @@ def collect_changed_files(repo_path: Path, base: str = "main", head: str = "HEAD
 
 
 def build_base_baseline(repo_path: Path, diff_ctx: DiffContext) -> set[str]:
-    """Scan base commit's changed files for fingerprints — without LLM."""
+    """Scan base commit's changed files for fingerprints — without LLM.
+
+    Uses an isolated detached worktree instead of git stash/checkout, so the
+    developer's working tree is never touched (audit A-04).
+    """
     fingerprints = set()
     base = diff_ctx.base_ref
-
-    # Stash current changes, checkout base
+    tmp_worktree = None
     try:
-        subprocess.run(["git", "-C", str(repo_path), "stash", "--include-untracked"],
-                       capture_output=True, timeout=15)
-        subprocess.run(["git", "-C", str(repo_path), "checkout", base],
-                       capture_output=True, timeout=30)
+        # Detached worktree at base ref — leaves the developer's tree intact.
+        tmp_worktree = Path(tempfile.mkdtemp(prefix="gsc-base-"))
+        r = subprocess.run(
+            ["git", "-C", str(repo_path), "worktree", "add", "--detach",
+             str(tmp_worktree), base],
+            capture_output=True, timeout=60
+        )
+        if r.returncode != 0:
+            return fingerprints
 
         # Scan only changed files from base perspective
         for fname in diff_ctx.changed_files:
-            fpath = repo_path / fname
+            fpath = tmp_worktree / fname
             if not fpath.exists() or not fpath.is_file():
                 continue
-            if should_exclude(fpath, repo_path):
+            if should_exclude(fpath, tmp_worktree):
                 continue
             try:
                 r = subprocess.run(
-                    [sys.executable, GSC, "scan", str(repo_path),
+                    [sys.executable, GSC, "scan", str(tmp_worktree),
                      "--json", "--ci", "--files", fname],
                     capture_output=True, text=True, timeout=60
                 )
@@ -837,14 +845,16 @@ def build_base_baseline(repo_path: Path, diff_ctx: DiffContext) -> set[str]:
     except Exception:
         pass
     finally:
-        # Restore
-        try:
-            subprocess.run(["git", "-C", str(repo_path), "checkout", "-"],
-                           capture_output=True, timeout=30)
-            subprocess.run(["git", "-C", str(repo_path), "stash", "pop"],
-                           capture_output=True, timeout=15)
-        except Exception:
-            pass
+        # Clean up the detached worktree
+        if tmp_worktree and tmp_worktree.exists():
+            try:
+                subprocess.run(
+                    ["git", "-C", str(repo_path), "worktree", "remove", "--force",
+                     str(tmp_worktree)],
+                    capture_output=True, timeout=30
+                )
+            except Exception:
+                pass
 
     return fingerprints
 
