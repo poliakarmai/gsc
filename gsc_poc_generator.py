@@ -61,21 +61,10 @@ def _get_api_key() -> str:
 
 
 def _call_llm(system: str, user: str, max_tokens: int = 800) -> Optional[str]:
-    import urllib.request as _req
-    key = _get_api_key()
-    if not key:
-        return None
-    body = json.dumps({
-        "model": "deepseek-chat",
-        "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-        "max_tokens": max_tokens, "temperature": 0.1,
-    }).encode()
+    """Unified LLM call via gsc_llm_providers (DeepSeek/OpenRouter/OLLAMA/LM Studio)."""
+    from gsc_llm_providers import llm_chat
     try:
-        resp = json.loads(_req.urlopen(_req.Request(
-            "https://api.deepseek.com/v1/chat/completions",
-            data=body, headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
-        ), timeout=30).read())
-        return resp["choices"][0]["message"]["content"]
+        return llm_chat(system, user, max_tokens)
     except Exception as e:
         print(f"[PoC] LLM error: {e}", file=sys.stderr)
         return None

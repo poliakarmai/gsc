@@ -52,39 +52,15 @@ def _get_llm_client():
 
 
 def _call_llm(api_key: str, base_url: str, model: str, prompt: str) -> str | None:
-    """Call LLM API for verification."""
-    import urllib.request
+    """Call LLM for verification via the unified provider layer."""
+    from gsc_llm_providers import llm_chat
 
-    try:
-        body = json.dumps({
-            "model": model,
-            "messages": [
-                {"role": "system", "content": (
-                    "You are a security code reviewer. Analyze the finding and surrounding code. "
-                    "Reply with JSON only: {\"real_vuln\": true/false, "
-                    "\"confidence\": 0.0-1.0, \"reason\": \"brief explanation\"}"
-                )},
-                {"role": "user", "content": prompt},
-            ],
-            "temperature": 0.1,
-            "max_tokens": 300,
-        }).encode()
-
-        req = urllib.request.Request(
-            f"{base_url}/chat/completions",
-            data=body,
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-        )
-
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            data = json.loads(resp.read())
-            return data["choices"][0]["message"]["content"]
-
-    except Exception as e:
-        return None
+    system = (
+        "You are a security code reviewer. Analyze the finding and surrounding code. "
+        "Reply with JSON only: {\"real_vuln\": true/false, "
+        "\"confidence\": 0.0-1.0, \"reason\": \"brief explanation\"}"
+    )
+    return llm_chat(system, prompt, max_tokens=300, temperature=0.1)
 
 
 # ── Code Context Extractor ──────────────────────────────────────────────────

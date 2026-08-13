@@ -329,42 +329,15 @@ Reply in JSON:
 {{"verdict": "<one of the four>", "reasoning": "<2-3 sentences explaining why>"}}"""
 
     def _call_llm(self, prompt: str) -> tuple[str, str]:
-        """Call DeepSeek for structured revalidation."""
-        import requests
-        import yaml
+        """Unified LLM call for structured revalidation (gsc_llm_providers)."""
+        from gsc_llm_providers import llm_chat
 
-        # Get API key
-        api_key = os.environ.get("DEEPSEEK_API_KEY")
-        if not api_key:
-            try:
-                cfg = yaml.safe_load(open(os.path.expanduser("~/.hermes/config.yaml")))
-                api_key = cfg.get("providers", {}).get("deepseek", {}).get("api_key", "")
-            except Exception:
-                pass
-
-        if not api_key:
-            return "uncertain", "No DeepSeek API key configured"
-
-        resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
-            json={
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": "You are a security auditor. Reply ONLY with valid JSON."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 400,
-            },
-            timeout=15
+        content = llm_chat(
+            "You are a security auditor. Reply ONLY with valid JSON.",
+            prompt, max_tokens=400, temperature=0.1,
         )
-
-        if resp.status_code != 200:
-            return "uncertain", f"LLM HTTP {resp.status_code}"
-
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
+        if content is None:
+            return "uncertain", "No LLM provider configured"
 
         # Parse JSON response
         try:

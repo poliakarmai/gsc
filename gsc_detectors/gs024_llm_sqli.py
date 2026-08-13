@@ -100,10 +100,8 @@ def _extract_candidates(file_path: Path, max_per_file: int = 5) -> list[dict]:
 
 
 def _call_llm(snippet: str, file_path: str) -> dict:
-    """Call DeepSeek to classify: real vulnerability or safe pattern?"""
-    api_key = _get_api_key()
-    if not api_key:
-        return {"vulnerable": False, "confidence": 0, "reason": "No API key configured"}
+    """Unified LLM classify via gsc_llm_providers."""
+    from gsc_llm_providers import llm_chat
 
     prompt = f"""You are a security code auditor. Analyze this code for SQL injection vulnerabilities.
 
@@ -130,32 +128,15 @@ REAL vulnerabilities:
 Reply with JSON only:
 {{"vulnerable": true/false, "confidence": 0.0-1.0, "reason": "one sentence"}}"""
 
-    try:
-        import requests
-        resp = requests.post(
-            "https://api.deepseek.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json"
-            },
-            json={
-                "model": "deepseek-chat",
-                "messages": [
-                    {"role": "system", "content": "You are a security auditor. Reply with JSON only."},
-                    {"role": "user", "content": prompt}
-                ],
-                "temperature": 0.1,
-                "max_tokens": 200,
-            },
-            timeout=15
-        )
-        if resp.status_code != 200:
-            return {"vulnerable": False, "confidence": 0, "reason": f"HTTP {resp.status_code}"}
+    content = llm_chat(
+        "You are a security auditor. Reply with JSON only.",
+        prompt, max_tokens=200, temperature=0.1,
+    )
+    if not content:
+        return {"vulnerable": False, "confidence": 0, "reason": "No LLM provider configured"}
 
+    try:
         import json
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-        # Extract JSON
         start = content.find("{")
         end = content.rfind("}") + 1
         if start >= 0 and end > start:

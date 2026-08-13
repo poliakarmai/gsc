@@ -1387,30 +1387,9 @@ def _revalidate(finding: dict, project_path: Path, severities=None) -> dict:
     if not snippet:
         return f
 
-    api_key = _get_api_key()
-    if not api_key:
-        return f
-
-    # Detect provider by key prefix
-    if api_key.startswith("sk-or-"):
-        api_url = "https://openrouter.ai/api/v1/chat/completions"
-        model = "deepseek/deepseek-chat"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/poliakarmai/gsc",
-            "X-Title": "GSC-External",
-        }
-    else:
-        api_url = "https://api.deepseek.com/v1/chat/completions"
-        model = "deepseek-chat"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-        }
+    from gsc_llm_providers import llm_chat
 
     try:
-        import requests
         safe_snippet = redact(snippet[:2000])
         safe_detail = redact((f.get("detail") or "")[:500])
 
@@ -1429,18 +1408,8 @@ Reply JSON: {{"verdict":"true-positive"|"false-positive"|"uncertain","confidence
 
 RULES: localhost/127.0.0.1 defaults → false-positive. Test files/docs → false-positive. Placeholders → false-positive. Real secrets/injection in production code → true-positive."""
 
-        resp = requests.post(
-            api_url,
-            headers=headers,
-            json={"model": model, "messages": [
-                {"role": "system", "content": "Security auditor. JSON only."},
-                {"role": "user", "content": prompt},
-            ], "temperature": 0.1, "max_tokens": 300},
-            timeout=20
-        )
-        if resp.status_code == 200:
-            data = resp.json()
-            content = data["choices"][0]["message"]["content"]
+        content = llm_chat("Security auditor. JSON only.", prompt, max_tokens=300, temperature=0.1)
+        if content:
             sj, ej = content.find("{"), content.rfind("}") + 1
             if sj >= 0 and ej > sj:
                 parsed = json.loads(content[sj:ej])
