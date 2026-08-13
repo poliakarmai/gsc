@@ -119,7 +119,7 @@
 | 0.6.2 | Phase 2 (strace) | `strace -f -e trace=open,connect,execve` из родителя для JS/Go/бинарников | фильтр по workdir |
 | 0.6.3 | Phase 3 (Falco/Tetragon) | отдельный privileged-агент в K8s, только enterprise on-prem (>10 тенантов) | изоляция от GSC core |
 
-**Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`).
+**Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`) + **Phase 3 multi-module runner** (entrypoint-детект + symlink-проекта).
 
 ### Трек 0.7. Sale-Readiness (из sell-side аудита, 13.08)
 
