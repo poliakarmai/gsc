@@ -171,8 +171,11 @@ def _call_llm(system: str, user: str, max_tokens: int = 900) -> Optional[str]:
 def _find_finding(report_path: str, finding_key: str) -> Optional[dict]:
     with open(report_path) as f:
         report = json.load(f)
+    findings = report.get("findings", []) if isinstance(report, dict) else report
     import hashlib
-    for f_ in report.get("findings", []):
+    for f_ in findings:
+        if f_.get("finding_key") == finding_key:
+            return f_
         raw = f"{f_.get('rule_id','')}+{f_.get('file_path','')}+{f_.get('detail','')[:80]}"
         if hashlib.sha256(raw.encode()).hexdigest()[:12] == finding_key:
             return f_
