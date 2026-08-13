@@ -1,5 +1,31 @@
 # GSC Changelog
 
+## Unreleased — 2026-08-13
+
+### License
+- **BSL 1.1 → Apache 2.0 + Commercial dual** (`LICENSE` + `COMMERCIAL.md`)
+
+### Killer Features
+- **Supply-Chain Chain Composer** (`gsc_supply_chain_chains.py`) — связывает code flaws с reachable CVE через SBOM; CLI `gsc supply-chain`
+- **Exploit Refinement Loop** (`gsc_exploit_refiner.py`) — feedback-driven PoC (RL-цикл: generate → execute → reward → refine)
+- **Fixed 7 dead CLI commands** (`sca`, `sbom`, `epss`, `federated`, `iac`, `benchmark`, `sbom-verify`) via `args.func()` fallback
+
+### Proof-of-Fix Sandbox (critical fix)
+- **Format dispatch** — curl/bash PoC больше не исполняются как Python (был TypeError → 0% pass-rate)
+- **Phase 2 HTTP-server runner** — single-file web targets поднимаются на localhost-порту, `TARGET_URL` подставляется; curl-PoC реально валидируются (e2e Flask SSTI → VULNERABLE)
+- `_generate_code` → `curl -G --data-urlencode` (payload с пробелами/метасимволами доходит целым)
+
+### Federated Privacy (экспертиза #2)
+- **Step 1**: TLS-enforcement (https-only) + HMAC-SHA256 подпись payload
+- **Step 2**: ротация `tenant_hash` (7-дневные эпохи) + privacy budget accounting (soft warn ε>5, hard stop ε>10)
+
+### Distribution
+- VSCode extension `poliakarmai.gsc-security v1.0.0` опубликован в **Open VSX** + **GitHub Releases** (VSCode Marketplace недоступен из РФ)
+
+### Docs
+- `EXPERTISE_01_IAST_RUNTIME_VALIDATOR.md`, `EXPERTISE_02_FEDERATED_PRIVACY.md`
+- `scripts/gsc_poc_gap_measure.py` — Phase 0 замер PoC-верификации
+
 ## v1.3.0 — 2026-08-07
 
 ### Architectural Cleanup

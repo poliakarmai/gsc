@@ -2,8 +2,8 @@
 
 > Для: внешнего AI-агента для аудита кодовой базы
 > Автор: Море (Hermes orchestrator, профиль default)
-> Дата: 2026-08-07
-> Версия: v1.2.0+ — AppSec Platform (числа → gsc_meta.py) (P0/P1/P2 + VSCode + Enterprise + SaaS S1)
+> Дата: 2026-08-13
+> Версия: v1.3.0 — AppSec Platform (числа → gsc_meta.py) (P0/P1/P2 + VSCode + Enterprise + SaaS S1–S4)
 > Репозиторий: github.com/poliakarmai/gsc
 
 ## 1. Что это

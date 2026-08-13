@@ -26,6 +26,9 @@ gsc/
 ├── gsc_github_adapter.py         ← GitHub PR Adapter
 ├── gsc_blocking.py               ← Blocking Engine (+ federated guard)
 ├── gsc_poc_generator.py          ← PoC + SUCCESS_MARKERS
+├── gsc_poc_deterministic.py      ← Deterministic PoC (curl/bash fmt)
+├── gsc_supply_chain_chains.py    ← Supply-Chain Chain Composer (code flaw × CVE)
+├── gsc_exploit_refiner.py        ← Exploit Refinement Loop (feedback-driven PoC)
 ├── gsc_chain_composer.py         ← Exploit Chain Composer
 ├── gsc_mutation_tracker.py       ← Temporal Mutation Tracker
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
@@ -49,14 +52,13 @@ gsc/
 ├── gsc_sbom.py                   ← SBOM CycloneDX + VEX
 ├── gsc_spdx.py                   ← SPDX 2.3 + signing
 ├── gsc_iac.py                    ← IaC misconfigurations
-├── gsc_orchestrator.py            ← Master orchestrator (v0.39)
 ├── gsc_detectors/                ← 37 plugin-детекторов
 ├── benchmark/                    ← 🆕 OWASP Benchmark
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
-├── gsc-vscode/                   ← VSCode extension (v0.37)
+├── gsc-vscode/                   ← VSCode extension (v1.0.0, Open VSX)
 ├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
-├── cloud/                        ← SaaS S1 ✅ (tenancy, api_v2), S2–S4 🟢
+├── cloud/                        ← SaaS S1–S4 (auth, billing, tenancy, SSO, marketplace, worker, federated_server)
 ├── tests/                        ← 188 тестов (18+ файлов)
 └── PROJECT.md AGENTS.md README.md
 ```
