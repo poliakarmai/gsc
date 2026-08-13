@@ -13,11 +13,17 @@ NEVER: code, snippets, file paths, finding_keys.
 
 from __future__ import annotations
 
-import hashlib, hmac, json, math, os, random, ssl, sys
+import hashlib, hmac, json, math, os, random, ssl, sys, time
 from pathlib import Path
 from typing import Dict, List, Optional
 
 HTTP_TIMEOUT = 30
+# Audit #2 §3.1: pseudonym rotation period (days). Submissions older than this
+# are not linkable via tenant_hash; self-learning uses a sliding window anyway.
+ROTATION_PERIOD_DAYS = 7
+# Audit #2 §3.2: privacy budget thresholds (sum of per-submit epsilon).
+BUDGET_WARN_EPSILON = 5.0
+BUDGET_STOP_EPSILON = 10.0
 
 
 def _base_rule(rule_id: str) -> str:
@@ -74,8 +80,31 @@ class FederatedClient:
         self.hmac_key = hmac_key or os.environ.get("GSC_FEDERATED_HMAC_KEY", "")
 
     def _tenant_hash(self) -> str:
+        # Audit #2 §3.1: rotate the pseudonym by epoch so submissions older than
+        # ROTATION_PERIOD_DAYS are not linkable. Losing long-term history is
+        # acceptable — self-learning operates on a sliding window.
         seed = getattr(self.db, "tenant_id", "local")
-        return hashlib.sha256(f"gsc-tenant:{seed}".encode()).hexdigest()[:16]
+        epoch = int(time.time()) // (ROTATION_PERIOD_DAYS * 86400)
+        return hashlib.sha256(f"gsc-tenant:{seed}:{epoch}".encode()).hexdigest()[:16]
+
+    def _epsilon_spent(self) -> float:
+        """Sum of per-submit epsilon recorded in federated_log (budget accounting)."""
+        try:
+            row = self.db.conn.execute(
+                "SELECT SUM(CAST(detail AS REAL)) AS s FROM federated_log "
+                "WHERE action = 'budget_spent'"
+            ).fetchone()
+            return float(row["s"] or 0.0)
+        except Exception:
+            return 0.0
+
+    def _check_budget(self, spent: float) -> str:
+        """Audit #2 §3.2: soft warn (ε>5) → log+flag; hard stop (ε>10) → disable."""
+        if spent > BUDGET_STOP_EPSILON:
+            return "stop"
+        if spent > BUDGET_WARN_EPSILON:
+            return "warn"
+        return "ok"
 
     def _sign(self, body: bytes) -> str:
         """HMAC-SHA256 hex signature of the request body ("" if no key configured)."""
@@ -109,6 +138,15 @@ class FederatedClient:
         metrics = collect_local_metrics(self.db, self.min_verdicts)
         if not metrics:
             return False
+        # Budget accounting (audit #2 §3.2): soft warn (ε>5) / hard stop (ε>10).
+        if self.epsilon > 0:
+            spent = self._epsilon_spent()
+            state = self._check_budget(spent)
+            if state == "stop":
+                self._log("budget", f"epsilon_spent={spent:.2f} STOP (>{BUDGET_STOP_EPSILON})")
+                return False
+            if state == "warn":
+                self._log("budget", f"epsilon_spent={spent:.2f} WARN (>{BUDGET_WARN_EPSILON})")
         # DP noise
         if self.epsilon > 0:
             for rid in metrics:
@@ -119,6 +157,8 @@ class FederatedClient:
             body = json.dumps(payload).encode()
             with self._request("/api/v1/federated/submit", body) as resp:
                 ok = resp.status == 200
+            if ok and self.epsilon > 0:
+                self._log("budget_spent", f"{self.epsilon}")
             self._log("submit", f"rules={len(metrics)} ok={ok}")
             return ok
         except Exception as e:

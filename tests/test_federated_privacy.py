@@ -44,3 +44,30 @@ def test_hmac_signature_stable():
 def test_no_signature_without_key():
     c = _client()
     assert c._sign(b"hello") == ""
+
+
+def test_tenant_hash_rotates_by_epoch(monkeypatch):
+    import time as _time
+    import gsc_federated as gf
+    real_time = _time.time  # save original before patching
+    c = _client()
+    h1 = c._tenant_hash()
+    h2 = c._tenant_hash()
+    assert h1 == h2  # stable within the same epoch
+    # advance past one rotation period → different epoch → different pseudonym
+    monkeypatch.setattr(gf.time, "time", lambda: real_time() + 8 * 86400)
+    h3 = c._tenant_hash()
+    assert h3 != h1
+
+
+def test_budget_thresholds():
+    c = _client()
+    assert c._check_budget(3.0) == "ok"
+    assert c._check_budget(6.0) == "warn"
+    assert c._check_budget(11.0) == "stop"
+
+
+def test_epsilon_spent_empty_db_is_zero():
+    # FakeDB has no conn → _epsilon_spent falls back to 0.0
+    c = _client()
+    assert c._epsilon_spent() == 0.0
