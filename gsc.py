@@ -194,6 +194,8 @@ def cmd_scan(args):
         print(json.dumps(findings, indent=2))
     elif args.sarif:
         print(json.dumps(export_sarif(findings, project, scan_warnings), indent=2))
+    elif args.junit:
+        print(export_junit(findings, project))
     elif args.compliance:
         print_compliance(findings, args.compliance)
     else:
@@ -877,6 +879,74 @@ def export_sarif(findings: list[dict], project: str, warnings: list[str] | None 
         "version": "2.1.0",
         "runs": [{"tool": {"driver": {"name": "GSC", "informationUri": "https://github.com/poliakarmai/gsc", "rules": list(rules.values())}}, "results": results, "invocations": [invocation]}]
     }
+
+
+def export_junit(findings: list[dict], project: str) -> str:
+    """Export findings as JUnit XML — one <testcase> per finding with a <failure>.
+
+    Enables Jenkins / GitLab / Azure Pipelines test gates: the pipeline fails
+    the job when GSC finds vulnerabilities (each finding is a failing test).
+    """
+    import xml.etree.ElementTree as ET
+
+    suite = ET.Element("testsuite", {
+        "name": f"GSC-{project}",
+        "tests": str(len(findings)),
+        "failures": str(len(findings)),
+        "errors": "0",
+    })
+    for f in findings:
+        sev = f.get("category", "MEDIUM")
+        loc = f"{f.get('file_path', '')}:{f.get('line_number', 1)}"
+        name = f"GSC-{f.get('pattern_title', 'generic')} — {loc}"
+        case = ET.SubElement(suite, "testcase", {
+            "name": name,
+            "classname": f"GSC.{sev}",
+        })
+        message = f.get("detail", f.get("title", "")) or ""
+        ET.SubElement(case, "failure", {"message": message[:2000]}).text = message
+    return ET.tostring(suite, encoding="unicode", xml_declaration=True)
+
+
+def cmd_scan_diff(args) -> int:
+    """Compare two scan JSON files; print drift summary. Exit 1 if new findings."""
+    import json
+    from gsc_scan_diff import diff_scans, diff_summary
+
+    def _load(path):
+        data = json.load(open(path))
+        if isinstance(data, dict):
+            data = data.get("findings", data.get("results", data.get("data", [])))
+        return data if isinstance(data, list) else []
+
+    try:
+        baseline = _load(args.baseline)
+        current = _load(args.current)
+    except Exception as e:
+        print(f"scan-diff: failed to load scans: {e}", file=sys.stderr)
+        return 1
+
+    result = diff_scans(baseline, current)
+    s = diff_summary(result)
+
+    if getattr(args, "json", False):
+        print(json.dumps(result, indent=2, default=str))
+    else:
+        print(f"new: {s['new']} | fixed: {s['fixed']} | "
+              f"severity_changed: {s['severity_changed']} | unchanged: {s['unchanged']}")
+        for f in result["new"][:args.limit]:
+            rid = f.get("rule_id") or f.get("pattern_title") or "?"
+            print(f"  + {rid}  {f.get('file_path', '')}:{f.get('line_number', 1)}")
+        for f in result["fixed"][:args.limit]:
+            rid = f.get("rule_id") or f.get("pattern_title") or "?"
+            print(f"  - {rid}  {f.get('file_path', '')}:{f.get('line_number', 1)}")
+        for sc in result["severity_changed"][:args.limit]:
+            f = sc["finding"]
+            rid = f.get("rule_id") or f.get("pattern_title") or "?"
+            print(f"  ~ {rid}  {f.get('file_path', '')}:{f.get('line_number', 1)}  "
+                  f"{sc['from_severity']} → {sc['to_severity']}")
+
+    return 1 if result["new"] else 0
 
 
 def save_findings(project: str, findings: list[dict], quiet: bool = False):
@@ -2035,6 +2105,7 @@ def main():
     scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
     scan.add_argument("--diff", action="store_true", help="Scan only changed files (git diff HEAD)")
     scan.add_argument("--sarif", action="store_true", help="Export as SARIF (GitHub Code Scanning)")
+    scan.add_argument("--junit", action="store_true", help="Export as JUnit XML (CI test gates)")
     scan.add_argument("--reachability", action="store_true", help="Downgrade findings in unreachable files (import-graph analysis)")
     scan.add_argument("--compliance", choices=["pci-dss","soc2","iso27001","all"], help="Compliance framework")
     scan.add_argument("--quiet", action="store_true", help="Silent mode (CI-friendly)")
@@ -2292,6 +2363,11 @@ def main():
 
     # gsc exploit-refine (feedback-driven PoC refinement loop)
     p_eref = sub.add_parser('exploit-refine', help='Refine PoC via sandbox feedback loop')
+    p_sdiff = sub.add_parser('scan-diff', help='Compare two scan JSONs (new/fixed/severity-changed)')
+    p_sdiff.add_argument('baseline', help='Baseline scan JSON')
+    p_sdiff.add_argument('current', help='Current scan JSON')
+    p_sdiff.add_argument('--json', action='store_true', help='Full JSON output')
+    p_sdiff.add_argument('--limit', type=int, default=10, help='Max items to list (default 10)')
     p_eref.add_argument('--repo', default='.')
     p_eref.add_argument('--scan', default='scan.json', help='GSC scan JSON with findings')
     p_eref.add_argument('--key', help='finding_key to refine (default: first finding)')
@@ -2664,6 +2740,8 @@ def main():
         sys.exit(cmd_supply_chain(args))
     elif args.command == "exploit-refine":
         sys.exit(cmd_exploit_refine(args))
+    elif args.command == "scan-diff":
+        sys.exit(cmd_scan_diff(args))
     elif args.command == "mutations":
         from gsc_db import GSCDatabase
         db = GSCDatabase()
