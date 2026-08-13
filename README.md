@@ -156,7 +156,7 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
-└── SQLite DB — schema 30, WAL, 403K fingerprints
+└── SQLite DB — schema 31, WAL, 403K fingerprints
 ```
 
 **Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)

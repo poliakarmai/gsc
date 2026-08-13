@@ -53,7 +53,7 @@ detect → prove → fix → verify → heal → predict → learn.
 Слой 4: ОРКЕСТРАЦИЯ   — gsc_orchestrator.py (единый пайплайн)
 Слой 3: ЭКСКЛЮЗИВЫ    — PoF, Self-Healing, Archaeology, Forecast, NL Policy
 Слой 2: ПОВЕРХНОСТЬ   — SCA, Secrets, Compliance, IaC, EPSS, Federated, Benchmark, SBOM
-Слой 1: ЯДРО          — 29 детекторов, PoC, Chains, Mutations, Invariants, Blocking
+Слой 1: ЯДРО          — 38 детекторов, PoC, Chains, Mutations, Invariants, Blocking
 ФУНДАМЕНТ:            — SQLite, REST API, finding_key
 ```
 

@@ -36,7 +36,7 @@
 | v0.21 | AST taint, cross-file chains, hard calibration | 17/17 |
 | v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
 
-**Итог:** 29 детекторов + LLM, тесты, calibration 17/17, schema 23, 400K находок, self-learning.
+**Итог (v1.3.0):** 38 детекторов, тесты, calibration 17/17, schema 31, ~480K находок, self-learning.
 
 ### 2.2. Юридическая защита (🟡 2/3)
 

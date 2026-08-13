@@ -35,7 +35,7 @@
 |------|-----------|----------|
 | `gsc.py` | CLI (50+ команд), `check_plugin_detectors` | `python3 gsc.py --help` — без ошибок |
 | `gsc_external.py` | External Scanner | `grep -c "HARDCODED\|_ECHELON_PATTERNS" gsc_external.py` → 0 |
-| `gsc_db.py` | SQLite, schema 29, авто-миграции | `TARGET_VERSION = 29` |
+| `gsc_db.py` | SQLite, schema 31, авто-миграции | `TARGET_VERSION = 31` |
 | `gsc_blocking.py` | Blocking Engine + Confidence V3 | CRITICAL≥0.90, HIGH≥0.85 |
 | `gsc_compliance.py` | CWE/OWASP/PCI mapping | `COMPLIANCE_MAP` содержит GS001–GS031 |
 

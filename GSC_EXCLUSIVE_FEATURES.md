@@ -1,7 +1,7 @@
 # GSC Exclusive Features — Code Review
 
 > **Дата:** 2026-08-06  
-> **Версия:** v0.27-dev  
+> **Версия:** v1.3.0  
 > **Файлов:** 9 новых, 3 изменённых  
 > **Строк:** ~3500 (новых)  
 > **Коммиты:** bb0a2c4 → 963af71
@@ -333,7 +333,7 @@ DELETE /api/v1/workspaces/{n}          cleanup
 ### Полный цикл GSC
 
 ```
-detect (29 детекторов, 400K находок)
+detect (38 детекторов, ~480K находок)
   ├── prove (PoC v0.17)              [эксклюзив]
   ├── fix (Proof-of-Fix)             [эксклюзив]
   ├── verify (sandbox re-PoC)        [эксклюзив]

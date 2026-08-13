@@ -21,15 +21,23 @@ def get_meta() -> dict:
 
 def _read_version() -> str:
     vf = GSC / "VERSION"
-    return vf.read_text().strip() if vf.exists() else "unknown"
+    if vf.exists():
+        return vf.read_text().strip()
+    # Fallback: pyproject.toml [project].version
+    try:
+        import tomllib
+        data = tomllib.loads((GSC / "pyproject.toml").read_text())
+        return data.get("project", {}).get("version", "unknown")
+    except Exception:
+        return "unknown"
 
 def _read_schema() -> int:
-    if not DB.exists(): return -1
+    # Target schema = gsc_db.TARGET_VERSION (SSOT). Live DB may lag until migration.
     try:
-        conn = sqlite3.connect(str(DB))
-        r = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()
-        return r[0] if r and r[0] else -1
-    except: return -1
+        from gsc_db import TARGET_VERSION
+        return TARGET_VERSION
+    except Exception:
+        return -1
 
 def _count_modules() -> int:
     return len([f for f in GSC.glob("gsc_*.py") if f.is_file()]) + len(

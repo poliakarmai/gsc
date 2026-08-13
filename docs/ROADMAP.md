@@ -90,4 +90,4 @@
 | **Security Archaeology** — trace через git history | Никто |
 | **Cross-repo Secrets** — отслеживание между репо | Никто |
 | **Attack Chain Composer** — связывание уязвимостей в цепочки | Никто |
-| **36 детекторов** (SAST+SCA+Secrets+IaC+SBOM) | Больше Semgrep Community |
+| **38 детекторов** (SAST+SCA+Secrets+IaC+SBOM) | Больше Semgrep Community |

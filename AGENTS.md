@@ -2,12 +2,12 @@
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
 > **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
-> **Версия:** v1.3.0 | **Schema:** 29 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
+> **Версия:** v1.3.0 | **Schema:** 31 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
 > **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это
 
-GSC — самообучающаяся AppSec-платформа: 28 детекторов + GS024 LLM (DeepSeek),
+GSC — самообучающаяся AppSec-платформа: 38 детекторов (37 plugin + GS024 LLM на DeepSeek),
 SQLite, полный цикл `detect → prove → fix → verify → heal → predict`.
 
 **Эксклюзивы:** PoC Auto-Generation, Proof-of-Fix, Self-Healing CI, Security Archaeology,
@@ -31,7 +31,7 @@ gsc/
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
 ├── gsc_ast_dataflow.py           ← Python taint tracking
 ├── gsc_revalidate.py             ← Structured revalidator
-├── gsc_db.py                     ← SQLite, schema 28, auto-migrate
+├── gsc_db.py                     ← SQLite, schema 31, auto-migrate
 ├── gsc_compliance.py             ← 🆕 CWE/OWASP/PCI mapping
 ├── gsc_sca.py                    ← 🆕 SCA via OSV.dev
 ├── gsc_epss.py                   ← 🆕 EPSS exploitability
@@ -50,7 +50,7 @@ gsc/
 ├── gsc_spdx.py                   ← SPDX 2.3 + signing
 ├── gsc_iac.py                    ← IaC misconfigurations
 ├── gsc_orchestrator.py            ← Master orchestrator (v0.39)
-├── gsc_detectors/                ← 28 plugin-детекторов
+├── gsc_detectors/                ← 37 plugin-детекторов
 ├── benchmark/                    ← 🆕 OWASP Benchmark
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension (v0.37)
@@ -61,7 +61,7 @@ gsc/
 └── PROJECT.md AGENTS.md README.md
 ```
 
-DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 29)
+DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 31)
 
 ## Precision (август 2026)
 
@@ -101,13 +101,13 @@ python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
 ```
 
-## DB Schema (v28)
+## DB Schema (v31)
 
 Таблицы: findings, feedback, chains, mutation_alerts, overrides, secret_fingerprints,
 secret_sightings, nuclei_templates, dast_findings, sca_cache, federated_global_weights,
-federated_deactivated, federated_log, epss_cache, schema_version... (23 таблицы)
+federated_deactivated, federated_log, epss_cache, schema_version... (31 таблица)
 
-Миграции: v23→v24→v25→v26→v27→v28, авто, backup, WAL.
+Миграции: v23→v24→v25→v26→v27→v28→v29→v30→v31, авто, backup, WAL, идемпотентно.
 
 ## Self-Learning
 

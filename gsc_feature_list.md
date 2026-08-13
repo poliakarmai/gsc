@@ -49,7 +49,7 @@
 ├── gsc_github_adapter.py        ← GitHub Adapter (570 строк)
 │                                   GitHubAPIClient, upsert, check runs, doctor, redaction audit
 ├── gsc_revalidate.py            ← Structured revalidator (5-step)
-├── gsc_detectors/               ← 23 детектора + GS024 LLM
+├── gsc_detectors/               ← 37 детекторов + GS024 LLM
 ├── calibration/
 │   ├── calibration_dataset.json ← 14 проектов
 │   └── expected/*.json          ← Ожидаемые находки
@@ -74,7 +74,7 @@
 
 ~/.hermes/
 ├── scripts/gsc_self_learn.py    ← Self-learning v2.0 (514 строк)
-└── state/gsc_audit.db           ← SQLite WAL (400K находок)
+└── state/gsc_audit.db           ← SQLite WAL (~480K находок)
 ```
 
 ---
