@@ -21,7 +21,7 @@ classifiers = [
     "Intended Audience :: Information Technology",
     "Topic :: Security",
     "Topic :: Software Development :: Quality Assurance",
-    "License :: Other/Proprietary License",
+    "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -42,8 +42,10 @@ cloud = [
     "stripe>=12.0",
 ]
 collector = ["Scrapy>=2.11"]
-dev = ["pytest>=8", "pytest-cov>=5", "fakeredis>=2.23"]
-all = ["gsc-security[cli,cloud,collector,dev]"]
+# A-03 (audit): MCP + test deps must be declarable for a clean-environment install.
+mcp = ["fastmcp>=2.0"]
+dev = ["pytest>=8", "pytest-cov>=5", "fakeredis>=2.23", "fastmcp>=2.0"]
+all = ["gsc-security[cli,cloud,collector,dev,mcp]"]
 
 [project.urls]
 Homepage = "https://github.com/poliakarmai/gsc"
@@ -52,7 +54,26 @@ Issues = "https://github.com/poliakarmai/gsc/issues"
 Hall-of-Fame = "https://github.com/poliakarmai/gsc/blob/master/HALL_OF_FAME.md"
 
 [tool.setuptools]
-py-modules = ["gsc", "server"]
+# A-02 (audit): every advertised top-level module must ship in the wheel.
+py-modules = [
+    "gsc", "server",
+    "gsc_agentless", "gsc_api", "gsc_archaeology", "gsc_ast_dataflow",
+    "gsc_blocking", "gsc_bounty_loader", "gsc_chain_composer", "gsc_check_run",
+    "gsc_cli", "gsc_collect_bounty", "gsc_collect_light", "gsc_compliance",
+    "gsc_crossrepo_secrets", "gsc_dast_scanner", "gsc_dast_validator",
+    "gsc_db_backend", "gsc_db", "gsc_deep_reducer", "gsc_edu", "gsc_epss",
+    "gsc_exploit_refiner", "gsc_external", "gsc_federated", "gsc_forecast",
+    "gsc_github_adapter", "gsc_github_dorks", "gsc_iac", "gsc_invariant_engine",
+    "gsc_llm_providers", "gsc_mcp_server", "gsc_meta", "gsc_mutation_tracker",
+    "gsc_nlpolicy", "gsc_noise_engine", "gsc_nuclei_export", "gsc_nuclei_import",
+    "gsc_orchestrator", "gsc_poc_deterministic", "gsc_poc_generator",
+    "gsc_pof_sandbox", "gsc_proofoffix", "gsc_reachability", "gsc_rejudge",
+    "gsc_resume", "gsc_revalidate", "gsc_router", "gsc_sbom", "gsc_scan_diff",
+    "gsc_scan_modes", "gsc_sca", "gsc_secrets_core", "gsc_selfhealing",
+    "gsc_shadow_manager", "gsc_spdx", "gsc_supply_chain_chains",
+    "gsc_threat_model", "gsc_verify_fix", "gsc_workspace", "gsc_xss_poc",
+    "gsc_yaml_rules",
+]
 
 [tool.setuptools.packages.find]
 include = ["gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
