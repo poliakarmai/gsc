@@ -26,7 +26,7 @@
 
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
-| 4.1 | Один cloud contour (cloud/PG, server.py SQLite → local-only) | 🟡 | auth unified (шаг 4); storage всё ещё два контура |
+| 4.1 | Один cloud contour (cloud/PG, server.py SQLite → local-only) | ✅ | единый `gsc_db_backend` (SQLite=local, PG=prod) + `test_backend_unified.py` |
 | 4.2 | FORCE RLS на все tenant-таблицы | ✅ | GSC-005 |
 | 4.3 | Отдельная app DB role | ✅ | `bootstrap_roles.sql` → `gsc_app` (LOGIN, не superuser) |
 | 4.4 | FK findings.tenant_id → tenants.id, scan_id → scans.id | ✅ | GSC-005 |
@@ -99,8 +99,8 @@
 | # | Задача | Статус |
 |---|--------|--------|
 | 1.1 | README positioning (убрать overclaims) | ✅ | disclosure + «does NOT do» |
-| 1.2 | One-pager PDF | ⬜ |
-| 1.3 | Demo video | ⬜ |
+| 1.2 | One-pager PDF | ✅ | `docs/one-pager.pdf` (pandoc→weasyprint) |
+| 1.3 | Demo video | 🟡 | каркас `scripts/gsc_demo.sh` (asciinema); запись — руками |
 | 1.4 | «What GSC does NOT do» таблица | ✅ | README (Волна D) |
 | 1.5 | 3 use cases | ✅ | README «🎯 Use cases» (CI gate, self-healing, audit) |
 

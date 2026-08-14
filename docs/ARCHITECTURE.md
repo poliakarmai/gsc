@@ -77,6 +77,10 @@ finding → fix → gsc_verify_fix:
 
 ## 4. Хранение
 
+- **Единый backend-контур** (`gsc_db_backend`): `SqliteBackend` (local-only) и
+  `PgBackend` (production) — один интерфейс (`query/fetchone/execute/executescript/
+  insert_id/close`), переключается через `GSC_DATABASE_URL`. `server.py` (SQLite
+  local) и `cloud/` (PG prod) — один cloud contour на уровне storage.
 - **SQLite** (default, dev): `~/.hermes/state/gsc_audit.db` (CLI) и
   `~/.gsc/gsc_cloud.db` (server). WAL, schema 32, auto-migrate v23→v32.
 - **PostgreSQL** (production): `GSC_DATABASE_URL`, enterprise схема `cloud/schema_s1.sql`
