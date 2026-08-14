@@ -1,0 +1,17 @@
+# GSC dev/test зависимости (CI + локальная разработка).
+# Production: только requirements.txt. Сюда — всё, что нужно для запуска тестов.
+
+-r requirements.txt
+
+# test framework
+pytest==9.1.1
+pytest-cov==7.1.0
+
+# test doubles / специфичные модули
+fakeredis==2.37.0
+fastmcp==3.4.7
+
+# cloud/SaaS dev (sso, marketplace, redis)
+Authlib==1.7.2
+redis==8.1.0
+requests==2.33.0

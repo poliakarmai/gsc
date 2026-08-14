@@ -29,7 +29,9 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
       - name: Install deps
-        run: pip install -r requirements.txt pytest pytest-cov
+        run: pip install -r requirements-dev.txt
+      - name: Build sandbox image
+        run: docker build -t gsc-sandbox:latest sandbox/
       - name: Run tests (coverage gate on core)
         run: |
           python3 -m pytest tests/ -q \
