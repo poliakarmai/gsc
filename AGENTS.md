@@ -7,7 +7,7 @@
 
 ## Что это
 
-GSC — самообучающаяся AppSec-платформа: 37 детекторов (GS001–GS039 + GS024 LLM + 5 YAML),
+GSC — самообучающаяся AppSec-платформа: 41 детектор (37 registry + 4 движка: Secrets/SCA/IaC/Invariants),
 SQLite, полный цикл `detect → prove → fix → verify → heal → predict`.
 
 **Эксклюзивы:** PoC Auto-Generation, Proof-of-Fix, Self-Healing CI, Security Archaeology,

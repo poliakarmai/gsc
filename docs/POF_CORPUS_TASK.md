@@ -12,7 +12,7 @@ GSC (Git Security Checker) — самообучающаяся платформа
 Репозиторий: `github.com/poliakarmai/gsc`.
 
 Ключевая фича — **Proof-of-Fix (PoF)**: GSC не просто находит уязвимость, а замыкает цикл:
-1. **Detect** — 38 детекторов находят уязвимость (SQLi, XSS, SSTI, SSRF, command injection…).
+1. **Detect** — 41 детектор находят уязвимость (SQLi, XSS, SSTI, SSRF, command injection…).
 2. **Prove** — генератор строит **детерминированный PoC** и запускает его в изолированной
    песочнице (`gsc_pof_sandbox.py`) → уязвимость реально эксплуатируется.
 3. **Fix** — генератор создаёт патч.

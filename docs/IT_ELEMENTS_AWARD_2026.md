@@ -20,7 +20,7 @@ GSC — самообучающаяся платформа безопасност
 
 Главное отличие от классических сканеров: GSC **доказывает**, а не декларирует.
 
-1. **Detect** — 38 детекторов находят уязвимость (SQLi, XSS, SSTI, SSRF, RCE,
+1. **Detect** — 41 детектор находят уязвимость (SQLi, XSS, SSTI, SSRF, RCE,
    десериализация, секреты, IaC, SCA по OSV.dev и др.) в Python, PHP, Node.js,
    Go, Ruby, Terraform/Docker/Kubernetes.
 2. **Prove** — генератор строит **детерминированный Proof-of-Concept** (curl/bash/Python)
@@ -41,7 +41,7 @@ GSC — самообучающаяся платформа безопасност
 ## 3. Критерии отбора (ответы)
 
 ### Масштаб
-- **38 детекторов** (37 статических + 1 LLM), **108 модулей**, **~66 000 строк Python** собственного кода.
+- **41 детектор** (37 registry + 4 движка), **108 модулей**, **~66 000 строк Python** собственного кода.
 - Мультиязычность: Python, PHP, Node.js/JS/TS, Go, Ruby + IaC (Terraform/Docker/K8s),
   секреты, SCA (OSV.dev), CI/CD, GraphQL, AI (prompt injection/provenance).
 - **362 коммита** за ~7 недель непрерывной разработки (с 25.06.2026), **122 теста** зелёные.
@@ -86,7 +86,7 @@ GSC — самообучающаяся платформа безопасност
 | PoF-верификация (gap-анализ) | `benchmark/POC_VERIFICATION_GAP.md` |
 | MCP-гайд (ИИ-агенты) | `docs/MCP_SERVER.md` |
 | Roadmap | `GSC_ROADMAP.md` |
-| Метрики (версия/детекторы/schema) | `gsc_meta.py` → v1.3.0, 38 det, schema 31 |
+| Метрики (версия/детекторы/schema) | `gsc_meta.py` → v1.3.0, 41 det, schema 31 |
 
 ### Схема цикла (для презентации)
 ```

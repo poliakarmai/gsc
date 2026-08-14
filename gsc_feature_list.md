@@ -49,7 +49,7 @@
 ├── gsc_github_adapter.py        ← GitHub Adapter (570 строк)
 │                                   GitHubAPIClient, upsert, check runs, doctor, redaction audit
 ├── gsc_revalidate.py            ← Structured revalidator (5-step)
-├── gsc_detectors/               ← 37 детекторов + GS024 LLM
+├── gsc_detectors/               ← 41 детектор (37 registry + 4 движка)
 ├── calibration/
 │   ├── calibration_dataset.json ← 14 проектов
 │   └── expected/*.json          ← Ожидаемые находки

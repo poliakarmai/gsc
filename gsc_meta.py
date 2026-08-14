@@ -8,16 +8,20 @@ DB = Path.home() / ".hermes/state/gsc_audit.db"
 def get_meta() -> dict:
     try:
         from gsc_detectors.registry import get_detectors
-        plugin = len(get_detectors())
+        registry = len(get_detectors())
     except Exception:
-        plugin = 28
+        registry = 37
+    # GSC-006: 4 standalone engines run OUTSIDE the per-file registry — they are
+    # real detectors with a different interface (repo/scan-level, not per-file):
+    #   GS028 Invariant Engine, GS029 Secrets, GS030 SCA (OSV.dev), GS031 IaC.
+    standalone = 4
     return {
         "version": _read_version(),
-        "detectors_plugin": plugin,
-        # GSC-006: get_detectors()/ALL_DETECTORS already include GS024 (LLM) and
-        # the YAML detectors — do NOT add +1. The registry is the single source
-        # of truth; README/server/CLI must read this number, never hardcode it.
-        "detectors_total": plugin,
+        "detectors_registry": registry,
+        "detectors_standalone": standalone,
+        # Total = registry + standalone engines. This is the single source of
+        # truth — README/server/CLI must read this, never hardcode a count.
+        "detectors_total": registry + standalone,
         "schema": _read_schema(),
         "modules": _count_modules(),
     }

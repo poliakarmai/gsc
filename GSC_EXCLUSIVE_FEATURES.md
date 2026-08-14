@@ -333,7 +333,7 @@ DELETE /api/v1/workspaces/{n}          cleanup
 ### Полный цикл GSC
 
 ```
-detect (38 детекторов, ~480K находок)
+detect (41 детектор, ~480K находок)
   ├── prove (PoC v0.17)              [эксклюзив]
   ├── fix (Proof-of-Fix)             [эксклюзив]
   ├── verify (sandbox re-PoC)        [эксклюзив]

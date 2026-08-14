@@ -346,9 +346,9 @@ def _detector_count() -> int:
     not a hardcoded number that drifts from README/CLI/server."""
     try:
         from gsc_meta import get_meta
-        return int(get_meta().get("detectors_total", 37))
+        return int(get_meta().get("detectors_total", 41))
     except Exception:
-        return 37
+        return 41
 
 
 @app.get("/health")
