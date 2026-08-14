@@ -33,7 +33,7 @@
 | 4.5 | Composite UNIQUE (tenant_id, finding_key) | ✅ | GSC-005 |
 | 4.6 | Cross-tenant integration test | ✅ | `tests/test_tenant_isolation.py` |
 | 4.7 | Убрать global SQLite connection (request-scoped pool) | ✅ | request-scoped `get_db()`; global conn только startup |
-| 4.8 | Worker отдельный процесс | ⬜ | workers in-process |
+| 4.8 | Worker отдельный процесс | ✅ | `gsc_scan_worker.py` out-of-process + spawn |
 | 4.9 | health/readiness с проверкой DB | ✅ | `/health` + `/ready` (SELECT 1) |
 | 4.10 | Migration test (fresh DB → все миграции → verify) | ✅ | `tests/test_db_migration.py` |
 | 4.11 | Backup/restore drill (процедура + тест) | ⬜ | |
@@ -42,10 +42,10 @@
 
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
-| 5.1 | Убрать import-time side effects (server.py не открывает DB при import) | ⬜ | `conn = get_backend()` на import |
+| 5.1 | Убрать import-time side effects (server.py не открывает DB при import) | ✅ | lazy JWT + `init_cloud_db()` (lifespan) |
 | 5.2 | Все paths через env/XDG (GSC_DATA_DIR, GSC_DB_PATH) | 🟡 | частично (GSC_DB есть) |
 | 5.3 | Pin action по commit SHA | ✅ | GSC-008 |
-| 5.4 | release-manifest.json (commit, wheel hash, image digest, detectors, schema, test matrix) | ⬜ | |
+| 5.4 | release-manifest.json (commit, wheel hash, image digest, detectors, schema, test matrix) | ✅ | `scripts/gsc_release_manifest.py` |
 | 5.5 | CI job: build wheel → test install в clean venv → import → smoke | ⬜ | |
 | 5.6 | Dockerfile pin base image digest | ✅ | шаг 5 |
 | 5.7 | SBOM (CycloneDX/SPDX) в CI | 🟡 | `scripts/gsc_release_sbom.py` есть; не в CI |
@@ -58,14 +58,14 @@
 |---|--------|--------|------------|
 | 6.1 | 4 corpus failures | ✅ | сейчас 8 passed |
 | 6.2 | nuclei_import failure | ✅ | GSC-004 |
-| 6.3 | pytest markers (unit/integration/security/corpus/cloud) | ⬜ | |
+| 6.3 | pytest markers (unit/integration/sandbox) | ✅ | `[tool.pytest.ini_options]` |
 | 6.4 | Security test suite (10 тестов: cross-tenant, sandbox escape, auth bypass) | 🟡 | tenant-тест есть; sandbox-escape/auth-bypass нет |
 | 6.5 | Убрать hardcoded ~/gsc/gsc.py из corpus | ⬜ | |
 | 6.6 | Coverage gate ≥60% core | ⬜ | |
 | 6.7 | Skip reason policy | 🟡 | частично |
 | 6.8 | CI pytest green для merge | ⬜ | |
 | 6.9 | Отделить smoke/calibration от pytest | ⬜ | |
-| 6.10 | conftest.py fixtures (temp DB, workspace, mock keys, two-tenant) | ⬜ | |
+| 6.10 | conftest.py fixtures (temp DB, workspace, mock keys, two-tenant) | ✅ | `tests/conftest.py` |
 
 ## 2. SAST-пайплайн (6/10 → 8/10)
 
