@@ -11,7 +11,7 @@
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
 | 3.1 | PoF fail-closed без Docker → ERROR/NOT_RUN | ✅ | GSC-001: `verify_fix` verified только при docker/podman |
-| 3.2 | Web PoC в контейнере (target+PoC в rootless container) | ⬜ | web PoC всё ещё host-side при rlimit |
+| 3.2 | Web PoC в контейнере (target+PoC в rootless container) | ✅ | `_run_web_poc_container` + `sandbox/Dockerfile` |
 | 3.3 | Поле `isolation_backend` в evidence | ✅ | `SandboxResult.isolation` (docker/podman/rlimit) |
 | 3.4 | Убрать `\|\| true` из run_tests | ✅ | GSC-002 |
 | 3.5 | Различать NOT_RUN/PASSED/FAILED для tests и DAST | ✅ | `StageOutcome` в gsc_verify_fix |
@@ -19,7 +19,7 @@
 | 3.7 | Удалить dead auth helpers | ✅ | GSC-010: `gsk_` унифицирован, legacy помечен |
 | 3.8 | JWT secret fail-closed (exit без JWT_SECRET, кроме --dev-mode) | ✅ | exit(1) в production, persist в dev |
 | 3.9 | API key только в header (не query param) | ✅ | только Authorization/X-API-Key |
-| 3.10 | Security test: PoC читает /etc/passwd, socket, write вне workspace | ⬜ | |
+| 3.10 | Security test: PoC читает /etc/passwd, socket, write вне workspace | ✅ | `tests/test_sandbox_security.py` |
 | 3.11 | Container policy (network=none, read-only, cap-drop, etc.) | ✅ | `--network`, `--read-only`, `--cap-drop ALL`, `--security-opt no-new-privileges`, `--pids-limit 64`, `--memory 512m`, `--cpus 1`, user 65534, tmpfs |
 
 ## 4. Cloud/SaaS (4/10 → 7/10)
@@ -32,7 +32,7 @@
 | 4.4 | FK findings.tenant_id → tenants.id, scan_id → scans.id | ✅ | GSC-005 |
 | 4.5 | Composite UNIQUE (tenant_id, finding_key) | ✅ | GSC-005 |
 | 4.6 | Cross-tenant integration test | ✅ | `tests/test_tenant_isolation.py` |
-| 4.7 | Убрать global SQLite connection (request-scoped pool) | 🟡 | backend-фабрика (S1 1.2); global `conn` остался |
+| 4.7 | Убрать global SQLite connection (request-scoped pool) | ✅ | request-scoped `get_db()`; global conn только startup |
 | 4.8 | Worker отдельный процесс | ⬜ | workers in-process |
 | 4.9 | health/readiness с проверкой DB | ✅ | `/health` + `/ready` (SELECT 1) |
 | 4.10 | Migration test (fresh DB → все миграции → verify) | ✅ | `tests/test_db_migration.py` |
