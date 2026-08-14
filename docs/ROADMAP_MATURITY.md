@@ -59,12 +59,12 @@
 | 6.1 | 4 corpus failures | ✅ | сейчас 8 passed |
 | 6.2 | nuclei_import failure | ✅ | GSC-004 |
 | 6.3 | pytest markers (unit/integration/sandbox) | ✅ | `[tool.pytest.ini_options]` |
-| 6.4 | Security test suite (10 тестов: cross-tenant, sandbox escape, auth bypass) | 🟡 | tenant-тест есть; sandbox-escape/auth-bypass нет |
+| 6.4 | Security test suite (10 тестов: cross-tenant, sandbox escape, auth bypass) | ✅ | cross-tenant + sandbox escape + auth-bypass (`test_auth_bypass.py`) |
 | 6.5 | Убрать hardcoded ~/gsc/gsc.py из corpus | ✅ | F-01 audit: `test_corpus.py` relative path |
-| 6.6 | Coverage gate ≥60% core | ⬜ | |
-| 6.7 | Skip reason policy | 🟡 | частично |
+| 6.6 | Coverage gate ≥60% core | ✅ | `gsc_pof_sandbox` ≥60% (62%) — `ci.yml` `--cov-fail-under=60` |
+| 6.7 | Skip reason policy | ✅ | `docs/TESTING.md` (skip только при отсутствии внешней зависимости) |
 | 6.8 | CI pytest green для merge | ✅ | `.github/workflows/ci.yml` (required check) |
-| 6.9 | Отделить smoke/calibration от pytest | ⬜ | |
+| 6.9 | Отделить smoke/calibration от pytest | ✅ | `smoke` marker + `docs/TESTING.md` (calibration вне pytest) |
 | 6.10 | conftest.py fixtures (temp DB, workspace, mock keys, two-tenant) | ✅ | `tests/conftest.py` |
 
 ## 2. SAST-пайплайн (6/10 → 8/10)

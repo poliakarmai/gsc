@@ -17,6 +17,8 @@ import pytest
 from gsc_detectors import AuditContext
 from gsc_detectors.registry import get_detectors
 
+pytestmark = pytest.mark.smoke
+
 
 @pytest.mark.parametrize("det", get_detectors(), ids=lambda d: d.rule_id)
 def test_detector_smoke(det, tmp_path):

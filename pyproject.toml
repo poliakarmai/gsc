@@ -89,4 +89,5 @@ markers = [
     "sandbox: PoF sandbox isolation tests (require container runtime)",
     "cloud: multi-tenant cloud/SaaS tests",
     "slow: tests taking >10s",
+    "smoke: registry/import smoke tests (fast, full-suite subset)",
 ]
