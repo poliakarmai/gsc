@@ -17,6 +17,20 @@ def test_three_tools_registered():
 
 
 def test_list_findings_returns_list():
+    # Seed 1 finding в изолированную DB (conftest._isolate_gsc_db), чтобы тест был
+    # самодостаточным, а не зависел от засеянной/порядка-тестов DB.
+    from gsc_db import GSCDatabase
+    db = GSCDatabase()
+    db.execute(
+        "INSERT INTO findings (project, echelon, category, title, file_path, "
+        "line_number, detail, status, rule_id, pattern_title, finding_key) "
+        "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        ("test", 1, "CRITICAL", "test finding", "/tmp/x.py", 1, "d",
+         "open", "GS005", "test", "deadbeef1234"),
+    )
+    db.commit()
+    db.close()
+
     async def _run():
         r = await gscm.mcp.call_tool("list_findings", {"limit": 2})
         content = getattr(r, "content", r)

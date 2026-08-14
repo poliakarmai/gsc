@@ -464,8 +464,12 @@ def compute_finding_key(rule: str, file_path: str, snippet: str) -> str:
 class GSCDatabase:
     """Unified SQLite access for GSC findings + chains + migrations."""
 
-    def __init__(self, path: Path = DB_PATH):
-        self.path = path
+    def __init__(self, path=None):
+        # Ленивый read GSC_DB_PATH — чтобы autouse-изоляция (conftest._isolate_gsc_db)
+        # и CI env влияли на каждый инстанс, а не только на момент import gsc_db.
+        if path is None:
+            path = Path(os.environ.get("GSC_DB_PATH", str(DB_PATH)))
+        self.path = Path(path)
         # Ensure parent dir exists — CI runners may not have ~/.hermes/state/
         try:
             path.parent.mkdir(parents=True, exist_ok=True)
