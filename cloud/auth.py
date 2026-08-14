@@ -15,14 +15,18 @@ class Unauthorized(Exception):
 
 
 def generate_api_key() -> tuple[str, str]:
-    """Возвращает (raw_key, key_hash). raw показывается ОДИН раз."""
-    raw = "gsc_" + secrets.token_urlsafe(32)
+    """Возвращает (raw_key, key_hash). raw показывается ОДИН раз.
+
+    GSC-010: единый prefix `gsk_` — как в server.py и cloud/tenancy.py.
+    Раньше здесь был `gsc_` (divergent helper), что дробило auth-контур.
+    """
+    raw = "gsk_" + secrets.token_urlsafe(32)
     return raw, hashlib.sha256(raw.encode()).hexdigest()
 
 
 def auth_tenant(header_key: str, db) -> int:
     """header_key → tenant_id. Constant-time сравнение хэшей."""
-    if not header_key or not header_key.startswith("gsc_"):
+    if not header_key or not header_key.startswith("gsk_"):
         raise Unauthorized()
     prefix = header_key[:12]
     expected_hash = hashlib.sha256(header_key.encode()).hexdigest()

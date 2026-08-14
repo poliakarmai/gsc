@@ -6,11 +6,17 @@ GSC = Path(__file__).parent
 DB = Path.home() / ".hermes/state/gsc_audit.db"
 
 def get_meta() -> dict:
+    registry = None
     try:
         from gsc_detectors.registry import get_detectors
         registry = len(get_detectors())
-    except Exception:
-        registry = 37
+    except Exception as e:
+        # GSC-011: молчаливый hardcoded fallback (37) маскировал сломанный импорт
+        # registry и расходился с фактическим числом детекторов (grep 'DetectorEntry'
+        # даёт ~34 статических — часть rules динамические/LLM). Честно помечаем None.
+        import sys
+        print(f"⚠️ gsc_meta: get_detectors() failed — detectors_total unknown ({e})",
+              file=sys.stderr)
     # GSC-006: 4 standalone engines run OUTSIDE the per-file registry — they are
     # real detectors with a different interface (repo/scan-level, not per-file):
     #   GS028 Invariant Engine, GS029 Secrets, GS030 SCA (OSV.dev), GS031 IaC.
@@ -21,7 +27,7 @@ def get_meta() -> dict:
         "detectors_standalone": standalone,
         # Total = registry + standalone engines. This is the single source of
         # truth — README/server/CLI must read this, never hardcode a count.
-        "detectors_total": registry + standalone,
+        "detectors_total": (registry + standalone) if registry is not None else None,
         "schema": _read_schema(),
         "modules": _count_modules(),
     }

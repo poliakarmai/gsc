@@ -15,9 +15,9 @@
 | GSC-006 | P1 | server.py global SQLite conn | 🟡 backend-фабрика (S1 1.2); per-request `get_db()` |
 | GSC-007 | P1 | open signup без invite | ✅ `GSC_INVITE_ONLY=1` → 403 |
 | GSC-008 | P1 | action install `@v1.3.0` mutable tag | ✅ pin на commit SHA |
-| GSC-009 | P2 | JWT_SECRET random per process | ⬜ осталось |
-| GSC-010 | P2 | divergent auth (`gsc_` vs `gsk_`) | ⬜ осталось |
-| GSC-011 | P2 | detector count claim (41 vs 34) | ⬜ осталось |
+| GSC-009 | P2 | JWT_SECRET random per process | ✅ persist в `.jwt_secret` (env > файл > generate) |
+| GSC-010 | P2 | divergent auth (`gsc_` vs `gsk_`) | ✅ унифицировано на `gsk_` |
+| GSC-011 | P2 | detector count claim (41 vs 34) | ✅ честный None вместо silent fallback 37/41 |
 
 ## План аудита из 6 шагов — прогресс
 
@@ -30,16 +30,10 @@
 | 5 | DB + release supply chain | 🟡 частично (GSC-005 + GSC-008; immutable image digest/SBOM — осталось) |
 | 6 | Positioning / pilot contract | ⬜ осталось (переписать claim'ы, threat model) |
 
-## Осталось (P2 + хвосты шагов 4–6)
+## Осталось (хвосты шагов 4–6 плана)
 
-- **GSC-009**: JWT_SECRET не persistent — multi-replica получает разные secrets, сессии
-  инвалидируются при restart. Нужен внешний secret manager / shared secret.
-- **GSC-010**: `gsc_` (cloud/auth.py, tenancy.py) vs `gsk_` (server.py) prefix — два
-  auth helper'а. Нужно заморозить один auth контур.
-- **GSC-011**: `gsc_meta.py` заявляет 41 детектор (37 registry + 4 standalone), grep
-  даёт 34 `DetectorEntry`. Уточнить claim или убрать silent fallback.
 - **Шаг 4**: полное объединение server.py (SaaS MVP) и cloud/enterprise (s1–s5) —
-  один onboarding, один storage backend. Это крупный рефакторинг.
+  один onboarding, один storage backend. Это крупный рефакторинг (см. ROADMAP S1).
 - **Шаг 5**: immutable image digest (Dockerfile `python:3.12-slim` без digest,
   k8s/helm `latest`), SBOM в release.
 - **Шаг 6**: переписать позиционирование — «verified remediation» с disclosure

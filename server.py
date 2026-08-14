@@ -60,7 +60,41 @@ conn = get_backend()
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
 GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "")
 GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8081/api/v2/auth/github/callback")
-JWT_SECRET = os.environ.get("JWT_SECRET", secrets.token_urlsafe(32))
+
+
+def _load_or_create_jwt_secret() -> str:
+    """JWT_SECRET: env > persist-файл > сгенерировать+сохранить.
+
+    GSC-009: раньше при отсутствии JWT_SECRET каждый process генерировал свой
+    случайный secret → все сессии инвалидировались при restart, а multi-replica
+    instances получали разные secrets. Файл-персист решает single-host restart;
+    для multi-replica по-прежнему нужен общий secret через env / secret manager.
+    """
+    env_secret = os.environ.get("JWT_SECRET")
+    if env_secret:
+        return env_secret
+    secret_file = DB_PATH.parent / ".jwt_secret"
+    try:
+        if secret_file.exists():
+            return secret_file.read_text().strip()
+        secret = secrets.token_urlsafe(32)
+        secret_file.parent.mkdir(parents=True, exist_ok=True)
+        # Атомарная запись (temp + rename), чтобы частичная запись при падении
+        # процесса не оставила битый secret-файл.
+        tmp = secret_file.with_suffix(".tmp")
+        tmp.write_text(secret)
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass
+        os.replace(tmp, secret_file)
+        return secret
+    except OSError:
+        # read-only FS → ephemeral (сессии не переживут restart, но не падаем)
+        return secrets.token_urlsafe(32)
+
+
+JWT_SECRET = _load_or_create_jwt_secret()
 JWT_ALGORITHM = "HS256"
 SESSION_TTL_HOURS = 24
 
@@ -362,9 +396,11 @@ def _detector_count() -> int:
     not a hardcoded number that drifts from README/CLI/server."""
     try:
         from gsc_meta import get_meta
-        return int(get_meta().get("detectors_total", 41))
+        # GSC-011: detectors_total может быть None (registry import failed) —
+        # не подставлять молчаливый fallback 41, честно отдаём 0/unknown.
+        return int(get_meta().get("detectors_total") or 0)
     except Exception:
-        return 41
+        return 0  # GSC-011: честный "unknown", а не hardcoded 41
 
 
 @app.get("/health")
