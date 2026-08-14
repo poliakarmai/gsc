@@ -91,3 +91,15 @@
 | **Cross-repo Secrets** — отслеживание между репо | Никто |
 | **Attack Chain Composer** — связывание уязвимостей в цепочки | Никто |
 | **41 детектор** (SAST+SCA+Secrets+IaC+SBOM) | Больше Semgrep Community |
+
+---
+
+## Методология закрытия фазы (Ф3–Ф7, 14.08.2026)
+
+Каждая фаза закрывалась по одному рецепту — переиспользуем для следующей:
+
+1. **Разведка.** Большинство фаз уже наполовину готовы (Ф3 `yaml_rules` regex-only, Ф4 `create_check_run` без PR-link, Ф7 `RiskForecaster`+`gsc_epss.py` не связаны). Работа — «дотянуть недостающее», не «строить с нуля».
+2. **Сначала тест.** `tests/test_phases_2_6.py` фиксирует контракт фазы (имена функций, сигнатуры). Не выдумывать параллельный интерфейс.
+3. **Контрактный разрыв.** `make_finding()` отдавал `file/line/snippet`, а `gsc_external.py` читает `file_path/line_number/detail` → все YAML-находки были `file_path=None`. Эмитить оба набора ключей.
+4. **Smoke на реальном пути.** Реальный импорт semgrep-rules (2234 правила), живой `/dashboard` (uvicorn+signup+curl), реальный `forecast heatmap` — юнит-тест не ловит `patterns: null`/`KeyError: 'trend'`/`IsADirectoryError`.
+5. **Замыкание.** Judge (с явным доменом) → commit → push → перевернуть статус фазы ⬜→🟡→🟢.
