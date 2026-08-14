@@ -160,7 +160,7 @@ class PoCGenerator:
             f"Format: {fmt}\n"
             f"Use placeholder values ONLY. One request/script. No destructive actions.\n"
             f"EXPLOIT CONTRACT (required for Proof-of-Fix verification):\n"
-            f"- On SUCCESS, print exactly one marker from: {", ".join(SUCCESS_MARKERS)} to stdout and exit 0.\n"
+            f"- On SUCCESS, print exactly one marker from: {', '.join(SUCCESS_MARKERS)} to stdout and exit 0.\n"
             f"- On FAILURE, print nothing special and exit non-zero. The marker is the ONLY trusted success signal.\n"
             f'If the target is safe, print "SAFE" and exit 1.\n'
             f'Output JSON: {{"code": "...", "impact": "one sentence"}}'
