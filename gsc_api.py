@@ -30,7 +30,7 @@ from typing import Optional
 import subprocess
 
 try:
-    from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends
+    from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends, Request
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
 except ImportError:
@@ -72,6 +72,9 @@ if not API_KEY and not DEV_MODE:
 if not API_KEY:
     # explicit dev mode only — never a silent production default
     API_KEY = "gsc-dev-key"
+
+# A-06: feedback poisoning guard — cap submissions per source IP per hour.
+FEEDBACK_RATE_LIMIT = int(os.environ.get("GSC_FEEDBACK_RATE_LIMIT", "50"))
 
 # ── Schemas ───────────────────────────────────────────────
 
@@ -339,10 +342,28 @@ async def get_findings(
     return {"findings": findings, "total": len(findings), "offset": offset, "limit": limit}
 
 @app.post("/api/v1/feedback", dependencies=[Depends(verify_api_key)])
-async def submit_feedback(req: FeedbackRequest):
-    """Submit TP/FP verdict on a finding."""
+async def submit_feedback(req: FeedbackRequest, request: Request):
+    """Submit TP/FP verdict on a finding.
+
+    A-06 (feedback poisoning hardening): per-IP rate limit + audit trail.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    actor = f"ip:{client_ip}"
+
+    # Rate limit: cap feedback submissions per IP per hour (poisoning guard).
+    recent = _db_query(
+        "SELECT COUNT(*) AS n FROM feedback WHERE actor = ? "
+        "AND created_at > datetime('now', '-1 hour')",
+        (actor,),
+    )
+    if recent and recent[0]["n"] >= FEEDBACK_RATE_LIMIT:
+        raise HTTPException(
+            status_code=429,
+            detail=f"feedback rate limit exceeded ({FEEDBACK_RATE_LIMIT}/hour)",
+        )
+
     # Find finding by sha256 key
-    rows = _db_query("SELECT id, rule_id, file_path, detail FROM findings")
+    rows = _db_query("SELECT id, rule_id, file_path, detail, revalidation_verdict FROM findings")
     matched = None
     for r in rows:
         if _create_finding_key(r) == req.finding_key:
@@ -354,6 +375,14 @@ async def submit_feedback(req: FeedbackRequest):
 
     verdict_map = {"tp": "true-positive", "fp": "false-positive", "fixed": "fixed"}
     verdict = verdict_map.get(req.verdict, req.verdict)
+    prev = matched.get("revalidation_verdict") or "(none)"
+
+    # Audit trail BEFORE mutation — enables rollback and poisoning forensics.
+    _db_execute(
+        "INSERT INTO feedback (finding_key, verdict, reason, source, actor, created_at) "
+        "VALUES (?, ?, ?, 'api', ?, datetime('now'))",
+        (req.finding_key, verdict, f"{req.reason} [prev={prev}]", actor),
+    )
 
     _db_execute(
         "UPDATE findings SET revalidation_verdict = ?, revalidation_reasoning = ? WHERE id = ?",
