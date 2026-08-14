@@ -126,6 +126,7 @@ SKIP_PATTERNS = [
     r'@authenticated',
     r'current_user',
     r'request\.user\.',
+    r'user\s*=\s*request\.user\b',
     r'\.filter\s*\(.*user\s*=',
     r'\.filter\s*\(.*owner\s*=',
     r'\.filter\s*\(.*org\s*=',

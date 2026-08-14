@@ -39,7 +39,7 @@ description = (
 # 1. OTP/SMS send without rate limiting
 OTP_SEND_PATTERNS = re.compile(
     r'def\s+(?:send_otp|send_sms|send_code|send_verification|'
-    r'request_otp|generate_otp|create_otp|otp_request)',
+    r'request_otp|otp_request)',
     re.IGNORECASE,
 )
 
@@ -52,15 +52,16 @@ NO_COOLDOWN_CHECK = re.compile(
 
 # 2. Session fixation — login without session regeneration
 LOGIN_PATTERNS = re.compile(
-    r'def\s+(?:login|signin|authenticate|auth)\s*\(',
+    r'def\s+(?:login|signin|sign_in|log_in)\s*\(',
     re.IGNORECASE,
 )
 
 NO_SESSION_REGENERATION = re.compile(
-    r'(?:login|signin|authenticate).*'
+    r'(?:login|signin|sign_in|log_in).*'
     r'(?!.*(?:session\\.regenerate|session_regenerate_id|'
     r'new_session|clear_session|session\\.clear|logout.*before|'
-    r'request\\.session\\.clear|flush.*session|rotate.*session))',
+    r'request\\.session\\.clear|flush.*session|rotate.*session|'
+    r'contrib\.auth\.login|login\(request|cycle_key))',
     re.IGNORECASE | re.DOTALL,
 )
 

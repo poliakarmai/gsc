@@ -21,6 +21,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from gsc_detectors import AuditContext, Finding
+
 # ── AI provenance markers (comment patterns across languages) ──────
 AI_MARKERS: list[tuple[str, float]] = [
     (r"(?:#|//|\*)\s*(?:Generated|Created|Written|Assisted|Authored|Scaffolded)"
@@ -128,8 +130,14 @@ NOISE_TIER = "normal"
 description = "GS025: AI-Code Provenance — detect AI-favored insecure defaults"
 
 
-def detect(ctx) -> list[dict]:
-    """Bridge function for registry compatibility."""
+def detect(ctx) -> list[Finding]:
+    """Bridge function for registry compatibility.
+
+    Converts GS025Detector's internal dicts to the Finding contract
+    (file_path/line_number/detail) so downstream consumers can locate
+    findings. Previously returned raw dicts with 'file'/'line' keys,
+    which resolved to file_path=None in gsc_external.
+    """
     det = GS025Detector()
     findings = []
     files = ctx.files if ctx.files else list(ctx.path.rglob("*"))
@@ -143,5 +151,16 @@ def detect(ctx) -> list[dict]:
         except Exception:
             continue
         rel = str(fp.relative_to(ctx.path)) if ctx.path in fp.parents else str(fp)
-        findings.extend(det.detect(rel, content))
+        for raw in det.detect(rel, content):
+            findings.append(Finding(
+                rule_id=raw["rule_id"],
+                category=raw["severity"],
+                title=raw["title"],
+                file_path=raw["file"],
+                line=raw["line"],
+                detail=raw.get("snippet", ""),
+                confidence=raw.get("confidence"),
+                metadata=raw.get("metadata"),
+                language=raw.get("language"),
+            ))
     return findings

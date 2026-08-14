@@ -47,6 +47,45 @@ def t6():
         assert (Path('.')/mod).exists(), f"{mod} missing"
 run_case('All P0/P1/P2 modules present', t6)
 
+def _ctx_with(files):
+    import tempfile
+    from pathlib import Path
+    from gsc_detectors import AuditContext
+    td = tempfile.mkdtemp()
+    p = Path(td)
+    for name, content in files.items():
+        (p / name).write_text(content)
+    return AuditContext(project="x", path=p)
+
+def t7():
+    from gsc_detectors import gs019_auth_session as g19
+    ctx = _ctx_with({"otp.py": "def generate_otp(self, input):\n    return hmac.new(self.byte_secret(), input).digest()\n"})
+    fs = g19.detect(ctx)
+    assert not any('OTP/SMS' in (f.get('title') or '') for f in fs), f"TOTP generation flagged as SMS send: {fs}"
+run_case('GS019: TOTP generation != SMS send', t7)
+
+def t8():
+    from gsc_detectors import gs019_auth_session as g19
+    ctx = _ctx_with({"backends.py": "def authenticate(self, request, mfa_user=None):\n    return mfa_user\n"})
+    fs = g19.detect(ctx)
+    assert not any('session regeneration' in (f.get('title') or '') for f in fs), f"authenticate() flagged as login/session fixation: {fs}"
+run_case('GS019: authenticate() != session fixation', t8)
+
+def t9():
+    from gsc_detectors import gs007_idor as g7
+    ctx = _ctx_with({"views.py": "x = Authenticator.objects.filter(user=request.user)\n"})
+    fs = g7.detect(ctx)
+    assert not any('cross-org' in (f.get('title') or '') for f in fs), f"self-scoped filter flagged as IDOR: {fs}"
+run_case('GS007: self-scoped filter != IDOR', t9)
+
+def t10():
+    from gsc_detectors import gs025_ai_provenance as g25
+    ctx = _ctx_with({"app.py": "api_key = 'abcdefghijklmnop'\n"})
+    fs = g25.detect(ctx)
+    assert fs, "GS025 should flag hardcoded secret"
+    assert all(f.get('file_path') for f in fs), f"GS025 finding missing file_path: {fs}"
+run_case('GS025: findings carry file_path', t10)
+
 print(f'\n{"="*50}')
 print(f'Regression: {passed} passed, {failed} failed')
 if __name__ == "__main__":
