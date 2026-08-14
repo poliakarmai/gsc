@@ -25,6 +25,18 @@ def fetch_findings(limit=BATCH_SIZE, with_context=False):
         FROM findings f
         WHERE f.revalidation_verdict IS NULL
           AND f.detail IS NOT NULL AND f.detail != ''
+          AND f.project IS NOT NULL
+          AND f.project != '.'
+          AND f.project NOT LIKE '/home/%'
+          AND f.project NOT LIKE '/opt/%'
+          AND f.project NOT LIKE '/tmp/tmp%'
+          AND f.project NOT LIKE '%benchmark%'
+          AND f.project NOT LIKE '%pof_corpus%'
+          AND COALESCE(f.file_path, '') NOT LIKE '/home/%'
+          AND COALESCE(f.file_path, '') NOT LIKE '/opt/%'
+          AND COALESCE(f.file_path, '') NOT LIKE '/tmp/tmp%'
+          AND COALESCE(f.file_path, '') NOT LIKE '%benchmark%'
+          AND COALESCE(f.file_path, '') NOT LIKE '%pof_corpus%'
         ORDER BY 
             CASE WHEN f.confidence_score BETWEEN 40 AND 70 THEN 0 ELSE 1 END,
             f.confidence_score DESC NULLS LAST,

@@ -57,7 +57,7 @@ def collect(token: str) -> dict:
                 (comment_id, repo, pr_number, thumbs_up, thumbs_down,
                  confused, collected_at)
             VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
-            ON CONFLICT(comment_id) DO UPDATE SET
+            ON CONFLICT(repo, pr_number, comment_id) DO UPDATE SET
                 thumbs_up = excluded.thumbs_up,
                 thumbs_down = excluded.thumbs_down,
                 confused = excluded.confused,

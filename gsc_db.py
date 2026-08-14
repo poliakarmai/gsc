@@ -17,7 +17,7 @@ from typing import Optional
 
 DB_PATH = Path(os.environ.get(
     "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
-TARGET_VERSION = 31
+TARGET_VERSION = 32
 
 # Canonical base schema (v1). These tables are the foundation every migration
 # and query assumes. They MUST exist before any ALTER TABLE runs — fresh
@@ -503,6 +503,8 @@ class GSCDatabase:
             self._apply_v030()
         if version < 31:
             self._apply_v031()
+        if version < 32:
+            self._apply_v032()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -693,6 +695,34 @@ class GSCDatabase:
             self.conn.commit()
         except sqlite3.OperationalError:
             pass
+
+    def _apply_v032(self):
+        """Schema v32: comment_reactions composite PK (repo, pr_number, comment_id).
+
+        Fixes reaction-loss bug: PR-body publications store comment_id=0, so a
+        single-column PRIMARY KEY(comment_id) made every such PR collide — the
+        last INSERT overwrote earlier rows (observed: 2 published, 1 reaction).
+        """
+        self.conn.executescript("""
+            CREATE TABLE IF NOT EXISTS comment_reactions_new (
+                comment_id  INTEGER NOT NULL,
+                repo        TEXT NOT NULL,
+                pr_number   INTEGER NOT NULL,
+                thumbs_up   INTEGER NOT NULL DEFAULT 0,
+                thumbs_down INTEGER NOT NULL DEFAULT 0,
+                confused    INTEGER NOT NULL DEFAULT 0,
+                collected_at TEXT NOT NULL DEFAULT (datetime('now')),
+                PRIMARY KEY (repo, pr_number, comment_id)
+            );
+            INSERT OR REPLACE INTO comment_reactions_new
+                (comment_id, repo, pr_number, thumbs_up, thumbs_down,
+                 confused, collected_at)
+            SELECT comment_id, repo, pr_number, thumbs_up, thumbs_down,
+                   confused, collected_at
+            FROM comment_reactions;
+            DROP TABLE comment_reactions;
+            ALTER TABLE comment_reactions_new RENAME TO comment_reactions;
+        """)
 
     def _apply_v027(self):
         """Schema v27: federated learning tables."""
