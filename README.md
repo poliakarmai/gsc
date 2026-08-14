@@ -2,6 +2,11 @@
 
 # 🛡️ GSC — Git Security Checker
 
+<!-- GSC-META-START -->
+**Version:** v1.3.0 · **Detectors:** 41 (37 registry + 4 engines) · **Schema:** v32 · **Modules:** 109
+<!-- GSC-META-END -->
+
+
 ### Self-learning SAST that sees the **past, present, and future** of every vulnerability
 
 Not just another scanner. GSC **proves** vulnerabilities with generated exploits,

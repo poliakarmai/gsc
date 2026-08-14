@@ -2,6 +2,18 @@
 
 ## Unreleased — 2026-08-13
 
+### Roadmap maturity — волны A–D (2026-08-14)
+- **Волна A** (security P1): header-only API key, JWT fail-closed, `StageOutcome`
+  NOT_RUN/PASSED/FAILED, динамический подсчёт standalone, `/ready` probe.
+- **Волна B** (isolation): web PoC container-first, security test suite (sandbox
+  escape), request-scoped DB.
+- **Волна C** (architecture): out-of-process worker, no import-time side effects,
+  release manifest, pytest markers, conftest fixtures.
+- **Волна D** (docs): `THREAT_MODEL.md`, `ARCHITECTURE.md`, `DEPLOYMENT.md`,
+  `PILOT_GUIDE.md`, `KNOWN_LIMITATIONS.md`, `openapi.json`, «does NOT do» таблица.
+- Due-diligence v2 (P0–P2 + шаги 4–6): immutable base image, SBOM, tenant-isolation
+  тест, README disclosure про verification strength.
+
 ### License
 - **BSL 1.1 → Apache 2.0 + Commercial dual** (`LICENSE` + `COMMERCIAL.md`)
 
