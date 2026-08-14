@@ -463,6 +463,60 @@ def _is_security_rule_file(file_path: str) -> bool:
     ))
 
 
+def _pattern_search(search_pattern: str, path: Path, file_types: str | None = None,
+                    exclude_md: bool = False) -> list[tuple[str, int, str]]:
+    """Найти regex-совпадения в дереве. ripgrep если доступен, иначе Python re.
+
+    Возвращает [(file_path, line_no, matched_text)]. Это устраняет хрупкую
+    зависимость check_source_driven/check_security от наличия `rg` в окружении
+    (чистый CI runner может не иметь ripgrep — тогда legacy-паттерны молча
+    не срабатывали, напр. "SQL injection risk: f-string in query").
+    """
+    import re as _re
+    matches: list[tuple[str, int, str]] = []
+    # 1) ripgrep (быстрый путь)
+    try:
+        rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
+        if file_types:
+            rg_args.insert(2, "-t"); rg_args.insert(3, file_types)
+        if exclude_md:
+            rg_args.insert(2, "-g"); rg_args.insert(3, "!*.md")
+        result = subprocess.run(rg_args, capture_output=True, text=True, timeout=30)
+        for line in result.stdout.split("\n"):
+            if not line:
+                continue
+            parts = line.split(":", 2)
+            if len(parts) >= 2:
+                matches.append((parts[0],
+                                int(parts[1]) if parts[1].isdigit() else 0,
+                                parts[2][:200] if len(parts) > 2 else ""))
+        if matches:
+            return matches
+    except Exception:
+        pass
+    # 2) Python re fallback (всегда доступен)
+    try:
+        rx = _re.compile(search_pattern, _re.IGNORECASE)
+        skip_dirs = {".git", "__pycache__", "node_modules", ".venv", "venv"}
+        for fp in path.rglob("*"):
+            if not fp.is_file():
+                continue
+            if any(part in skip_dirs for part in fp.parts):
+                continue
+            if exclude_md and fp.suffix == ".md":
+                continue
+            try:
+                content = fp.read_text(errors="replace")
+            except Exception:
+                continue
+            for m in rx.finditer(content):
+                line_no = content[:m.start()].count("\n") + 1
+                matches.append((str(fp), line_no, m.group(0)[:200]))
+    except Exception:
+        pass
+    return matches
+
+
 def check_source_driven(project: str, path: Path) -> list[dict]:
     """Echelon 1: Source-driven checks."""
     findings = []
@@ -477,40 +531,27 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
             continue
         # Language filter: skip if file extension doesn't match pattern's language
         p_lang = p.get("language", "") or infer_lang_from_title(p.get("title", ""))
-        try:
-            # Use file-type filter for ripgrep to speed up
-            file_types = lang_to_rg_types(p_lang) if p_lang else None
-            rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
-            if file_types:
-                rg_args.insert(2, "-t")
-                rg_args.insert(3, file_types)
-            result = subprocess.run(rg_args, capture_output=True, text=True, timeout=30)
-            for line in result.stdout.strip().split("\n"):
-                if not line:
-                    continue
-                parts = line.split(":", 2)
-                if len(parts) >= 2:
-                    rule_id = _derive_rule_id(p)
-                    snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
-                    import hashlib
-                    finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
-                    category = p.get("category", "MEDIUM")
-                    # Downgrade CVE findings in security-rule files (patterns looking for vulns)
-                    if "CVE-" in p.get("title", "") and _is_security_rule_file(parts[0]):
-                        category = "LOW"
-                    findings.append({
-                        "finding_key": finding_key,
-                        "rule_id": rule_id,
-                        "category": category,
-                        "echelon": 1,
-                        "title": p["title"],
-                        "file_path": parts[0],
-                        "line_number": int(parts[1]) if parts[1].isdigit() else 0,
-                        "detail": p.get("description", ""),
-                        "pattern_title": p["title"],
-                    })
-        except Exception:
-            pass
+        file_types = lang_to_rg_types(p_lang) if p_lang else None
+        for fpath, line_no, matched in _pattern_search(search_pattern, path, file_types):
+            rule_id = _derive_rule_id(p)
+            snippet = matched[:200]
+            import hashlib
+            finding_key = hashlib.sha256(f"{rule_id}{fpath}{snippet}".encode()).hexdigest()[:12]
+            category = p.get("category", "MEDIUM")
+            # Downgrade CVE findings in security-rule files (patterns looking for vulns)
+            if "CVE-" in p.get("title", "") and _is_security_rule_file(fpath):
+                category = "LOW"
+            findings.append({
+                "finding_key": finding_key,
+                "rule_id": rule_id,
+                "category": category,
+                "echelon": 1,
+                "title": p["title"],
+                "file_path": fpath,
+                "line_number": line_no,
+                "detail": p.get("description", ""),
+                "pattern_title": p["title"],
+            })
 
     return findings
 
@@ -528,41 +569,26 @@ def check_security(project: str, path: Path) -> list[dict]:
             # Language filter
             p_lang = p.get("language", "") or infer_lang_from_title(p.get("title", ""))
             file_types = lang_to_rg_types(p_lang) if p_lang else None
-            try:
-                rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
-                if file_types:
-                    rg_args.insert(2, "-t")
-                    rg_args.insert(3, file_types)
-                # Exclude markdown/docs from security patterns
-                if p.get("echelon") == 2 and not file_types:
-                    rg_args.insert(2, "-g")
-                    rg_args.insert(3, "!*.md")
-                result = subprocess.run(rg_args, capture_output=True, text=True, timeout=30)
-                for line in result.stdout.strip().split("\n"):
-                    if not line:
-                        continue
-                    parts = line.split(":", 2)
-                    if len(parts) >= 2:
-                        rule_id = _derive_rule_id(p)
-                        snippet = (parts[2][:200] if len(parts) > 2 else (p.get("description","")[:200]))
-                        import hashlib
-                        finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
-                        category = p.get("category", "MEDIUM")
-                        if "CVE-" in p.get("title", "") and _is_security_rule_file(parts[0]):
-                            category = "LOW"
-                        findings.append({
-                            "finding_key": finding_key,
-                            "rule_id": rule_id,
-                            "category": category,
-                            "echelon": 2,
-                            "title": p["title"],
-                            "file_path": parts[0],
-                            "line_number": int(parts[1]) if parts[1].isdigit() else 0,
-                            "detail": f"Match: {parts[2][:100]}" if len(parts) > 2 else p.get("description", ""),
-                            "pattern_title": p["title"],
-                        })
-            except Exception:
-                pass
+            exclude_md = (p.get("echelon") == 2 and not file_types)
+            for fpath, line_no, matched in _pattern_search(search_pattern, path, file_types, exclude_md):
+                rule_id = _derive_rule_id(p)
+                snippet = matched[:200]
+                import hashlib
+                finding_key = hashlib.sha256(f"{rule_id}{fpath}{snippet}".encode()).hexdigest()[:12]
+                category = p.get("category", "MEDIUM")
+                if "CVE-" in p.get("title", "") and _is_security_rule_file(fpath):
+                    category = "LOW"
+                findings.append({
+                    "finding_key": finding_key,
+                    "rule_id": rule_id,
+                    "category": category,
+                    "echelon": 2,
+                    "title": p["title"],
+                    "file_path": fpath,
+                    "line_number": line_no,
+                    "detail": f"Match: {matched[:100]}" if matched else p.get("description", ""),
+                    "pattern_title": p["title"],
+                })
 
     # Check file permissions for data files
     for data_dir in [path / "data", path / ".local" / "share"]:
