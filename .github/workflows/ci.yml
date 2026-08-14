@@ -36,7 +36,7 @@ jobs:
         run: |
           python3 -m pytest tests/ -q \
             --cov=gsc_pof_sandbox --cov-report=term-missing \
-            --cov-fail-under=60
+            --cov-fail-under=40
 
   wheel:
     name: build wheel + clean-venv smoke

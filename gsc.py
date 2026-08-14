@@ -28,7 +28,10 @@ from datetime import datetime
 GSC_HOME = Path.home() / ".gsc"
 GSC_HOME.mkdir(parents=True, exist_ok=True)
 
-DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
+# GSC roadmap 5.2: DB-путь через env (GSC_DB_PATH), иначе default.
+# Ранее был жёсткий хардкод ~/.hermes/state — CI runner'ы не видели env-переопределение.
+DB_PATH = Path(os.environ.get(
+    "GSC_DB_PATH", str(Path.home() / ".hermes" / "state" / "gsc_audit.db")))
 SCRIPTS_DIR = Path.home() / ".hermes" / "scripts"
 
 # Ensure WAL mode for concurrent CI/CD access
@@ -1104,7 +1107,9 @@ def load_patterns(project: str, echelon: int = None) -> list[dict]:
             # Fresh/empty DB (no patterns table, e.g. CI runner) — fall back to seed files
             patterns = []
 
-    # Fallback: load from seed files
+    # Fallback: load from seed files + built-in OWASP/seed patterns.
+    # При пустой/незасеянной DB (чистый CI runner) scan должен оставаться
+    # самодостаточным: seed-файлы patterns/*.json + встроенные generate_seed_patterns.
     if not patterns:
         seed_dir = Path(__file__).parent / "patterns"
         for seed_file in seed_dir.glob("*.json"):
@@ -1116,6 +1121,13 @@ def load_patterns(project: str, echelon: int = None) -> list[dict]:
                         patterns.append(p)
             except Exception:
                 pass
+        # Built-in OWASP/seed patterns (жили только в DB через `gsc patterns --seed`).
+        try:
+            for p in generate_seed_patterns(200):
+                if not echelon or p.get("echelon") == echelon:
+                    patterns.append(p)
+        except Exception:
+            pass
 
     return patterns
 
