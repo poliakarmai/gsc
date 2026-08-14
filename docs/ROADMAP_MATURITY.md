@@ -60,7 +60,7 @@
 | 6.2 | nuclei_import failure | ✅ | GSC-004 |
 | 6.3 | pytest markers (unit/integration/sandbox) | ✅ | `[tool.pytest.ini_options]` |
 | 6.4 | Security test suite (10 тестов: cross-tenant, sandbox escape, auth bypass) | 🟡 | tenant-тест есть; sandbox-escape/auth-bypass нет |
-| 6.5 | Убрать hardcoded ~/gsc/gsc.py из corpus | ⬜ | |
+| 6.5 | Убрать hardcoded ~/gsc/gsc.py из corpus | ✅ | F-01 audit: `test_corpus.py` relative path |
 | 6.6 | Coverage gate ≥60% core | ⬜ | |
 | 6.7 | Skip reason policy | 🟡 | частично |
 | 6.8 | CI pytest green для merge | ✅ | `.github/workflows/ci.yml` (required check) |
@@ -72,11 +72,11 @@
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
 | 2.1 | 4 corpus failures | ✅ | |
-| 2.2 | detector_contract.json | ⬜ | |
-| 2.3 | Fixtures для 37+4 детекторов | ⬜ | |
-| 2.4 | `gsc doctor` (registry + fixtures + coverage matrix) | ⬜ | |
+| 2.2 | detector_contract.json | ✅ | `scripts/gsc_detector_matrix.py` |
+| 2.3 | Fixtures для 37+4 детекторов | ✅ | smoke: `tests/test_detector_registry.py` (37) |
+| 2.4 | `gsc doctor` (registry + fixtures + coverage matrix) | ✅ | `scripts/gsc_doctor.py` расширен |
 | 2.5 | OWASP Benchmark / Juliet | 🟡 | benchmark/ есть; прогон не зафиксирован |
-| 2.6 | Generated DETECTORS.md | ⬜ | |
+| 2.6 | Generated DETECTORS.md | ✅ | `DETECTORS.md` (gen: detector_matrix) |
 | 2.7 | Убрать hardcoded standalone=4 (считать динамически) | ✅ | `_count_standalone_engines()` |
 
 ## 7. Документация (6/10 → 8/10)
@@ -98,10 +98,10 @@
 
 | # | Задача | Статус |
 |---|--------|--------|
-| 1.1 | README positioning (убрать overclaims) | 🟡 |
+| 1.1 | README positioning (убрать overclaims) | ✅ | disclosure + «does NOT do» |
 | 1.2 | One-pager PDF | ⬜ |
 | 1.3 | Demo video | ⬜ |
-| 1.4 | «What GSC does NOT do» таблица | ⬜ |
+| 1.4 | «What GSC does NOT do» таблица | ✅ | README (Волна D) |
 | 1.5 | 3 use cases | ⬜ |
 
 ## Приоритет внедрения (что делаем дальше)

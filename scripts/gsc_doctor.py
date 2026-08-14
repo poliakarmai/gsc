@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """gsc doctor — диагностика окружения GSC."""
 import subprocess, sys, os
+from pathlib import Path
 
 def check(label, ok, detail=""):
     status = "✅" if ok else "❌"
@@ -71,5 +72,22 @@ for f in [db]:
     if os.path.exists(f):
         perms = oct(os.stat(f).st_mode)[-3:]
         check(f"Permissions: {os.path.basename(f)}", perms == "600", perms)
+
+print("\n🔍 Detector Registry (roadmap 2.4)")
+try:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from gsc_detectors.registry import get_detectors
+    dets = get_detectors()
+    check("Registry", True, f"{len(dets)} detectors + 4 standalone engines")
+    smoke = Path(__file__).resolve().parents[1] / "tests" / "test_detector_registry.py"
+    check("Smoke fixtures", smoke.exists(), f"{len(dets)} detectors covered")
+    contract_path = Path(__file__).resolve().parents[1] / "detector_contract.json"
+    if contract_path.exists():
+        import json
+        contract = json.loads(contract_path.read_text())
+        covered = sum(1 for c in contract if c.get("covered_by_fixture"))
+        print(f"  ℹ️  Coverage matrix: {covered}/{len(contract)} full fixtures (см. DETECTORS.md)")
+except Exception as e:
+    check("Detector Registry", False, str(e))
 
 print("\n💡 Run 'gsc init' to set up a new project, 'gsc scan <project>' for first audit.")

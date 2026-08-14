@@ -1,0 +1,261 @@
+[
+  {
+    "rule_id": "GS001",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "Hardcoded secrets in source code (API keys, tokens, passwords, JWT, connection strings)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS002",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "World-readable sensitive files (keys, certs, env files)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS003",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "Debug / diagnostic statements left in production code",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS004",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Dangerous subprocess/shell usage (command injection, shell=True, os.system, eval)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS005",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "GS005: SQL/NoSQL injection — 78 patterns, 9 languages, per-pattern precision tracking (v2.0)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS007",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Broken Access Control — IDOR, sequential ID enumeration, cross-tenant access, admin panel exposure, unprotected file downloads, unauthorized ticket operations",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS008",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "Dead code: constants and feature flags declared but never used",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS009",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Supply chain scanner: detects packages, editor extensions, MCP configs, and developer-tool metadata across package ecosystems (npm, PyPI, Go, Ruby, Composer, Homebrew, MCP, editor-extension, browser-extension, agent-skill). Powered by Perplexity Bumblebee.",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS010",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Weak SSH server configuration — dangerous sshd_config settings",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS011",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "JWT/JOSE vulnerabilities — weak signatures, alg:none, hardcoded secrets",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS012",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Mass Assignment — unfiltered request data in model create/update",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS013",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "GraphQL security — introspection, depth limiting, error disclosure",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS014",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Credential exposure — stored credentials, backup auth files, weak sudoers",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS015",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "Entry-point coverage — marks HTTP handlers for AI review (noisy matcher)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS016",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Linux privilege escalation paths — SUID, cron, sudo, capabilities, world-readable secrets",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS017",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Weak & default passwords — admin:admin, default creds, weak password policies, hardcoded DB passwords",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS018",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Payment logic abuse — double cashback, promo code abuse, race conditions, rounding, missing idempotency",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS019",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Auth/session weaknesses — SMS exhaustion, session fixation, weak tokens, missing cookie flags, immortal JWT, OTP brute-force",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS020",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "XSS / HTML / Template Injection — reflected, stored, DOM, SSTI (Web Hacking 101)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS021",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "CSRF / SSRF — missing tokens, internal URL fetches (Bug Hunting)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS022",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "Open Redirect / URL Manipulation — redirect params, validation bypass (Web Hacking 101)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS023",
+    "echelon": 3,
+    "noise_tier": "noisy",
+    "description": "Race Conditions / TOCTOU — double-spend, async races, fs races (Bug Hunting)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS025",
+    "echelon": 2,
+    "noise_tier": "normal",
+    "description": "GS025: AI-Code Provenance — detect AI-favored insecure defaults",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS032",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS032: Prompt Injection — detect AI agent hijack via code/docs/issues",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS033",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS034",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS035",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS036",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS037",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS037: Python Vulnerability Detection — pickle, eval, SSTI, command injection, deserialization",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS038",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS039",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "GS024",
+    "echelon": 2,
+    "noise_tier": "precise",
+    "description": "LLM-based SQL injection (pilot — replaces 87 regex patterns)",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "YAML-36ACF0AD",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Use of eval() or exec() with dynamic input can lead to code injection",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "YAML-ECB85AD8",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "DEBUG=True in production Django/Flask config",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "YAML-B39DC08C",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Printing potentially sensitive data to stdout",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "YAML-A7E2F001",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Reverse shell one-liner detected — definitive backdoor indicator",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "YAML-SSTI001",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Server-Side Template Injection (SSTI): user input flowing into template render without sanitization — can lead to RCE",
+    "covered_by_fixture": false
+  }
+]
