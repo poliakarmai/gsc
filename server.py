@@ -30,7 +30,12 @@ from gsc_db_backend import SqliteBackend, PgBackend
 # GSC-008: default to a writable user path so `import server` doesn't fail
 # creating /data (which only exists in the container). Production sets
 # GSC_DB=/data/gsc_cloud.db explicitly (see cloud/docker-compose.yml).
-_DEFAULT_DB_PATH = str(Path(os.path.expanduser("~/.gsc")) / "gsc_cloud.db")
+# GSC roadmap 5.2: GSC_DATA_DIR переопределяет data-корень (cloud/ под ним).
+_DATA_DIR = os.environ.get("GSC_DATA_DIR")
+_DEFAULT_DB_PATH = (
+    str(Path(_DATA_DIR) / "cloud" / "gsc_cloud.db") if _DATA_DIR
+    else str(Path(os.path.expanduser("~/.gsc")) / "gsc_cloud.db")
+)
 DB_PATH = Path(os.environ.get("GSC_DB", _DEFAULT_DB_PATH))
 try:
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)

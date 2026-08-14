@@ -92,6 +92,16 @@ Finding GS005 (SQL Injection) — app.py:42
 | Не multi-writer store на SQLite | Production требует PostgreSQL (`GSC_DATABASE_URL`) |
 | Не даёт «вшитых» процентов точности | Цифры детекторов — через `gsc_meta.py`, не в маркетинге |
 
+### 🎯 Use cases
+
+1. **CI/CD gate** — GSC в PR-пайплайне: блокирует merge при новых CRITICAL/HIGH,
+   комментирует находки прямо в PR (`gsc github-pr-report`).
+2. **Self-healing** — вместо тикета на фикс GSC сам открывает verified PR
+   (`gsc pof batch --create-pr`), проверяя фикс Proof-of-Fix перед отправкой.
+3. **Security audit с доказательством** — для compliance/пентеста: каждая находка
+   с before/after PoC-доказательством (`gsc pof generate <key>`), которое можно
+   приложить к отчёту.
+
 ### 🥈 Self-Healing CI — automatic remediation PRs
 Wire GSC into CI. On every `CRITICAL`/`HIGH` finding, GSC runs Proof-of-Fix
 and — if the patch is verified — **opens a pull request with the fix**.

@@ -15,8 +15,14 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-DB_PATH = Path(os.environ.get(
-    "GSC_DB_PATH", str(Path.home() / ".hermes/state/gsc_audit.db")))
+# GSC roadmap 5.2: все пути через env. GSC_DB_PATH > GSC_DATA_DIR > XDG-совместимый
+# default (~/.hermes/state). GSC_DATA_DIR — общий data-корень для всех артефактов.
+_DATA_DIR = os.environ.get("GSC_DATA_DIR")
+_DEFAULT_DB = (
+    str(Path(_DATA_DIR) / "gsc_audit.db") if _DATA_DIR
+    else str(Path.home() / ".hermes/state/gsc_audit.db")
+)
+DB_PATH = Path(os.environ.get("GSC_DB_PATH", _DEFAULT_DB))
 TARGET_VERSION = 32
 
 # Canonical base schema (v1). These tables are the foundation every migration

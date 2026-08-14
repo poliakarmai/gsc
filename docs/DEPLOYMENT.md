@@ -99,3 +99,17 @@ in-process fallback для dev. В k8s worker развёрнут отдельн�
 - [ ] PostgreSQL + `schema_s1.sql` (RLS)
 - [ ] sandbox-образ собран; container runtime доступен на worker-нодах
 - [ ] `GSC_CORS_ORIGINS` — явный allowlist (без wildcard)
+
+## 9. Frontend (`apps/dashboard`)
+
+`apps/dashboard/` — это **отдельный frontend** (не входит в Python wheel, список
+`[tool.setuptools] py-modules` в `pyproject.toml` его не включает). Собирается и
+деплоится отдельно от API:
+
+```bash
+cd apps/dashboard && npm install && npm run build   # → static bundle
+```
+
+В k8s развёрнут как отдельный Deployment + Ingress (`k8s/base/05-dashboard-ingress.yaml`).
+Python wheel покрывает только CLI + API + модули сканирования.
+

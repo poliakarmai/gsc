@@ -43,14 +43,14 @@
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
 | 5.1 | Убрать import-time side effects (server.py не открывает DB при import) | ✅ | lazy JWT + `init_cloud_db()` (lifespan) |
-| 5.2 | Все paths через env/XDG (GSC_DATA_DIR, GSC_DB_PATH) | 🟡 | частично (GSC_DB есть) |
+| 5.2 | Все paths через env/XDG (GSC_DATA_DIR, GSC_DB_PATH) | ✅ | `GSC_DATA_DIR` + `GSC_DB_PATH`/`GSC_DB` |
 | 5.3 | Pin action по commit SHA | ✅ | GSC-008 |
 | 5.4 | release-manifest.json (commit, wheel hash, image digest, detectors, schema, test matrix) | ✅ | `scripts/gsc_release_manifest.py` |
 | 5.5 | CI job: build wheel → test install в clean venv → import → smoke | ✅ | `.github/workflows/ci.yml` (wheel job) |
 | 5.6 | Dockerfile pin base image digest | ✅ | шаг 5 |
-| 5.7 | SBOM (CycloneDX/SPDX) в CI | 🟡 | `scripts/gsc_release_sbom.py` есть; не в CI |
+| 5.7 | SBOM (CycloneDX/SPDX) в CI | ✅ | `ci.yml` → `scripts/gsc_release_sbom.py` |
 | 5.8 | CI matrix 3.10/3.11/3.12 | ✅ | `.github/workflows/ci.yml` (test matrix) |
-| 5.9 | apps/ → wheel или документировать | ⬜ | |
+| 5.9 | apps/ → wheel или документировать | ✅ | `DEPLOYMENT.md` §9 (apps/dashboard — отдельный frontend) |
 
 ## 6. Testing (4/10 → 8/10)
 
@@ -75,7 +75,7 @@
 | 2.2 | detector_contract.json | ✅ | `scripts/gsc_detector_matrix.py` |
 | 2.3 | Fixtures для 37+4 детекторов | ✅ | smoke: `tests/test_detector_registry.py` (37) |
 | 2.4 | `gsc doctor` (registry + fixtures + coverage matrix) | ✅ | `scripts/gsc_doctor.py` расширен |
-| 2.5 | OWASP Benchmark / Juliet | 🟡 | benchmark/ есть; прогон не зафиксирован |
+| 2.5 | OWASP Benchmark / Juliet | ✅ | прогон зафиксирован: `benchmark/owasp_results.json` (2740 cases) + `OWASP_PROCEDURE.md` |
 | 2.6 | Generated DETECTORS.md | ✅ | `DETECTORS.md` (gen: detector_matrix) |
 | 2.7 | Убрать hardcoded standalone=4 (считать динамически) | ✅ | `_count_standalone_engines()` |
 
@@ -92,7 +92,7 @@
 | 7.7 | PILOT_GUIDE.md | ✅ | `docs/PILOT_GUIDE.md` |
 | 7.8 | OpenAPI spec | ✅ | `docs/openapi.json` (14 endpoints) |
 | 7.9 | KNOWN_LIMITATIONS.md | ✅ | `docs/KNOWN_LIMITATIONS.md` |
-| 7.10 | Inline comments в критических модулях | 🟡 | частично |
+| 7.10 | Inline comments в критических модулях | ✅ | `gsc_pof_sandbox.py` (container policy, fail-closed, web PoC), `server.py` security-пути |
 
 ## 1. Идея / Positioning (8/10 → 9/10)
 
@@ -102,7 +102,7 @@
 | 1.2 | One-pager PDF | ⬜ |
 | 1.3 | Demo video | ⬜ |
 | 1.4 | «What GSC does NOT do» таблица | ✅ | README (Волна D) |
-| 1.5 | 3 use cases | ⬜ |
+| 1.5 | 3 use cases | ✅ | README «🎯 Use cases» (CI gate, self-healing, audit) |
 
 ## Приоритет внедрения (что делаем дальше)
 
