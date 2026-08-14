@@ -264,7 +264,11 @@ def extract_fixed_version(vuln: dict, package_name: str) -> Optional[str]:
     return fixed
 
 
-def sca_findings(packages: List[Package], osv_results: dict) -> List[dict]:
+_SEV_DOWNGRADE = {"CRITICAL": "HIGH", "HIGH": "MEDIUM", "MEDIUM": "LOW", "LOW": "LOW"}
+
+
+def sca_findings(packages: List[Package], osv_results: dict,
+                 usage: dict | None = None) -> List[dict]:
     findings = []
     for p in packages:
         if not p.version:
@@ -275,9 +279,33 @@ def sca_findings(packages: List[Package], osv_results: dict) -> List[dict]:
             severity, cvss = vuln_severity(vuln)
             fixed = extract_fixed_version(vuln, p.name)
             snippet = p.raw or f"{p.name}=={p.version}"
+
+            # Ф5 reachability: not-reachable → downgrade severity
+            reachable = True
+            original_severity = severity
+            if usage is not None:
+                from gsc_reachability import is_reachable
+                reachable = is_reachable(p.name, usage)
+                if not reachable:
+                    severity = _SEV_DOWNGRADE.get(severity, severity)
+
             finding_key = hashlib.sha256(
                 f"GS030-{vuln_id}{p.manifest}{snippet}".encode()
             ).hexdigest()[:12]
+            meta = {
+                "sca": {
+                    "package": p.name,
+                    "ecosystem": p.ecosystem,
+                    "current_version": p.version,
+                    "vuln_id": vuln_id,
+                    "cvss_score": cvss,
+                    "fixed_version": fixed,
+                    "aliases": vuln.get("aliases", []),
+                },
+                "reachability": "reachable" if reachable else "not_reachable",
+            }
+            if not reachable:
+                meta["original_severity"] = original_severity
             findings.append({
                 "finding_key": finding_key,
                 "rule_id": f"GS030-{vuln_id}",
@@ -287,17 +315,7 @@ def sca_findings(packages: List[Package], osv_results: dict) -> List[dict]:
                 "file_path": p.manifest,
                 "line_number": p.line,
                 "detail": snippet,
-                "metadata": {
-                    "sca": {
-                        "package": p.name,
-                        "ecosystem": p.ecosystem,
-                        "current_version": p.version,
-                        "vuln_id": vuln_id,
-                        "cvss_score": cvss,
-                        "fixed_version": fixed,
-                        "aliases": vuln.get("aliases", []),
-                    }
-                },
+                "metadata": meta,
             })
     return findings
 
@@ -334,9 +352,15 @@ def main() -> None:
         print("No dependency manifests found.")
         return
 
+    # Ф5 reachability: собрать импорты/вызовы из Python-кода
+    from gsc_reachability import collect_python_usage
+    usage = collect_python_usage(args.repo)
+
     print(f"📦 {len(packages)} packages in manifests")
+    print(f"🔍 Reachability: {len(usage.get('imports', []))} imported modules, "
+          f"{len(usage.get('calls', []))} called functions")
     results = query_osv(packages)
-    findings = sca_findings(packages, results)
+    findings = sca_findings(packages, results, usage=usage)
     findings.sort(key=lambda f: (-_sev_rank(f["severity"]), f["rule_id"]))
 
     if not findings:
@@ -347,9 +371,10 @@ def main() -> None:
     print("-" * 80)
     for f in findings:
         sca = f.get("metadata", {}).get("sca", {})
+        reach = f.get("metadata", {}).get("reachability", "?")
         print(f"{f['severity']:<10} {sca.get('package',''):<25} "
               f"{sca.get('current_version',''):<12} {sca.get('fixed_version','') or '?':<12} "
-              f"{sca.get('vuln_id','?')}")
+              f"{sca.get('vuln_id','?')} [{reach}]")
 
     print(f"\n{len(findings)} CVEs found")
     if args.json:
