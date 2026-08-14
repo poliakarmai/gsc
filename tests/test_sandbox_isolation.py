@@ -28,6 +28,15 @@ def test_isolation_backend_label():
     assert _isolation_backend() in ("docker", "podman", "rlimit")
 
 
+def test_is_container_isolation_helper():
+    from gsc_pof_sandbox import _is_container_isolation
+    assert _is_container_isolation("docker") is True
+    assert _is_container_isolation("podman") is True
+    assert _is_container_isolation("rlimit") is False
+    assert _is_container_isolation("") is False
+    assert _is_container_isolation("timeout") is False
+
+
 def test_python_poc_reports_isolation():
     sb = PoFSandbox()
     r = sb._execute('print("EXPLOITED")', "x = 1\n", fmt="python")
@@ -71,3 +80,21 @@ def test_container_runs_via_backend():
     finally:
         import shutil
         shutil.rmtree(wd, ignore_errors=True)
+
+
+@pytest.mark.skipif(
+    _isolation_backend() != "rlimit",
+    reason="container runtime present — fail-closed path not exercised",
+)
+def test_verify_fix_fail_closed_without_container():
+    """GSC-001: без docker/podman verify_fix НЕ должен давать verified=True.
+
+    rlimit-fallback — деградация, а не доказательство; «verified» резервируется
+    за OS-isolated выполнением (docker/podman)."""
+    sb = PoFSandbox()
+    vuln = "def f(x):\n    return eval(x)\n"
+    patched = "def f(x):\n    return x\n"
+    poc = "assert target.f('1+1') == 2\nprint('EXPLOITED')\n"
+    v = sb.verify_fix(vuln, patched, poc)
+    assert v.verified is False, f"fail-closed violated: reason={v.reason!r}"
+    assert "container runtime" in v.reason

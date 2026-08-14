@@ -54,7 +54,9 @@ runs:
       shell: bash
 
     - name: Install GSC
-      run: pip install git+https://github.com/poliakarmai/gsc.git@v1.3.0
+      # GSC-008: pin на immutable commit SHA, а не mutable tag @v1.3.0 —
+      # tag можно переместить, SHA нельзя. Обновлять при release.
+      run: pip install git+https://github.com/poliakarmai/gsc.git@b01853667ab281c6da0c70b67ce83f4893a4e5e7
       shell: bash
 
     - name: Run GSC Scan

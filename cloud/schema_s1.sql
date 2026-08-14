@@ -42,7 +42,7 @@ CREATE INDEX IF NOT EXISTS idx_scans_tenant ON scans(tenant_id, created_at);
 
 CREATE TABLE IF NOT EXISTS findings (
     id BIGSERIAL PRIMARY KEY,
-    tenant_id BIGINT NOT NULL,
+    tenant_id BIGINT NOT NULL REFERENCES tenants(id),
     scan_id BIGINT NOT NULL REFERENCES scans(id),
     finding_key TEXT NOT NULL,
     rule_id TEXT NOT NULL,
@@ -52,7 +52,9 @@ CREATE TABLE IF NOT EXISTS findings (
     metadata JSONB,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS idx_findings_tk ON findings(tenant_id, finding_key);
+-- GSC-005: композитная уникальность (tenant_id, finding_key) на уровне БД —
+-- гарантирует, что finding_key не «перескакивает» между тенантами.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_findings_tenant_key ON findings(tenant_id, finding_key);
 
 CREATE TABLE IF NOT EXISTS verdicts (
     id BIGSERIAL PRIMARY KEY,
@@ -73,10 +75,15 @@ CREATE TABLE IF NOT EXISTS usage (
     PRIMARY KEY (tenant_id, period)
 );
 
--- Row-Level Security: второй рубеж после tenant_id в запросах
+-- Row-Level Security: второй рубеж после tenant_id в запросах.
+-- GSC-005: FORCE ROW LEVEL SECURITY — RLS обязателен даже для table owner /
+-- superuser, иначе «второй рубеж» молча обходится владельцем таблиц.
 ALTER TABLE findings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE verdicts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scans    ENABLE ROW LEVEL SECURITY;
+ALTER TABLE findings FORCE ROW LEVEL SECURITY;
+ALTER TABLE verdicts FORCE ROW LEVEL SECURITY;
+ALTER TABLE scans    FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY tenant_findings ON findings
     USING (tenant_id = current_setting('app.tenant_id')::bigint);

@@ -98,8 +98,13 @@ def rescan_fix(repo_path: str, finding_key: str, detector_id: str = "") -> list[
 # ── Stage 2: Test Suite ──────────────────────────────────────────────
 
 def run_tests(repo_path: str, test_command: str = "") -> tuple[bool, str]:
-    """Run test suite on the fix branch. Returns (passed, output)."""
-    cmd = test_command or "make test || python3 -m pytest || npm test || true"
+    """Run test suite on the fix branch. Returns (passed, output).
+
+    GSC-002: без завершающего `|| true` — намеренно падающий test suite теперь
+    даёт passed=False, а не ложный success. Порядок fallback: make test → pytest
+    → npm test; если ни один runner не дал exit 0, результат — failed.
+    """
+    cmd = test_command or "make test || python3 -m pytest || npm test"
     try:
         result = subprocess.run(
             cmd, shell=True, capture_output=True, text=True, timeout=180,

@@ -531,7 +531,15 @@ def signup(github_user: str = Query(...)):
 
     Plan is assigned server-side only (default 'free'); billing/webhook may
     upgrade it later. Clients must not self-select a plan (audit S-01).
+
+    GSC-007 / S-08: при GSC_INVITE_ONLY=1 open signup отклоняется (fail-closed).
+    server.py runtime-схема не хранит invites (это enterprise schema_s3.sql),
+    поэтому в invite-only режиме выдачу ключей берёт на себя admin-issued
+    invite (cloud/user_auth.py) — оператор больше не получает «скрытый» open
+    signup, противоречащий заявленному invite-only onboarding.
     """
+    if os.environ.get("GSC_INVITE_ONLY", "0").lower() in ("1", "true", "yes"):
+        raise HTTPException(403, "This instance is invite-only. Ask an admin to invite you.")
     api_key, tid = create_tenant(github_user, "free")
     return {"api_key": api_key, "tenant_id": tid, "plan": "free", "message": "Save this key — it won't be shown again."}
 

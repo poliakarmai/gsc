@@ -111,21 +111,18 @@ requests:
   - method: GET
     path: ["{{BaseURL}}/"]
 """)
-        # Isolated DB for true idempotency test
-        import sqlite3
+        # Изолированная DB с ПОЛНОЙ схемой (через GSCDatabase), иначе миграция
+        # v28→v32 внутри GSCDatabase падает на отсутствующую comment_reactions
+        # (shared-state bug: ручной CREATE TABLE давал неполную схему).
+        from gsc_db import GSCDatabase
         iso_db = str(Path(d) / "iso.db")
-        conn = sqlite3.connect(iso_db)
-        conn.execute("CREATE TABLE IF NOT EXISTS schema_version (version INT)")
-        conn.execute("INSERT INTO schema_version VALUES (28)")
-        conn.execute("CREATE TABLE IF NOT EXISTS nuclei_templates (template_id TEXT PRIMARY KEY, name TEXT, severity TEXT, description TEXT, tags TEXT, requests TEXT, matchers TEXT)")
-        conn.execute("CREATE TABLE IF NOT EXISTS findings (finding_key TEXT PRIMARY KEY, rule_id TEXT, title TEXT, severity TEXT, confidence REAL, file TEXT, line INT, snippet TEXT)")
-        conn.commit(); conn.close()
+        with GSCDatabase(Path(iso_db)):
+            pass  # инициализация создаёт полную схему + все миграции
         import_nuclei_directory(str(d), db_path=iso_db)
         import_nuclei_directory(str(d), db_path=iso_db)  # duplicate
         templates = list_templates(db_path=iso_db)
         assert len(templates) == 1  # not duplicated
-import pytest
-run_case('idempotent import (xfail: shared DB state)', t5)
+run_case('idempotent import', t5)
 
 
 def t6():

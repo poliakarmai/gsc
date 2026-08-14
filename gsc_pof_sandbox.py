@@ -182,6 +182,11 @@ def _isolation_backend() -> str:
     return _backend_cache
 
 
+def _is_container_isolation(isolation: str) -> bool:
+    """True только для OS-level изоляции (docker/podman). rlimit/''/timeout — НЕ изоляция."""
+    return isolation in ("docker", "podman")
+
+
 def _run_isolated(cmd: list, workdir: str, timeout: int = SANDBOX_TIMEOUT):
     """Run `cmd` inside a disposable container with egress-deny, read-only
     rootfs, dropped capabilities, nobody UID and process/mem/cpu limits.
@@ -313,7 +318,18 @@ class PoFSandbox:
         if after.success:
             return FixVerification(verified=False, before=before, after=after, reason="PoC STILL triggers on patched code (fix incomplete)")
 
-        # Both passed → verified
+        # Step 3: fail-closed isolation gate (GSC-001). «Verified» допустимо только
+        # при OS-isolation (docker/podman). rlimit-fallback — это деградация, а не
+        # доказательство; для hostile/web PoC возвращаем NOT verified, а не ложный
+        # «verified» сигнал.
+        if not _is_container_isolation(before.isolation) or not _is_container_isolation(after.isolation):
+            return FixVerification(
+                verified=False, before=before, after=after,
+                reason=(f"verification requires container runtime (docker/podman); "
+                        f"isolation={before.isolation}/{after.isolation} — rlimit fallback is NOT OS-isolated")
+            )
+
+        # Both passed, fully isolated → verified
         return FixVerification(verified=True, before=before, after=after, reason="PoC triggers before fix, fails after fix")
 
     # ── Execute PoC in sandbox ────────────────────────────────────
