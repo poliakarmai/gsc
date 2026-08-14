@@ -46,15 +46,15 @@
 | Webhook: авто-скан каждого PR | ✅ `gsc-fork-safe.yml` (pull_request) |
 | PR comment с результатами | ✅ `upsert_comment` + `post-comment` |
 
-## 🟡 Фаза 5 — Reachability Analysis (SCA)
+## 🟢 Фаза 5 — Reachability Analysis (SCA)
 
 **Проблема:** GSC просто сравнивает версии с OSV.dev. Snyk показывает вызывается ли уязвимая функция.
 
 | Фича | Статус |
 |------|--------|
-| AST-анализ импортов Python | ⬜ |
-| Call graph: кто вызывает уязвимый код? | ⬜ |
-| dos-достижимости: «CVE в библиотеке, но ты не используешь уязвимую функцию» | ⬜ |
+| AST-анализ импортов Python | ✅ `gsc_reachability.py` (ImportVisitor/CallVisitor) |
+| Call graph: кто вызывает уязвимый код? | ✅ `check_reachability` (imported + called) |
+| dos-достижимости: «CVE в библиотеке, но ты не используешь уязвимую функцию» | ✅ not-reachable → downgrade severity (CRITICAL→HIGH→…) |
 | Поддержка JS/TS (npm) | 🟢 потом |
 
 ## 🟢 Фаза 6 — Dashboard с трендами
