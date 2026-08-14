@@ -698,6 +698,7 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         "total_scans": 0, "scans_today": 0, "total_findings": 0,
         "by_severity": {}, "by_rule": {}, "pr_feedback": [],
         "prs_created": 0, "prs_accepted": 0, "last_scan": None,
+        "trend": [], "fixed_count": 0,
     }
 
     try:
@@ -748,6 +749,29 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         except Exception:
             stats["by_rule"] = {}
 
+        # Trend (temporal): findings over the last 30 days (line chart)
+        stats["trend"] = []
+        try:
+            rows = db.execute(
+                "SELECT date(created_at) as d, COUNT(*) as cnt FROM findings "
+                "WHERE tenant_id = ? AND created_at >= datetime('now','-30 days') "
+                "GROUP BY date(created_at) ORDER BY d",
+                (tid,),
+            ).fetchall()
+            stats["trend"] = [{"date": r["d"], "count": r["cnt"]} for r in rows]
+        except Exception:
+            stats["trend"] = []
+
+        # Fixed count (audit DB — revalidation_verdict='fixed')
+        stats["fixed_count"] = 0
+        try:
+            if _audit_conn is not None:
+                stats["fixed_count"] = _audit_conn.execute(
+                    "SELECT COUNT(*) FROM findings WHERE revalidation_verdict = 'fixed'"
+                ).fetchone()[0]
+        except Exception:
+            stats["fixed_count"] = 0
+
         # PR feedback
         try:
             rows = db.execute("""
@@ -771,6 +795,7 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
     severity_json = _json_safe(stats["by_severity"])
     rule_json = _json_safe(stats["by_rule"])
     pr_json = _json_safe(stats["pr_feedback"])
+    trend_json = _json_safe(stats["trend"])
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
@@ -811,6 +836,7 @@ canvas {{ max-height: 250px; }}
             <div class="stat"><div class="value" id="scans">{stats['total_scans']}</div><div class="label">Total Scans</div></div>
             <div class="stat"><div class="value" id="scansToday">{stats['scans_today']}</div><div class="label">Today</div></div>
             <div class="stat"><div class="value" id="prs">{stats['prs_created']}</div><div class="label">PRs Created</div></div>
+            <div class="stat"><div class="value" style="color:#3fb950" id="fixed">{stats['fixed_count']}</div><div class="label">Fixed</div></div>
         </div>
         <div class="last-scan" id="lastScan">{f"Last: {stats['last_scan']['project']} ({stats['last_scan']['findings']} findings)" if stats.get('last_scan') else ""}</div>
     </div>
@@ -831,6 +857,10 @@ canvas {{ max-height: 250px; }}
     <div class="card">
         <h2>🔝 Top Detectors</h2>
         <canvas id="barChart"></canvas>
+    </div>
+    <div class="card">
+        <h2>📈 Trend (30 days)</h2>
+        <canvas id="trendChart"></canvas>
     </div>
     <div class="card">
         <h2>🔄 PR Feedback</h2>
@@ -883,6 +913,26 @@ if (ruleData && Object.keys(ruleData).length > 0) {{
             indexAxis: 'y',
             plugins: {{ legend: {{ labels: {{ color: '#c9d1d9' }} }} }}
         }}
+    }});
+}}
+
+// Trend line chart
+const trendData = {trend_json};
+if (trendData && trendData.length > 0) {{
+    new Chart(document.getElementById('trendChart'), {{
+        type: 'line',
+        data: {{
+            labels: trendData.map(d => d.date),
+            datasets: [{{
+                label: 'Findings',
+                data: trendData.map(d => d.count),
+                borderColor: '#3fb950',
+                backgroundColor: 'rgba(63,185,80,0.1)',
+                fill: true,
+                tension: 0.3
+            }}]
+        }},
+        options: {{ plugins: {{ legend: {{ labels: {{ color: '#c9d1d9' }} }} }} }}
     }});
 }}
 
