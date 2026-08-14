@@ -72,7 +72,20 @@ Finding GS005 (SQL Injection) — app.py:42
 > без него GSC деградирует в rlimit (CPU/mem limits без filesystem/network namespace) и
 > помечает результат **NOT verified** (fail-closed) — не «verified». PoF-пайплайн
 > **Python-first** (JS/TS — roadmap). Для **hostile/repository code** обязателен
-> container/VM backend — см. threat model в `docs/DUE_DILIGENCE_v2.md`.
+> container/VM backend — см. `docs/THREAT_MODEL.md`.
+
+### 🚫 What GSC does NOT do
+
+Честные границы продукта (подробнее — `docs/KNOWN_LIMITATIONS.md`):
+
+| GSC НЕ делает | Что это значит |
+|---------------|----------------|
+| Не заменяет ручной pentest | Автоматизация покрывает только то, что видят детекторы + PoC |
+| Не гарантирует 100% precision | CRITICAL precision ~8–12% на реальных проектах; свой замер обязателен |
+| Не исполняет PoF без изоляции | Нет container runtime → `NOT verified`, а не ложный «verified» |
+| Не полноценный PoF для JS/TS | Python-first; JS/TS PoC — roadmap |
+| Не multi-writer store на SQLite | Production требует PostgreSQL (`GSC_DATABASE_URL`) |
+| Не даёт «вшитых» процентов точности | Цифры детекторов — через `gsc_meta.py`, не в маркетинге |
 
 ### 🥈 Self-Healing CI — automatic remediation PRs
 Wire GSC into CI. On every `CRITICAL`/`HIGH` finding, GSC runs Proof-of-Fix

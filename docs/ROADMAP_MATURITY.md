@@ -84,14 +84,14 @@
 | # | Задача | Статус | Примечание |
 |---|--------|--------|------------|
 | 7.1 | Generated README section (count/version/schema из gsc_meta) | ⬜ | |
-| 7.2 | ARCHITECTURE.md | ⬜ | |
-| 7.3 | THREAT_MODEL.md | 🟡 | threat model в DUE_DILIGENCE_v2.md; отдельного файла нет |
-| 7.4 | DEPLOYMENT.md | ⬜ | |
+| 7.2 | ARCHITECTURE.md | ✅ | `docs/ARCHITECTURE.md` |
+| 7.3 | THREAT_MODEL.md | ✅ | `docs/THREAT_MODEL.md` |
+| 7.4 | DEPLOYMENT.md | ✅ | `docs/DEPLOYMENT.md` |
 | 7.5 | CHANGELOG.md (Keep a Changelog) | ⬜ | |
-| 7.6 | Убрать unverified accuracy numbers | ✅ | README disclosure (шаг 6) |
-| 7.7 | PILOT_GUIDE.md | ⬜ | |
-| 7.8 | OpenAPI spec | ⬜ | |
-| 7.9 | KNOWN_LIMITATIONS.md | ⬜ | |
+| 7.6 | Убрать unverified accuracy numbers | ✅ | README disclosure + «does NOT do» таблица |
+| 7.7 | PILOT_GUIDE.md | ✅ | `docs/PILOT_GUIDE.md` |
+| 7.8 | OpenAPI spec | ✅ | `docs/openapi.json` (14 endpoints) |
+| 7.9 | KNOWN_LIMITATIONS.md | ✅ | `docs/KNOWN_LIMITATIONS.md` |
 | 7.10 | Inline comments в критических модулях | 🟡 | частично |
 
 ## 1. Идея / Positioning (8/10 → 9/10)
