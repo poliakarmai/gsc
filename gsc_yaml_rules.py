@@ -12,7 +12,7 @@ Usage:
     python3 gsc_yaml_rules.py registry update  # обновить из GitHub
 """
 
-import hashlib, json, os, re, sys, yaml
+import hashlib, json, os, re, subprocess, sys, yaml
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
@@ -52,6 +52,57 @@ SEVERITY_MAP = {
 }
 
 
+def semgrep_pattern_to_regex(pattern: str) -> str:
+    """Translate Semgrep pattern syntax into a best-effort regex.
+
+    Supported constructs:
+      $X        → metavariable (identifier/expression)
+      $...ARGS  → spread (zero+ arguments)
+      ...       → ellipsis (zero+ of anything, incl. newlines)
+      /regex/   → inline regex literal (pass-through)
+      literals  → regex-escaped
+
+    This is an APPROXIMATION: Semgrep matches on the AST, we match on source
+    text. Good enough for the common community rules (function calls, imports,
+    assignments), not for deep structural patterns. Precision-first: metavars
+    match identifier-like text, not arbitrary expressions.
+    """
+    stripped = pattern.strip()
+    # Inline regex literal: /.../ → pass-through
+    if len(stripped) >= 2 and stripped.startswith("/") and stripped.endswith("/"):
+        return stripped[1:-1]
+
+    out: list[str] = []
+    i, n = 0, len(pattern)
+    while i < n:
+        c = pattern[i]
+        # spread: $...ARGS
+        if c == "$" and pattern.startswith("$...", i):
+            j = i + 4
+            while j < n and (pattern[j].isalnum() or pattern[j] == "_"):
+                j += 1
+            out.append(r"[\s\S]*?")
+            i = j
+            continue
+        # metavariable: $X
+        if c == "$" and i + 1 < n and (pattern[i + 1].isalpha() or pattern[i + 1] == "_"):
+            j = i + 1
+            while j < n and (pattern[j].isalnum() or pattern[j] == "_"):
+                j += 1
+            out.append(r"[\w.]+")
+            i = j
+            continue
+        # ellipsis: ...
+        if pattern.startswith("...", i):
+            out.append(r"[\s\S]*?")
+            i += 3
+            continue
+        # literal
+        out.append(re.escape(c))
+        i += 1
+    return "".join(out)
+
+
 class YamlRule:
     """Compiled YAML rule ready for GSC."""
     def __init__(self, rule_dict: dict, source_file: str = ""):
@@ -68,21 +119,40 @@ class YamlRule:
         # Parse patterns
         self.patterns: List[Tuple[str, str]] = []
 
-        # Semgrep-style: single `pattern` or `pattern-regex`
+        # Semgrep-style: single `pattern` (compiled to regex) or `pattern-regex` (raw)
         if "pattern" in rule_dict:
-            self.patterns.append((rule_dict["pattern"], self.message))
+            self.patterns.append(
+                (semgrep_pattern_to_regex(rule_dict["pattern"]), self.message))
         elif "pattern-regex" in rule_dict:
             self.patterns.append((rule_dict["pattern-regex"], self.message))
 
-        # GSC-style: `patterns` list
+        # Semgrep-style: `pattern-either` — OR of alternatives
+        for alt in rule_dict.get("pattern-either", []):
+            if isinstance(alt, dict):
+                if "pattern" in alt:
+                    self.patterns.append(
+                        (semgrep_pattern_to_regex(alt["pattern"]), self.message))
+                elif "pattern-regex" in alt:
+                    self.patterns.append((alt["pattern-regex"], self.message))
+            elif isinstance(alt, str):
+                self.patterns.append(
+                    (semgrep_pattern_to_regex(alt), self.message))
+
+        # GSC-style `patterns` list AND Semgrep AND-list (`patterns:`).
         for p in rule_dict.get("patterns", []):
             if isinstance(p, str):
                 self.patterns.append((p, self.message))
             elif isinstance(p, dict):
-                regex = p.get("regex") or p.get("pattern-regex") or p.get("pattern", "")
-                title = p.get("title") or p.get("message") or self.message
-                if regex:
-                    self.patterns.append((regex, title))
+                # Semgrep AND-operator: positive `pattern` → compile
+                if "pattern" in p:
+                    self.patterns.append(
+                        (semgrep_pattern_to_regex(p["pattern"]), self.message))
+                elif "pattern-regex" in p:
+                    self.patterns.append((p["pattern-regex"], self.message))
+                # GSC-style: `regex` + optional title
+                elif "regex" in p:
+                    title = p.get("title") or p.get("message") or self.message
+                    self.patterns.append((p["regex"], title))
 
         # Validate
         if not self.patterns:
@@ -231,6 +301,48 @@ def create_sample_rule():
     }
 
 
+def update_registry(source: str, output_dir: str = "gsc_detectors/yaml_rules") -> int:
+    """Import community rules from a Semgrep registry (directory or git URL).
+
+    Clones a git URL into a temp dir if needed, compiles every rule our
+    best-effort compiler supports (pattern / pattern-regex / pattern-either),
+    and writes them as Python detectors. Rules using unsupported Semgrep
+    operators (pattern-not, metavariable-regex, taint) are skipped.
+    """
+    import shutil
+    import tempfile
+
+    src = Path(source)
+    tmp = None
+    if source.startswith(("http://", "https://", "git@")):
+        tmp = Path(tempfile.mkdtemp(prefix="gsc-registry-"))
+        print(f"⬇️  Cloning {source} ...")
+        r = subprocess.run(
+            ["git", "clone", "--depth", "1", "--filter=blob:none",
+             source, str(tmp)], timeout=300)
+        if r.returncode != 0:
+            print("❌ clone failed")
+            shutil.rmtree(tmp, ignore_errors=True)
+            return 1
+        src = tmp
+
+    if not src.exists():
+        print(f"❌ {source}: not found")
+        return 1
+
+    rules = compile_rules(str(src))
+    if not rules:
+        print("❌ No compilable rules found")
+        return 1
+
+    compile_and_write(rules, output_dir)
+    print(f"📦 {len(rules)} community rules imported → {output_dir}/")
+
+    if tmp:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return 0
+
+
 # ── CLI ──────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -245,6 +357,13 @@ if __name__ == "__main__":
 
     init_ap = sub.add_parser("init", help="Create sample rule file")
     init_ap.add_argument("-o", "--output", default="gsc-rules/sample.yml")
+
+    reg_ap = sub.add_parser("registry", help="Manage the rule registry")
+    reg_sub = reg_ap.add_subparsers(dest="reg_command")
+    reg_update = reg_sub.add_parser(
+        "update", help="Import community rules from a directory or git URL")
+    reg_update.add_argument("source", help="Path or git URL to a Semgrep rules registry")
+    reg_update.add_argument("-o", "--output", default="gsc_detectors/yaml_rules")
 
     args = ap.parse_args()
 
@@ -261,6 +380,9 @@ if __name__ == "__main__":
         out.write_text(yaml.dump(create_sample_rule(), default_flow_style=False, allow_unicode=True))
         print(f"✅ Sample rules → {out}")
         print(f"   Compile: python3 gsc_yaml_rules.py compile {out}")
+
+    elif args.command == "registry" and getattr(args, "reg_command", None) == "update":
+        sys.exit(update_registry(args.source, args.output))
 
     else:
         ap.print_help()

@@ -11,9 +11,15 @@ def make_finding(rule_id: str, title: str, severity: str, confidence: float,
         warnings.warn(f"make_finding: empty rule_id — skipped. title={title!r} file={file!r}")
         return None  # caller must handle: if f is None → skip
     key = hashlib.sha256(f"{rule_id}{file}{snippet}".encode()).hexdigest()[:12]
+    # Contract: downstream (gsc_external.py) reads file_path / line_number / detail
+    # and category. Emit BOTH the canonical keys and the legacy aliases so
+    # nothing depending on the old names breaks.
     return {"finding_key": key, "rule_id": rule_id, "title": title,
-            "severity": severity, "confidence": confidence, "file": file,
-            "line": line, "snippet": snippet[:200], "metadata": metadata or {}}
+            "severity": severity, "category": severity, "confidence": confidence,
+            "file_path": file, "file": file,
+            "line_number": line, "line": line,
+            "detail": snippet[:200], "snippet": snippet[:200],
+            "metadata": metadata or {}}
 
 
 class BaseDetector:
