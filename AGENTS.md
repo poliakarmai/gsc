@@ -34,7 +34,7 @@ gsc/
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
 ├── gsc_ast_dataflow.py           ← Python taint tracking
 ├── gsc_revalidate.py             ← Structured revalidator
-├── gsc_db.py                     ← SQLite, schema 31, auto-migrate
+├── gsc_db.py                     ← SQLite, schema 32, auto-migrate
 ├── gsc_compliance.py             ← 🆕 CWE/OWASP/PCI mapping
 ├── gsc_sca.py                    ← 🆕 SCA via OSV.dev
 ├── gsc_epss.py                   ← 🆕 EPSS exploitability
@@ -59,11 +59,11 @@ gsc/
 ├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
 ├── cloud/                        ← SaaS S1–S4 (auth, billing, tenancy, SSO, marketplace, worker, federated_server)
-├── tests/                        ← 188 тестов (18+ файлов)
+├── tests/                        ← 230 тестов (55 файлов)
 └── PROJECT.md AGENTS.md README.md
 ```
 
-DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 31)
+DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 32)
 
 ## Precision (август 2026)
 
@@ -109,7 +109,7 @@ python3 gsc.py policy add "no secrets in logs"
 secret_sightings, nuclei_templates, dast_findings, sca_cache, federated_global_weights,
 federated_deactivated, federated_log, epss_cache, schema_version... (31 таблица)
 
-Миграции: v23→v24→v25→v26→v27→v28→v29→v30→v31, авто, backup, WAL, идемпотентно.
+Миграции: v23→v24→v25→v26→v27→v28→v29→v30→v31→v32, авто, backup, WAL, идемпотентно.
 
 ## Self-Learning
 
