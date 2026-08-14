@@ -187,6 +187,35 @@ def _is_container_isolation(isolation: str) -> bool:
     return isolation in ("docker", "podman")
 
 
+_sandbox_flask_cache: bool | None = None
+
+
+def _sandbox_image_has_flask() -> bool:
+    """Есть ли flask в sandbox-образе (нужен для web PoC в container).
+
+    GSC roadmap 3.2: web PoC в container требует, чтобы образ умел поднимать
+    Flask/FastAPI target server. Если flask отсутствует — container path для web
+    PoC недоступен и используется host-side rlimit fallback (с честной пометкой
+    isolation=rlimit, которую затем отсекает fail-closed gate в verify_fix).
+    """
+    global _sandbox_flask_cache
+    if _sandbox_flask_cache is not None:
+        return _sandbox_flask_cache
+    backend = _isolation_backend()
+    if backend == "rlimit":
+        _sandbox_flask_cache = False
+        return False
+    try:
+        r = subprocess.run(
+            [backend, "run", "--rm", SANDBOX_IMAGE, "python3", "-c", "import flask"],
+            capture_output=True, timeout=30,
+        )
+        _sandbox_flask_cache = r.returncode == 0
+    except Exception:
+        _sandbox_flask_cache = False
+    return _sandbox_flask_cache
+
+
 def _run_isolated(cmd: list, workdir: str, timeout: int = SANDBOX_TIMEOUT):
     """Run `cmd` inside a disposable container with egress-deny, read-only
     rootfs, dropped capabilities, nobody UID and process/mem/cpu limits.
@@ -441,6 +470,66 @@ class PoFSandbox:
             pass
         return None
 
+    def _prepare_serve_files(self, workdir: Path, target_code: str,
+                             project_dir: str | None):
+        """Подготовить файлы web-таргета БЕЗ host-side запуска.
+
+        GSC roadmap 3.2: чтобы запустить target server + PoC в ОДНОМ container,
+        нужно только подготовить файлы (serve.py + target), а сам процесс
+        стартует внутри контейнера. Возвращает (serve_cmd, port, env) или None.
+        """
+        import os
+        if project_dir and os.path.isdir(project_dir):
+            found = _find_web_entrypoint(project_dir)
+            if found:
+                fw, mod = found
+                port = _free_port()
+                target_dir = workdir / "project"
+                try:
+                    os.symlink(project_dir, target_dir, target_is_directory=True)
+                except Exception:
+                    import shutil
+                    shutil.copytree(project_dir, target_dir, symlinks=True,
+                                    ignore=shutil.ignore_patterns(
+                                        '.git', 'node_modules', 'venv', '.venv',
+                                        'build', 'dist', '__pycache__', '.next'))
+                if fw == "fastapi":
+                    wrapper = (f"import uvicorn\nfrom {mod} import app\n"
+                               f"uvicorn.run(app, host='127.0.0.1', port={port}, log_level='error')\n")
+                else:
+                    wrapper = (f"from {mod} import app\napp.run(host='127.0.0.1', port={port})\n")
+                (workdir / "serve.py").write_text(wrapper)
+                return "serve.py", port, {"PYTHONPATH": "project"}
+        if target_code.strip():
+            fw = _detect_framework(target_code)
+            if fw is not None:
+                port = _free_port()
+                (workdir / "target_app.py").write_text(target_code)
+                (workdir / "serve.py").write_text(SERVE_TEMPLATES[fw].format(port=port))
+                return "serve.py", port, {}
+        return None
+
+    def _run_web_poc_container(self, script: str, serve_cmd: str, port: int,
+                               env: dict, workdir: Path) -> tuple:
+        """Запустить target server + curl PoC внутри одного container (GSC 3.2).
+
+        Собирает run_web.sh: старт serve.py в фоне → ожидание готовности →
+        PoC (poc.sh) → kill server. Весь цикл — внутри disposable container
+        (--network none), так что hostile target не имеет доступа ни к host,
+        ни к внешней сети.
+        """
+        (workdir / "poc.sh").write_text(script)
+        env_prefix = " ".join(f"export {k}={v};" for k, v in env.items()) + " " if env else ""
+        run_script = (
+            f"{env_prefix}python3 {serve_cmd} & SERVER_PID=$!; "
+            f"for i in $(seq 1 40); do curl -s -o /dev/null http://127.0.0.1:{port} 2>/dev/null && break; sleep 0.25; done; "
+            f"bash poc.sh; RC=$?; kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null; exit $RC"
+        )
+        proc, isolation = _run_isolated(["bash", "-c", run_script], str(workdir))
+        if proc is None:
+            return None, "rlimit"
+        return proc, isolation
+
     def _run_shell_child(self, script: str, workdir: Path) -> tuple:
         """Run a shell snippet under the best available isolation (GSC-002)."""
         if _isolation_backend() != "rlimit":
@@ -467,38 +556,51 @@ class PoFSandbox:
         server = None
         try:
             script = poc_code
-            if "TARGET_URL" in script:
-                served = None
-                if project_dir and os.path.isdir(project_dir):
-                    served = self._serve_project(project_dir, workdir)
-                if served is None and target_code.strip():
-                    served = self._serve_target(target_code, workdir)
-                if served is not None:
-                    server, url = served
-                    script = script.replace("TARGET_URL", url)
             t0 = time.time()
             try:
-                if "TARGET_URL" in poc_code:
-                    # Web PoC: the live target server runs host-side (rlimit path)
-                    # so the curl PoC can reach it. Non-web PoCs get full
-                    # container isolation instead.
-                    proc = subprocess.run(
-                        ["bash", "-c", script],
-                        capture_output=True, text=True,
-                        timeout=SANDBOX_TIMEOUT,
-                        cwd=str(workdir),
-                        env=_sandbox_env(str(workdir)),
-                        preexec_fn=_sandbox_limits_shell,
-                    )
+                if "TARGET_URL" in script:
+                    # GSC roadmap 3.2: target server + PoC в ОДНОМ disposable
+                    # container (--network none). Host-side — только fallback,
+                    # когда container runtime/image недоступен или без flask.
+                    use_container = (_isolation_backend() != "rlimit"
+                                     and _sandbox_image_has_flask())
+                    proc = None
                     isolation = "rlimit"
+                    if use_container:
+                        prep = self._prepare_serve_files(workdir, target_code, project_dir)
+                        if prep is not None:
+                            serve_cmd, port, env = prep
+                            script = script.replace("TARGET_URL", f"http://127.0.0.1:{port}")
+                            proc, isolation = self._run_web_poc_container(
+                                script, serve_cmd, port, env, workdir)
+                    if proc is None:
+                        # host-side rlimit fallback: server + curl на host
+                        script = poc_code
+                        served = None
+                        if project_dir and os.path.isdir(project_dir):
+                            served = self._serve_project(project_dir, workdir)
+                        if served is None and target_code.strip():
+                            served = self._serve_target(target_code, workdir)
+                        if served is not None:
+                            server, url = served
+                            script = script.replace("TARGET_URL", url)
+                        proc = subprocess.run(
+                            ["bash", "-c", script],
+                            capture_output=True, text=True,
+                            timeout=SANDBOX_TIMEOUT,
+                            cwd=str(workdir),
+                            env=_sandbox_env(str(workdir)),
+                            preexec_fn=_sandbox_limits_shell,
+                        )
+                        isolation = "rlimit"
                 else:
                     proc, isolation = self._run_shell_child(script, workdir)
-                elapsed = time.time() - t0
             except subprocess.TimeoutExpired:
                 return SandboxResult(success=False, exit_code=-1, stdout="",
                                      stderr=f"TIMEOUT after {SANDBOX_TIMEOUT}s",
                                      elapsed=SANDBOX_TIMEOUT, error="timeout",
                                      isolation="timeout")
+            elapsed = time.time() - t0
             stdout = proc.stdout[:MAX_OUTPUT_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BYTES]
             # NOT_EXPLOITED содержит EXPLOITED — отсекаем ложный success-маркер

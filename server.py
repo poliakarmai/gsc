@@ -50,10 +50,11 @@ def get_backend(tenant_id: Optional[int] = None):
     return SqliteBackend(str(DB_PATH))
 
 
-# NOTE (audit A-07): this is a single global backend intended for
-# single-process / single-worker local mode. For multi-tenant production use
-# a per-request backend (FastAPI dependency) or PostgreSQL; SQLite is not
-# a concurrent multi-writer store.
+# GSC roadmap 4.7: этот global backend используется ТОЛЬКО для startup/init
+# (ensure_cloud_schema, миграции) и как fallback в helper'ах вне request context
+# (db=None). Все request-пути получают свой backend через get_db() — per-request,
+# tenant-scoped (PgBackend при GSC_DATABASE_URL). SQLite — не concurrent
+# multi-writer store, поэтому global conn для request-путей убран.
 conn = get_backend()
 
 # ── GitHub OAuth config ──
@@ -241,15 +242,20 @@ _migrate_findings_composite_key()
 # Auth
 # ═══════════════════════════════════════════════════════════
 
-def create_tenant(name: str, plan: str = "free") -> tuple[str, int]:
-    """Create tenant + API key. Returns (api_key, tenant_id)."""
-    tid = conn.insert_id(
+def create_tenant(name: str, plan: str = "free", db=None) -> tuple[str, int]:
+    """Create tenant + API key. Returns (api_key, tenant_id).
+
+    GSC roadmap 4.7: db — request-scoped backend (get_db); fallback на bootstrap
+    conn только для startup/init путей.
+    """
+    db = db or conn
+    tid = db.insert_id(
         "INSERT INTO tenants (name, plan) VALUES (?, ?) RETURNING id",
         (name, plan)
     )
     raw_key = "gsk_" + secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
-    conn.execute(
+    db.execute(
         "INSERT INTO api_keys (tenant_id, key_hash, key_prefix) VALUES (?, ?, ?)",
         (tid, key_hash, raw_key[:8])
     )
@@ -306,26 +312,28 @@ def get_tenant_from_key(
         raise HTTPException(401, "Invalid API key")
     return tid
 
-def create_session(tenant_id: int, github_user: str) -> str:
+def create_session(tenant_id: int, github_user: str, db=None) -> str:
     """Create JWT session token. Returns token string."""
+    db = db or conn
     expires = datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)
     token = jwt.encode(
         {"tenant_id": tenant_id, "github_user": github_user, "exp": expires},
         JWT_SECRET, algorithm=JWT_ALGORITHM
     )
-    conn.execute(
+    db.execute(
         "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,?)",
         (token, tenant_id, github_user, expires.isoformat())
     )
     return token
 
-def verify_session(token: str) -> Optional[int]:
+def verify_session(token: str, db=None) -> Optional[int]:
     """Return tenant_id from session token or None."""
+    db = db or conn
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         # Also verify in DB (revocation support) — portable timestamp compare
         now = datetime.now(timezone.utc).isoformat()
-        row = conn.fetchone(
+        row = db.fetchone(
             "SELECT tenant_id FROM sessions WHERE token=? AND expires_at > ?",
             (token, now)
         )
@@ -424,7 +432,7 @@ def health():
 
 
 @app.get("/ready")
-def ready():
+def ready(db=Depends(get_db)):
     """Readiness probe: проверяет реальную DB connectivity (не stat файла).
 
     GSC roadmap 4.9: Kubernetes/Docker readiness gate — если БД недоступна,
@@ -432,7 +440,7 @@ def ready():
     показывает liveness без проверки БД).
     """
     try:
-        conn.fetchone("SELECT 1")
+        db.fetchone("SELECT 1")
         return {"status": "ready", "db": "ok"}
     except Exception as e:
         raise HTTPException(503, f"database not reachable: {e}")
@@ -442,8 +450,8 @@ def ready():
 # ═══════════════════════════════════════════════════════════
 
 @app.post("/api/v2/scan", status_code=202)
-async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
-    tid = verify_api_key(req.api_key)
+async def scan(req: ScanRequest, background_tasks: BackgroundTasks, db=Depends(get_db)):
+    tid = verify_api_key(req.api_key, db)
     if tid is None:
         raise HTTPException(401, "Invalid API key")
 
@@ -454,19 +462,19 @@ async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
 
     # Atomic quota reservation (audit C-06): claim a slot only if under limit.
     # UPDATE ... WHERE scans_used < limit closes the check-then-act race.
-    tenant = conn.fetchone("SELECT plan FROM tenants WHERE id=?", (tid,))
+    tenant = db.fetchone("SELECT plan FROM tenants WHERE id=?", (tid,))
     if not tenant:
         raise HTTPException(404, "Tenant not found")
     limits = {"free": 10, "pro": 100, "team": 500, "enterprise": 99999}
     max_scans = limits.get(tenant["plan"], 10)
     # Atomic quota reservation (audit C-06): execute returns rowcount
-    if conn.execute(
+    if db.execute(
         "UPDATE tenants SET scans_used = scans_used + 1 WHERE id=? AND scans_used < ?",
         (tid, max_scans)
     ) == 0:
         raise HTTPException(429, f"Monthly scan limit ({max_scans}) reached. Upgrade to Pro.")
 
-    conn.execute(
+    db.execute(
         "INSERT INTO scan_jobs (id, tenant_id, target, profile, status) VALUES (?,?,?,?,'queued')",
         (scan_id, tid, req.target, req.profile)
     )
@@ -477,56 +485,64 @@ async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
 
 
 def _run_scan(scan_id: str, tid: int, target: str, profile: str):
-    """Background scan worker: clone + scan + store. Never raises to the client."""
-    conn.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
-    findings = []
+    """Background scan worker: clone + scan + store. Never raises to the client.
+
+    GSC roadmap 4.7: background task не имеет request context — использует свой
+    tenant-scoped backend (PgBackend(tid) при GSC_DATABASE_URL), а не global conn.
+    """
+    db = get_backend(tid)
     try:
-        with tempfile.TemporaryDirectory() as tmp:
-            # Clone shallow
-            clone = subprocess.run(
-                ["git", "clone", "--depth", "1", "--filter=blob:none", target, tmp],
-                capture_output=True, timeout=60
-            )
-            if clone.returncode != 0:
-                raise RuntimeError(f"Clone failed: {clone.stderr.decode()[:100]}")
+        db.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
+        findings = []
+        try:
+            with tempfile.TemporaryDirectory() as tmp:
+                # Clone shallow
+                clone = subprocess.run(
+                    ["git", "clone", "--depth", "1", "--filter=blob:none", target, tmp],
+                    capture_output=True, timeout=60
+                )
+                if clone.returncode != 0:
+                    raise RuntimeError(f"Clone failed: {clone.stderr.decode()[:100]}")
 
-            # Scan
-            result = subprocess.run(
-                ["python3", str(GSC_DIR / "gsc.py"), "scan", tmp, "--ci", "--json"],
-                capture_output=True, text=True, timeout=120
-            )
-            if result.returncode == 0 and result.stdout.strip():
-                stdout_clean = result.stdout.strip()
-                json_start = stdout_clean.find('[')
-                if json_start > 0:
-                    stdout_clean = stdout_clean[json_start:]
-                findings = json.loads(stdout_clean) if stdout_clean else []
-                if not isinstance(findings, list):
-                    findings = []
+                # Scan
+                result = subprocess.run(
+                    ["python3", str(GSC_DIR / "gsc.py"), "scan", tmp, "--ci", "--json"],
+                    capture_output=True, text=True, timeout=120
+                )
+                if result.returncode == 0 and result.stdout.strip():
+                    stdout_clean = result.stdout.strip()
+                    json_start = stdout_clean.find('[')
+                    if json_start > 0:
+                        stdout_clean = stdout_clean[json_start:]
+                    findings = json.loads(stdout_clean) if stdout_clean else []
+                    if not isinstance(findings, list):
+                        findings = []
 
-        # Store findings
-        for f in findings[:500]:  # cap at 500
-            nf = _normalize_finding(f)
-            conn.execute(
-                """INSERT INTO findings
-                   (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id)
-                   VALUES (?,?,?,?,?,?,?,?,?)
-                   ON CONFLICT(tenant_id, finding_key) DO UPDATE SET
-                     rule_id=excluded.rule_id, title=excluded.title,
-                     severity=excluded.severity, confidence=excluded.confidence,
-                     file=excluded.file, line=excluded.line, snippet=excluded.snippet""",
-                (nf["finding_key"], nf["rule_id"], nf["title"],
-                 nf["severity"], nf["confidence"], nf["file"],
-                 nf["line"], nf["snippet"], tid)
-            )
+            # Store findings
+            for f in findings[:500]:  # cap at 500
+                nf = _normalize_finding(f)
+                db.execute(
+                    """INSERT INTO findings
+                       (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id)
+                       VALUES (?,?,?,?,?,?,?,?,?)
+                       ON CONFLICT(tenant_id, finding_key) DO UPDATE SET
+                         rule_id=excluded.rule_id, title=excluded.title,
+                         severity=excluded.severity, confidence=excluded.confidence,
+                         file=excluded.file, line=excluded.line, snippet=excluded.snippet""",
+                    (nf["finding_key"], nf["rule_id"], nf["title"],
+                     nf["severity"], nf["confidence"], nf["file"],
+                     nf["line"], nf["snippet"], tid)
+                )
 
-        conn.execute(
-            "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=? WHERE id=?",
-            (len(findings), datetime.now(timezone.utc).isoformat(), scan_id)
-        )
-    except Exception as e:
-        conn.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
-        print(f"[scan {scan_id}] failed: {e}", flush=True)
+            db.execute(
+                "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=? WHERE id=?",
+                (len(findings), datetime.now(timezone.utc).isoformat(), scan_id)
+            )
+        except Exception as e:
+            db.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
+            print(f"[scan {scan_id}] failed: {e}", flush=True)
+    finally:
+        db.close()
 
 # ═══════════════════════════════════════════════════════════
 # Findings
@@ -538,6 +554,7 @@ def findings(
     rule_id: str = Query(None),
     limit: int = Query(50, le=500),
     tid: int = Depends(get_tenant_from_key),
+    db=Depends(get_db),
 ):
     sql = "SELECT * FROM findings WHERE tenant_id = ?"
     params: list = [tid]
@@ -552,7 +569,7 @@ def findings(
     sql += " ORDER BY severity DESC, created_at DESC LIMIT ?"
     params.append(limit)
 
-    rows = conn.query(sql, params)
+    rows = db.query(sql, params)
     return {"findings": [dict(r) for r in rows], "count": len(rows)}
 
 # ═══════════════════════════════════════════════════════════
@@ -560,8 +577,8 @@ def findings(
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/v2/scans")
-def scans(tid: int = Depends(get_tenant_from_key)):
-    rows = conn.query(
+def scans(tid: int = Depends(get_tenant_from_key), db=Depends(get_db)):
+    rows = db.query(
         "SELECT * FROM scan_jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50", (tid,)
     )
     return {"scans": [dict(r) for r in rows]}
@@ -584,7 +601,7 @@ def billing_plans():
 # ═══════════════════════════════════════════════════════════
 
 @app.post("/api/v2/auth/signup")
-def signup(github_user: str = Query(...)):
+def signup(github_user: str = Query(...), db=Depends(get_db)):
     """Quick signup with GitHub username. Returns API key.
 
     Plan is assigned server-side only (default 'free'); billing/webhook may
@@ -598,7 +615,7 @@ def signup(github_user: str = Query(...)):
     """
     if os.environ.get("GSC_INVITE_ONLY", "0").lower() in ("1", "true", "yes"):
         raise HTTPException(403, "This instance is invite-only. Ask an admin to invite you.")
-    api_key, tid = create_tenant(github_user, "free")
+    api_key, tid = create_tenant(github_user, "free", db)
     return {"api_key": api_key, "tenant_id": tid, "plan": "free", "message": "Save this key — it won't be shown again."}
 
 # ═══════════════════════════════════════════════════════════
@@ -606,7 +623,7 @@ def signup(github_user: str = Query(...)):
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/v2/auth/github")
-def github_login(redirect: str = Query("/")):
+def github_login(redirect: str = Query("/"), db=Depends(get_db)):
     """Redirect user to GitHub OAuth."""
     if not GITHUB_CLIENT_ID:
         raise HTTPException(500, "GitHub OAuth not configured — set GITHUB_CLIENT_ID")
@@ -616,7 +633,7 @@ def github_login(redirect: str = Query("/")):
     state = secrets.token_urlsafe(16)
     # Store state temporarily for CSRF protection
     state_expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
-    conn.execute(
+    db.execute(
         "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,0,?,?) "
         "ON CONFLICT(token) DO UPDATE SET tenant_id=excluded.tenant_id, "
         "github_user=excluded.github_user, expires_at=excluded.expires_at",
@@ -632,7 +649,7 @@ def github_login(redirect: str = Query("/")):
     return RedirectResponse(url)
 
 @app.get("/api/v2/auth/github/callback")
-async def github_callback(code: str = Query(...), state: str = Query("")):
+async def github_callback(code: str = Query(...), state: str = Query(""), db=Depends(get_db)):
     """Handle GitHub OAuth callback. Exchange code → access token → user info."""
     if not GITHUB_CLIENT_SECRET:
         raise HTTPException(500, "GitHub OAuth not configured — set GITHUB_CLIENT_SECRET")
@@ -640,13 +657,13 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     # Verify state (one-time: consume atomically, reject replay — audit S-02)
     state_key = f"state:{state}"
     now = datetime.now(timezone.utc).isoformat()
-    state_row = conn.fetchone(
+    state_row = db.fetchone(
         "SELECT github_user FROM sessions WHERE token=? AND expires_at > ?",
         (state_key, now)
     )
     if not state_row:
         raise HTTPException(400, "Invalid or expired OAuth state")
-    conn.execute("DELETE FROM sessions WHERE token=?", (state_key,))
+    db.execute("DELETE FROM sessions WHERE token=?", (state_key,))
 
     redirect_url = "/"
     if state_row["github_user"] and state_row["github_user"].startswith("redirect:"):
@@ -683,13 +700,13 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     github_id = user_data.get("id", 0)
 
     # Find or create tenant
-    existing = conn.fetchone(
+    existing = db.fetchone(
         "SELECT id FROM tenants WHERE github_user=?", (github_user,)
     )
     if existing:
         tid = existing["id"]
     else:
-        tid = conn.insert_id(
+        tid = db.insert_id(
             "INSERT INTO tenants (name, github_user, plan) VALUES (?,?,'free') RETURNING id",
             (github_user, github_user)
         )
@@ -698,7 +715,7 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     # JWT session is created at /api/v2/auth/exchange — never placed in a URL.
     auth_code = secrets.token_urlsafe(32)
     code_expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
-    conn.execute(
+    db.execute(
         "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,?)",
         (f"code:{auth_code}", tid, github_user, code_expires)
     )
@@ -706,28 +723,29 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     return RedirectResponse(f"{redirect_url}?code={auth_code}")
 
 @app.post("/api/v2/auth/exchange")
-def exchange_code(payload: dict = Body(...)):
+def exchange_code(payload: dict = Body(...), db=Depends(get_db)):
     """Exchange a one-time auth code for a session token (POST body, not URL)."""
     code = payload.get("code", "")
     if not code:
         raise HTTPException(400, "Missing code")
     key = f"code:{code}"
     now = datetime.now(timezone.utc).isoformat()
-    row = conn.fetchone(
+    row = db.fetchone(
         "SELECT tenant_id, github_user FROM sessions WHERE token=? AND expires_at > ?",
         (key, now)
     )
     if not row:
         raise HTTPException(401, "Invalid or expired code")
     # One-time: consume the code atomically before issuing a session
-    conn.execute("DELETE FROM sessions WHERE token=?", (key,))
-    session_token = create_session(row["tenant_id"], row["github_user"])
+    db.execute("DELETE FROM sessions WHERE token=?", (key,))
+    session_token = create_session(row["tenant_id"], row["github_user"], db)
     return {"token": session_token, "github_user": row["github_user"]}
 
 @app.get("/api/v2/auth/session")
 def session_info(
-    authorization: Optional[str] = Header(None),
+    authorization: str = Header(None),
     token: Optional[str] = Query(None),
+    db=Depends(get_db),
 ):
     """Validate session token and return tenant info (token via header preferred)."""
     raw = None
@@ -737,10 +755,10 @@ def session_info(
         raw = token  # legacy query fallback
     if not raw:
         raise HTTPException(401, "Missing session token")
-    tid = verify_session(raw)
+    tid = verify_session(raw, db)
     if tid is None:
         raise HTTPException(401, "Invalid or expired session")
-    tenant = conn.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
+    tenant = db.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
     return {"tenant": dict(tenant), "valid": True}
 
 # ═══════════════════════════════════════════════════════════
@@ -748,12 +766,12 @@ def session_info(
 # ═══════════════════════════════════════════════════════════
 
 @app.get("/api/v2/stats")
-def stats(tid: int = Depends(get_tenant_from_key)):
-    tenant = conn.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
-    total_findings = conn.fetchone(
+def stats(tid: int = Depends(get_tenant_from_key), db=Depends(get_db)):
+    tenant = db.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
+    total_findings = db.fetchone(
         "SELECT COUNT(*) as c FROM findings WHERE tenant_id=?", (tid,)
     )["c"]
-    scans_done = conn.fetchone(
+    scans_done = db.fetchone(
         "SELECT COUNT(*) as c FROM scan_jobs WHERE tenant_id=? AND status='done'", (tid,)
     )["c"]
 
@@ -766,13 +784,12 @@ def stats(tid: int = Depends(get_tenant_from_key)):
 
 # ── Dashboard ──
 @app.get("/dashboard")
-def dashboard(tid: int = Depends(get_tenant_from_key)):
+def dashboard(tid: int = Depends(get_tenant_from_key), db=Depends(get_db)):
     """Security dashboard with trend charts and PR feedback.
 
     GSC-004: authenticated (API key) — not public. Findings are scoped to the
     calling tenant; local audit aggregates are admin-only self-hosted data.
     """
-    db = conn  # global sqlite3 connection (cloud DB)
 
     # Stats for charts
     stats = {
