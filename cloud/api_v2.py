@@ -1,4 +1,9 @@
-"""SaaS S1 — /api/v2 multi-tenant endpoints (v1.1)."""
+"""SaaS S1 — legacy /api/v2 handlers (DEPRECATED).
+
+GSC due-diligence шаг 4: этот контур НЕ подключён к server.py (живой SaaS MVP
+имеет свои /api/v2 endpoints) и использует legacy cloud.tenancy. Канонические
+multi-tenant endpoints — server.py. Оставлено для tests/test_cloud_s1.py.
+"""
 from typing import Tuple, Optional
 from cloud.tenancy import verify_api_key, scoped_query
 

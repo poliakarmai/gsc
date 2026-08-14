@@ -25,24 +25,37 @@
 |-----|-----|--------|
 | 1 | Fail-closed PoF isolation | ✅ GSC-001 |
 | 2 | Verifier semantics (`\|\| true`) | ✅ GSC-002 |
-| 3 | Test gate в green | ✅ GSC-003 + GSC-004 (pytest 178 passed, nuclei 7/0) |
-| 4 | Один cloud contour | 🟡 частично (GSC-006/007; полное объединение contour'ов — отдельный рефакторинг) |
-| 5 | DB + release supply chain | 🟡 частично (GSC-005 + GSC-008; immutable image digest/SBOM — осталось) |
-| 6 | Positioning / pilot contract | ⬜ осталось (переписать claim'ы, threat model) |
+| 3 | Test gate в green | ✅ GSC-003 + GSC-004 (pytest 179 passed, nuclei 7/0) |
+| 4 | Один cloud contour | ✅ auth unified (tenancy→auth delegate), legacy помечен, two-tenant isolation test |
+| 5 | DB + release supply chain | ✅ FORCE RLS + FK/UNIQUE + Dockerfile digest + k8s overlay digest + migration tests + SBOM |
+| 6 | Positioning / pilot contract | ✅ disclosure (conditional PoF) + threat model |
 
-## Осталось (хвосты шагов 4–6 плана)
+## Threat model (pilot contract)
 
-- **Шаг 4**: полное объединение server.py (SaaS MVP) и cloud/enterprise (s1–s5) —
-  один onboarding, один storage backend. Это крупный рефакторинг (см. ROADMAP S1).
-- **Шаг 5**: immutable image digest (Dockerfile `python:3.12-slim` без digest,
-  k8s/helm `latest`), SBOM в release.
-- **Шаг 6**: переписать позиционирование — «verified remediation» с disclosure
-  (strength зависит от backend/тестов/DAST), threat model trusted vs hostile code.
+GSC работает с **двумя классами кода**, и заявленная гарантия различается:
+
+| Класс | Определение | PoF backend | Гарантия |
+|-------|-------------|-------------|----------|
+| **Trusted** | собственный/внутренний репозиторий команды | Docker/Podman или rlimit | «rescan + before/after PoF verification»; при rlimit — `NOT verified` (деградация) |
+| **Hostile** | untrusted/публичный репозиторий, возможно злонамеренный PoC | **обязательно** Docker/Podman (или VM) | полная OS-изоляция; без runtime → ERROR/NOT_RUN (fail-closed) |
+
+Правило: «verified» зарезервировано за OS-isolated before/after evidence. rlimit — это
+resource limits, а не security boundary (нет filesystem/network namespace).
+
+## Осталось (стратегический рефакторинг, не блокирует pilot)
+
+- **Полное объединение storage backend**: server.py (SaaS MVP) и cloud/enterprise
+  (s1–s5) — один storage backend вместо двух несогласованных схем. Auth уже
+  унифицирован (шаг 4), но finding-shape и storage остаются двумя контурами.
+  Это крупный рефакторинг (см. ROADMAP S1), не требуется для single-tenant pilot.
 
 ## Проверка изменений
 
-- `pytest tests/ -q` → 178 passed, 5 skipped
+- `pytest tests/ -q` → 179 passed, 5 skipped
 - `tests/test_nuclei_import.py` → 7 passed, 0 failed (full gate зелёный)
 - `run_tests()` регрессия: намеренно падающий Makefile → `passed=False`
 - signup при `GSC_INVITE_ONLY=1` → HTTP 403
 - `schema_s1.sql` на postgres:16 → `relforcerowsecurity=t` (findings/verdicts/scans)
+- two-tenant isolation: cross-tenant read/write/delete blocked (test_tenant_isolation)
+- SBOM: `scripts/gsc_release_sbom.py` → CycloneDX 1.5
+- JWT_SECRET persist: стабилен между импортами

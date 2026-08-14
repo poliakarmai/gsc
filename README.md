@@ -67,6 +67,13 @@ Finding GS005 (SQL Injection) — app.py:42
   ✅ VERIFIED (sandbox + DAST)
 ```
 
+> **Verification strength** (due-diligence, честный контракт): «verified» означает полный
+> before/after exploit evidence. OS-изоляция PoC требует container runtime (Docker/Podman);
+> без него GSC деградирует в rlimit (CPU/mem limits без filesystem/network namespace) и
+> помечает результат **NOT verified** (fail-closed) — не «verified». PoF-пайплайн
+> **Python-first** (JS/TS — roadmap). Для **hostile/repository code** обязателен
+> container/VM backend — см. threat model в `docs/DUE_DILIGENCE_v2.md`.
+
 ### 🥈 Self-Healing CI — automatic remediation PRs
 Wire GSC into CI. On every `CRITICAL`/`HIGH` finding, GSC runs Proof-of-Fix
 and — if the patch is verified — **opens a pull request with the fix**.

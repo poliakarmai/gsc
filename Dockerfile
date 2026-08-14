@@ -1,4 +1,5 @@
-FROM python:3.12-slim
+# GSC due-diligence шаг 5 (supply chain): immutable digest вместо mutable tag.
+FROM python:3.12-slim@sha256:dd29372629eeba2dd003fd9e9d35a5b8236c44727875a0364254b5127af88e65
 
 # System deps
 RUN apt-get update && apt-get install -y --no-install-recommends \

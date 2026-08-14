@@ -37,3 +37,14 @@ patches:
 #     behavior: replace
 #     envs:
 #       - .env.prod
+
+# GSC due-diligence шаг 5 (supply chain): base использует mutable :latest.
+# Prod ОБЯЗАН пинить immutable digest. Раскомментируйте и подставьте актуальный
+# digest (`docker buildx imagetools inspect ghcr.io/poliakarmai/gsc-cloud:tag`):
+# images:
+#   - name: ghcr.io/poliakarmai/gsc-cloud
+#     newName: ghcr.io/poliakarmai/gsc-cloud
+#     digest: sha256:<...>
+#   - name: ghcr.io/poliakarmai/gsc-dashboard
+#     newName: ghcr.io/poliakarmai/gsc-dashboard
+#     digest: sha256:<...>
