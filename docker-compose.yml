@@ -10,6 +10,10 @@ services:
     environment:
       - GSC_DIR=/app
       - GSC_DB=/data/gsc_cloud.db
+      # S1: переключение на PostgreSQL — задать GSC_DATABASE_URL (см. .env):
+      #   GSC_DATABASE_URL=postgres://gsc:gsc_dev_pw@postgres:5432/gsc
+      # При пустом значении server.py работает на SQLite (dev-дефолт).
+      - GSC_DATABASE_URL=${GSC_DATABASE_URL:-}
       - PORT=8001
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
       - GITHUB_CLIENT_SECRET=${GITHUB_CLIENT_SECRET:-}
@@ -21,11 +25,34 @@ services:
       # NOTE: docker.sock intentionally NOT mounted — PoC execution runs in-process
       # (subprocess + rlimits), not via Docker. Mounting the socket would give the
       # API container control of the host Docker daemon (audit S-03).
+    depends_on:
+      - postgres
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
       interval: 30s
       timeout: 5s
       retries: 3
+
+  # PostgreSQL (S1) — опционально: gsc-api переключается на него через
+  # GSC_DATABASE_URL. schema_runtime.sql применяется при первом init тома.
+  postgres:
+    image: postgres:16-alpine
+    container_name: gsc-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=gsc
+      - POSTGRES_PASSWORD=${GSC_PG_PASSWORD:-gsc_dev_pw}
+      - POSTGRES_DB=gsc
+    volumes:
+      - gsc_pg_data:/var/lib/postgresql/data
+      - ./cloud/schema_runtime.sql:/docker-entrypoint-initdb.d/01_runtime.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gsc -d gsc"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      - "5432:5432"
 
   # nginx reverse proxy
   nginx:
@@ -45,3 +72,4 @@ services:
 volumes:
   gsc_data:
   gsc_static:
+  gsc_pg_data:

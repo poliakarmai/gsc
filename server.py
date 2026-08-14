@@ -722,7 +722,8 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         stats["total_scans"] = src.fetchone("SELECT COUNT(*) FROM audit_runs")[0]
         try:
             stats["scans_today"] = src.fetchone(
-                "SELECT COUNT(*) FROM audit_runs WHERE date(started_at) = date('now')"
+                f"SELECT COUNT(*) FROM audit_runs "
+                f"WHERE {src.date_expr('started_at')} = {src.now_expr()}"
             )[0]
         except Exception:
             stats["scans_today"] = 0
@@ -768,10 +769,11 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         stats["trend"] = []
         try:
             since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            de = db.date_expr("created_at")
             rows = db.query(
-                "SELECT date(created_at) as d, COUNT(*) as cnt FROM findings "
+                f"SELECT {de} as d, COUNT(*) as cnt FROM findings "
                 "WHERE tenant_id = ? AND created_at >= ? "
-                "GROUP BY date(created_at) ORDER BY d",
+                f"GROUP BY {de} ORDER BY d",
                 (tid, since),
             )
             stats["trend"] = [{"date": r["d"], "count": r["cnt"]} for r in rows]

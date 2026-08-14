@@ -97,6 +97,13 @@ class SqliteBackend:
     def close(self):
         self.conn.close()
 
+    def date_expr(self, col: str) -> str:
+        """SQLite-выражение 'день от колонки' для GROUP BY."""
+        return f"date({col})"
+
+    def now_expr(self) -> str:
+        return "date('now')"
+
 
 class PgBackend:
     """Cloud backend: psycopg3 + RLS-контекст app.tenant_id."""
@@ -140,8 +147,12 @@ class PgBackend:
 
     def executescript(self, sql: str):
         # PostgreSQL: нет executescript — выполняем выражения по одному.
+        # Сначала убираем однострочные комментарии (-- ...), иначе `;` внутри
+        # комментария ломает split.
         try:
-            for stmt in sql.split(";"):
+            lines = [l for l in sql.splitlines() if not l.strip().startswith("--")]
+            cleaned = "\n".join(lines)
+            for stmt in cleaned.split(";"):
                 stmt = stmt.strip()
                 if stmt:
                     self.conn.execute(q_to_pg(stmt))
@@ -155,3 +166,10 @@ class PgBackend:
 
     def close(self):
         self.conn.close()
+
+    def date_expr(self, col: str) -> str:
+        """PostgreSQL-выражение 'день от колонки' для GROUP BY."""
+        return f"({col})::date"
+
+    def now_expr(self) -> str:
+        return "CURRENT_DATE"
