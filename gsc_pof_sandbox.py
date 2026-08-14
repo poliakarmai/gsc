@@ -10,7 +10,7 @@ Uses subprocess with timeout + resource limits for safety.
 """
 from __future__ import annotations
 
-import json, os, re, subprocess, sys, tempfile, time, venv
+import json, os, re, shutil, subprocess, sys, tempfile, time, venv
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
@@ -20,6 +20,15 @@ SANDBOX_TIMEOUT = 30  # Max seconds per PoC execution
 MAX_OUTPUT_BYTES = 10_000
 SUCCESS_MARKERS = re.compile(r'(VULNERABLE|EXPLOITED|PWNED|LEAKED|SUCCESS|BREACH)', re.I)
 SANDBOX_ROOT = Path(os.path.expanduser("~/.hermes/state/gsc_sandbox"))
+
+# GSC-002 (audit): hostile PoC must run inside an OS-level isolation boundary
+# (a disposable container), not a bare subprocess. Container runtime is the
+# primary backend; when unavailable (air-gapped self-hosted) we degrade to
+# rlimit and surface the isolation level on every result so callers never
+# mistake degraded for full. The sandbox image is a minimal python+bash+curl
+# base with no host secrets or tools.
+SANDBOX_IMAGE = os.environ.get("GSC_SANDBOX_IMAGE", "gsc-sandbox:latest")
+CONTAINER_NETWORK = os.environ.get("GSC_SANDBOX_NETWORK", "none")  # egress deny
 
 # Audit F-05: pass a minimal, secret-free environment into the sandbox. A PoC
 # must NOT inherit DEEPSEEK_API_KEY / GITHUB_TOKEN / other host secrets — that
@@ -144,6 +153,77 @@ def _sandbox_limits_shell():
         pass
 
 
+# ── Isolation backend (GSC-002) ──────────────────────────────
+
+_backend_cache: Optional[str] = None
+
+
+def _isolation_backend() -> str:
+    """Best available hostile-code isolation backend.
+
+    Returns "docker" or "podman" when a working container runtime is present,
+    else "rlimit" (the degraded subprocess+rlimit fallback). Cached: probing a
+    container daemon on every PoC would add ~100ms per execution.
+    """
+    global _backend_cache
+    if _backend_cache is not None:
+        return _backend_cache
+    for exe in ("docker", "podman"):
+        if not shutil.which(exe):
+            continue
+        try:
+            r = subprocess.run([exe, "info"], capture_output=True, timeout=8)
+            if r.returncode == 0:
+                _backend_cache = exe
+                return exe
+        except Exception:
+            continue
+    _backend_cache = "rlimit"
+    return _backend_cache
+
+
+def _run_isolated(cmd: list, workdir: str, timeout: int = SANDBOX_TIMEOUT):
+    """Run `cmd` inside a disposable container with egress-deny, read-only
+    rootfs, dropped capabilities, nobody UID and process/mem/cpu limits.
+
+    Returns (CompletedProcess, isolation_label) on success, or
+    (None, "rlimit (reason)") when the container path is unavailable so the
+    caller can fall back to the rlimit runner.
+    """
+    backend = _isolation_backend()
+    if backend == "rlimit":
+        return None, "rlimit"
+    run_cmd = [
+        backend, "run", "--rm",
+        "--network", CONTAINER_NETWORK,   # egress deny
+        "--read-only",                    # read-only rootfs
+        "--cap-drop", "ALL",              # drop every capability
+        "--security-opt", "no-new-privileges",
+        "--pids-limit", "64",
+        "--memory", "512m",
+        "--cpus", "1",
+        "--user", "65534:65534",          # nobody
+        "--tmpfs", "/tmp",
+        "-v", f"{workdir}:/work:rw",      # only the workspace is writable
+        "-w", "/work",
+        SANDBOX_IMAGE,
+    ] + list(cmd)
+    # Make the workspace writable by the container's nobody UID (65534) so a
+    # PoC can write temp files there; the rootfs itself stays read-only.
+    try:
+        os.chmod(workdir, 0o777)
+    except OSError:
+        pass
+    try:
+        proc = subprocess.run(run_cmd, capture_output=True, text=True, timeout=timeout)
+        return proc, backend
+    except subprocess.TimeoutExpired:
+        raise
+    except Exception as e:
+        # Container hiccup (image missing, daemon down) → let caller degrade.
+        return None, f"rlimit (container error: {e})"
+
+
 @dataclass
 class SandboxResult:
     """Result of a single PoC execution."""
@@ -153,6 +233,7 @@ class SandboxResult:
     stderr: str
     elapsed: float
     error: str = ""
+    isolation: str = ""    # GSC-002: "docker"|"podman"|"rlimit"|"rlimit (...)"; "" = unknown
 
 
 @dataclass 
@@ -344,6 +425,22 @@ class PoFSandbox:
             pass
         return None
 
+    def _run_shell_child(self, script: str, workdir: Path) -> tuple:
+        """Run a shell snippet under the best available isolation (GSC-002)."""
+        if _isolation_backend() != "rlimit":
+            proc, isolation = _run_isolated(["bash", "-c", script], str(workdir))
+            if proc is not None:
+                return proc, isolation
+        proc = subprocess.run(
+            ["bash", "-c", script],
+            capture_output=True, text=True,
+            timeout=SANDBOX_TIMEOUT,
+            cwd=str(workdir),
+            env=_sandbox_env(str(workdir)),
+            preexec_fn=_sandbox_limits_shell,
+        )
+        return proc, "rlimit"
+
     def _execute_shell(self, poc_code: str, target_code: str,
                        project_dir: str | None = None) -> SandboxResult:
         """Run a shell/curl PoC via bash -c. If it references TARGET_URL, serve the
@@ -365,29 +462,38 @@ class PoFSandbox:
                     script = script.replace("TARGET_URL", url)
             t0 = time.time()
             try:
-                proc = subprocess.run(
-                    ["bash", "-c", script],
-                    capture_output=True, text=True,
-                    timeout=SANDBOX_TIMEOUT,
-                    cwd=str(workdir),
-                    env=_sandbox_env(str(workdir)),
-                    preexec_fn=_sandbox_limits_shell,
-                )
+                if "TARGET_URL" in poc_code:
+                    # Web PoC: the live target server runs host-side (rlimit path)
+                    # so the curl PoC can reach it. Non-web PoCs get full
+                    # container isolation instead.
+                    proc = subprocess.run(
+                        ["bash", "-c", script],
+                        capture_output=True, text=True,
+                        timeout=SANDBOX_TIMEOUT,
+                        cwd=str(workdir),
+                        env=_sandbox_env(str(workdir)),
+                        preexec_fn=_sandbox_limits_shell,
+                    )
+                    isolation = "rlimit"
+                else:
+                    proc, isolation = self._run_shell_child(script, workdir)
                 elapsed = time.time() - t0
             except subprocess.TimeoutExpired:
                 return SandboxResult(success=False, exit_code=-1, stdout="",
                                      stderr=f"TIMEOUT after {SANDBOX_TIMEOUT}s",
-                                     elapsed=SANDBOX_TIMEOUT, error="timeout")
+                                     elapsed=SANDBOX_TIMEOUT, error="timeout",
+                                     isolation="timeout")
             stdout = proc.stdout[:MAX_OUTPUT_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BYTES]
             # NOT_EXPLOITED содержит EXPLOITED — отсекаем ложный success-маркер
             has_marker = bool(SUCCESS_MARKERS.search(stdout)) and "NOT_EXPLOITED" not in stdout
             success = proc.returncode == 0 and has_marker
             return SandboxResult(success=success, exit_code=proc.returncode,
-                                 stdout=stdout, stderr=stderr, elapsed=round(elapsed, 2))
+                                 stdout=stdout, stderr=stderr,
+                                 elapsed=round(elapsed, 2), isolation=isolation)
         except Exception as e:
             return SandboxResult(success=False, exit_code=-1, stdout="", stderr=str(e),
-                                 elapsed=0, error=str(e))
+                                 elapsed=0, error=str(e), isolation="rlimit")
         finally:
             if server is not None:
                 try:
@@ -401,8 +507,29 @@ class PoFSandbox:
             except Exception:
                 pass
 
+    def _run_python_child(self, runner_file: Path, workdir: Path) -> tuple:
+        """Execute run_poc.py under the best available isolation (GSC-002).
+
+        Returns (CompletedProcess, isolation_label). Container runtime is
+        primary; when it is unavailable or errors, fall back to the venv
+        python with rlimit limits.
+        """
+        if _isolation_backend() != "rlimit":
+            proc, isolation = _run_isolated(["python3", "run_poc.py"], str(workdir))
+            if proc is not None:
+                return proc, isolation
+        proc = subprocess.run(
+            [self._python, str(runner_file)],
+            capture_output=True, text=True,
+            timeout=SANDBOX_TIMEOUT,
+            cwd=str(workdir),
+            env=_sandbox_env(str(workdir)),
+            preexec_fn=_sandbox_limits,
+        )
+        return proc, "rlimit"
+
     def _execute_python(self, poc_code: str, target_code: str) -> SandboxResult:
-        """Execute PoC against target code in sandbox venv."""
+        """Execute PoC against target code in an isolated sandbox."""
         # Write target code and PoC to temp files
         workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
         workdir.mkdir(parents=True, exist_ok=True)
@@ -416,23 +543,16 @@ class PoFSandbox:
             runner_code = self._build_runner(poc_code)
             runner_file.write_text(runner_code)
 
-            # Execute
+            # Execute under the best available isolation (container → rlimit).
             t0 = time.time()
             try:
-                proc = subprocess.run(
-                    [self._python, str(runner_file)],
-                    capture_output=True, text=True,
-                    timeout=SANDBOX_TIMEOUT,
-                    cwd=str(workdir),
-                    env=_sandbox_env(str(workdir)),
-                    preexec_fn=_sandbox_limits,
-                )
+                proc, isolation = self._run_python_child(runner_file, workdir)
                 elapsed = time.time() - t0
             except subprocess.TimeoutExpired:
                 return SandboxResult(
                     success=False, exit_code=-1,
                     stdout="", stderr=f"TIMEOUT after {SANDBOX_TIMEOUT}s",
-                    elapsed=SANDBOX_TIMEOUT, error="timeout")
+                    elapsed=SANDBOX_TIMEOUT, error="timeout", isolation="timeout")
 
             stdout = proc.stdout[:MAX_OUTPUT_BYTES]
             stderr = proc.stderr[:MAX_OUTPUT_BYTES]
@@ -444,12 +564,12 @@ class PoFSandbox:
             return SandboxResult(
                 success=success, exit_code=proc.returncode,
                 stdout=stdout, stderr=stderr,
-                elapsed=round(elapsed, 2))
+                elapsed=round(elapsed, 2), isolation=isolation)
 
         except Exception as e:
             return SandboxResult(
                 success=False, exit_code=-1,
-                stdout="", stderr=str(e), elapsed=0, error=str(e))
+                stdout="", stderr=str(e), elapsed=0, error=str(e), isolation="rlimit")
         finally:
             # Cleanup (but keep on error for debugging)
             try:

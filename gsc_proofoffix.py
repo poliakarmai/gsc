@@ -65,6 +65,10 @@ class FixEvidence:
     dast_verified: Optional[bool] = None
     dast_output: str = ""
     dast_exit: Optional[int] = None
+    # GSC-003: audit-visible DAST/deep-verify status — never silently skipped.
+    dast_skipped: bool = False
+    dast_skip_reason: str = ""
+    deep_verify_error: str = ""
     error: str = ""
 
     def to_dict(self):
@@ -376,6 +380,8 @@ class ProofOfFix:
             # dast_verified=None → keep sandbox-only
         elif not self.staging_url:
             ev.verified_by = "sandbox"
+            ev.dast_skipped = True
+            ev.dast_skip_reason = "no staging_url configured"
 
         # 🆕 Deep verification: run PoC in isolated venv with project dependencies
         if ev.verified and ev.level == "verified" and best_patch and poc_code:
@@ -404,8 +410,9 @@ class ProofOfFix:
                         ev.verified_by = "sandbox_venv"
                         ev.reasoning += " | deep_sandbox: VERIFIED in isolated venv"
             except ImportError:
-                pass  # gsc_pof_sandbox not installed — skip
+                ev.deep_verify_error = "gsc_pof_sandbox not installed — deep verify skipped"
             except Exception as e:
+                ev.deep_verify_error = str(e)[:200]
                 ev.reasoning += f" | deep_sandbox: {str(e)[:60]}"
 
         return ev

@@ -45,6 +45,26 @@ class VerifyReport:
     error_message: str = ""
     should_retry: bool = False
     ready_for_pr: bool = False
+    # GSC-003: this verifier proves "finding gone" (rescan), NOT that the fix
+    # actually closes the vulnerability. Exploit-level proof lives in
+    # gsc_proofoffix / gsc_pof_sandbox ("verified" = before/after exploit).
+    evidence: str = "rescan"
+    tests_skipped: bool = False
+    dast_skipped: bool = False
+
+
+def _ready_for_pr(skip_tests: bool, skip_dast: bool) -> tuple[bool, str]:
+    """GSC-003: a PR may only be opened on a positive verification signal.
+
+    rescan-only (tests AND DAST both skipped) proves the finding no longer
+    matches, but NOT that the fix closes the vulnerability — a detector can
+    miss a still-exploitable change. Returns (ready, reason).
+    """
+    if skip_tests and skip_dast:
+        return False, ("rescan clean but tests and DAST were both skipped — "
+                       "no positive verification signal (set skip_tests=False "
+                       "or skip_dast=False)")
+    return True, ""
 
 
 # ── Stage 1: Rescan ──────────────────────────────────────────────────
@@ -162,6 +182,8 @@ def verify_fix(
         attempt=attempt,
         max_attempts=max_attempts,
     )
+    report.tests_skipped = skip_tests
+    report.dast_skipped = skip_dast
 
     # Stage 1: Rescan — the finding must be gone
     remaining = rescan_fix(repo_path, finding_key, detector_id)
@@ -196,8 +218,11 @@ def verify_fix(
             report.error_message = f"DAST found {len(dast)} new issues"
             return report
 
-    # All stages passed!
-    report.ready_for_pr = True
+    # GSC-003: opening a PR requires a positive verification signal beyond
+    # "finding gone" — rescan-only is not enough.
+    report.ready_for_pr, pr_reason = _ready_for_pr(skip_tests, skip_dast)
+    if pr_reason:
+        report.error_message = pr_reason
     report.result = VerifyResult.PASSED
     return report
 

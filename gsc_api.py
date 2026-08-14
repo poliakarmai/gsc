@@ -2,6 +2,13 @@
 """
 GSC REST API v1.0 — FastAPI wrapper for Git Security Checker.
 
+⚠️ SINGLE-TENANT CONTRACT (GSC-001): this legacy API is a self-hosted,
+single-tenant local wrapper. It has ONE global API key and NO per-tenant
+isolation — do not expose it as a multi-tenant surface. Multi-tenant
+isolation lives in the cloud API (`cloud/api.py`, tenant-scoped via
+`cloud/apideps.py::tenant_ctx`). Binding is enforced to loopback unless
+GSC_LEGACY_ALLOW_REMOTE=1 is set explicitly.
+
 Endpoints:
   POST   /api/v1/scan              — trigger scan (background)
   GET    /api/v1/scan/{scan_id}    — scan status + results
@@ -116,6 +123,28 @@ def verify_api_key(x_api_key: str = Header(...)):
     if x_api_key != API_KEY:
         raise HTTPException(status_code=403, detail="Invalid API key")
     return x_api_key
+
+_LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
+
+
+def _enforce_loopback(host: str) -> None:
+    """GSC-001 (audit): refuse non-loopback bind for the legacy API.
+
+    This API is single-tenant with one global key and no per-tenant
+    isolation. Binding it to a non-loopback address would let every holder
+    of the shared key read every scan/finding. Multi-tenant isolation is the
+    cloud API's job. The operator can override with GSC_LEGACY_ALLOW_REMOTE=1.
+    """
+    if (host or "").strip().lower() in _LOOPBACK_HOSTS:
+        return
+    if os.environ.get("GSC_LEGACY_ALLOW_REMOTE", "").strip().lower() in ("1", "true", "yes"):
+        return
+    raise SystemExit(
+        "Refusing to bind legacy GSC API to non-loopback host "
+        f"{host!r}: it is single-tenant with no per-tenant isolation. "
+        "Use the cloud API (cloud/api.py) for multi-tenant deployments, "
+        "or set GSC_LEGACY_ALLOW_REMOTE=1 to accept the risk explicitly."
+    )
 
 # ── Helpers ───────────────────────────────────────────────
 
@@ -448,6 +477,7 @@ if __name__ == "__main__":
     p.add_argument("--port", type=int, default=8766)
     p.add_argument("--host", default="127.0.0.1")
     args = p.parse_args()
+    _enforce_loopback(args.host)
 
     print(f"🔒 GSC API v1.0 — http://{args.host}:{args.port}")
     print(f"   Docs: http://{args.host}:{args.port}/docs")
