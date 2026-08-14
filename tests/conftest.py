@@ -54,3 +54,19 @@ def sandbox_backend():
     if backend == "rlimit":
         pytest.skip("no container runtime (docker/podman) — sandbox boundary N/A")
     return backend
+
+
+@pytest.fixture(autouse=True)
+def _isolate_gsc_db(tmp_path, monkeypatch):
+    """Изолировать GSC DB от реальной ~/.hermes/state/gsc_audit.db (autouse).
+
+    corpus-тесты запускают `gsc.py scan` через subprocess, который читает
+    GSC_DB_PATH. Без этой изоляции поведение различается: dev-машина имеет
+    засеянную DB (393 patterns), чистый CI runner — нет. Форсируем чистую среду
+    везде: GSC_DB_PATH → temp-файл (scan остаётся self-contained через
+    load_patterns fallback → generate_seed_patterns).
+
+    Уважаем явный GSC_DB_PATH из env (CI может задать свой).
+    """
+    if "GSC_DB_PATH" not in os.environ:
+        monkeypatch.setenv("GSC_DB_PATH", str(tmp_path / "gsc_audit.db"))

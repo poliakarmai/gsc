@@ -26,14 +26,17 @@ def scan_file(code: str, filename: str = "test.py", chmod: str = None) -> list[d
         subprocess.run(["git", "-C", d, "init", "-q"], capture_output=True)
         subprocess.run(["git", "-C", d, "add", "-A"], capture_output=True)
         subprocess.run(["git", "-C", d, "commit", "-q", "-m", "init"], capture_output=True)
+        # GSC_DB_PATH наследуется из окружения (см. conftest._isolate_gsc_db),
+        # поэтому в чистой среде scan идёт self-contained (load_patterns fallback).
         r = subprocess.run(
             [sys.executable, GSC, "scan", d, "--ci", "--json"],
             capture_output=True, text=True, timeout=30
         )
-        return json.loads(r.stdout) if r.stdout.strip() else []
-    except Exception as e:
-        print(f"  scan_file error: {e}")
-        return []
+        if r.returncode != 0:
+            raise RuntimeError(f"gsc scan exited {r.returncode}:\n{r.stderr}")
+        if not r.stdout.strip():
+            raise RuntimeError(f"gsc scan returned empty stdout.\nstderr: {r.stderr}")
+        return json.loads(r.stdout)
     finally:
         shutil.rmtree(d, ignore_errors=True)
 

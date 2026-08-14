@@ -981,7 +981,8 @@ def cmd_scan_diff(args) -> int:
 def save_findings(project: str, findings: list[dict], quiet: bool = False):
     """Persist findings to GSC database."""
     if not DB_PATH.exists():
-        print("⚠️  GSC DB not found — findings not saved")
+        # stderr, не stdout: при --json/--ci вывод должен оставаться чистым JSON.
+        print("⚠️  GSC DB not found — findings not saved", file=sys.stderr)
         return
 
     try:
@@ -1021,7 +1022,7 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
     except sqlite3.OperationalError:
         # Fresh/empty DB (no tables, e.g. CI runner) — persistence is optional
         if not quiet:
-            print("⚠️  GSC DB schema missing — findings not saved (fresh DB?)")
+            print("⚠️  GSC DB schema missing — findings not saved (fresh DB?)", file=sys.stderr)
         return
 
     if not quiet:
@@ -1493,6 +1494,7 @@ def generate_seed_patterns(count: int) -> list[dict]:
         (1, "HIGH", "Unused import", "regex", r"^import \w+\s*$.*(?!.*\b\w+\b)"),
         (1, "MEDIUM", "Missing docstring", "regex", r"^def \w+\(.*\):\s*$\n\s+(?!\"\"\"|''')"),
         (1, "MEDIUM", "Bare except:", "regex", r"except\s*:"),
+        (1, "MEDIUM", "Python: assert in production", "regex", r"\bassert\s"),
         (2, "HIGH", "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
         (2, "CRITICAL", "pickle.load() — unsafe deserialization", "regex", r"pickle\.(load|loads)\("),  # gsc:ignore — pattern definition
         (2, "HIGH", "os.system() without sanitization", "regex", r"os\.system\(.*format\(|os\.system\(.*f['\"]"),
