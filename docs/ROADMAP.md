@@ -77,9 +77,9 @@
 
 | Фича | Статус |
 |------|--------|
-| ML-модель на git history | ⬜ |
-| Heatmap: «эти 3 файла — кандидаты на CVE» | ⬜ |
-| Интеграция с EPSS (exploitability) | ⬜ |
+| ML-модель на git history | ✅ `RiskForecaster` (past density + churn + authors + size + age + clustering) |
+| Heatmap: «эти 3 файла — кандидаты на CVE» | ✅ `forecast heatmap` (score + level + epss + top_cves) |
+| Интеграция с EPSS (exploitability) | ✅ `exploitability_boost` (reachable CVE × EPSS → буст риска) |
 
 ## Эксклюзивы GSC (уже есть, нет у конкурентов)
 
