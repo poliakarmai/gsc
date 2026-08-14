@@ -302,7 +302,8 @@ def conclusion_from_result(blocking: int, warnings: int, safe_mode: bool = False
 
 def create_check_run(client: GitHubAPIClient, ctx: GitHubPRContext,
                      conclusion: str, summary: str, title: str = "GSC Security Scan",
-                     dry_run: bool = False) -> Optional[int]:
+                     dry_run: bool = False,
+                     annotations: list[dict] | None = None) -> Optional[int]:
     if dry_run:
         print(f"\n✅ [DRY-RUN] Check run: {conclusion}")
         return None
@@ -310,25 +311,61 @@ def create_check_run(client: GitHubAPIClient, ctx: GitHubPRContext,
         print("⚠️ No head_sha — skipping check run")
         return None
     try:
+        body = {
+            "name": "GSC Security Scan",
+            "head_sha": ctx.head_sha,
+            "status": "completed",
+            "conclusion": conclusion,
+            "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+            "output": {"title": title, "summary": summary[:65535]},
+        }
+        # Link the check run to the PR so it surfaces in the PR Checks tab
+        if ctx.pr_number:
+            body["pull_requests"] = [{"number": ctx.pr_number}]
+        # Attach code annotations (GitHub caps 50 per check run)
+        if annotations:
+            body["output"]["annotations"] = annotations[:50]
         resp = client.post(
-            f"/repos/{ctx.owner}/{ctx.repo}/check-runs",
-            {
-                "name": "GSC Security Scan",
-                "head_sha": ctx.head_sha,
-                "status": "completed",
-                "conclusion": conclusion,
-                "completed_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-                "output": {"title": title, "summary": summary[:65535]},
-            }
+            f"/repos/{ctx.owner}/{ctx.repo}/check-runs", body
         )
         if resp.status_code == 201:
             cid = resp.json()["id"]
-            print(f"✅ Check run #{cid}: {conclusion}")
+            print(f"✅ Check run #{cid}: {conclusion} ({len(annotations or [])} annotations)")
             return cid
         print(f"⚠️ Check run failed: HTTP {resp.status_code}")
     except Exception as e:
         print(f"⚠️ Check run error: {e}")
     return None
+
+
+def _sarif_annotations(sarif_text: str, limit: int = 50) -> list[dict]:
+    """Convert SARIF results to GitHub Check Run annotations."""
+    try:
+        data = json.loads(sarif_text)
+    except Exception:
+        return []
+    ann: list[dict] = []
+    for run in data.get("runs", []):
+        for r in run.get("results", []):
+            if len(ann) >= limit:
+                return ann
+            level = r.get("level", "warning")
+            al = {"error": "failure", "warning": "warning", "note": "notice"}.get(level, "warning")
+            msg = r.get("message", {}).get("text", "") if isinstance(r.get("message"), dict) else str(r.get("message", ""))
+            loc = (r.get("locations") or [{}])[0]
+            phys = loc.get("physicalLocation", {}) or {}
+            region = phys.get("region", {}) or {}
+            path = (phys.get("artifactLocation", {}) or {}).get("uri", "")
+            start = region.get("startLine", 1) or 1
+            ann.append({
+                "path": path,
+                "start_line": start,
+                "end_line": region.get("endLine", start) or start,
+                "annotation_level": al,
+                "message": (msg or r.get("ruleId", "GSC finding"))[:2000],
+                "title": r.get("ruleId", "GSC"),
+            })
+    return ann
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -572,7 +609,8 @@ def run_pr_adapter(ctx: GitHubPRContext, profile: str = "pr-gate",
         summary = (f"Blocking: {blocking} · Warnings: {warnings} · "
                    f"Mode: {'safe' if safe_mode else 'internal'} · "
                    f"LLM: {'off' if no_llm else 'on'}")
-        create_check_run(client, ctx, concl, summary, dry_run=dry_run)
+        anns = _sarif_annotations(sarif_text) if sarif_text else []
+        create_check_run(client, ctx, concl, summary, dry_run=dry_run, annotations=anns)
 
     # SARIF
     if out_dir:
@@ -674,6 +712,12 @@ def main():
     pc.add_argument("--github-context", help="Path to GITHUB_EVENT_PATH JSON")
     pc.add_argument("--report", required=True, help="Path to pr_comment.md")
 
+    cc = sub.add_parser("create-check", help="Create a Check Run from a SARIF file (S-06 job split)")
+    cc.add_argument("--github-context", help="Path to GITHUB_EVENT_PATH JSON")
+    cc.add_argument("--sarif", required=True, help="Path to report.sarif.json")
+    cc.add_argument("--conclusion", default="neutral", help="conclusion (neutral|success|failure)")
+    cc.add_argument("--summary", default="GSC Security Scan", help="Check run summary")
+
     args = p.parse_args()
 
     if args.command == "doctor":
@@ -706,6 +750,20 @@ def main():
                 print(f"⚠️ Failed to record comment_id {comment_id}: {e}")
         print(f"✅ Comment posted: {ctx.owner}/{ctx.repo}#{ctx.pr_number}")
         sys.exit(0)
+
+    elif args.command == "create-check":
+        ctx = parse_github_event(args.github_context)
+        if not ctx or not ctx.token:
+            print("❌ No PR context or GITHUB_TOKEN")
+            sys.exit(2)
+        sarif_text = ""
+        if Path(args.sarif).exists():
+            sarif_text = Path(args.sarif).read_text(errors="replace")
+        anns = _sarif_annotations(sarif_text)
+        client = GitHubAPIClient(ctx.token)
+        cid = create_check_run(client, ctx, args.conclusion, args.summary,
+                               dry_run=False, annotations=anns)
+        sys.exit(0 if cid else 2)
 
     elif args.command == "scan":
         ctx = None
