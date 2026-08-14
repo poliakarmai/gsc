@@ -5,6 +5,32 @@ from pathlib import Path
 GSC = Path(__file__).parent
 DB = Path.home() / ".hermes/state/gsc_audit.db"
 
+# GSC-006: 4 standalone engines run OUTSIDE the per-file registry — they are
+# real detectors with a different interface (repo/scan-level, not per-file):
+#   GS028 Invariant Engine, GS029 Secrets, GS030 SCA (OSV.dev), GS031 IaC.
+STANDALONE_ENGINE_MODULES = (
+    "gsc_invariant_engine",  # GS028
+    "gsc_secrets_core",      # GS029
+    "gsc_sca",               # GS030
+    "gsc_iac",               # GS031
+)
+
+
+def _count_standalone_engines() -> int:
+    """GSC roadmap 2.7: динамический подсчёт standalone-движков, не hardcoded 4.
+
+    Считаем реально импортируемые движки-модули — если один сломан/удалён, число
+    честно уменьшится, а не останется завышенным.
+    """
+    count = 0
+    for mod in STANDALONE_ENGINE_MODULES:
+        try:
+            __import__(mod)
+            count += 1
+        except Exception:
+            pass
+    return count
+
 def get_meta() -> dict:
     registry = None
     try:
@@ -18,9 +44,9 @@ def get_meta() -> dict:
         print(f"⚠️ gsc_meta: get_detectors() failed — detectors_total unknown ({e})",
               file=sys.stderr)
     # GSC-006: 4 standalone engines run OUTSIDE the per-file registry — they are
-    # real detectors with a different interface (repo/scan-level, not per-file):
-    #   GS028 Invariant Engine, GS029 Secrets, GS030 SCA (OSV.dev), GS031 IaC.
-    standalone = 4
+    # real detectors with a different interface (repo/scan-level, not per-file).
+    # GSC roadmap 2.7: подсчёт динамический (_count_standalone_engines), не hardcoded.
+    standalone = _count_standalone_engines()
     return {
         "version": _read_version(),
         "detectors_registry": registry,

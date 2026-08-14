@@ -18,23 +18,23 @@ from gsc_proofoffix import FixEvidence, ProofOfFix
 
 
 def test_rescan_only_not_ready_for_pr():
-    ready, reason = _ready_for_pr(skip_tests=True, skip_dast=True)
+    ready, reason = _ready_for_pr(tests_positive=False, dast_positive=False)
     assert ready is False
     assert "no positive verification" in reason
 
 
 def test_tests_signal_ready_for_pr():
-    ready, _ = _ready_for_pr(skip_tests=False, skip_dast=True)
+    ready, _ = _ready_for_pr(tests_positive=True, dast_positive=False)
     assert ready is True
 
 
 def test_dast_signal_ready_for_pr():
-    ready, _ = _ready_for_pr(skip_tests=True, skip_dast=False)
+    ready, _ = _ready_for_pr(tests_positive=False, dast_positive=True)
     assert ready is True
 
 
 def test_both_signals_ready_for_pr():
-    ready, _ = _ready_for_pr(skip_tests=False, skip_dast=False)
+    ready, _ = _ready_for_pr(tests_positive=True, dast_positive=True)
     assert ready is True
 
 

@@ -65,6 +65,7 @@ def test_signup_invite_only_matches_docs(tmp_path):
         "import os\n"
         f"os.environ['GSC_DB'] = {str(tmp_path / 'c.db')!r}\n"
         "os.environ['GSC_INVITE_ONLY'] = '1'\n"
+        "os.environ['GSC_DEV_MODE'] = '1'\n"  # иначе JWT fail-closed exit (roadmap 3.8)
         "import server\n"
         "from fastapi.testclient import TestClient\n"
         "r = TestClient(server.app).post('/api/v2/auth/signup', params={'github_user': 'x'})\n"

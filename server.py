@@ -63,16 +63,26 @@ GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:80
 
 
 def _load_or_create_jwt_secret() -> str:
-    """JWT_SECRET: env > persist-файл > сгенерировать+сохранить.
+    """JWT_SECRET: env > (dev-only: persist-файл > generate).
 
-    GSC-009: раньше при отсутствии JWT_SECRET каждый process генерировал свой
-    случайный secret → все сессии инвалидировались при restart, а multi-replica
-    instances получали разные secrets. Файл-персист решает single-host restart;
-    для multi-replica по-прежнему нужен общий secret через env / secret manager.
+    GSC roadmap 3.8: в production (GSC_DEV_MODE != 1) отсутствие JWT_SECRET env —
+    fail-closed: процесс завершается с ошибкой, а не молча генерирует secret
+    (иначе multi-replica/restart дают разные secrets и инвалидируют сессии).
+    В dev-mode допустим persist-файл (~/.gsc/.jwt_secret) для удобства локальной
+    разработки.
     """
     env_secret = os.environ.get("JWT_SECRET")
     if env_secret:
         return env_secret
+
+    dev_mode = os.environ.get("GSC_DEV_MODE", "0").lower() in ("1", "true", "yes")
+    if not dev_mode:
+        sys.exit(
+            "GSC: JWT_SECRET is required in production. "
+            "Set JWT_SECRET env (or GSC_DEV_MODE=1 for local development)."
+        )
+
+    # dev-mode: persist, чтобы сессии переживали restart локально
     secret_file = DB_PATH.parent / ".jwt_secret"
     try:
         if secret_file.exists():
@@ -275,25 +285,22 @@ def get_db():
 
 
 def get_tenant_from_key(
-    authorization: Optional[str] = Header(None),
+    authorization: str = Header(None),
     x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
-    api_key: Optional[str] = Query(None),
     db=Depends(get_db),
 ) -> int:
-    """Resolve tenant id from Authorization: Bearer / X-API-Key header.
+    """Resolve tenant id from Authorization: Bearer <key> or X-API-Key header.
 
-    Legacy ``?api_key=`` query fallback kept for compatibility but deprecated —
-    query params leak into access logs/history (audit S-10).
+    GSC roadmap 3.9: query-param API key удалён — он попадает в access logs /
+    browser history (audit S-10). Только header.
     """
     raw = None
     if authorization and authorization.lower().startswith("bearer "):
         raw = authorization[7:].strip()
     elif x_api_key:
         raw = x_api_key.strip()
-    elif api_key:
-        raw = api_key
     if not raw:
-        raise HTTPException(401, "Missing API key (use Authorization: Bearer <key>)")
+        raise HTTPException(401, "Missing API key (use Authorization: Bearer <key> or X-API-Key header)")
     tid = verify_api_key(raw, db)
     if tid is None:
         raise HTTPException(401, "Invalid API key")
@@ -414,6 +421,21 @@ def health():
         "db_size_kb": round(size / 1024, 1),
         "detectors": _detector_count(),
     }
+
+
+@app.get("/ready")
+def ready():
+    """Readiness probe: проверяет реальную DB connectivity (не stat файла).
+
+    GSC roadmap 4.9: Kubernetes/Docker readiness gate — если БД недоступна,
+    под возвращает 503 и не получает трафик (в отличие от /health, который
+    показывает liveness без проверки БД).
+    """
+    try:
+        conn.fetchone("SELECT 1")
+        return {"status": "ready", "db": "ok"}
+    except Exception as e:
+        raise HTTPException(503, f"database not reachable: {e}")
 
 # ═══════════════════════════════════════════════════════════
 # Scan

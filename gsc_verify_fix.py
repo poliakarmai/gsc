@@ -33,6 +33,13 @@ class VerifyResult(Enum):
     ERROR = "error"                # verification tool crashed
 
 
+class StageOutcome(Enum):
+    """GSC roadmap 3.5: трёхзначная семантика стадии верификации."""
+    NOT_RUN = "not_run"   # tool unavailable / не пытались запустить
+    PASSED = "passed"     # запущено, успех
+    FAILED = "failed"     # запущено, провал
+
+
 @dataclass
 class VerifyReport:
     result: VerifyResult
@@ -51,19 +58,22 @@ class VerifyReport:
     evidence: str = "rescan"
     tests_skipped: bool = False
     dast_skipped: bool = False
+    # GSC roadmap 3.5: раздельные исходы для tests и DAST (NOT_RUN/PASSED/FAILED)
+    tests_outcome: StageOutcome = StageOutcome.NOT_RUN
+    dast_outcome: StageOutcome = StageOutcome.NOT_RUN
 
 
-def _ready_for_pr(skip_tests: bool, skip_dast: bool) -> tuple[bool, str]:
-    """GSC-003: a PR may only be opened on a positive verification signal.
+def _ready_for_pr(tests_positive: bool, dast_positive: bool) -> tuple[bool, str]:
+    """GSC-003 + roadmap 3.5: PR только при положительном сигнале верификации.
 
-    rescan-only (tests AND DAST both skipped) proves the finding no longer
-    matches, but NOT that the fix closes the vulnerability — a detector can
-    miss a still-exploitable change. Returns (ready, reason).
+    Positive signal = tests PASSED ИЛИ dast PASSED (реально запущены и успешны).
+    rescan-only или NOT_RUN — не доказательство: детектор может пропустить
+    всё ещё эксплуатируемое изменение. Returns (ready, reason).
     """
-    if skip_tests and skip_dast:
-        return False, ("rescan clean but tests and DAST were both skipped — "
-                       "no positive verification signal (set skip_tests=False "
-                       "or skip_dast=False)")
+    if not tests_positive and not dast_positive:
+        return False, ("no positive verification signal — tests and DAST were "
+                       "skipped or NOT_RUN (rescan alone doesn't prove the fix "
+                       "closes the vulnerability)")
     return True, ""
 
 
@@ -97,12 +107,22 @@ def rescan_fix(repo_path: str, finding_key: str, detector_id: str = "") -> list[
 
 # ── Stage 2: Test Suite ──────────────────────────────────────────────
 
-def run_tests(repo_path: str, test_command: str = "") -> tuple[bool, str]:
-    """Run test suite on the fix branch. Returns (passed, output).
+def _no_test_runner(stderr: str) -> bool:
+    """True если ни один runner не был найден (NOT_RUN), а не упали тесты."""
+    markers = ("command not found", "no rule to make target", "is not recognized",
+               "cannot run program", "no such file", "not found")
+    low = stderr.lower()
+    return any(m in low for m in markers)
 
-    GSC-002: без завершающего `|| true` — намеренно падающий test suite теперь
-    даёт passed=False, а не ложный success. Порядок fallback: make test → pytest
-    → npm test; если ни один runner не дал exit 0, результат — failed.
+
+def run_tests(repo_path: str, test_command: str = "") -> tuple[StageOutcome, str]:
+    """Run test suite on the fix branch. Returns (outcome, output).
+
+    GSC-002: без завершающего `|| true` — намеренно падающий test suite даёт
+    FAILED, а не ложный success. Порядок fallback: make test → pytest → npm test.
+
+    GSC roadmap 3.5: различаем NOT_RUN (ни один runner не доступен) / PASSED /
+    FAILED — «не запускались» не смешивается с «запустились и упали».
     """
     cmd = test_command or "make test || python3 -m pytest || npm test"
     try:
@@ -110,17 +130,29 @@ def run_tests(repo_path: str, test_command: str = "") -> tuple[bool, str]:
             cmd, shell=True, capture_output=True, text=True, timeout=180,
             cwd=repo_path,
         )
-        return result.returncode == 0, result.stdout[-2000:] + result.stderr[-500:]
     except subprocess.TimeoutExpired:
-        return False, "Test suite timed out (180s)"
+        return StageOutcome.FAILED, "Test suite timed out (180s)"
     except Exception as e:
-        return False, str(e)
+        return StageOutcome.NOT_RUN, str(e)
+    output = result.stdout[-2000:] + result.stderr[-500:]
+    if result.returncode == 0:
+        return StageOutcome.PASSED, output
+    if _no_test_runner(result.stderr):
+        return StageOutcome.NOT_RUN, output
+    return StageOutcome.FAILED, output
 
 
 # ── Stage 3: DAST (nuclei) ────────────────────────────────────────────
 
-def run_dast(repo_path: str, finding_key: str) -> list[dict]:
-    """Run DAST scan with nuclei templates generated for this finding."""
+def run_dast(repo_path: str, finding_key: str) -> tuple[StageOutcome, list[dict]]:
+    """Run DAST scan with nuclei templates. Returns (outcome, findings).
+
+    GSC roadmap 3.5: различаем NOT_RUN (nuclei не установлен / template не
+    сгенерировался) / PASSED (nuclei отработал, 0 новых issues) / FAILED (issues).
+    """
+    import shutil
+    if shutil.which("nuclei") is None:
+        return StageOutcome.NOT_RUN, []
     try:
         # Generate nuclei template from finding
         gen = subprocess.run(
@@ -129,13 +161,13 @@ def run_dast(repo_path: str, finding_key: str) -> list[dict]:
             cwd=str(Path(__file__).resolve().parent),
         )
         if gen.returncode != 0:
-            return []  # can't generate template — skip DAST
+            return StageOutcome.NOT_RUN, []  # can't generate template — skip DAST
 
         # Run nuclei
         import yaml
         template = yaml.safe_load(gen.stdout)
         if not template:
-            return []
+            return StageOutcome.NOT_RUN, []
 
         with tempfile.NamedTemporaryFile(suffix=".yaml", delete=False, mode="w") as f:
             yaml.dump(template, f)
@@ -148,7 +180,7 @@ def run_dast(repo_path: str, finding_key: str) -> list[dict]:
         os.unlink(template_path)
 
         if result.returncode != 0 and "no templates provided" not in result.stderr:
-            return []
+            return StageOutcome.NOT_RUN, []
 
         findings = []
         for line in result.stdout.strip().split("\n"):
@@ -157,9 +189,9 @@ def run_dast(repo_path: str, finding_key: str) -> list[dict]:
                     findings.append(json.loads(line))
                 except json.JSONDecodeError:
                     pass
-        return findings
+        return (StageOutcome.FAILED if findings else StageOutcome.PASSED), findings
     except Exception:
-        return []
+        return StageOutcome.NOT_RUN, []
 
 
 # ── Main Verifier ────────────────────────────────────────────────────
@@ -205,27 +237,31 @@ def verify_fix(
 
     # Stage 2: Tests must pass
     if not skip_tests:
-        passed, output = run_tests(repo_path)
+        outcome, output = run_tests(repo_path)
         report.test_output = output
-        if not passed:
+        report.tests_outcome = outcome
+        if outcome == StageOutcome.FAILED:
             report.result = VerifyResult.FAILED_TESTS
             report.error_message = "Fix broke tests"
             if attempt < max_attempts:
                 report.should_retry = True
             return report
+        # NOT_RUN не блокирует здесь, но и не даёт positive signal (см. _ready_for_pr)
 
     # Stage 3: DAST (optional)
     if not skip_dast:
-        dast = run_dast(repo_path, finding_key)
+        outcome, dast = run_dast(repo_path, finding_key)
         report.dast_findings = dast
-        if dast:
+        report.dast_outcome = outcome
+        if outcome == StageOutcome.FAILED:
             report.result = VerifyResult.FAILED_DAST
             report.error_message = f"DAST found {len(dast)} new issues"
             return report
 
-    # GSC-003: opening a PR requires a positive verification signal beyond
-    # "finding gone" — rescan-only is not enough.
-    report.ready_for_pr, pr_reason = _ready_for_pr(skip_tests, skip_dast)
+    # GSC-003 + roadmap 3.5: PR требует положительный сигнал верификации.
+    tests_positive = (not skip_tests) and report.tests_outcome == StageOutcome.PASSED
+    dast_positive = (not skip_dast) and report.dast_outcome == StageOutcome.PASSED
+    report.ready_for_pr, pr_reason = _ready_for_pr(tests_positive, dast_positive)
     if pr_reason:
         report.error_message = pr_reason
     report.result = VerifyResult.PASSED
@@ -259,4 +295,6 @@ if __name__ == "__main__":
         "should_retry": report.should_retry,
         "error": report.error_message,
         "attempt": report.attempt,
+        "tests_outcome": report.tests_outcome.value,
+        "dast_outcome": report.dast_outcome.value,
     }, indent=2))
