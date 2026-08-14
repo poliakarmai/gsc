@@ -35,16 +35,16 @@
 | Импорт community-правил из semgrep-registry | ✅ `registry update <path\|git-url>` — 63% (1425/2234) компилируются |
 | GSC Registry — свой реестр правил | ⬜ |
 
-## 🔴 Фаза 4 — GitHub App с Check Runs
+## 🟢 Фаза 4 — GitHub App с Check Runs
 
 **Проблема:** GSC «внешний» — пользователь должен сам запускать. Конкуренты встроены в GitHub UI.
 
 | Фича | Статус |
 |------|--------|
-| GitHub App (Check Runs API) | ⬜ |
-| Required status checks (блокировать merge) | ⬜ |
-| Webhook: авто-скан каждого PR | ⬜ |
-| PR comment с результатами | ⬜ (частично есть в gsc_github_adapter) |
+| GitHub App (Check Runs API) | ✅ `create_check_run` + `pull_requests` link + annotations |
+| Required status checks (блокировать merge) | ✅ conclusion failure/success (branch protection настраивается на GitHub UI) |
+| Webhook: авто-скан каждого PR | ✅ `gsc-fork-safe.yml` (pull_request) |
+| PR comment с результатами | ✅ `upsert_comment` + `post-comment` |
 
 ## 🟡 Фаза 5 — Reachability Analysis (SCA)
 
