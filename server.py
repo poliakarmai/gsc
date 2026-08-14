@@ -25,6 +25,7 @@ sys.path.insert(0, str(GSC_DIR))
 
 import sqlite3
 from gsc_db import DB_PATH as GSC_DB_PATH  # just for reference
+from gsc_db_backend import SqliteBackend, PgBackend
 
 # GSC-008: default to a writable user path so `import server` doesn't fail
 # creating /data (which only exists in the container). Production sets
@@ -36,15 +37,24 @@ try:
 except OSError:
     pass  # GSC-008: non-fatal on import — DB init happens at runtime
 
-conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-conn.row_factory = sqlite3.Row
-conn.execute("PRAGMA journal_mode=WAL")
-conn.execute("PRAGMA busy_timeout=5000")
 
-# NOTE (audit A-07): this is a single global connection intended for
+def get_backend(tenant_id: Optional[int] = None):
+    """Backend-фабрика (S1): SQLite по умолчанию, PostgreSQL при GSC_DATABASE_URL.
+
+    SQLite = dev/локальный контур. PostgreSQL = multi-tenant production (RLS).
+    PgBackend требует tenant_id — по умолчанию 0 (control-plane).
+    """
+    dsn = os.environ.get("GSC_DATABASE_URL")
+    if dsn:
+        return PgBackend(dsn, tenant_id if tenant_id is not None else 0)
+    return SqliteBackend(str(DB_PATH))
+
+
+# NOTE (audit A-07): this is a single global backend intended for
 # single-process / single-worker local mode. For multi-tenant production use
-# a per-request connection (FastAPI dependency) or PostgreSQL; SQLite is not
+# a per-request backend (FastAPI dependency) or PostgreSQL; SQLite is not
 # a concurrent multi-writer store.
+conn = get_backend()
 
 # ── GitHub OAuth config ──
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "")
@@ -81,7 +91,12 @@ app.add_middleware(
 # ═══════════════════════════════════════════════════════════
 
 def ensure_cloud_schema():
-    """Ensure api_keys and scan_jobs tables exist."""
+    """Ensure api_keys and scan_jobs tables exist (SQLite dev).
+
+    PostgreSQL prod использует cloud/schema_s3.sql (S1, трек 1.3 миграции).
+    """
+    if not isinstance(conn, SqliteBackend):
+        return
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS api_keys (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -139,10 +154,12 @@ def _migrate_findings_composite_key():
     """C-02 (audit): findings.finding_key was a global PRIMARY KEY, so INSERT OR
     REPLACE could delete another tenant's row and reassign it to the new tenant.
     Rebuild the table with composite PRIMARY KEY (tenant_id, finding_key)."""
+    if not isinstance(conn, SqliteBackend):
+        return  # PostgreSQL использует schema_s3.sql, не sqlite_master
     try:
-        row = conn.execute(
+        row = conn.fetchone(
             "SELECT sql FROM sqlite_master WHERE type='table' AND name='findings'"
-        ).fetchone()
+        )
         if not row:
             return
         ddl = row["sql"] if isinstance(row, sqlite3.Row) else (row[0] if row else "")
@@ -182,15 +199,16 @@ _migrate_findings_composite_key()
 
 def create_tenant(name: str, plan: str = "free") -> tuple[str, int]:
     """Create tenant + API key. Returns (api_key, tenant_id)."""
-    cur = conn.execute("INSERT INTO tenants (name, plan) VALUES (?, ?)", (name, plan))
-    tid = cur.lastrowid
+    tid = conn.insert_id(
+        "INSERT INTO tenants (name, plan) VALUES (?, ?) RETURNING id",
+        (name, plan)
+    )
     raw_key = "gsk_" + secrets.token_urlsafe(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     conn.execute(
         "INSERT INTO api_keys (tenant_id, key_hash, key_prefix) VALUES (?, ?, ?)",
         (tid, key_hash, raw_key[:8])
     )
-    conn.commit()
     return raw_key, tid
 
 def verify_api_key(raw_key: str, db=None) -> Optional[int]:
@@ -198,10 +216,10 @@ def verify_api_key(raw_key: str, db=None) -> Optional[int]:
     db = db or conn
     h = hashlib.sha256(raw_key.encode()).hexdigest()
     prefix = raw_key[:8] if len(raw_key) >= 8 else raw_key
-    rows = db.execute(
+    rows = db.query(
         "SELECT tenant_id, key_hash FROM api_keys WHERE key_prefix=? AND revoked_at IS NULL",
         (prefix,)
-    ).fetchall()
+    )
     for r in rows:
         if hmac.compare_digest(r["key_hash"], h):
             return r["tenant_id"]
@@ -209,15 +227,13 @@ def verify_api_key(raw_key: str, db=None) -> Optional[int]:
 
 
 def get_db():
-    """Per-request SQLite connection (audit A-07).
+    """Per-request backend (audit A-07).
 
-    Each request gets its own connection (WAL + busy_timeout), isolated from
-    the module-global ``conn``. This is the seam where a PostgreSQL pool slots
-    in for multi-tenant production — swap the backend here, endpoints unchanged.
+    Each request gets its own backend (SQLite dev / PostgreSQL prod), isolated
+    from the module-global ``conn``. SQLite default; GSC_DATABASE_URL switches
+    to PostgreSQL (S1).
     """
-    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    db.row_factory = sqlite3.Row
-    db.execute("PRAGMA busy_timeout=5000")
+    db = get_backend()
     try:
         yield db
     finally:
@@ -260,18 +276,18 @@ def create_session(tenant_id: int, github_user: str) -> str:
         "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,?)",
         (token, tenant_id, github_user, expires.isoformat())
     )
-    conn.commit()
     return token
 
 def verify_session(token: str) -> Optional[int]:
     """Return tenant_id from session token or None."""
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
-        # Also verify in DB (revocation support)
-        row = conn.execute(
-            "SELECT tenant_id FROM sessions WHERE token=? AND expires_at > datetime('now')",
-            (token,)
-        ).fetchone()
+        # Also verify in DB (revocation support) — portable timestamp compare
+        now = datetime.now(timezone.utc).isoformat()
+        row = conn.fetchone(
+            "SELECT tenant_id FROM sessions WHERE token=? AND expires_at > ?",
+            (token, now)
+        )
         return row["tenant_id"] if row else None
     except JWTError:
         return None
@@ -380,24 +396,22 @@ async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
 
     # Atomic quota reservation (audit C-06): claim a slot only if under limit.
     # UPDATE ... WHERE scans_used < limit closes the check-then-act race.
-    tenant = conn.execute("SELECT plan FROM tenants WHERE id=?", (tid,)).fetchone()
+    tenant = conn.fetchone("SELECT plan FROM tenants WHERE id=?", (tid,))
     if not tenant:
         raise HTTPException(404, "Tenant not found")
     limits = {"free": 10, "pro": 100, "team": 500, "enterprise": 99999}
     max_scans = limits.get(tenant["plan"], 10)
-    cur = conn.execute(
+    # Atomic quota reservation (audit C-06): execute returns rowcount
+    if conn.execute(
         "UPDATE tenants SET scans_used = scans_used + 1 WHERE id=? AND scans_used < ?",
         (tid, max_scans)
-    )
-    conn.commit()
-    if cur.rowcount == 0:
+    ) == 0:
         raise HTTPException(429, f"Monthly scan limit ({max_scans}) reached. Upgrade to Pro.")
 
     conn.execute(
         "INSERT INTO scan_jobs (id, tenant_id, target, profile, status) VALUES (?,?,?,?,'queued')",
         (scan_id, tid, req.target, req.profile)
     )
-    conn.commit()
 
     # Run clone/scan off the HTTP worker (audit C-06) — no blocking, no DoS.
     background_tasks.add_task(_run_scan, scan_id, tid, req.target, req.profile)
@@ -407,7 +421,6 @@ async def scan(req: ScanRequest, background_tasks: BackgroundTasks):
 def _run_scan(scan_id: str, tid: int, target: str, profile: str):
     """Background scan worker: clone + scan + store. Never raises to the client."""
     conn.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
-    conn.commit()
     findings = []
     try:
         with tempfile.TemporaryDirectory() as tmp:
@@ -437,22 +450,24 @@ def _run_scan(scan_id: str, tid: int, target: str, profile: str):
         for f in findings[:500]:  # cap at 500
             nf = _normalize_finding(f)
             conn.execute(
-                """INSERT OR REPLACE INTO findings
+                """INSERT INTO findings
                    (finding_key,rule_id,title,severity,confidence,file,line,snippet,tenant_id)
-                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                   VALUES (?,?,?,?,?,?,?,?,?)
+                   ON CONFLICT(tenant_id, finding_key) DO UPDATE SET
+                     rule_id=excluded.rule_id, title=excluded.title,
+                     severity=excluded.severity, confidence=excluded.confidence,
+                     file=excluded.file, line=excluded.line, snippet=excluded.snippet""",
                 (nf["finding_key"], nf["rule_id"], nf["title"],
                  nf["severity"], nf["confidence"], nf["file"],
                  nf["line"], nf["snippet"], tid)
             )
 
         conn.execute(
-            "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=datetime('now') WHERE id=?",
-            (len(findings), scan_id)
+            "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=? WHERE id=?",
+            (len(findings), datetime.now(timezone.utc).isoformat(), scan_id)
         )
-        conn.commit()
     except Exception as e:
         conn.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
-        conn.commit()
         print(f"[scan {scan_id}] failed: {e}", flush=True)
 
 # ═══════════════════════════════════════════════════════════
@@ -479,7 +494,7 @@ def findings(
     sql += " ORDER BY severity DESC, created_at DESC LIMIT ?"
     params.append(limit)
 
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.query(sql, params)
     return {"findings": [dict(r) for r in rows], "count": len(rows)}
 
 # ═══════════════════════════════════════════════════════════
@@ -488,9 +503,9 @@ def findings(
 
 @app.get("/api/v2/scans")
 def scans(tid: int = Depends(get_tenant_from_key)):
-    rows = conn.execute(
+    rows = conn.query(
         "SELECT * FROM scan_jobs WHERE tenant_id=? ORDER BY created_at DESC LIMIT 50", (tid,)
-    ).fetchall()
+    )
     return {"scans": [dict(r) for r in rows]}
 
 # ═══════════════════════════════════════════════════════════
@@ -534,11 +549,13 @@ def github_login(redirect: str = Query("/")):
         redirect = "/"
     state = secrets.token_urlsafe(16)
     # Store state temporarily for CSRF protection
+    state_expires = (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat()
     conn.execute(
-        "INSERT OR REPLACE INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,0,?,datetime('now','+10 minutes'))",
-        (f"state:{state}", f"redirect:{redirect}")
+        "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,0,?,?) "
+        "ON CONFLICT(token) DO UPDATE SET tenant_id=excluded.tenant_id, "
+        "github_user=excluded.github_user, expires_at=excluded.expires_at",
+        (f"state:{state}", f"redirect:{redirect}", state_expires)
     )
-    conn.commit()
     url = (
         f"https://github.com/login/oauth/authorize"
         f"?client_id={GITHUB_CLIENT_ID}"
@@ -556,14 +573,14 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
 
     # Verify state (one-time: consume atomically, reject replay — audit S-02)
     state_key = f"state:{state}"
-    state_row = conn.execute(
-        "SELECT github_user FROM sessions WHERE token=? AND expires_at > datetime('now')",
-        (state_key,)
-    ).fetchone()
+    now = datetime.now(timezone.utc).isoformat()
+    state_row = conn.fetchone(
+        "SELECT github_user FROM sessions WHERE token=? AND expires_at > ?",
+        (state_key, now)
+    )
     if not state_row:
         raise HTTPException(400, "Invalid or expired OAuth state")
     conn.execute("DELETE FROM sessions WHERE token=?", (state_key,))
-    conn.commit()
 
     redirect_url = "/"
     if state_row["github_user"] and state_row["github_user"].startswith("redirect:"):
@@ -600,27 +617,25 @@ async def github_callback(code: str = Query(...), state: str = Query("")):
     github_id = user_data.get("id", 0)
 
     # Find or create tenant
-    existing = conn.execute(
+    existing = conn.fetchone(
         "SELECT id FROM tenants WHERE github_user=?", (github_user,)
-    ).fetchone()
+    )
     if existing:
         tid = existing["id"]
     else:
-        cur = conn.execute(
-            "INSERT INTO tenants (name, github_user, plan) VALUES (?,?,'free')",
+        tid = conn.insert_id(
+            "INSERT INTO tenants (name, github_user, plan) VALUES (?,?,'free') RETURNING id",
             (github_user, github_user)
         )
-        tid = cur.lastrowid
-        conn.commit()
 
     # Issue a one-time, short-lived authorization code (audit S-03). The real
     # JWT session is created at /api/v2/auth/exchange — never placed in a URL.
     auth_code = secrets.token_urlsafe(32)
+    code_expires = (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
     conn.execute(
-        "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,datetime('now','+5 minutes'))",
-        (f"code:{auth_code}", tid, github_user)
+        "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,?)",
+        (f"code:{auth_code}", tid, github_user, code_expires)
     )
-    conn.commit()
 
     return RedirectResponse(f"{redirect_url}?code={auth_code}")
 
@@ -631,15 +646,15 @@ def exchange_code(payload: dict = Body(...)):
     if not code:
         raise HTTPException(400, "Missing code")
     key = f"code:{code}"
-    row = conn.execute(
-        "SELECT tenant_id, github_user FROM sessions WHERE token=? AND expires_at > datetime('now')",
-        (key,)
-    ).fetchone()
+    now = datetime.now(timezone.utc).isoformat()
+    row = conn.fetchone(
+        "SELECT tenant_id, github_user FROM sessions WHERE token=? AND expires_at > ?",
+        (key, now)
+    )
     if not row:
         raise HTTPException(401, "Invalid or expired code")
     # One-time: consume the code atomically before issuing a session
     conn.execute("DELETE FROM sessions WHERE token=?", (key,))
-    conn.commit()
     session_token = create_session(row["tenant_id"], row["github_user"])
     return {"token": session_token, "github_user": row["github_user"]}
 
@@ -659,7 +674,7 @@ def session_info(
     tid = verify_session(raw)
     if tid is None:
         raise HTTPException(401, "Invalid or expired session")
-    tenant = conn.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
+    tenant = conn.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
     return {"tenant": dict(tenant), "valid": True}
 
 # ═══════════════════════════════════════════════════════════
@@ -668,13 +683,13 @@ def session_info(
 
 @app.get("/api/v2/stats")
 def stats(tid: int = Depends(get_tenant_from_key)):
-    tenant = conn.execute("SELECT * FROM tenants WHERE id=?", (tid,)).fetchone()
-    total_findings = conn.execute(
+    tenant = conn.fetchone("SELECT * FROM tenants WHERE id=?", (tid,))
+    total_findings = conn.fetchone(
         "SELECT COUNT(*) as c FROM findings WHERE tenant_id=?", (tid,)
-    ).fetchone()["c"]
-    scans_done = conn.execute(
+    )["c"]
+    scans_done = conn.fetchone(
         "SELECT COUNT(*) as c FROM scan_jobs WHERE tenant_id=? AND status='done'", (tid,)
-    ).fetchone()["c"]
+    )["c"]
 
     return {
         "tenant": dict(tenant),
@@ -704,47 +719,47 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
     try:
         # Scan stats (from audit DB if available, else cloud DB)
         src = _audit_conn or db
-        stats["total_scans"] = src.execute("SELECT COUNT(*) FROM audit_runs").fetchone()[0]
+        stats["total_scans"] = src.fetchone("SELECT COUNT(*) FROM audit_runs")[0]
         try:
-            stats["scans_today"] = src.execute(
+            stats["scans_today"] = src.fetchone(
                 "SELECT COUNT(*) FROM audit_runs WHERE date(started_at) = date('now')"
-            ).fetchone()[0]
+            )[0]
         except Exception:
             stats["scans_today"] = 0
-        last = src.execute(
+        last = src.fetchone(
             "SELECT project, started_at, total_findings FROM audit_runs ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        )
         if last:
             stats["last_scan"] = {"project": last["project"], "at": last["started_at"],
                                  "findings": last["total_findings"]}
 
         # PR stats
         try:
-            stats["prs_created"] = db.execute("SELECT COUNT(*) FROM published_comments").fetchone()[0]
+            stats["prs_created"] = db.fetchone("SELECT COUNT(*) FROM published_comments")[0]
         except Exception:
             stats["prs_created"] = 0
         # Findings stats — GSC-004: tenant-scoped via the cloud DB (which has
         # tenant_id), never the shared local audit DB.
-        stats["total_findings"] = db.execute(
+        stats["total_findings"] = db.fetchone(
             "SELECT COUNT(*) FROM findings WHERE tenant_id = ?", (tid,)
-        ).fetchone()[0]
+        )[0]
         try:
             # Cloud DB uses 'severity' not 'category'
-            rows = db.execute(
+            rows = db.query(
                 "SELECT COALESCE(severity, 'UNKNOWN') as sev, COUNT(*) as cnt "
                 "FROM findings WHERE tenant_id = ? GROUP BY sev ORDER BY cnt DESC",
                 (tid,),
-            ).fetchall()
+            )
             stats["by_severity"] = {r["sev"]: r["cnt"] for r in rows}
         except Exception:
             stats["by_severity"] = {}
         try:
-            rows = db.execute(
+            rows = db.query(
                 "SELECT COALESCE(rule_id, 'unknown') as rule_id, COUNT(*) as cnt "
                 "FROM findings WHERE tenant_id = ? GROUP BY rule_id "
                 "ORDER BY cnt DESC LIMIT 8",
                 (tid,),
-            ).fetchall()
+            )
             stats["by_rule"] = {r["rule_id"]: r["cnt"] for r in rows}
         except Exception:
             stats["by_rule"] = {}
@@ -752,12 +767,13 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         # Trend (temporal): findings over the last 30 days (line chart)
         stats["trend"] = []
         try:
-            rows = db.execute(
+            since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+            rows = db.query(
                 "SELECT date(created_at) as d, COUNT(*) as cnt FROM findings "
-                "WHERE tenant_id = ? AND created_at >= datetime('now','-30 days') "
+                "WHERE tenant_id = ? AND created_at >= ? "
                 "GROUP BY date(created_at) ORDER BY d",
-                (tid,),
-            ).fetchall()
+                (tid, since),
+            )
             stats["trend"] = [{"date": r["d"], "count": r["cnt"]} for r in rows]
         except Exception:
             stats["trend"] = []
@@ -766,19 +782,19 @@ def dashboard(tid: int = Depends(get_tenant_from_key)):
         stats["fixed_count"] = 0
         try:
             if _audit_conn is not None:
-                stats["fixed_count"] = _audit_conn.execute(
+                stats["fixed_count"] = _audit_conn.fetchone(
                     "SELECT COUNT(*) FROM findings WHERE revalidation_verdict = 'fixed'"
-                ).fetchone()[0]
+                )[0]
         except Exception:
             stats["fixed_count"] = 0
 
         # PR feedback
         try:
-            rows = db.execute("""
+            rows = db.query("""
                 SELECT repo, pr_number, pr_state, author_response, comment_count,
                        reactions_json, merged, checked_at
                 FROM pr_feedback ORDER BY checked_at DESC LIMIT 10
-            """).fetchall()
+            """)
             stats["pr_feedback"] = [dict(r) for r in rows]
         except Exception:
             stats["pr_feedback"] = []
@@ -969,11 +985,8 @@ if (prData && prData.length > 0) {{
 AUDIT_DB = os.environ.get("GSC_AUDIT_DB", "")
 _audit_conn = None
 if AUDIT_DB and Path(AUDIT_DB).exists():
-    _audit_conn = sqlite3.connect(
-        f"file://{AUDIT_DB}?immutable=1", uri=True,
-        check_same_thread=False)
-    _audit_conn.row_factory = sqlite3.Row
-    print(f"✅ Audit DB loaded: {_audit_conn.execute('SELECT COUNT(*) FROM findings').fetchone()[0]} findings", flush=True)
+    _audit_conn = SqliteBackend(AUDIT_DB, read_only=True)
+    print(f"✅ Audit DB loaded: {_audit_conn.fetchone('SELECT COUNT(*) FROM findings')[0]} findings", flush=True)
 
 # ── Static files (catch-all for frontend) ──
 STATIC_DIR = GSC_DIR

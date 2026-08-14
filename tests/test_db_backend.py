@@ -69,6 +69,47 @@ def test_sqlite_backend_creates_parent_dir(tmp_path):
     assert p.exists()
 
 
+def test_sqlite_execute_returns_rowcount(tmp_path):
+    db = SqliteBackend(str(tmp_path / "t.db"))
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
+    assert db.execute("INSERT INTO t (name) VALUES (?)", ("bob",)) == 1
+    # UPDATE затрагивает 1 строку
+    assert db.execute("UPDATE t SET name = ? WHERE id = ?", ("bob2", 1)) == 1
+
+
+def test_sqlite_insert_id_returning(tmp_path):
+    db = SqliteBackend(str(tmp_path / "t.db"))
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY, name TEXT)")
+    tid = db.insert_id("INSERT INTO t (name) VALUES (?) RETURNING id", ("carol",))
+    assert tid == 1
+    tid2 = db.insert_id("INSERT INTO t (name) VALUES (?) RETURNING id", ("dave",))
+    assert tid2 == 2
+
+
+def test_sqlite_executescript(tmp_path):
+    db = SqliteBackend(str(tmp_path / "t.db"))
+    db.executescript("CREATE TABLE a (id INTEGER); CREATE TABLE b (id INTEGER);")
+    assert db.fetchone("SELECT name FROM sqlite_master WHERE name='a'") is not None
+    assert db.fetchone("SELECT name FROM sqlite_master WHERE name='b'") is not None
+
+
+def test_sqlite_backend_cross_thread(tmp_path):
+    # FastAPI гоняет endpoint'ы в worker-потоках — connection должен быть
+    # check_same_thread=False (иначе sqlite3.ProgrammingError на signup/scan).
+    import threading
+    db = SqliteBackend(str(tmp_path / "t.db"))
+    db.execute("CREATE TABLE t (id INTEGER PRIMARY KEY)")
+    result = []
+
+    def worker():
+        result.append(db.fetchone("SELECT COUNT(*) as c FROM t")["c"])
+
+    t = threading.Thread(target=worker)
+    t.start()
+    t.join()
+    assert result == [0]
+
+
 # ── PgBackend ──────────────────────────────────────────────
 
 def test_pg_backend_requires_tenant_id():
