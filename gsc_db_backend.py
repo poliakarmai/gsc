@@ -11,7 +11,12 @@ from typing import Any, List, Optional
 
 
 def q_to_pg(sql: str) -> str:
-    """Конвертирует '?' плейсхолдеры в '%s', не трогая литералы в кавычках."""
+    """Конвертирует '?' плейсхолдеры в '%s', не трогая литералы в кавычках.
+
+    Ограничение: PostgreSQL JSONB-оператор `?` (exists) неотличим от плейсхолдера
+    и будет заменён на %s — для JSONB-`?` используй `@>`/`op()`. `$$...$$`
+    (bootstrap_roles.sql) идёт через psql напрямую, минуя эту функцию.
+    """
     out: List[str] = []
     in_single = in_double = False
     for ch in sql:
