@@ -58,8 +58,8 @@ def _get_file_authors(repo: Path, file_path: str) -> int:
 def _get_file_size(repo: Path, file_path: str) -> int:
     """Lines in file."""
     full = repo / file_path
-    if full.exists():
-        return len(full.read_text().split("\n"))
+    if full.is_file():
+        return len(full.read_text(errors="replace").split("\n"))
     return 0
 
 
@@ -97,6 +97,57 @@ class FileRisk:
     days_since_last_finding: int = 999
     # Context
     top_rules: List[str] = field(default_factory=list)
+    # Ф7: exploitability — EPSS of reachable CVEs for this file
+    epss_score: float = 0.0
+    top_cves: List[str] = field(default_factory=list)
+
+
+# ── Ф7: exploitability integration ─────────────────────────
+
+def _file_imports(file_path: str) -> set:
+    """Import modules used by a single Python file (reachability, Ф5)."""
+    import ast
+    try:
+        tree = ast.parse(Path(file_path).read_text(errors="replace"))
+    except Exception:
+        return set()
+    imports = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                imports.add(a.name.split(".")[0].lower())
+        elif isinstance(node, ast.ImportFrom):
+            if node.module and node.level == 0:
+                imports.add(node.module.split(".")[0].lower())
+    return imports
+
+
+def exploitability_boost(imported_modules: set, sca_cves: list,
+                         epss_lookup: dict) -> tuple:
+    """Boost risk for a file that imports a vulnerable package with high EPSS.
+
+    Returns (boost_points, best_epss, [cve...]).
+    """
+    best_epss = 0.0
+    top_cves: List[str] = []
+    for sca in sca_cves:
+        pkg = str(sca.get("package", "")).lower().replace("-", "_")
+        if pkg and pkg in imported_modules:
+            cve = sca.get("cve", "")
+            epss = epss_lookup.get(cve, 0.0)
+            if epss > best_epss:
+                best_epss = epss
+            if cve and cve not in top_cves:
+                top_cves.append(cve)
+    if best_epss >= 0.7:
+        boost = 20
+    elif best_epss >= 0.1:
+        boost = 10
+    elif best_epss > 0.0:
+        boost = 5
+    else:
+        boost = 0
+    return boost, best_epss, top_cves
 
 
 # ── Predictive Engine ─────────────────────────────────────
@@ -113,10 +164,12 @@ class RiskForecaster:
     def __init__(self, repo_path: str):
         self.repo = Path(repo_path)
         self.findings_history: List[dict] = []
+        self.sca_cves: List[dict] = []
+        self.epss_lookup: dict = {}
         self._load_history()
 
     def _load_history(self) -> None:
-        """Load findings from GSC audit DB."""
+        """Load findings + SCA CVE + EPSS cache from GSC audit DB."""
         db_path = Path.home() / ".hermes" / "state" / "gsc_audit.db"
         if not db_path.exists():
             return
@@ -134,8 +187,38 @@ class RiskForecaster:
             self.findings_history = [dict(r) for r in rows]
         except Exception:
             pass
-        finally:
-            conn.close()
+
+        # Ф7: SCA CVE — reachable vulnerable dependencies (rule_id GS030-*)
+        try:
+            from gsc_epss import extract_cve_id
+            rows = conn.execute(
+                "SELECT metadata FROM findings WHERE rule_id LIKE 'GS030-%' LIMIT 1000"
+            ).fetchall()
+            for r in rows:
+                try:
+                    meta = json.loads(r["metadata"] or "{}")
+                except Exception:
+                    continue
+                sca = meta.get("sca", {})
+                pkg = sca.get("package", "")
+                cve = extract_cve_id(sca)
+                if pkg and cve:
+                    self.sca_cves.append({
+                        "package": pkg,
+                        "vuln_id": sca.get("vuln_id", ""),
+                        "cve": cve,
+                    })
+        except Exception:
+            pass
+
+        # Ф7: EPSS cache (cve → epss probability)
+        try:
+            rows = conn.execute("SELECT cve_id, epss FROM epss_cache").fetchall()
+            self.epss_lookup = {r["cve_id"]: r["epss"] for r in rows}
+        except Exception:
+            self.epss_lookup = {}
+
+        conn.close()
 
     def _calc_risk_score(self, file_path: str, per_file_counts: dict) -> FileRisk:
         """Calculate risk score for a single file."""
@@ -189,6 +272,17 @@ class RiskForecaster:
         if module_counts > 5:
             score += 10
 
+        # Ф7: exploitability — reachable CVE with EPSS (file must exist on disk)
+        if self.sca_cves:
+            full = self.repo / file_path
+            if full.exists():
+                imports = _file_imports(str(full))
+                boost, best_epss, cves = exploitability_boost(
+                    imports, self.sca_cves, self.epss_lookup)
+                score += boost
+                risk.epss_score = best_epss
+                risk.top_cves = cves[:5]
+
         risk.risk_score = round(score, 1)
 
         if score >= 50:
@@ -234,6 +328,8 @@ class RiskForecaster:
 
         results = []
         for fp in sorted(target_files):
+            if not (self.repo / fp).is_file():
+                continue  # skip dirs / deleted files (git diff can list removed paths)
             risk = self._calc_risk_score(fp, per_file_counts)
             results.append(risk)
 
