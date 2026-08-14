@@ -50,3 +50,8 @@ def _count_modules() -> int:
     return len([f for f in GSC.glob("gsc_*.py") if f.is_file()]) + len(
         [f for f in (GSC/"gsc_detectors").glob("*.py") if f.is_file()]) + len(
         [f for f in (GSC/"enterprise").glob("*.py") if f.is_file()])
+
+
+if __name__ == "__main__":
+    import json
+    print(json.dumps(get_meta(), indent=2, ensure_ascii=False))

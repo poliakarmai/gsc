@@ -519,6 +519,14 @@ def run_pr_adapter(ctx: GitHubPRContext, profile: str = "pr-gate",
 
     # Build comment
     comment_body = _build_pr_comment(out_dir, ctx, safe_mode, no_llm)
+    # S-06: export comment body to a file so a separate job can post it
+    # (scan job stays read-only, comment job gets pull-requests: write).
+    if out_dir and comment_body.strip():
+        try:
+            (out_dir / "pr_comment.md").write_text(comment_body)
+            print(f"📝 Comment exported: {out_dir / 'pr_comment.md'}")
+        except Exception as e:
+            print(f"⚠️ Failed to export comment: {e}")
     sarif_text = ""
     if out_dir:
         sarif_path = out_dir / "report.sarif.json"
@@ -662,6 +670,10 @@ def main():
     doctor = sub.add_parser("doctor", help="GitHub diagnostics")
     doctor.add_argument("--github-context", help="Path to GITHUB_EVENT_PATH JSON")
 
+    pc = sub.add_parser("post-comment", help="Post a pre-built comment from file (S-06 job split)")
+    pc.add_argument("--github-context", help="Path to GITHUB_EVENT_PATH JSON")
+    pc.add_argument("--report", required=True, help="Path to pr_comment.md")
+
     args = p.parse_args()
 
     if args.command == "doctor":
@@ -671,6 +683,29 @@ def main():
         status = doctor_github(ctx)
         print_doctor(status)
         sys.exit(0 if not status["errors"] else 2)
+
+    elif args.command == "post-comment":
+        ctx = parse_github_event(args.github_context)
+        if not ctx or not ctx.token:
+            print("❌ No PR context or GITHUB_TOKEN")
+            sys.exit(2)
+        body = Path(args.report).read_text(errors="replace")
+        client = GitHubAPIClient(ctx.token)
+        comment_id = upsert_comment(client, ctx, body.strip(), dry_run=False)
+        if comment_id:
+            try:
+                from gsc_db import GSCDatabase
+                db = GSCDatabase()
+                db.upsert_published_comment(
+                    repo=f"{ctx.owner}/{ctx.repo}",
+                    pr_number=ctx.pr_number,
+                    comment_id=comment_id,
+                    head_sha=ctx.head_sha or "",
+                )
+            except Exception as e:
+                print(f"⚠️ Failed to record comment_id {comment_id}: {e}")
+        print(f"✅ Comment posted: {ctx.owner}/{ctx.repo}#{ctx.pr_number}")
+        sys.exit(0)
 
     elif args.command == "scan":
         ctx = None

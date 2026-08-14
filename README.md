@@ -163,7 +163,7 @@ isolated sandbox. Full guide: **[docs/MCP_SERVER.md](docs/MCP_SERVER.md)**.
 
 ```
 GSC SAST+DAST Hybrid Platform
-├── 37 registry detectors (GS001–GS039 + 5 YAML + GS024 LLM)
+├── 41 detectors (37 registry + 4 engines: Secrets/SCA/IaC/Invariants)
 ├── LLM revalidator (DeepSeek) — confidence scoring
 ├── PoC Auto-Generator — working exploits (Python/curl)
 ├── Proof-of-Fix — sandbox + staging verification

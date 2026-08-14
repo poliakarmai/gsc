@@ -2,7 +2,7 @@
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
 > **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
-> **Версия:** v1.3.0 | **Schema:** 31 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
+> **Версия:** v1.3.0 | **Schema:** 32 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
 > **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это
@@ -52,7 +52,7 @@ gsc/
 ├── gsc_sbom.py                   ← SBOM CycloneDX + VEX
 ├── gsc_spdx.py                   ← SPDX 2.3 + signing
 ├── gsc_iac.py                    ← IaC misconfigurations
-├── gsc_detectors/                ← 37 plugin-детекторов
+├── gsc_detectors/                ← 41 детектор (37 registry + 4 движка)
 ├── benchmark/                    ← 🆕 OWASP Benchmark
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension (v1.0.0, Open VSX)
@@ -103,7 +103,7 @@ python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
 ```
 
-## DB Schema (v31)
+## DB Schema (v32)
 
 Таблицы: findings, feedback, chains, mutation_alerts, overrides, secret_fingerprints,
 secret_sightings, nuclei_templates, dast_findings, sca_cache, federated_global_weights,
