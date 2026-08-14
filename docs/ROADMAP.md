@@ -10,7 +10,7 @@
 | Docker-деплой | ✅ |
 | GitHub OAuth (JWT-сессии) | ✅ |
 | Лендинг с тарифами | ✅ |
-| Multi-tenant (SQLite) | ✅ |
+| Multi-tenant (SQLite; PostgreSQL готов через S1) | ✅ |
 | PR Feedback Tracker (замкнутый цикл) | ✅ |
 
 ## 🔴 Фаза 2 — LLM-триаж (в работе)
@@ -80,6 +80,42 @@
 | ML-модель на git history | ✅ `RiskForecaster` (past density + churn + authors + size + age + clustering) |
 | Heatmap: «эти 3 файла — кандидаты на CVE» | ✅ `forecast heatmap` (score + level + epss + top_cves) |
 | Интеграция с EPSS (exploitability) | ✅ `exploitability_boost` (reachable CVE × EPSS → буст риска) |
+
+## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
+
+**Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
+→ трек 0.5 packages split + S1 PostgreSQL.
+
+### ✅ Закрыто (14.08.2026)
+
+| Шаг | Что | Где |
+|-----|-----|-----|
+| 1.1 | Контракт backend-абстракции зафиксирован 12 тестами | `gsc_db_backend.py` + `tests/test_db_backend.py` |
+| 1.2 | Backend-фабрика в server.py (`get_backend()`: SQLite default / PgBackend при `GSC_DATABASE_URL`) | `server.py` |
+| 1.3 | Миграция SQLite→PG + docker postgres | `scripts/gsc_pg_migrate.py`, `cloud/schema_runtime.sql`, `docker-compose.yml` |
+
+Все endpoint'ы переведены с sqlite3 `conn` на backend API (`fetchone`/`query`/`insert_id`/`execute`).
+`INSERT OR REPLACE`→`ON CONFLICT`, `lastrowid`→`RETURNING`, `datetime('now')`→Python timestamp,
+`date()`/`date('now')`→`date_expr()`/`now_expr()`. Проверено на реальном postgres:16 (docker):
+signup→stats/findings/scans/dashboard 200.
+
+### ⬜ Осталось (не делать без реальной потребности)
+
+| Трек | Что | Когда |
+|------|-----|-------|
+| **Трек 2** | Workers out-of-process: `cloud/workers.py` → отдельный процесс/контейнер (`gsc_worker`), очередь через существующие таблицы (без Redis), `gsc-worker` сервис в compose | перед multi-tenant prod под нагрузкой |
+| **Трек 3** | Packages split: `src/gsc/` layout (`core/`, `scanners/`, `detectors/`, `cloud/`, `enterprise/`, `forecast/`), относительные импорты, `gsc.py` → console-script | перед внешними контрибьюторами |
+
+### ⚠️ Известные ограничения / хвосты
+
+- `cloud/schema_runtime.sql` (server.py SaaS MVP) **не совпадает** с enterprise `schema_s1..s5.sql`:
+  там `findings.scan_id NOT NULL`, `scans` вместо `scan_jobs`, нет `sessions`. Это два разных слоя —
+  enterprise-слой мигрируется отдельно (S3+); согласование схем не делалось.
+- RLS в `schema_runtime.sql` намеренно НЕ включён: server.py ходит одним глобальным backend (tenant_id=0),
+  tenant скоупится явно в WHERE. RLS — отдельный этап (per-request/per-tenant backend, `enterprise/tenancy.py`).
+- `_fix_sequences` в миграции сбрасывает BIGSERIAL после явных id — обязателен, иначе duplicate key на первом INSERT.
+- `write_file` создаёт файлы `600` → для docker-mount init-скриптов нужен `chmod 644`.
+- SCA/EPSS audit DB пусты (`GS030 findings: 0`, `epss_cache rows: 0`) — буст Ф7 активируется после накопления данных.
 
 ## Эксклюзивы GSC (уже есть, нет у конкурентов)
 
