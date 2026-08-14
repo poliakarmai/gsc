@@ -61,10 +61,10 @@
 
 | Фича | Статус |
 |------|--------|
-| Web-дашборд (FastAPI + Chart.js) | ⬜ |
-| Тренды: «12 XSS в этом месяце, 3 исправлено» | ⬜ |
-| Per-tenant статистика | ⬜ |
-| История сканирований | ⬜ (частично в API) |
+| Web-дашборд (FastAPI + Chart.js) | ✅ `server.py` `/dashboard` |
+| Тренды: «12 XSS в этом месяце, 3 исправлено» | ✅ line chart (30 дней) + fixed count |
+| Per-tenant статистика | ✅ tenant-scoped (`get_tenant_from_key`) |
+| История сканирований | 🟡 частично (audit_runs last-scan) |
 
 ## 🟣 Фаза 7 — Vulnerability Prediction (убийца)
 
