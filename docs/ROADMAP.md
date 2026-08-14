@@ -24,15 +24,15 @@
 | Батч-ревалидация старых находок | ⬜ |
 | Fallback на regex-only при отсутствии API ключа | ✅ уже есть |
 
-## 🔴 Фаза 3 — Semgrep-совместимые правила
+## 🟡 Фаза 3 — Semgrep-совместимые правила
 
 **Проблема:** детекторы на Python — никто не будет писать код чтобы добавить правило. Semgrep выиграл YAML-DSL'ом.
 
 | Фича | Статус |
 |------|--------|
-| YAML → Python rule compiler | ⬜ |
-| Поддержка Semgrep pattern syntax (`$X`, `...`) | ⬜ |
-| Импорт community-правил из semgrep-registry | ⬜ |
+| YAML → Python rule compiler | ✅ `gsc_yaml_rules.py` |
+| Поддержка Semgrep pattern syntax (`$X`, `...`) | ✅ best-effort regex (аппроксимация AST-матча) |
+| Импорт community-правил из semgrep-registry | ✅ `registry update <path\|git-url>` — 63% (1425/2234) компилируются |
 | GSC Registry — свой реестр правил | ⬜ |
 
 ## 🔴 Фаза 4 — GitHub App с Check Runs

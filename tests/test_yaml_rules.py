@@ -54,6 +54,27 @@ def test_yaml_rule_pattern_either():
     assert rule.severity == "HIGH"
 
 
+def test_yaml_rule_none_patterns_does_not_crash():
+    # Some community rules ship `patterns:` / `pattern-either:` as null —
+    # must not crash (regression from real semgrep-rules import run).
+    rule = YamlRule({
+        "id": "null-patterns-rule",
+        "severity": "ERROR",
+        "message": "x",
+        "languages": ["python"],
+        "pattern": "eval($X)",
+        "patterns": None,
+        "pattern-either": None,
+    })
+    assert len(rule.patterns) == 1
+
+
+def test_yaml_rule_missing_id_raises():
+    import pytest
+    with pytest.raises(ValueError):
+        YamlRule({"severity": "ERROR", "message": "no id"})
+
+
 def test_detector_contract_file_path():
     rule = YamlRule({
         "id": "python-eval-injection",

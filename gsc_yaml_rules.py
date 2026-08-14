@@ -106,6 +106,8 @@ def semgrep_pattern_to_regex(pattern: str) -> str:
 class YamlRule:
     """Compiled YAML rule ready for GSC."""
     def __init__(self, rule_dict: dict, source_file: str = ""):
+        if "id" not in rule_dict:
+            raise ValueError(f"Rule in {source_file or '?'}: missing 'id'")
         self.id = rule_dict["id"]
         self.severity = SEVERITY_MAP.get(
             rule_dict.get("severity", "MEDIUM").upper(), "MEDIUM")
@@ -127,7 +129,7 @@ class YamlRule:
             self.patterns.append((rule_dict["pattern-regex"], self.message))
 
         # Semgrep-style: `pattern-either` — OR of alternatives
-        for alt in rule_dict.get("pattern-either", []):
+        for alt in rule_dict.get("pattern-either") or []:
             if isinstance(alt, dict):
                 if "pattern" in alt:
                     self.patterns.append(
@@ -139,7 +141,7 @@ class YamlRule:
                     (semgrep_pattern_to_regex(alt), self.message))
 
         # GSC-style `patterns` list AND Semgrep AND-list (`patterns:`).
-        for p in rule_dict.get("patterns", []):
+        for p in rule_dict.get("patterns") or []:
             if isinstance(p, str):
                 self.patterns.append((p, self.message))
             elif isinstance(p, dict):
