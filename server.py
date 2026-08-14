@@ -26,8 +26,15 @@ sys.path.insert(0, str(GSC_DIR))
 import sqlite3
 from gsc_db import DB_PATH as GSC_DB_PATH  # just for reference
 
-DB_PATH = Path(os.environ.get("GSC_DB", "/data/gsc_cloud.db"))
-DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+# GSC-008: default to a writable user path so `import server` doesn't fail
+# creating /data (which only exists in the container). Production sets
+# GSC_DB=/data/gsc_cloud.db explicitly (see cloud/docker-compose.yml).
+_DEFAULT_DB_PATH = str(Path(os.path.expanduser("~/.gsc")) / "gsc_cloud.db")
+DB_PATH = Path(os.environ.get("GSC_DB", _DEFAULT_DB_PATH))
+try:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+except OSError:
+    pass  # GSC-008: non-fatal on import — DB init happens at runtime
 
 conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
 conn.row_factory = sqlite3.Row
@@ -334,6 +341,16 @@ def _validate_target(target: str) -> None:
 # Health
 # ═══════════════════════════════════════════════════════════
 
+def _detector_count() -> int:
+    """GSC-006: detector count comes from the registry (single source of truth),
+    not a hardcoded number that drifts from README/CLI/server."""
+    try:
+        from gsc_meta import get_meta
+        return int(get_meta().get("detectors_total", 37))
+    except Exception:
+        return 37
+
+
 @app.get("/health")
 def health():
     db_path = Path(os.environ.get("GSC_DB", "/data/gsc_cloud.db"))
@@ -343,7 +360,7 @@ def health():
         "version": "1.3.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "db_size_kb": round(size / 1024, 1),
-        "detectors": 36,
+        "detectors": _detector_count(),
     }
 
 # ═══════════════════════════════════════════════════════════
@@ -668,8 +685,12 @@ def stats(tid: int = Depends(get_tenant_from_key)):
 
 # ── Dashboard ──
 @app.get("/dashboard")
-def dashboard():
-    """Security dashboard with trend charts and PR feedback."""
+def dashboard(tid: int = Depends(get_tenant_from_key)):
+    """Security dashboard with trend charts and PR feedback.
+
+    GSC-004: authenticated (API key) — not public. Findings are scoped to the
+    calling tenant; local audit aggregates are admin-only self-hosted data.
+    """
     db = conn  # global sqlite3 connection (cloud DB)
 
     # Stats for charts
@@ -701,22 +722,27 @@ def dashboard():
             stats["prs_created"] = db.execute("SELECT COUNT(*) FROM published_comments").fetchone()[0]
         except Exception:
             stats["prs_created"] = 0
-        # Findings stats (from audit DB if available)
-        src = _audit_conn or db
-        stats["total_findings"] = src.execute("SELECT COUNT(*) FROM findings").fetchone()[0]
+        # Findings stats — GSC-004: tenant-scoped via the cloud DB (which has
+        # tenant_id), never the shared local audit DB.
+        stats["total_findings"] = db.execute(
+            "SELECT COUNT(*) FROM findings WHERE tenant_id = ?", (tid,)
+        ).fetchone()[0]
         try:
-            # Audit DB uses 'category' not 'severity'
-            rows = src.execute(
-                "SELECT COALESCE(category, 'UNKNOWN') as sev, COUNT(*) as cnt "
-                "FROM findings GROUP BY sev ORDER BY cnt DESC"
+            # Cloud DB uses 'severity' not 'category'
+            rows = db.execute(
+                "SELECT COALESCE(severity, 'UNKNOWN') as sev, COUNT(*) as cnt "
+                "FROM findings WHERE tenant_id = ? GROUP BY sev ORDER BY cnt DESC",
+                (tid,),
             ).fetchall()
             stats["by_severity"] = {r["sev"]: r["cnt"] for r in rows}
         except Exception:
             stats["by_severity"] = {}
         try:
-            rows = src.execute(
-                "SELECT COALESCE(category, 'unknown') as rule_id, COUNT(*) as cnt "
-                "FROM findings GROUP BY rule_id ORDER BY cnt DESC LIMIT 8"
+            rows = db.execute(
+                "SELECT COALESCE(rule_id, 'unknown') as rule_id, COUNT(*) as cnt "
+                "FROM findings WHERE tenant_id = ? GROUP BY rule_id "
+                "ORDER BY cnt DESC LIMIT 8",
+                (tid,),
             ).fetchall()
             stats["by_rule"] = {r["rule_id"]: r["cnt"] for r in rows}
         except Exception:

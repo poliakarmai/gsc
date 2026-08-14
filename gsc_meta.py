@@ -14,7 +14,10 @@ def get_meta() -> dict:
     return {
         "version": _read_version(),
         "detectors_plugin": plugin,
-        "detectors_total": plugin + 1,  # + GS024 LLM
+        # GSC-006: get_detectors()/ALL_DETECTORS already include GS024 (LLM) and
+        # the YAML detectors — do NOT add +1. The registry is the single source
+        # of truth; README/server/CLI must read this number, never hardcode it.
+        "detectors_total": plugin,
         "schema": _read_schema(),
         "modules": _count_modules(),
     }

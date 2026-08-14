@@ -15,11 +15,11 @@ jobs:
   dry-run:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned, GSC-009)
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0 (pinned, GSC-009)
         with:
           python-version: "3.11"
 
@@ -47,7 +47,7 @@ jobs:
         run: python3 scripts/gsc_dryrun_summary.py gsc_out/scan.json >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3 (pinned, GSC-009)
         with:
           name: gsc-dryrun-${{ github.run_id }}
           path: |

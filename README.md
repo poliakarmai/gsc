@@ -8,7 +8,7 @@ Not just another scanner. GSC **proves** vulnerabilities with generated exploits
 **fixes** them with verified patches, and **heals** your codebase with automatic PRs.
 
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)]()
-[![Detectors](https://img.shields.io/badge/detectors-38-blue)]()
+[![Detectors](https://img.shields.io/badge/detectors-37-blue)]()
 [![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2B%20Commercial-blue)](LICENSE)
 [![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
@@ -32,7 +32,7 @@ have to triage, verify, and fix manually.
 
 | Stage | What GSC does | Who else does this? |
 |---|---|---|
-| **Detect** | 38 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
+| **Detect** | 37 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
 | **Prove** | Auto-generates a working exploit (PoC) | 🟡 *partial* — PT Application Inspector (exploit confirmation), Checkmarx (exploitability) |
 | **Fix** | Auto-generates a minimal patch via LLM | 🟡 Snyk DeepCode Fix, Sonar AI CodeFix, GitHub Copilot Autofix |
 | **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🟢 *rare* — few close the full PoC→patch→re-verify loop (closest: PT Application Inspector) |

@@ -7,7 +7,7 @@
 
 ## Что это
 
-GSC — самообучающаяся AppSec-платформа: 38 детекторов (37 plugin + GS024 LLM на DeepSeek),
+GSC — самообучающаяся AppSec-платформа: 37 детекторов (GS001–GS039 + GS024 LLM + 5 YAML),
 SQLite, полный цикл `detect → prove → fix → verify → heal → predict`.
 
 **Эксклюзивы:** PoC Auto-Generation, Proof-of-Fix, Self-Healing CI, Security Archaeology,

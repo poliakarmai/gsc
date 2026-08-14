@@ -84,8 +84,14 @@ run_case('privacy: no code leak in metrics', t6)
 
 def t7():
     # auto_deactivate: only globally noisy rules with enough verdicts
+    import tempfile
+    from pathlib import Path
     from gsc_db import GSCDatabase
-    with GSCDatabase() as db:
+    # GSC-005: isolate on a fresh temp DB — the production DB may already hold
+    # stale federated_global_weights rows (rule_id=category) that break the
+    # assertion. A test must never depend on (or mutate) the production DB.
+    tmpdb = Path(tempfile.mkdtemp()) / "fed_test.db"
+    with GSCDatabase(path=tmpdb) as db:
         # Seed test weights
         for rule_id, rate, verdicts in [
             ("GS099", 0.20, 50),   # noisy + many → deactivate
