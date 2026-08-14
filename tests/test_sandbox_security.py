@@ -19,6 +19,8 @@ import pytest
 
 from gsc_pof_sandbox import SANDBOX_ROOT, _isolation_backend, _run_isolated
 
+pytestmark = pytest.mark.sandbox
+
 
 def _run_escape(code: str):
     wd = SANDBOX_ROOT / f"sec_{int(time.time() * 1000)}"

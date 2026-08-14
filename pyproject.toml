@@ -69,7 +69,7 @@ py-modules = [
     "gsc_orchestrator", "gsc_poc_deterministic", "gsc_poc_generator",
     "gsc_pof_sandbox", "gsc_proofoffix", "gsc_reachability", "gsc_rejudge",
     "gsc_resume", "gsc_revalidate", "gsc_router", "gsc_sbom", "gsc_scan_diff",
-    "gsc_scan_modes", "gsc_sca", "gsc_secrets_core", "gsc_selfhealing",
+    "gsc_scan_modes", "gsc_sca", "gsc_scan_worker", "gsc_secrets_core", "gsc_selfhealing",
     "gsc_shadow_manager", "gsc_spdx", "gsc_supply_chain_chains",
     "gsc_threat_model", "gsc_verify_fix", "gsc_workspace", "gsc_xss_poc",
     "gsc_yaml_rules",
@@ -78,3 +78,15 @@ py-modules = [
 [tool.setuptools.packages.find]
 include = ["gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
 exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenchmark*", "HuixiangDou*", "gsc-vscode*", "example_projects*"]
+
+# GSC roadmap 6.3: pytest markers — чтобы можно было селективно запускать
+# subsets (`pytest -m unit`, `-m "not slow"`, `-m sandbox`).
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "unit: fast unit tests, no external deps",
+    "integration: require external services (docker/postgres/nuclei/network)",
+    "sandbox: PoF sandbox isolation tests (require container runtime)",
+    "cloud: multi-tenant cloud/SaaS tests",
+    "slow: tests taking >10s",
+]

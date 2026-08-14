@@ -105,15 +105,37 @@ def _load_or_create_jwt_secret() -> str:
         return secrets.token_urlsafe(32)
 
 
-JWT_SECRET = _load_or_create_jwt_secret()
+_jwt_secret: str | None = None
 JWT_ALGORITHM = "HS256"
+
+
+def _get_jwt_secret() -> str:
+    """Lazy JWT secret (GSC roadmap 5.1): не создаём файл и не exit при import.
+
+    Реальный load происходит при первом запросе, которому нужен JWT
+    (create_session / verify_session), а не в момент импорта модуля.
+    """
+    global _jwt_secret
+    if _jwt_secret is None:
+        _jwt_secret = _load_or_create_jwt_secret()
+    return _jwt_secret
 SESSION_TTL_HOURS = 24
 
 # ═══════════════════════════════════════════════════════════
 # App
 # ═══════════════════════════════════════════════════════════
 
-app = FastAPI(title="GSC Cloud API", version="1.3.0", docs_url="/docs")
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def lifespan(_app):
+    """GSC roadmap 5.1: DDL/миграции при старте, не при import (uvicorn server:app)."""
+    init_cloud_db()
+    yield
+
+
+app = FastAPI(title="GSC Cloud API", version="1.3.0", docs_url="/docs", lifespan=lifespan)
 
 # CORS: explicit allowlist from env (audit S-04). No wildcard — a wildcard
 # combined with a cookie/API-key auth model enables cross-origin abuse.
@@ -192,8 +214,6 @@ def ensure_cloud_schema():
     """)
     conn.commit()
 
-ensure_cloud_schema()
-
 
 def _migrate_findings_composite_key():
     """C-02 (audit): findings.finding_key was a global PRIMARY KEY, so INSERT OR
@@ -236,7 +256,15 @@ def _migrate_findings_composite_key():
         print(f"[migrate findings] {e}", flush=True)
 
 
-_migrate_findings_composite_key()
+def init_cloud_db() -> None:
+    """Startup-инициализация (GSC roadmap 5.1): DDL + миграции — НЕ при import.
+
+    Вызывается из entrypoint (if __name__ == '__main__') и/или FastAPI lifespan,
+    чтобы импорт модуля (тесты, worker, внешние импортеры) не имел побочных
+    эффектов на файловую систему / схему БД.
+    """
+    ensure_cloud_schema()
+    _migrate_findings_composite_key()
 
 # ═══════════════════════════════════════════════════════════
 # Auth
@@ -318,7 +346,7 @@ def create_session(tenant_id: int, github_user: str, db=None) -> str:
     expires = datetime.now(timezone.utc) + timedelta(hours=SESSION_TTL_HOURS)
     token = jwt.encode(
         {"tenant_id": tenant_id, "github_user": github_user, "exp": expires},
-        JWT_SECRET, algorithm=JWT_ALGORITHM
+        _get_jwt_secret(), algorithm=JWT_ALGORITHM
     )
     db.execute(
         "INSERT INTO sessions (token, tenant_id, github_user, expires_at) VALUES (?,?,?,?)",
@@ -330,7 +358,7 @@ def verify_session(token: str, db=None) -> Optional[int]:
     """Return tenant_id from session token or None."""
     db = db or conn
     try:
-        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        payload = jwt.decode(token, _get_jwt_secret(), algorithms=[JWT_ALGORITHM])
         # Also verify in DB (revocation support) — portable timestamp compare
         now = datetime.now(timezone.utc).isoformat()
         row = db.fetchone(
@@ -485,11 +513,28 @@ async def scan(req: ScanRequest, background_tasks: BackgroundTasks, db=Depends(g
 
 
 def _run_scan(scan_id: str, tid: int, target: str, profile: str):
-    """Background scan worker: clone + scan + store. Never raises to the client.
+    """Spawn out-of-process scan worker (GSC roadmap 4.8).
 
-    GSC roadmap 4.7: background task не имеет request context — использует свой
-    tenant-scoped backend (PgBackend(tid) при GSC_DATABASE_URL), а не global conn.
+    Долгий clone+scan+store выполняется в отдельном процессе (gsc_scan_worker.py),
+    а не в FastAPI background task — чтобы не блокировать HTTP worker и не тянуть
+    его память. Fallback на in-process при недоступности worker-скрипта.
     """
+    worker = Path(__file__).parent / "gsc_scan_worker.py"
+    if worker.exists():
+        try:
+            subprocess.Popen(
+                [sys.executable, str(worker), scan_id],
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True,  # detach from the web process
+            )
+            return
+        except Exception as e:
+            print(f"[scan {scan_id}] worker spawn failed, in-process fallback: {e}", flush=True)
+    _run_scan_in_process(scan_id, tid, target, profile)
+
+
+def _run_scan_in_process(scan_id: str, tid: int, target: str, profile: str):
+    """In-process fallback (dev без worker). clone + scan + store, никогда не бросает."""
     db = get_backend(tid)
     try:
         db.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
@@ -1088,6 +1133,7 @@ def index():
 
 if __name__ == "__main__":
     import uvicorn
+    init_cloud_db()
     port = int(os.environ.get("PORT", 8000))
     print(f"GSC Cloud API v1.3.0 starting on :{port}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
