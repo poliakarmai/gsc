@@ -21,6 +21,11 @@ from urllib.parse import quote
 GH_API = "https://api.github.com"
 OAUTH_STATE_TTL = 600
 
+# S-08: invite-only onboarding. When enabled (default), dashboard login
+# requires a pending invite (by email or github_login) OR ownership via a
+# GitHub App installation — an open signup is rejected with 403.
+INVITE_ONLY = os.environ.get("GSC_INVITE_ONLY", "1").lower() in ("1", "true", "yes")
+
 
 class OAuthError(Exception):
     pass
@@ -117,8 +122,42 @@ def auth_callback(code: str, state: str, response: Response):
         raise HTTPException(401, str(e))
     db = control_plane()
     user_id = upsert_user(db, gh_user)
-    grant_owner_on_first_install(db, user_id, gh_user["login"])
-    db.commit()
+
+    if INVITE_ONLY:
+        # Strict match: github_login is the identity — highest priority.
+        # Email is only a fallback when the invite has no login bound.
+        inv = db.fetchone(
+            "SELECT id, tenant_id, role FROM invites "
+            "WHERE status='pending' AND github_login = ? LIMIT 1",
+            (gh_user["login"],))
+        if not inv and gh_user.get("email"):
+            inv = db.fetchone(
+                "SELECT id, tenant_id, role FROM invites "
+                "WHERE status='pending' AND github_login IS NULL "
+                "AND email = ? LIMIT 1",
+                (gh_user["email"],))
+        if inv:
+            # Atomic accept — guards against double-spend races.
+            db.execute(
+                "UPDATE invites SET status='accepted', accepted_at=now() "
+                "WHERE id=? AND status='pending'", (inv["id"],))
+            db.execute(
+                "INSERT INTO memberships (user_id, tenant_id, role) "
+                "VALUES (?, ?, ?) ON CONFLICT (user_id, tenant_id) DO NOTHING",
+                (user_id, inv["tenant_id"], inv["role"]))
+        else:
+            # Legitimate fallback: ownership via GitHub App installation.
+            grant_owner_on_first_install(db, user_id, gh_user["login"])
+        db.commit()
+        # Hard gate — open signup is rejected.
+        m = db.fetchone("SELECT 1 FROM memberships WHERE user_id = ?", (user_id,))
+        if not m:
+            raise HTTPException(
+                403, "This instance is invite-only. Ask an admin to invite you.")
+    else:
+        grant_owner_on_first_install(db, user_id, gh_user["login"])
+        db.commit()
+
     tenant = db.fetchone("""
         SELECT tenant_id FROM memberships WHERE user_id = ?
         ORDER BY (role != 'owner'), created_at LIMIT 1

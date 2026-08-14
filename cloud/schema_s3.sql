@@ -34,3 +34,18 @@ CREATE TABLE IF NOT EXISTS stripe_events (
     payload JSONB NOT NULL,
     processed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- S-08: invite-only onboarding — dashboard access requires an admin-issued invite
+CREATE TABLE IF NOT EXISTS invites (
+    id BIGSERIAL PRIMARY KEY,
+    email TEXT,
+    github_login TEXT,
+    tenant_id BIGINT REFERENCES tenants(id),
+    role TEXT NOT NULL DEFAULT 'developer',
+    status TEXT NOT NULL DEFAULT 'pending',   -- pending|accepted|revoked
+    created_by BIGINT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    accepted_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_invites_email ON invites(email);
+CREATE INDEX IF NOT EXISTS idx_invites_login ON invites(github_login);
