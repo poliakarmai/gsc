@@ -82,7 +82,9 @@ exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenc
 # GSC roadmap 6.3: pytest markers — чтобы можно было селективно запускать
 # subsets (`pytest -m unit`, `-m "not slow"`, `-m sandbox`).
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+# DD-10: include enterprise/tests (test_enterprise.py) — README claims
+# "10/10 Enterprise" but testpaths only covered tests/.
+testpaths = ["tests", "enterprise/tests"]
 markers = [
     "unit: fast unit tests, no external deps",
     "integration: require external services (docker/postgres/nuclei/network)",

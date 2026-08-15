@@ -1,9 +1,10 @@
 """Single source of truth for GSC metadata (refactor #4)."""
-import sqlite3, subprocess
 from pathlib import Path
 
 GSC = Path(__file__).parent
-DB = Path.home() / ".hermes/state/gsc_audit.db"
+# DD-06: DB path is NOT defined here anymore — the single source of truth is
+# gsc_db.DB_PATH (reads GSC_DB_PATH env). Import `from gsc_db import DB_PATH`
+# when a DB path is actually needed.
 
 # GSC-006: 4 standalone engines run OUTSIDE the per-file registry — they are
 # real detectors with a different interface (repo/scan-level, not per-file):

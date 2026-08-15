@@ -88,6 +88,14 @@ def _load_or_create_jwt_secret() -> str:
             "Set JWT_SECRET env (or GSC_DEV_MODE=1 for local development)."
         )
 
+    # DD-08: surface dev-mode auto-gen explicitly — ops must know the secret is
+    # a local, auto-generated value (not a production JWT_SECRET).
+    print(
+        "[gsc] WARNING: GSC_DEV_MODE=1 — JWT secret is auto-generated/persisted "
+        "locally (~/.gsc/.jwt_secret). Do NOT use in production.",
+        file=sys.stderr,
+    )
+
     # dev-mode: persist, чтобы сессии переживали restart локально
     secret_file = DB_PATH.parent / ".jwt_secret"
     try:
@@ -542,7 +550,7 @@ def _run_scan_in_process(scan_id: str, tid: int, target: str, profile: str):
     """In-process fallback (dev без worker). clone + scan + store, никогда не бросает."""
     db = get_backend(tid)
     try:
-        db.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
+        db.execute("UPDATE scan_jobs SET status='running' WHERE id=? AND tenant_id=?", (scan_id, tid))
         findings = []
         try:
             with tempfile.TemporaryDirectory() as tmp:
@@ -585,11 +593,11 @@ def _run_scan_in_process(scan_id: str, tid: int, target: str, profile: str):
                 )
 
             db.execute(
-                "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=? WHERE id=?",
-                (len(findings), datetime.now(timezone.utc).isoformat(), scan_id)
+                "UPDATE scan_jobs SET status='done', findings_count=?, completed_at=? WHERE id=? AND tenant_id=?",
+                (len(findings), datetime.now(timezone.utc).isoformat(), scan_id, tid)
             )
         except Exception as e:
-            db.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
+            db.execute("UPDATE scan_jobs SET status='failed' WHERE id=? AND tenant_id=?", (scan_id, tid))
             print(f"[scan {scan_id}] failed: {e}", flush=True)
     finally:
         db.close()

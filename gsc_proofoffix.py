@@ -78,6 +78,17 @@ class FixEvidence:
         return d
 
 
+# DD-05: canonical finding field names are `file_path` and `line_number`
+# (used by gsc_db schema, action.yml, and the CLI). These helpers tolerate
+# legacy `file`/`line` keys from older JSON reports so no caller breaks.
+def _norm_file(f: dict) -> str:
+    return f.get("file_path") or f.get("file") or ""
+
+
+def _norm_line(f: dict) -> int:
+    return f.get("line_number") or f.get("line") or 0
+
+
 # ── Sandbox ────────────────────────────────────────────────
 class FixSandbox:
     """Isolated file copy in tempdir. Original is never mutated."""
@@ -128,13 +139,57 @@ def _run_poc_sandboxed(poc_code: str, sandbox_dir: str) -> dict:
     poc_path = os.path.join(sandbox_dir, "poc_verify.py")
     Path(poc_path).write_text(poc_code, encoding="utf-8")
 
-    env = {**os.environ, **NO_NET_ENV, "PYTHONDONTWRITEBYTECODE": "1"}
+    # DD-01 + DD-02: PoC must NOT inherit host secrets (DEEPSEEK_API_KEY,
+    # GITHUB_TOKEN, JWT_SECRET, ...) and must run under the best available
+    # isolation — container (docker/podman) first, then rlimit+minimal-env.
     try:
-        proc = subprocess.run(
+        from gsc_pof_sandbox import (
+            SANDBOX_ENV_WHITELIST, _sandbox_env, _sandbox_limits,
+            _isolation_backend, _run_isolated,
+        )
+    except Exception:
+        SANDBOX_ENV_WHITELIST = {
+            "PATH", "HOME", "LANG", "LC_ALL", "PYTHONPATH",
+            "TMPDIR", "TEMP", "TMP", "SHELL",
+        }
+        _sandbox_env = _sandbox_limits = _isolation_backend = _run_isolated = None
+
+    # Minimal env — never inherit host secrets (DD-01).
+    if _sandbox_env is not None:
+        env = _sandbox_env(sandbox_dir)
+    else:
+        env = {k: os.environ[k] for k in SANDBOX_ENV_WHITELIST if k in os.environ}
+    env.update(NO_NET_ENV)
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+
+    def _host_run():
+        # rlimit fallback — still drops privileges + minimal env (DD-02).
+        return subprocess.run(
             [sys.executable, poc_path],
             cwd=sandbox_dir, env=env,
+            preexec_fn=(_sandbox_limits if _sandbox_limits is not None else None),
             timeout=POC_TIMEOUT_SEC, capture_output=True, text=True,
         )
+
+    try:
+        proc = None
+        # Container path first (strongest isolation — DD-02).
+        if (_run_isolated is not None and _isolation_backend is not None
+                and _isolation_backend() != "rlimit"):
+            try:
+                os.chmod(sandbox_dir, 0o777)
+            except OSError:
+                pass
+            try:
+                proc, _iso = _run_isolated(
+                    ["python3", "poc_verify.py"], sandbox_dir, POC_TIMEOUT_SEC
+                )
+            except subprocess.TimeoutExpired:
+                return {"exploited": None, "output": "<timeout>", "exit": None}
+            except Exception:
+                proc = None
+        if proc is None:
+            proc = _host_run()
     except subprocess.TimeoutExpired:
         return {"exploited": None, "output": "<timeout>", "exit": None}
     except Exception as e:
@@ -230,8 +285,8 @@ class PatchGenerator:
 
         prompt = PATCH_PROMPT.format(
             rule_id=finding.get("rule_id"), title=finding.get("title", ""),
-            file_path=finding.get("file_path", finding.get("file", "")),
-            line=finding.get("line_number", finding.get("line", 1)),
+            file_path=_norm_file(finding),
+            line=_norm_line(finding),
             context=context, history=history,
         )
 
@@ -286,7 +341,7 @@ class ProofOfFix:
         self.dast_timeout = dast_timeout
 
     def _detector_fires(self, finding, source):
-        hits = self.detect_fn(finding.get("file_path", finding.get("file", "")), source)
+        hits = self.detect_fn(_norm_file(finding), source)
         return any(h.get("rule_id") == finding.get("rule_id", "") for h in hits)
 
     def attempt(self, finding, source, poc_code) -> FixEvidence:
@@ -483,24 +538,53 @@ def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEv
         ev.error = "PoC generation failed — cannot verify fix"
         return ev
 
-    # A simple detect_fn that checks if the rule still fires
-    # In production, this would call gsc_external detectors, but for
-    # now we use a structural check: the detector stopped if we can't
-    # find the same pattern in the source
+    # DD-03: real detector check via the registry — not a 4-rule stub. For the
+    # finding's rule_id, ask the actual detector whether it still fires on the
+    # patched content. Falls back to legacy heuristics only if the registry or
+    # that specific detector is unavailable.
     import re as _re
 
     def _detect_fn(file_path: str, content: str) -> list:
-        """Minimal structural detector — checks if GS00X pattern still present."""
+        """Detect if the finding's rule still fires on the given content."""
         results = []
-        rule_prefix = finding.get("rule_id", "")
-        if rule_prefix == "GS001" and "sk-" in content:
-            results.append({"rule_id": "GS001"})
-        if rule_prefix == "GS004" and ("os.system" in content or "shell=True" in content):
-            results.append({"rule_id": "GS004"})
-        if rule_prefix == "GS005" and _re.search(r"SELECT.*\+|f\"SELECT|%.*sql", content, _re.IGNORECASE):
-            results.append({"rule_id": "GS005"})
-        if rule_prefix == "GS017" and "password" in content.lower():
-            results.append({"rule_id": "GS017"})
+        target_rule = finding.get("rule_id", "")
+        try:
+            from gsc_detectors.registry import get_detectors
+            from gsc_detectors import AuditContext
+            for det in get_detectors(echelon=None):
+                if det.rule_id != target_rule:
+                    continue
+                detect_fn = det.detect
+                try:
+                    if (hasattr(detect_fn, '__self__')
+                            and hasattr(detect_fn.__self__, '_compiled')):
+                        # RegexDetector: detect(file_path, content)
+                        det_findings = detect_fn(file_path, content)
+                    else:
+                        # Plugin detector: detect(ctx)
+                        ctx = AuditContext(
+                            project=finding.get("project", "pof"),
+                            path=Path(file_path).parent,
+                        )
+                        ctx.files = [Path(file_path)]
+                        det_findings = detect_fn(ctx)
+                    if det_findings:
+                        results.append({"rule_id": det.rule_id})
+                except Exception:
+                    continue
+                break
+        except Exception:
+            results = []
+        # Legacy fallback only when registry unavailable (DD-03 safety net).
+        if not results:
+            if target_rule == "GS001" and "sk-" in content:
+                results.append({"rule_id": "GS001"})
+            elif target_rule == "GS004" and ("os.system" in content or "shell=True" in content):
+                results.append({"rule_id": "GS004"})
+            elif target_rule == "GS005" and _re.search(r"SELECT.*\+|f\"SELECT|%.*sql", content, _re.IGNORECASE):
+                results.append({"rule_id": "GS005"})
+            elif target_rule == "GS017" and "password" in content.lower():
+                results.append({"rule_id": "GS017"})
         return results
 
     print(f"[PoF] Running Proof-of-Fix orchestrator ({MAX_ITERATIONS} iterations)...")

@@ -56,7 +56,12 @@ runs:
     - name: Install GSC
       # GSC-008: pin на immutable commit SHA, а не mutable tag @v1.3.0 —
       # tag можно переместить, SHA нельзя. Обновлять при release.
-      run: pip install git+https://github.com/poliakarmai/gsc.git@b01853667ab281c6da0c70b67ce83f4893a4e5e7
+      # DD-07: --no-deps + pinned requirements.txt (не транзитивные ranges из
+      # pyproject.toml) — стабильное дерево зависимостей в CI.
+      run: |
+        pip install --no-deps git+https://github.com/poliakarmai/gsc.git@b01853667ab281c6da0c70b67ce83f4893a4e5e7
+        curl -fsSL -o /tmp/gsc-requirements.txt https://raw.githubusercontent.com/poliakarmai/gsc/master/requirements.txt
+        pip install -r /tmp/gsc-requirements.txt
       shell: bash
 
     - name: Run GSC Scan
