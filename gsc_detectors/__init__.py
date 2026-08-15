@@ -84,13 +84,26 @@ class AuditContext:
 
     # ── File classification ───────────────────────────────────────────────
 
+    # Files larger than this are skipped (prevents scans stalling on huge
+    # data/models/media — e.g. 100MB+ static assets, 19MB text dumps).
+    MAX_SCAN_FILE_SIZE: int = 1_000_000  # 1 MB
+
+    # Directory names that are never source code (always skipped).
+    SKIP_DIRS: tuple[str, ...] = (
+        ".git", "node_modules", "__pycache__", ".venv", "venv",
+        ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        "dist", "build", ".next", ".nuxt",
+    )
+
     # Glob patterns for files that are NEVER code (skip in all detectors)
     NON_CODE_GLOBS: tuple[str, ...] = (
         "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.webp",
         "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf",
-        "*.mp3", "*.mp4", "*.avi", "*.mov", "*.webm",
-        "*.zip", "*.tar", "*.gz", "*.bz2", "*.7z",
-        "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx",
+        "*.mp3", "*.mp4", "*.avi", "*.mov", "*.webm", "*.wav", "*.ogg",
+        "*.zip", "*.tar", "*.gz", "*.bz2", "*.7z", "*.whl", "*.egg",
+        "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx",
+        "*.db", "*.sqlite", "*.sqlite3", "*.model", "*.onnx", "*.pt", "*.pth",
+        "*.bin", "*.so", "*.dll", "*.dylib", "*.exe", "*.wasm",
         "*.lock", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
         "*.min.js", "*.min.css", "*.map",
     )
@@ -125,18 +138,33 @@ class AuditContext:
         return sorted(self.path.glob(pattern))
 
     def get_files(self, extensions: Sequence[str] | None = None) -> list[Path]:
-        """Return all source files, optionally filtered by extension."""
+        """Return all source files, optionally filtered by extension.
+
+        Pre-filter: skips hidden/skip dirs, non-code (binary/media/lock) files,
+        and anything over MAX_SCAN_FILE_SIZE — so scans never stall on huge
+        static assets, ML models, or multi-MB text dumps."""
         if not self.files:
             self.files = sorted(
                 f for f in self.path.rglob("*")
                 if f.is_file()
                 and not any(p.startswith(".") for p in f.parts)
+                and not any(d in f.parts for d in self.SKIP_DIRS)
                 and ".git/" not in str(f)
-                and "node_modules/" not in str(f)
+                and not self.is_non_code_file(f)
+                and self._within_size_limit(f)
             )
         if extensions:
             return [f for f in self.files if f.suffix in extensions]
         return self.files
+
+    def _within_size_limit(self, filepath: Path) -> bool:
+        """True if file is within MAX_SCAN_FILE_SIZE (files over the limit are
+        skipped to keep scans fast; giant text/binary blobs never yield real
+        findings and stall rg + Python fallback)."""
+        try:
+            return filepath.stat().st_size <= self.MAX_SCAN_FILE_SIZE
+        except OSError:
+            return False
 
     def get_source_files(self, extensions: Sequence[str] | None = None) -> list[Path]:
         """Return source files, excluding tests and non-code files."""

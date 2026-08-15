@@ -180,15 +180,24 @@ def cmd_scan(args):
     try:
         from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, _is_kubernetes
         for fpath in project_path.rglob("*"):
-            if not fpath.is_file(): continue
-            try: content = fpath.read_text(errors="ignore")
-            except: continue
-            if fpath.suffix in (".tf",".tfvars"):
-                findings.extend(detect_terraform(str(fpath), content))
+            if not fpath.is_file():
+                continue
+            # Pre-filter: only read infra files, and skip oversized ones
             base = fpath.name.lower()
-            if base.startswith("dockerfile") or base.endswith(".dockerfile"):
+            is_docker = base.startswith("dockerfile") or base.endswith(".dockerfile")
+            if not (fpath.suffix in (".tf", ".tfvars", ".yaml", ".yml") or is_docker):
+                continue
+            try:
+                if fpath.stat().st_size > 1_000_000:
+                    continue
+                content = fpath.read_text(errors="ignore")
+            except Exception:
+                continue
+            if fpath.suffix in (".tf", ".tfvars"):
+                findings.extend(detect_terraform(str(fpath), content))
+            if is_docker:
                 findings.extend(detect_dockerfile(str(fpath), content))
-            elif fpath.suffix in (".yaml",".yml") and _is_kubernetes(content):
+            elif fpath.suffix in (".yaml", ".yml") and _is_kubernetes(content):
                 findings.extend(detect_kubernetes(str(fpath), content))
     except ImportError as e:
         scan_warnings.append(f"IaC detectors unavailable: {e}")
@@ -392,6 +401,14 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
         from gsc_detectors.registry import get_detectors
 
         ctx = AuditContext(project=project, path=path)
+        # Pre-filter: populate the file inventory once (with size/binary/dir
+        # filters) so every detector that reads `ctx.files` — and every
+        # detector that falls back to rglob() — operates on the filtered list
+        # instead of re-walking the whole tree (incl. huge static/data blobs).
+        try:
+            ctx.files = ctx.get_files()
+        except Exception as e:
+            print(f"[gsc] warning: file pre-filter failed ({e})", file=sys.stderr)
         findings: list[dict] = []
         for det in get_detectors(echelon=echelon):
             if det.rule_id in ctx.skipped_detectors:
@@ -476,7 +493,8 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
     matches: list[tuple[str, int, str]] = []
     # 1) ripgrep (быстрый путь)
     try:
-        rg_args = ["rg", "--no-heading", "-n", search_pattern, str(path)]
+        rg_args = ["rg", "--no-heading", "-n", "--max-filesize", "1M",
+                   "--max-columns", "300", search_pattern, str(path)]
         if file_types:
             rg_args.insert(2, "-t"); rg_args.insert(3, file_types)
         if exclude_md:
@@ -497,13 +515,32 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
     # 2) Python re fallback (всегда доступен)
     try:
         rx = _re.compile(search_pattern, _re.IGNORECASE)
-        skip_dirs = {".git", "__pycache__", "node_modules", ".venv", "venv"}
+        skip_dirs = {".git", "__pycache__", "node_modules", ".venv", "venv",
+                     ".tox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+                     "dist", "build", ".next", ".nuxt"}
+        _non_code_suffixes = {".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico",
+                              ".webp", ".woff", ".woff2", ".ttf", ".eot", ".otf",
+                              ".mp3", ".mp4", ".avi", ".mov", ".webm", ".wav",
+                              ".ogg", ".zip", ".tar", ".gz", ".bz2", ".7z",
+                              ".whl", ".egg", ".pdf", ".doc", ".docx", ".xls",
+                              ".xlsx", ".ppt", ".pptx", ".db", ".sqlite",
+                              ".sqlite3", ".model", ".onnx", ".pt", ".pth",
+                              ".bin", ".so", ".dll", ".dylib", ".exe", ".wasm",
+                              ".lock", ".map", ".min.js", ".min.css"}
         for fp in path.rglob("*"):
             if not fp.is_file():
                 continue
             if any(part in skip_dirs for part in fp.parts):
                 continue
             if exclude_md and fp.suffix == ".md":
+                continue
+            # Pre-filter: skip non-code/binary and oversized files
+            if fp.suffix.lower() in _non_code_suffixes:
+                continue
+            try:
+                if fp.stat().st_size > 1_000_000:
+                    continue
+            except OSError:
                 continue
             try:
                 content = fp.read_text(errors="replace")
