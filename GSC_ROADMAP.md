@@ -1,8 +1,8 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 13.08.2026** | Ядро: v1.3.0, 41 детектор | Аудит безопасности 28/28 закрыто | Cloud: спроектирован (S1–S4) | VSCode: v0.32 (`.vsix` собран) | Киллер-фичи #2/#3 + Phase 2 + federated Step 2 ✅
+> **Статус на 15.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec due-diligence DD-01..DD-10 ✅ (10/10) + pre-фильтр файлов ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Киллер-фичи #2/#3 ✅, #1 runtime validator ⏳
 
-Сводная дорожная карта по всем трекам: ядро, rollout, SaaS, Enterprise, VSCode, бизнес.
+Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
 ---
 
@@ -11,14 +11,15 @@
 | Трек | Статус | Что осталось |
 |---|---|---|
 | Ядро сканера (v0.11→v1.3) | ✅ готово (41 детектор) | ничего |
-| Аудит безопасности (28 замечаний) | ✅ 28/28 закрыто (8 коммитов 13.08) | только физический packages split |
+| Безопасность (аудит 28 + AppSec DD-01..DD-10) | ✅ 28/28 + 10/10 закрыто (13.08 + 15.08) | PostgreSQL для multi-tenant (DD-09) |
+| Pre-фильтр файлов (скорость скана) | ✅ `6071d5d` (15.08) | ничего |
 | Packages split (core/cli/cloud) | 🟡 логический ✅ (`e06c355`), физический ⏳ | перенос ~40 модулей (3–5 дней) |
 | Production rollout Phase 0–5 | ✅ завершён | наблюдение |
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
-| SaaS Cloud (S1–S4) | 📝 спроектирован | реализация (~4 мес) |
+| SaaS Cloud (S1–S4) | 📝 спроектирован | PostgreSQL + RLS (S1) + реализация (~4 мес) |
 | Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
-| VSCode extension | ✅ v0.32 + `.vsix` + **Open VSX опубликован** | GitHub Releases + VSCode Marketplace (РФ ❌) |
-| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅; Phase 2 HTTP-runner ✅ | #1 runtime validator ⏳ |
+| VSCode extension | ✅ v0.32 + Open VSX опубликован | GitHub Releases (Marketplace РФ ❌) |
+| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator ⏳ |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
 ---
@@ -38,6 +39,26 @@
 | v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
 
 **Итог (v1.3.0):** 41 детектор, тесты, calibration 17/17, schema 31, ~480K находок, self-learning.
+
+### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
+
+Два независимых аудита + сканер-оптимизация закрыты полностью.
+
+| Аудит | Результат | Коммит |
+|---|---|---|
+| Внутренний аудит (28 замечаний) | 28/28 закрыто (8 коммитов) | 13.08 |
+| AppSec due-diligence (DD-01..DD-10) | 10/10 закрыто (2×P0, 4×P1, 4×P2) | `56c6d6f` (15.08) |
+| Pre-фильтр файлов (скорость скана) | не зависает на больших проектах | `6071d5d` (15.08) |
+
+**Ключевое из DD-аудита (закрыто):**
+- **DD-01/DD-02 (P0):** сгенерированный PoC больше не наследует `os.environ`
+  (env-whitelist вместо `{**os.environ}`) и выполняется в контейнере → rlimit
+  fallback, а не на хосте через bare `subprocess.run`.
+- **DD-03:** `_detect_fn` использует реальный registry, не заглушку из 4 правил.
+- **DD-09 (частично):** `scan_jobs` UPDATE scoped по `tenant_id`; сам PostgreSQL — см. Трек 1 (S1).
+
+**Вывод аудитора:** после P0-фиксов GSC готов к single-tenant/self-hosted пилоту.
+Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
 
 ### 2.2. Юридическая защита (🟡 2/3)
 
@@ -148,6 +169,11 @@
 | S3 | Dashboard (Next.js), GitHub OAuth, Stripe checkout + webhook, квоты/402 | 4–5 нед |
 | S4 | Audit log + hash chain, SSO OIDC, retention/deletion, SOC 2 Type I→II + ISO27001 prep, Marketplace, GA-гейт | 6–8 нед |
 
+> **DD-09 (AppSec-аудит, 15.08):** PostgreSQL + RLS в S1 — не просто «масштаб», а
+> обязательное условие **tenant isolation** для multi-tenant SaaS. SQLite-часть
+> (`scan_jobs` UPDATE по `tenant_id`) уже закрыта; полный переезд на PG — в S1.
+> До S1 GSC позиционируется как single-tenant/self-hosted.
+
 ### Трек 2. Enterprise hybrid agent (2–3 недели)
 
 Runner + activation key + ingest API + кэш/offline + air-gap экспорт. Запускать после S1.
@@ -221,4 +247,4 @@ CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3
 
 ---
 
-*Обновлено: 13.08.2026*
+*Обновлено: 15.08.2026*
