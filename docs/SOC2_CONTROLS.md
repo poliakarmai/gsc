@@ -20,7 +20,7 @@
 ## Evidence
 
 - `audit_chain_verify.json` — hash chain integrity for all tenants
-- `calibration_report.txt` — 17/17 calibration projects
+- `calibration_report.txt` — 13/13 calibration projects
 - `tests_report.txt` — full test suite results
 - `access_review.json` — all memberships and roles
 - RLS probe: cross-tenant read attempt → 0 rows (executable isolation proof)

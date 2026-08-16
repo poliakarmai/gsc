@@ -60,10 +60,10 @@ gsc/
 ├── benchmark/                    ← 🆕 OWASP Benchmark + perf (benchmark_perf.py)
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension (v1.0.0, Open VSX)
-├── calibration/                  ← 19 проектов (11 clean + 8 vuln)
+├── calibration/                  ← 13 проектов (9 clean + 4 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
 ├── cloud/                        ← SaaS S1–S4 (auth, billing, tenancy, SSO, marketplace, worker, federated_server)
-├── tests/                        ← 230 тестов (55 файлов)
+├── tests/                        ← 252+ тестов (58 файлов)
 ├── .pre-commit-hooks.yaml        ← 🆕 pre-commit hook (gsc-scan)
 ├── .pre-commit-config.yaml       ← 🆕 self-check pre-commit
 └── PROJECT.md AGENTS.md README.md

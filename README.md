@@ -211,7 +211,7 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
-└── SQLite DB — schema 31, WAL, 403K fingerprints
+└── SQLite DB — schema 32, WAL, 403K fingerprints
 ```
 
 **Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)
@@ -236,6 +236,11 @@ gsc forecast heatmap --repo ./repo
 
 # Trace a vulnerability's history
 gsc archaeology trace <finding_key> --repo ./repo
+
+# Attack-path graph, fix quality, MTTFV SLA
+gsc attack-graph --scan scan.json --out attack_paths.md
+gsc fix-quality --evidence fix.json
+gsc sla --days 90 --by category
 
 # Export to nuclei for DAST validation
 gsc export-nuclei scan.json -o nuclei-templates/
@@ -268,10 +273,10 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 ## 🧪 Quality
 
 - **Test suite** — `pip install -e '.[test]' && pytest` (corpus + nuclei + schema integrity)
-- **17/17 calibration projects** (11 clean + 6 vulnerable)
+- **13/13 calibration projects** (9 clean + 4 vulnerable)
 - Hard chain assertion with retry (2-of-3, temperature 0)
 - Production rollout Phase 0–5 complete (blocking-standard)
-- Schema 25, WAL, auto-backup migrations
+- Schema 32, WAL, auto-backup migrations
 
 ---
 
@@ -284,8 +289,8 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 | Production rollout Phase 0–5 | ✅ |
 | Exclusive features v0.27 (PoF, Archaeology, Forecast…) | ✅ |
 | SAST+DAST hybrid v0.28 (nuclei integration) | ✅ |
-| VSCode extension / Marketplace | 🔜 |
-| Enterprise (Helm, SSO) | 📋 |
+| VSCode extension / Marketplace | ✅ |
+| Enterprise (Helm, SSO) | ✅ |
 
 ---
 

@@ -79,7 +79,7 @@ PoC бывает двух типов: `python` (импорт модуля + вы
   `_find_web_entrypoint` (детект `app = Framework(...)`).
 - `gsc_poc_deterministic.py` — детерминированные PoC (curl/bash/python), `get_deterministic_poc(rule_id)`.
 - `scripts/gsc_poc_gap_measure.py` — скрипт замера (findings → with_poc → passed_marker).
-- `calibration/` — уже есть 19 проектов (11 clean + 8 vuln) для детекторов, НЕ для PoF.
+- `calibration/` — уже есть 13 проектов (9 clean + 4 vuln) для детекторов, НЕ для PoF.
 
 ## 5. Ограничения/контекст
 
