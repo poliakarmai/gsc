@@ -40,3 +40,45 @@ def test_reopen_is_idempotent(tmp_path):
     version = conn.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
     conn.close()
     assert version is not None
+
+
+def test_comment_reactions_composite_key(tmp_path):
+    """Schema v32 regression: PR-body публикации хранят comment_id=0, поэтому
+    single-column PRIMARY KEY(comment_id) затирал их (последний INSERT писал
+    поверх). Composite PK (repo, pr_number, comment_id) должен сохранять
+    несколько строк с одинаковым comment_id, но разными repo/pr_number."""
+    db_path = tmp_path / "audit.db"
+    db = GSCDatabase(db_path)
+    # три PR-body записи: comment_id=0 у всех, но разные (repo, pr_number)
+    for repo, pr in (("a/b", 1), ("a/b", 2), ("c/d", 1)):
+        db.conn.execute("""
+            INSERT INTO comment_reactions
+                (comment_id, repo, pr_number, thumbs_up, thumbs_down,
+                 confused, collected_at)
+            VALUES (0, ?, ?, 1, 0, 0, datetime('now'))
+            ON CONFLICT(repo, pr_number, comment_id) DO UPDATE SET
+                thumbs_up = excluded.thumbs_up
+        """, (repo, pr))
+    db.conn.commit()
+    n = db.conn.execute("SELECT COUNT(*) FROM comment_reactions").fetchone()[0]
+    assert n == 3, f"expected 3 rows (composite key), got {n} — reaction-loss bug"
+
+
+def test_comment_reactions_composite_key_upsert(tmp_path):
+    """Повторный INSERT с тем же (repo, pr_number, comment_id) делает UPDATE,
+    а не дублирует строку."""
+    db_path = tmp_path / "audit.db"
+    db = GSCDatabase(db_path)
+    args = (0, "a/b", 1)
+    for _ in range(2):
+        db.conn.execute("""
+            INSERT INTO comment_reactions
+                (comment_id, repo, pr_number, thumbs_up, thumbs_down,
+                 confused, collected_at)
+            VALUES (?, ?, ?, 1, 0, 0, datetime('now'))
+            ON CONFLICT(repo, pr_number, comment_id) DO UPDATE SET
+                thumbs_up = excluded.thumbs_up
+        """, args)
+    db.conn.commit()
+    n = db.conn.execute("SELECT COUNT(*) FROM comment_reactions").fetchone()[0]
+    assert n == 1, f"expected 1 row (upsert), got {n}"
