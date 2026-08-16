@@ -2541,6 +2541,11 @@ def main():
     fq_p = sub.add_parser('fix-quality', help='Fix quality scoring (minimality/regression/tests)')
     fq_p.add_argument('--evidence', required=True, help='Evidence JSON from `pof generate --output`')
 
+    # gsc sla — MTTFV SLA (скорость реагирования организации)
+    sla_p = sub.add_parser('sla', help='MTTFV SLA — time-to-verified-fix stats')
+    sla_p.add_argument('--days', type=int, default=90, help='Window: findings detected in last N days')
+    sla_p.add_argument('--by', choices=['category', 'rule', 'project'], default='category', help='Group by')
+
     # gsc mutations 🆕 v0.19
     mut_p = sub.add_parser('mutations', help='Mutation tracking (v0.19)')
     mut_p.add_argument('mut_cmd', choices=['list', 'show', 'stats'])
@@ -2832,6 +2837,10 @@ def main():
         from gsc_fix_quality import score_from_evidence_json
         q = score_from_evidence_json(args.evidence)
         print(_json.dumps(q.to_dict(), indent=2, ensure_ascii=False))
+    elif args.command == "sla":
+        import json as _json
+        from gsc_sla import sla_report
+        print(_json.dumps(sla_report(days=args.days, group_by=args.by), indent=2, ensure_ascii=False))
     elif args.command == "supply-chain":
         sys.exit(cmd_supply_chain(args))
     elif args.command == "exploit-refine":

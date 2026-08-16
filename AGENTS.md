@@ -32,6 +32,7 @@ gsc/
 ├── gsc_chain_composer.py         ← Exploit Chain Composer
 ├── gsc_attack_graph.py           ← 🆕 Attack-path graph (Mermaid)
 ├── gsc_fix_quality.py            ← 🆕 Fix quality scoring
+├── gsc_sla.py                    ← 🆕 MTTFV SLA (time-to-verified-fix)
 ├── gsc_mutation_tracker.py       ← Temporal Mutation Tracker
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
 ├── gsc_ast_dataflow.py           ← Python taint tracking
@@ -102,6 +103,7 @@ python3 gsc.py benchmark owasp --benchmark-path ./OWASPBenchmark --expected-csv 
 python3 gsc.py pof generate|batch <key> [--create-pr]
 python3 gsc.py attack-graph --scan scan.json --out attack_paths.md   # Mermaid-граф цепочек
 python3 gsc.py fix-quality --evidence fix.json                       # качество патча
+python3 gsc.py sla --days 90 --by category                           # MTTFV SLA
 python3 gsc.py archaeology trace <key> --repo .
 python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
