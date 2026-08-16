@@ -24,10 +24,13 @@ services:
 
   redis:
     image: redis:7-alpine
+    command: redis-server --requirepass ${GSC_REDIS_PASSWORD:?GSC_REDIS_PASSWORD is required — set in cloud/.env (see .env.example)}
+    environment:
+      REDIS_PASSWORD: ${GSC_REDIS_PASSWORD}
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping 2>/dev/null | grep -q PONG"]
       interval: 5s
 
   api:
