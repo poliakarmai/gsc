@@ -202,6 +202,12 @@ def cmd_scan(args):
     except ImportError as e:
         scan_warnings.append(f"IaC detectors unavailable: {e}")
 
+    if getattr(args, 'fail_on_blocking', False):
+        blocking = [f for f in findings if f.get("category") in ("CRITICAL", "HIGH")]
+        if blocking:
+            print(f"[gsc] blocking: {len(blocking)} CRITICAL/HIGH finding(s) — exit 1", file=sys.stderr)
+            sys.exit(1)
+
     if args.ci or args.json:
         print(json.dumps(findings, indent=2))
     elif args.sarif:
@@ -2181,6 +2187,7 @@ def main():
     scan.add_argument("--echelon", help="Echelons to run (e.g., '12' for source+security)")
     scan.add_argument("--deep", action="store_true", help="Enable LLM-powered deep analysis (Echelon 4)")
     scan.add_argument("--diff", action="store_true", help="Scan only changed files (git diff HEAD)")
+    scan.add_argument("--fail-on-blocking", action="store_true", help="Exit 1 if CRITICAL/HIGH findings (pre-commit)")
     scan.add_argument("--sarif", action="store_true", help="Export as SARIF (GitHub Code Scanning)")
     scan.add_argument("--junit", action="store_true", help="Export as JUnit XML (CI test gates)")
     scan.add_argument("--reachability", action="store_true", help="Downgrade findings in unreachable files (import-graph analysis)")

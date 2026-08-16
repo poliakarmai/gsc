@@ -1,0 +1,18 @@
+# GSC self-check via pre-commit (local hook).
+#
+#   pre-commit install   # installs the git hook
+#   pre-commit run       # manual run over staged changes
+#
+# Uses the local gsc.py directly (language: system), so no pip install is
+# needed to scan the GSC repo itself.
+repos:
+  - repo: local
+    hooks:
+      - id: gsc-scan
+        name: GSC Security Scan
+        entry: python3 gsc.py scan . --diff --ci --fail-on-blocking
+        language: system
+        files: '(\.py|\.js|\.ts|\.go|\.java|\.rs|\.tf|\.ya?ml)$'
+        types: [file]
+        require_serial: true
+        pass_filenames: false
