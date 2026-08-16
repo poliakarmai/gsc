@@ -485,14 +485,22 @@ class PoFSandbox:
                 fw, mod = found
                 port = _free_port()
                 target_dir = workdir / "project"
-                try:
-                    os.symlink(project_dir, target_dir, target_is_directory=True)
-                except Exception:
-                    import shutil
-                    shutil.copytree(project_dir, target_dir, symlinks=True,
-                                    ignore=shutil.ignore_patterns(
-                                        '.git', 'node_modules', 'venv', '.venv',
-                                        'build', 'dist', '__pycache__', '.next'))
+                # Container path (GSC 3.2): workdir монтируется в контейнер как
+                # /work, а symlink на host-путь внутри контейнера не разрешается
+                # (host-путь не смонтирован в namespaces контейнера). Копируем
+                # проект, а не symlink'аем — иначе `from app import app` падает
+                # с ModuleNotFoundError в контейнере.
+                import shutil
+                shutil.copytree(project_dir, target_dir, symlinks=True,
+                                ignore=shutil.ignore_patterns(
+                                    '.git', 'node_modules', 'venv', '.venv',
+                                    'build', 'dist', '__pycache__', '.next'))
+                # nobody (65534) в контейнере должен читать проект: copytree
+                # создаёт каталоги с 700 (umask) — для nobody это read-denied.
+                for _root, _dirs, _files in os.walk(target_dir):
+                    os.chmod(_root, 0o755)
+                    for _f in _files:
+                        os.chmod(os.path.join(_root, _f), 0o644)
                 if fw == "fastapi":
                     wrapper = (f"import uvicorn\nfrom {mod} import app\n"
                                f"uvicorn.run(app, host='127.0.0.1', port={port}, log_level='error')\n")
