@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 15.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec due-diligence DD-01..DD-10 ✅ (10/10) + pre-фильтр файлов ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Киллер-фичи #2/#3 ✅, #1 runtime validator ⏳
+> **Статус на 16.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 ⏳
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -38,7 +38,7 @@
 | v0.21 | AST taint, cross-file chains, hard calibration | 17/17 |
 | v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
 
-**Итог (v1.3.0):** 41 детектор, тесты, calibration 17/17, schema 31, ~480K находок, self-learning.
+**Итог (v1.3.0, 16.08):** 41 детектор, 252 теста (58 файлов), calibration 13/13, schema 32, 113 модулей, self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
 
 ### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
 
