@@ -27,6 +27,7 @@ gsc/
 ├── gsc_blocking.py               ← Blocking Engine (+ federated guard)
 ├── gsc_poc_generator.py          ← PoC + SUCCESS_MARKERS
 ├── gsc_poc_deterministic.py      ← Deterministic PoC (curl/bash fmt)
+├── gsc_poc_watermark.py          ← 🆕 PoC watermarking (dual-use)
 ├── gsc_supply_chain_chains.py    ← Supply-Chain Chain Composer (code flaw × CVE)
 ├── gsc_exploit_refiner.py        ← Exploit Refinement Loop (feedback-driven PoC)
 ├── gsc_chain_composer.py         ← Exploit Chain Composer

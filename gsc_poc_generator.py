@@ -230,4 +230,12 @@ def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 
             # else NEEDS_REVIEW → no change, models disagree
     except Exception as e:
         pass  # Rejudge unavailable — proceed without
+
+    # Watermark all PoCs (dual-use mitigation). Must never break scanning.
+    try:
+        from gsc_poc_watermark import watermark_findings
+        watermark_findings(findings)
+    except Exception:
+        pass
+
     return findings
