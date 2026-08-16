@@ -2531,6 +2531,16 @@ def main():
     chains_p.add_argument('chain_key', nargs='?', help='Chain key for show')
     chains_p.add_argument('--report', default='scan.json', help='Scan report JSON')
 
+    # gsc attack-graph — Mermaid-визуализация attack chains
+    ag_p = sub.add_parser('attack-graph', help='Attack-path graph (Mermaid) from chains')
+    ag_p.add_argument('--scan', default='scan.json', help='Scan report JSON with chains')
+    ag_p.add_argument('--out', '-o', default='attack_paths.md', help='Output .md with mermaid block')
+    ag_p.add_argument('--title', default='Attack Paths', help='Graph title')
+
+    # gsc fix-quality — оценка качества патча
+    fq_p = sub.add_parser('fix-quality', help='Fix quality scoring (minimality/regression/tests)')
+    fq_p.add_argument('--evidence', required=True, help='Evidence JSON from `pof generate --output`')
+
     # gsc mutations 🆕 v0.19
     mut_p = sub.add_parser('mutations', help='Mutation tracking (v0.19)')
     mut_p.add_argument('mut_cmd', choices=['list', 'show', 'stats'])
@@ -2813,6 +2823,15 @@ def main():
                     break
             else:
                 print(f"Chain {args.chain_key} not found")
+    elif args.command == "attack-graph":
+        from gsc_attack_graph import render_attack_graph
+        out = render_attack_graph(args.scan, args.out, args.title)
+        print(f"Attack graph written to {out}")
+    elif args.command == "fix-quality":
+        import json as _json
+        from gsc_fix_quality import score_from_evidence_json
+        q = score_from_evidence_json(args.evidence)
+        print(_json.dumps(q.to_dict(), indent=2, ensure_ascii=False))
     elif args.command == "supply-chain":
         sys.exit(cmd_supply_chain(args))
     elif args.command == "exploit-refine":

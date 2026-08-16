@@ -30,6 +30,8 @@ gsc/
 ├── gsc_supply_chain_chains.py    ← Supply-Chain Chain Composer (code flaw × CVE)
 ├── gsc_exploit_refiner.py        ← Exploit Refinement Loop (feedback-driven PoC)
 ├── gsc_chain_composer.py         ← Exploit Chain Composer
+├── gsc_attack_graph.py           ← 🆕 Attack-path graph (Mermaid)
+├── gsc_fix_quality.py            ← 🆕 Fix quality scoring
 ├── gsc_mutation_tracker.py       ← Temporal Mutation Tracker
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
 ├── gsc_ast_dataflow.py           ← Python taint tracking
@@ -98,6 +100,8 @@ python3 gsc.py benchmark owasp --benchmark-path ./OWASPBenchmark --expected-csv 
 
 # Эксклюзивы
 python3 gsc.py pof generate|batch <key> [--create-pr]
+python3 gsc.py attack-graph --scan scan.json --out attack_paths.md   # Mermaid-граф цепочек
+python3 gsc.py fix-quality --evidence fix.json                       # качество патча
 python3 gsc.py archaeology trace <key> --repo .
 python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
