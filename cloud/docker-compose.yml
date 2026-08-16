@@ -8,7 +8,7 @@ services:
       # `docker compose up` refuse to start without an explicit PG_PASSWORD.
       POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD is required — set in cloud/.env (see .env.example)}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./schema_s1.sql:/docker-entrypoint-initdb.d/01_schema_s1.sql
@@ -25,7 +25,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
