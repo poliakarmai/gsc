@@ -21,6 +21,9 @@
 | VSCode extension | ✅ v0.32 + Open VSX опубликован | GitHub Releases (Marketplace РФ ❌) |
 | Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator Phase 1+2 ✅ (in-process + strace) |
 | GSC Bot (виральность чужих PR) | 📝 спроектирован (`docs/GSC_BOT.md`) | реализация 0.8.1–0.8.5 (~2 нед, до S1) |
+| Языки JS/TS/Go (top-5 детекторов) | 📝 спроектирован | 0.9.1–0.9.5 — снять потолок роста |
+| Security Debt Ledger (фин. слой) | 📝 спроектирован | 0.10.1–0.10.4 — риск в деньгах |
+| Agentic self-healing (итеративный) | 📝 спроектирован | 0.11.1–0.11.4 — patch→test→retry |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
 ---
@@ -181,6 +184,43 @@ fork-код — static + sandbox (не исполняется с привиле�
 
 **Связь с S2:** 0.8 — минимальный **standalone** App (SQLite, self-hosted), можно ДО S1.
 S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
+
+### Трек 0.9. Языковая поддержка JS/TS/Go (спроектирован, ~2–3 недели)
+
+> Снять потолок роста: GSC сейчас Python-first, на Java/JS/Go детекторы дают 0–слабый TPR
+> (замерено: GS004/GS020 0% TPR на OWASP Java). Фокус — top-5 детекторов, НЕ все 41.
+
+| # | Фаза | Содержание | Проверка |
+|---|---|---|---|
+| 0.9.1 | Инвентаризация | какие из GS005/GS029/GS020/GS004/GS022 language-specific, какие Python-only | карта детектор×язык |
+| 0.9.2 | GS029 + GS005 → JS/TS | secrets (language-agnostic) + SQLi (паттерны схожи) | benchmark TPR>0 на JS/TS |
+| 0.9.3 | GS020 + GS022 → JS/TS | DOM XSS (React/DOM sinks) + open redirect | benchmark TPR>0 |
+| 0.9.4 | GS004 + Go | нативные Go-паттерны (`net/http`, `database/sql`) | benchmark TPR>0 |
+| 0.9.5 | Calibration | синтетический benchmark (`ghsa_benchmark`) на JS/TS/Go, замер TPR/FPR | FPR на Python НЕ вырос |
+
+### Трек 0.10. Security Debt Ledger — финансовый слой (спроектирован, ~1–2 недели)
+
+> Перевести технический риск в деньги (annualized loss) для CISO/CIO — язык бюджета.
+> Сырьё уже есть: EPSS (exploitability) + compliance mapping (CWE/OWASP/PCI) + SCA (OSV.dev).
+
+| # | Фаза | Содержание | Проверка |
+|---|---|---|---|
+| 0.10.1 | Формула | severity + EPSS → annualized loss (impact × likelihood × EPSS) | число $ на finding |
+| 0.10.2 | CVSS/insurance | CVSS-вектор + cyber-insurance скоринг (CWE → страховая категория) | маппинг CWE→$ |
+| 0.10.3 | Отчёт | «Security Debt» в CLI/отчёте: суммарный $ по проекту, топ по деньгам | `gsc debt --repo .` |
+| 0.10.4 | Тренд | debt во времени (снижение после фиксов) | график до/после |
+
+### Трек 0.11. Agentic Self-Healing — итеративный (спроектирован, ~2 недели)
+
+> Эволюция self-healing (НЕ новая фича): агент не только генерит патч, но гоняет CI/test
+> до успеха. Поверх существующего `gsc_selfhealing.py` (patch + PoF + sandbox уже есть).
+
+| # | Фаза | Содержание | Проверка |
+|---|---|---|---|
+| 0.11.1 | CI-гейт | после patch — прогон тестов (pytest/unit) перед PoF | патч проходит тесты |
+| 0.11.2 | Итерация | patch→test→retry при fail (до N попыток) | авто-retry до успеха |
+| 0.11.3 | Trail | фиксация попыток в evidence (какой патч прошёл) | audit trail попыток |
+| 0.11.4 | Лимиты | MAX_RETRY + budget + rollback | нет бесконечного цикла |
 
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
