@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 17.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1 ✅ (in-process)
+> **Статус на 17.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace)
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -19,7 +19,7 @@
 | SaaS Cloud (S1–S4) | 📝 спроектирован | PostgreSQL + RLS (S1) + реализация (~4 мес) |
 | Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
 | VSCode extension | ✅ v0.32 + Open VSX опубликован | GitHub Releases (Marketplace РФ ❌) |
-| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator Phase 1 ✅ (in-process) |
+| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator Phase 1+2 ✅ (in-process + strace) |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
 ---
@@ -137,7 +137,7 @@ Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
 | 0.6.1 | Phase 1 (in-process) | ✅ `gsc_runtime_validator.py`: monkeypatch `open`/`subprocess.Popen`/`socket.connect` в `sitecustomize.py` (hook через PYTHONPATH), лог факта вызова в JSONL | coverage 93%, 8 тестов |
-| 0.6.2 | Phase 2 (strace) | `strace -f -e trace=open,connect,execve` из родителя для JS/Go/бинарников | фильтр по workdir |
+| 0.6.2 | Phase 2 (strace) | ✅ `strace_validate()` в `gsc_runtime_validator.py`: `strace -f -e trace=openat,connect,execve` + парсинг + фильтр | фильтр по workdir, 6 тестов |
 | 0.6.3 | Phase 3 (Falco/Tetragon) | отдельный privileged-агент в K8s, только enterprise on-prem (>10 тенантов) | изоляция от GSC core |
 
 **Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`) + **Phase 3 multi-module runner** (entrypoint-детект + symlink-проекта).

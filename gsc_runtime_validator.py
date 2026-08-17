@@ -214,3 +214,75 @@ class RuntimeValidator:
                         continue  # служебная запись внутри песочницы
                     dangerous.append(e)
         return dangerous
+
+
+# ── Phase 2: strace (для JS/Go/бинарников) ──────────────────────────────────
+
+_STRACE_OPEN = re.compile(r'\bopenat?\([^,]*,\s*"([^"]+)"\s*,\s*([^)]*)\)')
+_STRACE_CONNECT = re.compile(r'\bsin_addr=inet_addr\("([^"]+)"\)')
+_STRACE_EXECVE = re.compile(r'\bexecve\("([^"]+)"\s*,\s*(\[[^\]]*\])')
+_WRITE_FLAGS = ("WRONLY", "RDWR", "APPEND", "CREAT", "TRUNC")
+
+
+def _flags_to_mode(flags: str) -> str:
+    return "w" if any(f in flags for f in _WRITE_FLAGS) else "r"
+
+
+def _parse_strace_line(line: str) -> Optional[RuntimeEvent]:
+    """Разобрать одну строку strace (-e trace=openat,connect,execve) в событие."""
+    line = line.strip()
+    if not line:
+        return None
+    m = _STRACE_EXECVE.search(line)
+    if m:
+        try:
+            import ast
+            argv = ast.literal_eval(m.group(2))
+            argv_list = [str(x) for x in argv] if isinstance(argv, list) else []
+        except Exception:
+            argv_list = []
+        return RuntimeEvent(category="process_exec", ts=0.0, argv=argv_list)
+    m = _STRACE_CONNECT.search(line)
+    if m:
+        return RuntimeEvent(category="network_connect", ts=0.0, address=(m.group(1), 0))
+    m = _STRACE_OPEN.search(line)
+    if m:
+        path, flags = m.group(1), m.group(2)
+        return RuntimeEvent(category="file_open", ts=0.0, path=path, mode=_flags_to_mode(flags))
+    return None
+
+
+def strace_validate(cmd: list, workdir: str = "", timeout: int = 30,
+                    strace_bin: str = "strace", finding_key: str = "") -> list[RuntimeEvent]:
+    """Phase 2: запустить команду под `strace -f -e trace=openat,connect,execve`.
+
+    Для языков без in-process (JS/Go/бинарники). Возвращает события той же формы,
+    что и Phase 1 (in-process). Если strace отсутствует — пустой список.
+    """
+    import shutil
+    import subprocess
+    import tempfile
+    if not shutil.which(strace_bin):
+        return []
+    with tempfile.NamedTemporaryFile(suffix=".strace", delete=False) as fh:
+        log_path = Path(fh.name)
+    argv = [strace_bin, "-f", "-e", "trace=openat,connect,execve",
+            "-o", str(log_path), "--"] + [str(c) for c in cmd]
+    try:
+        subprocess.run(argv, cwd=workdir or None, timeout=timeout,
+                       capture_output=True, text=True)
+    except Exception:
+        pass
+    events = []
+    if log_path.exists():
+        for line in log_path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            ev = _parse_strace_line(line)
+            if ev is not None:
+                ev.finding_key = finding_key
+                events.append(ev)
+    try:
+        log_path.unlink()
+    except Exception:
+        pass
+    return events
+

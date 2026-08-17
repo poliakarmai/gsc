@@ -17,6 +17,9 @@ from gsc_runtime_validator import (
     RuntimeEvent,
     RuntimeValidator,
     SITECUSTOMIZE_TEMPLATE,
+    _address_host,
+    _parse_strace_line,
+    strace_validate,
 )
 
 
@@ -129,3 +132,46 @@ def test_e2e_logs_open_subprocess_socket(instrumented_venv, tmp_path):
     assert cats["process_exec"], "нет process_exec (Popen)"
     # network_connect логируется как сырое событие (classify отфильтровывает localhost)
     assert any(e.category == "network_connect" for e in events), "нет network_connect в логе"
+
+
+# ── Phase 2: strace ──────────────────────────────────────────────────────────
+
+def test_parse_strace_line_execve():
+    ev = _parse_strace_line('12345 execve("/bin/sh", ["sh", "-c", "id"], 0x7fff) = 0')
+    assert ev is not None and ev.category == "process_exec"
+    assert ev.argv == ["sh", "-c", "id"]
+
+
+def test_parse_strace_line_open_write():
+    ev = _parse_strace_line('12345 openat(AT_FDCWD, "/etc/passwd", O_WRONLY|O_CREAT) = 3')
+    assert ev is not None and ev.category == "file_open"
+    assert ev.mode == "w" and ev.path == "/etc/passwd"
+
+
+def test_parse_strace_line_open_read():
+    ev = _parse_strace_line('12345 openat(AT_FDCWD, "/etc/passwd", O_RDONLY) = 3')
+    assert ev is not None and ev.mode == "r"
+
+
+def test_parse_strace_line_connect():
+    ev = _parse_strace_line(
+        '12345 connect(3, {sa_family=AF_INET, sin_port=htons(80), '
+        'sin_addr=inet_addr("93.184.216.34")}, 16) = 0'
+    )
+    assert ev is not None and ev.category == "network_connect"
+    assert _address_host(ev.address) == "93.184.216.34"
+
+
+def test_parse_strace_line_garbage():
+    assert _parse_strace_line("+++ exited with 0 +++") is None
+
+
+def test_strace_validate_e2e(tmp_path):
+    import shutil
+    if not shutil.which("strace"):
+        pytest.skip("strace отсутствует")
+    target = tmp_path / "out.txt"
+    events = strace_validate(["sh", "-c", f"echo hi > {target}"], workdir=str(tmp_path))
+    cats = RuntimeValidator.classify(events)
+    assert cats["process_exec"], "нет execve под strace"
+    assert cats["file_write"], "нет openat write под strace"
