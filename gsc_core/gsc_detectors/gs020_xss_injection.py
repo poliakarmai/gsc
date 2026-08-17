@@ -35,16 +35,18 @@ XSS_PATTERNS: list[tuple[str, str, str]] = [
     (r'\.outerHTML\s*=', "DOM XSS: .outerHTML assignment", "HIGH"),
     (r'document\.write\s*\(', "DOM XSS: document.write() with user input", "HIGH"),
     (r'\.insertAdjacentHTML\s*\(', "DOM XSS: insertAdjacentHTML()", "HIGH"),
-    (r'eval\s*\(\s*[\"\'`]', "DOM XSS: eval() with string input", "CRITICAL"),
-    (r'setTimeout\s*\(\s*[\"\'`]', "Potential DOM XSS: setTimeout with string argument", "MEDIUM"),
-    (r'setInterval\s*\(\s*[\"\'`]', "Potential DOM XSS: setInterval with string argument", "MEDIUM"),
+    (r'eval\s*\(\s*[\"\'\`]', "DOM XSS: eval() with string input", "CRITICAL"),
+    (r'setTimeout\s*\(\s*[\"\'\`]', "Potential DOM XSS: setTimeout with string argument", "MEDIUM"),
+    (r'setInterval\s*\(\s*[\"\'\`]', "Potential DOM XSS: setInterval with string argument", "MEDIUM"),
 
     # Reflected XSS — unsanitized output
     (r'echo\s+\$_(?:GET|POST|REQUEST|COOKIE|SERVER)\[', "Reflected XSS: direct output of user input in PHP", "CRITICAL"),
     (r'print\s*\(\s*request\.(?:args|form|values|json)\[', "Reflected XSS: Flask request parameter in output", "HIGH"),
     (r'<%=.*(?:params|request\.(?:params|query)|@request)', "Reflected XSS: ERB/Rails raw output of request params", "CRITICAL"),
     (r'Response\.Write\s*\(\s*Request', "Reflected XSS: Response.Write with Request in ASP.NET", "CRITICAL"),
-    (r'<\?=\s*\$(?:_GET|_POST|_REQUEST)', "Reflected XSS: PHP short echo of user input", "CRITICAL"),
+    (r'<\?=\s*\$_(?:_GET|_POST|_REQUEST)', "Reflected XSS: PHP short echo of user input", "CRITICAL"),
+    (r'<%=.*(?:request\.getParameter|request\.getAttribute|param\.|params\.)', "Reflected XSS: JSP raw output of user input", "CRITICAL"),
+    (r'<c:out\s+value\s*=\s*["\'].*escapeXml\s*=\s*["\']false["\']', "Reflected XSS: JSTL c:out with escapeXml=false", "HIGH"),
 
     # Stored XSS
     (r'\.innerHTML\s*=\s*.*\.(?:value|innerText|textContent)', "Stored XSS: innerHTML from stored content", "MEDIUM"),
@@ -57,10 +59,10 @@ XSS_PATTERNS: list[tuple[str, str, str]] = [
     (r'\{\s*\{\s*.*request\.', "SSTI: Django/Jinja2 template with request object", "MEDIUM"),
 
     # Python f-string / format HTML injection (Reflected XSS)
-    (r'f["\']<\s*\w+[^"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string HTML interpolation — user input in tag", "HIGH"),
-    (r'["\']<[^"\']*\{[^}]*\}[^"\']*>["\']\s*\.format\s*\(', "Reflected XSS: .format() HTML interpolation", "HIGH"),
-    (r'["\']<[^"\']*%s[^"\']*>["\']\s*%\s*', "Reflected XSS: %-formatting HTML interpolation", "MEDIUM"),
-    (r'f["\']<\s*script[^"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string script tag with variable", "CRITICAL"),
+    (r'f[\"\']<\s*\w+[^\"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string HTML interpolation — user input in tag", "HIGH"),
+    (r'[\"\']<[^\"\']*\{[^}]*\}[^\"\']*>[\"\']\s*\.format\s*\(', "Reflected XSS: .format() HTML interpolation", "HIGH"),
+    (r'[\"\']<[^\"\']*%s[^\"\']*>[\"\']\s*%\s*', "Reflected XSS: %-formatting HTML interpolation", "MEDIUM"),
+    (r'f[\"\']<\s*script[^\"\']*\{[a-zA-Z_]\w*\}', "Reflected XSS: f-string script tag with variable", "CRITICAL"),
 
     # Template literals with user input (JS)
     (r'`<\w+[^`]*\$\{[a-zA-Z_]\w*\}', "Reflected XSS: template literal HTML with variable", "HIGH"),
@@ -179,6 +181,17 @@ def _is_false_positive(snippet: str, pattern: str) -> bool:
     if 'test' in snippet_lower or 'demo' in snippet_lower or 'example' in snippet_lower:
         if 'innerhtml' in pattern or 'document.write' in pattern:
             return True
+    # Static innerHTML/outerHTML assignment without interpolation/concat is a
+    # hardcoded template, not user-controlled markup — FP.
+    if re.search(r'(?:innerHTML|outerHTML)\s*=\s*["\'\`](?![\s\S]*(\$\{|["\'\`]\s*\+))', snippet):
+        return True
+    # Static eval/setTimeout/setInterval string (no ${}, concat, or {var})
+    # is legacy/minified code, not user-controlled — FP.
+    if re.search(r'(?:eval|setTimeout|setInterval)\s*\(\s*["\'\`](?![\s\S]*(\$\{|["\'\`]\s*\+|\{\s*[a-zA-Z_]\w*\s*\}))', snippet):
+        return True
+    # dangerouslySetInnerHTML with a static literal is hardcoded markup, not user input — FP.
+    if re.search(r'dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*["\'\`]', snippet):
+        return True
     return False
 
 
@@ -221,6 +234,11 @@ def _has_tainted_source(context: str) -> bool:
     return bool(_XSS_TAINT_SOURCES.search(context))
 
 
+# Reflected-XSS patterns are HTML interpolation where a taint source must be
+# present to justify HIGH/CRITICAL. Without taint they are a weak signal.
+_REFLECTED_PATTERN_MARKERS = ('.format(', '%s', '${', 'f"', "f'")
+
+
 def _adjust_xss_severity(
     severity: str, pattern: str, context: str
 ) -> str:
@@ -233,7 +251,11 @@ def _adjust_xss_severity(
     if has_taint:
         if severity not in ("CRITICAL", "HIGH"):
             return "HIGH"     # tainted source, no sanitizer — escalate
-    # Neither — keep original severity
+        return severity
+    # No taint, no sanitizer: HTML interpolation without confirmed user input
+    # is a weak signal — downgrade reflected-XSS patterns one level.
+    if any(m in pattern for m in _REFLECTED_PATTERN_MARKERS):
+        return {"CRITICAL": "HIGH", "HIGH": "MEDIUM"}.get(severity, severity)
     return severity
 
 
