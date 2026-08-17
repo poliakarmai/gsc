@@ -36,7 +36,9 @@ gsc/
 ├── gsc_sla.py                    ← 🆕 MTTFV SLA (time-to-verified-fix)
 ├── gsc_mutation_tracker.py       ← Temporal Mutation Tracker
 ├── gsc_invariant_engine.py       ← Security Invariant Engine
-├── gsc_ast_dataflow.py           ← Python taint tracking
+├── gsc_ast_dataflow.py           ← Python taint tracking (shim → gsc_core/)
+├── gsc_runtime_validator.py      ← 🆕 Runtime validator IAST-lite (Phase 1 in-process + Phase 2 strace)
+├── gsc_core/                     ← 🆕 core-пакет (packages split 0.5.1, proof-of-pattern)
 ├── gsc_revalidate.py             ← Structured revalidator
 ├── gsc_db.py                     ← SQLite, schema 32, auto-migrate
 ├── gsc_compliance.py             ← 🆕 CWE/OWASP/PCI mapping
@@ -63,7 +65,7 @@ gsc/
 ├── calibration/                  ← 13 проектов (9 clean + 4 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics
 ├── cloud/                        ← SaaS S1–S4 (auth, billing, tenancy, SSO, marketplace, worker, federated_server)
-├── tests/                        ← 252+ тестов (58 файлов)
+├── tests/                        ← 276 тестов (59 файлов)
 ├── .pre-commit-hooks.yaml        ← 🆕 pre-commit hook (gsc-scan)
 ├── .pre-commit-config.yaml       ← 🆕 self-check pre-commit
 └── PROJECT.md AGENTS.md README.md
