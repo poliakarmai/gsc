@@ -20,6 +20,7 @@
 | Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
 | VSCode extension | ✅ v0.32 + Open VSX опубликован | GitHub Releases (Marketplace РФ ❌) |
 | Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator Phase 1+2 ✅ (in-process + strace) |
+| GSC Bot (виральность чужих PR) | 📝 спроектирован (`docs/GSC_BOT.md`) | реализация 0.8.1–0.8.5 (~2 нед, до S1) |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
 
 ---
@@ -160,6 +161,27 @@ Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
 **Позиционирование:** «verified remediation engine» (PoC → patch → re-verify), **не** «SAST-конкурент Snyk».
 Оценка sell-side: $100–500K tech / $50–150K acqui-hire сейчас; $1–3M после 3–6 мес доказательств (benchmark, pilots).
 
+### Трек 0.8. GSC Bot — виральная верификация чужих PR (спроектирован, ~2 недели)
+
+> GitHub App `gsc-bot` приходит на ЧУЖОЙ PR по вызову `@gsc`/`/gsc` и оставляет плашку GSC
+> (badge + отчёт + label `gsc-verified` + check-run). Каждый такой PR = бесплатная реклама.
+> **Полная спека:** `docs/GSC_BOT.md`. Активирует no-op `co_author_trailer()` из `gsc_signature.py`.
+
+| # | Фаза | Содержание | Проверка |
+|---|---|---|---|
+| 0.8.1 | App scaffold | манифест, webhook endpoint, HMAC-верификация, installation token | неверный HMAC → 401 |
+| 0.8.2 | `/gsc scan` | diff-скан → комментарий `🔍 Scanned by GSC` + badge + отчёт (adapter+signature) | `@gsc scan` → комментарий < 30 сек |
+| 0.8.3 | `/gsc verify` | PoF по изменениям → label `gsc-verified` (только verified) + check-run | label только при verified |
+| 0.8.4 | co-author | `Co-authored-by: gsc-bot[bot]` (закрывает no-op trailer) | трейлер линкуется |
+| 0.8.5 | авто-детект | AI-сигнатура в PR body → предложение `@gsc scan` | PR от Claude/Codex → предложение |
+
+**Безопасность (non-negotiable):** HMAC webhook, installation token short-lived, permissions
+least-privilege (`contents: read`, `pull-requests/issues/checks: write`, БЕЗ `contents: write`),
+fork-код — static + sandbox (не исполняется с привилегиями), private key — age-шифрование.
+
+**Связь с S2:** 0.8 — минимальный **standalone** App (SQLite, self-hosted), можно ДО S1.
+S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
@@ -247,4 +269,4 @@ CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3
 
 ---
 
-*Обновлено: 15.08.2026*
+*Обновлено: 17.08.2026*
