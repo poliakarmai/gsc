@@ -30,7 +30,7 @@ OPEN_REDIRECT_PATTERNS: list[tuple[str, str, str]] = [
     (r'redirect\s*\(\s*(?:request\.(?:args|form|query|params)|params\[|req\.(?:query|body))',
      "Open Redirect: redirect() with user-controlled URL", "HIGH"),
     (r'redirect\(.*\$_(?:GET|POST|REQUEST)', "Open Redirect: PHP redirect with user input", "CRITICAL"),
-    (r'Redirect\s*\(\s*Request', "Open Redirect: ASP.NET Redirect with Request", "CRITICAL"),
+    (r'(?-i:Redirect\s*\(\s*Request)', "Open Redirect: ASP.NET Redirect with Request", "CRITICAL"),
     (r'redirect_to\s+.*(?:params|request)', "Open Redirect: Rails redirect_to with params", "HIGH"),
     (r'window\.location\s*=\s*.*(?:url|redirect|next|callback|return)', "Open Redirect: JS window.location with redirect param", "MEDIUM"),
     (r'window\.location\.(?:href|replace)\s*=\s*.*(?:url|redirect|next|callback)', "Open Redirect: JS location change with redirect param", "MEDIUM"),
@@ -105,5 +105,9 @@ def _is_false_positive(snippet: str) -> bool:
         return True
     # Skip HTML comments
     if s.startswith('<!--'):
+        return True
+    # Django redirect(request.path / get_full_path) — редирект на тот же путь,
+    # не на user-controlled URL (url_has_allowed_host_and_scheme не нужен)
+    if re.search(r'redirect\s*\(\s*request\.(?:path|get_full_path|path_info)', s, re.I):
         return True
     return False

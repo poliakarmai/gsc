@@ -1515,8 +1515,8 @@ def generate_seed_patterns(count: int) -> list[dict]:
     # OWASP Top 10 (2021)
     owasp = [
         ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
-        ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"(key|secret|password|token)\s*=\s*['\"][^'\"]{8,}['\"]"),
-        ("Injection", "A03", 1, "CRITICAL", "SQL injection risk: f-string in query", "regex", r"""f['\"].*SELECT|f['\"].*INSERT|f['\"].*UPDATE|f['\"].*DELETE"""),
+        ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:key|secret|password|token)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
+        ("Injection", "A03", 1, "CRITICAL", "SQL injection risk: f-string in query", "regex", r"""f['\"].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*(?:\*\s*FROM|=\s*[{\'\"$]|\b(?:WHERE|SET|INTO|VALUES|JOIN)\b)"""),
         ("Insecure Design", "A04", 3, "HIGH", "Missing rate limiting", "semantic", r"def (handler|endpoint|route).*:.*\n(?!.*rate)"),
         ("Security Misconfiguration", "A05", 2, "HIGH", "Debug mode enabled", "regex", r"DEBUG\s*=\s*True|debug\s*=\s*true"),
         ("Vulnerable Components", "A06", 2, "MEDIUM", "Outdated dependency pattern", "regex", r"(requirements\.txt|pyproject\.toml|package\.json)"),
