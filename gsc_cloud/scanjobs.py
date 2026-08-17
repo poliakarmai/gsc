@@ -5,9 +5,9 @@
 """Обработка pull_request вебхуков: debounce + очередь."""
 from __future__ import annotations
 
-from cloud import onboarding
-from cloud.scan_queue import ScanQueue
-from cloud.store import control_plane
+from gsc_cloud import onboarding
+from gsc_cloud.scan_queue import ScanQueue
+from gsc_cloud.store import control_plane
 
 queue = ScanQueue()
 SCAN_ACTIONS = {"opened", "synchronize", "reopened"}

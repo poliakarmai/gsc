@@ -44,7 +44,7 @@ def metrics():
 
 def _pg_ping() -> bool:
     try:
-        from cloud.store import control_plane
+        from gsc_cloud.store import control_plane
         db = control_plane()
         db.fetchone("SELECT 1 AS ping")
         return True
@@ -54,7 +54,7 @@ def _pg_ping() -> bool:
 
 def _redis_ping() -> bool:
     try:
-        from cloud.dedup import DeliveryDedup
+        from gsc_cloud.dedup import DeliveryDedup
         dd = DeliveryDedup()
         dd.r.ping()
         return True

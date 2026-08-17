@@ -100,9 +100,9 @@ def grant_owner_on_first_install(db, user_id: int, github_login: str):
 # ── FastAPI auth routes ───────────────────────────────────
 
 from fastapi import APIRouter, HTTPException, Response
-from cloud.dedup import DeliveryDedup
-from cloud import session
-from cloud.store import control_plane
+from gsc_cloud.dedup import DeliveryDedup
+from gsc_cloud import session
+from gsc_cloud.store import control_plane
 
 auth_router = APIRouter()
 dedup_store = DeliveryDedup()

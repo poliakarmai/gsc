@@ -15,8 +15,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from cloud.auth import generate_api_key
-from cloud.store import control_plane
+from gsc_cloud.auth import generate_api_key
+from gsc_cloud.store import control_plane
 
 PLANS = {
     "free": (50, 0),

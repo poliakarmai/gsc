@@ -12,7 +12,7 @@ from typing import Optional, Tuple
 
 def generate_api_key() -> Tuple[str, str]:
     """Единая реализация — cloud.auth.generate_api_key (prefix `gsk_`)."""
-    from cloud.auth import generate_api_key as _gen
+    from gsc_cloud.auth import generate_api_key as _gen
     return _gen()
 
 

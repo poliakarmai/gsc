@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import requests
 
-from cloud.github_auth import gh_headers
-from cloud.store import control_plane
+from gsc_cloud.github_auth import gh_headers
+from gsc_cloud.store import control_plane
 from scripts.gsc_pr_commands import (ALLOWED_ASSOCIATIONS, parse_commands)
 
 

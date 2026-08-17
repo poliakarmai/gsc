@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 from typing import Optional
 
-from gsc_db_backend import PgBackend
+from gsc_cloud.gsc_db_backend import PgBackend
 
 
 def control_plane(tenant_id: Optional[int] = None) -> PgBackend:

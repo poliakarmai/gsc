@@ -13,7 +13,7 @@
 """
 from __future__ import annotations
 
-from cloud import audit
+from gsc_cloud import audit
 
 TENANT_TABLES = [
     # порядок = зависимости: сначала дети, потом родители

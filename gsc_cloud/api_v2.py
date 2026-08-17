@@ -5,7 +5,7 @@ GSC due-diligence шаг 4: этот контур НЕ подключён к ser
 multi-tenant endpoints — server.py. Оставлено для tests/test_cloud_s1.py.
 """
 from typing import Tuple, Optional
-from cloud.tenancy import verify_api_key, scoped_query
+from gsc_cloud.tenancy import verify_api_key, scoped_query
 
 def handle_scan_v2(db, api_key: str, target: str, profile: str) -> Tuple[dict, int]:
     tid = verify_api_key(db, api_key)

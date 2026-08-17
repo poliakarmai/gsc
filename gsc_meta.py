@@ -97,8 +97,10 @@ def _count_modules() -> int:
     det = [f for f in (GSC / "gsc_core" / "gsc_detectors").glob("*.py") if f.is_file()]
     cli = [f for f in (GSC / "gsc_cli").glob("*.py")
            if f.is_file() and f.name != "__init__.py"]
+    cloud = [f for f in (GSC / "gsc_cloud").glob("*.py")
+             if f.is_file() and f.name != "__init__.py"]
     ent = [f for f in (GSC / "enterprise").glob("*.py") if f.is_file()]
-    return len(root) + len(core) + len(det) + len(cli) + len(ent)
+    return len(root) + len(core) + len(det) + len(cli) + len(cloud) + len(ent)
 
 
 if __name__ == "__main__":

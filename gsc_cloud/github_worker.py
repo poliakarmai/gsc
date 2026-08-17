@@ -15,9 +15,9 @@ import os
 import subprocess
 import tempfile
 
-from cloud.github_auth import get_installation_token, gh_headers
-from cloud.mutations_cloud import ingest_with_history
-from cloud.publish import publish_pr_result
+from gsc_cloud.github_auth import get_installation_token, gh_headers
+from gsc_cloud.mutations_cloud import ingest_with_history
+from gsc_cloud.publish import publish_pr_result
 
 
 def clone_repo(clone_url: str, head_sha: str, tmp: str) -> str:

@@ -17,8 +17,8 @@ import os
 
 from fastapi import APIRouter, HTTPException, Request
 
-from cloud import audit
-from cloud.store import control_plane
+from gsc_cloud import audit
+from gsc_cloud.store import control_plane
 
 router = APIRouter()
 

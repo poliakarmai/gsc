@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 import os
 
-from gsc_db_backend import PgBackend
+from gsc_cloud.gsc_db_backend import PgBackend
 from gsc_mutation_tracker import (MutationMatcher, fingerprint,
                                   normalize_snippet)
 

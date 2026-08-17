@@ -12,8 +12,8 @@ import secrets
 
 from fastapi import APIRouter, HTTPException, Header
 
-from cloud import audit
-from cloud.store import control_plane
+from gsc_cloud import audit
+from gsc_cloud.store import control_plane
 
 router = APIRouter(prefix="/api/v2/agent")
 
@@ -22,7 +22,7 @@ def _store_session(token: str, tenant_id: int, agent_id: int,
                    ttl: int = 86400):
     """Хранит session token в Redis с TTL."""
     try:
-        from cloud.dedup import DeliveryDedup
+        from gsc_cloud.dedup import DeliveryDedup
         dd = DeliveryDedup()
         dd.once_raw(f"gsc:agent:session:{token}", ttl,
                      value=json.dumps({"tenant_id": tenant_id,
@@ -37,7 +37,7 @@ def _resolve_session(authorization: str) -> tuple[int, int]:
         raise HTTPException(401, "missing authorization")
     token = authorization.split(" ", 1)[1]
     try:
-        from cloud.dedup import DeliveryDedup
+        from gsc_cloud.dedup import DeliveryDedup
         dd = DeliveryDedup()
         val = dd.r.get(f"gsc:agent:session:{token}")
         if not val:

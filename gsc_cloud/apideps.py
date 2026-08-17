@@ -7,8 +7,8 @@ from __future__ import annotations
 
 from fastapi import Header, HTTPException
 
-from cloud.auth import Unauthorized, auth_tenant
-from cloud.store import control_plane
+from gsc_cloud.auth import Unauthorized, auth_tenant
+from gsc_cloud.store import control_plane
 
 
 def tenant_ctx(x_api_key: str = Header(default="")) -> int:

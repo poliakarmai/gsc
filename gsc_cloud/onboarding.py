@@ -6,7 +6,7 @@
 создаёт free-тенант автоматически."""
 from __future__ import annotations
 
-from cloud.store import control_plane
+from gsc_cloud.store import control_plane
 
 
 def ensure_tenant_for_install(installation_id: int,

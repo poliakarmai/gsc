@@ -17,7 +17,7 @@ from pathlib import Path
 from threading import Thread
 from typing import Dict, List, Optional
 
-from gsc_db_backend import PgBackend
+from gsc_cloud.gsc_db_backend import PgBackend
 
 DB_DSN = os.environ.get("GSC_DATABASE_URL", "postgresql://gsc_app:***@localhost:5432/gsc")
 

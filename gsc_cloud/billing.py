@@ -112,8 +112,8 @@ def _downgrade_to_free(db, event) -> None:
 # ── FastAPI billing routes ────────────────────────────────
 
 from fastapi import APIRouter, HTTPException, Request
-from cloud import billing
-from cloud.store import control_plane
+from gsc_cloud import billing
+from gsc_cloud.store import control_plane
 
 billing_router = APIRouter()
 DASH_URL = os.environ.get("GSC_DASHBOARD_URL", "http://localhost:3000")
@@ -121,7 +121,7 @@ DASH_URL = os.environ.get("GSC_DASHBOARD_URL", "http://localhost:3000")
 
 @billing_router.post("/api/v2/billing/checkout")
 def checkout(request: Request, body: dict):
-    from cloud.dash_api import _ctx
+    from gsc_cloud.dash_api import _ctx
     _, tid = _ctx(request)
     db = control_plane()
     row = db.fetchone(

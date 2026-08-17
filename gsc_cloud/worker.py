@@ -17,9 +17,9 @@ import tempfile
 import time
 from urllib.parse import urlparse
 
-from gsc_db_backend import PgBackend
-from cloud import store          # CRUD по scans/findings/usage
-from cloud.scan_queue import ScanQueue
+from gsc_cloud.gsc_db_backend import PgBackend
+from gsc_cloud import store          # CRUD по scans/findings/usage
+from gsc_cloud.scan_queue import ScanQueue
 
 ALLOWED_HOSTS = {"github.com"}
 SCAN_TIMEOUT_SEC = 900

@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
-from cloud.session import parse
-from cloud.store import control_plane
+from gsc_cloud.session import parse
+from gsc_cloud.store import control_plane
 
 router = APIRouter(prefix="/api/v2/dash")
 
@@ -113,7 +113,7 @@ def _plan_of(tid: int) -> str:
 # ── Audit log (Business+) ───────────────────────────────
 
 import json as _json
-from cloud import audit
+from gsc_cloud import audit
 
 
 @router.get("/audit")

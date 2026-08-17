@@ -37,7 +37,7 @@ services:
     build:
       context: ..
       dockerfile: cloud/Dockerfile
-    command: uvicorn cloud.api:app --host 0.0.0.0 --port 8000 --reload
+    command: uvicorn gsc_cloud.api:app --host 0.0.0.0 --port 8000 --reload
     environment:
       GSC_DATABASE_URL: ${GSC_DATABASE_URL:?GSC_DATABASE_URL is required — set in cloud/.env (see .env.example)}
       GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}
@@ -62,7 +62,7 @@ services:
     build:
       context: ..
       dockerfile: cloud/Dockerfile
-    command: python -m cloud.workers
+    command: python -m gsc_cloud.workers
     environment:
       GSC_DATABASE_URL: ${GSC_DATABASE_URL:?GSC_DATABASE_URL is required — set in cloud/.env (see .env.example)}
       GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}
