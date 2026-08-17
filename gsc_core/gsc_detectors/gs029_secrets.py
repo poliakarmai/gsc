@@ -32,6 +32,35 @@ EXCLUDE_FILE_RE = re.compile(
 
 MIN_ENTROPY = 3.0
 
+# Placeholder / demo / example secret values — skipped when the captured value
+# begins with an unambiguous placeholder marker (no real secret starts with these).
+# Anchored at start via .match(); `(?![a-z])` prevents prefix collisions with
+# real English words (e.g. "democratic", "testing", "examplesecret").
+PLACEHOLDER_VALUE_RE = re.compile(
+    r'(?i)^(?:'
+    r'your[_\- ]?(?:api[_\- ]?key|token|secret|password|passwd|key|value|here)'  # your_api_key_here
+    r'|(?:change|replace)[_\- ]?me'                                              # changeme / replace_me
+    r'|dummy|fake|placeholder|redacted'
+    r'|(?:sample|example|demo|test)(?![a-z])'                                    # example_… / test-… / test123
+    r'|x{4,}'                                                                    # xxxx
+    r'|<[^>]+>|\$\{[^}]+\}|\{\{[^}]+\}\}'                                        # <KEY> ${KEY} {{KEY}}
+    r'|[а-яё]+[_\- ]?(?:ключ|пароль|секрет|токен|api[_\- ]?key)'                 # ваш-ключ-здесь
+    r')'
+)
+
+# Canonical AWS documentation example access key — appears in countless READMEs/
+# tutorials. Non-functional by definition; never a real credential.
+AWS_EXAMPLE_KEYS = {"AKIAIOSFODNN7EXAMPLE"}
+
+# Loopback DB connection strings (localhost / 127.0.0.1 / ::1, with optional
+# userinfo and port) are dev/default examples, not leaked production credentials.
+DB_URL_LOOPBACK_RE = re.compile(
+    r'(?i)^(?:mongodb|mysql|postgresql|redis|amqp)://'
+    r'(?:[^/@\s]+@)?'
+    r'(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|::1)(?::\d+)?(?:/|$)'
+)
+
+
 def _shannon_entropy(s: str) -> float:
     if not s: return 0.0
     freq = {}
@@ -58,6 +87,12 @@ class GS029SecretsDetector:
                     value = m.group(capture_idx)
                     if _shannon_entropy(value) < MIN_ENTROPY:
                         continue
+                    if PLACEHOLDER_VALUE_RE.match(value):
+                        continue
+                if secret_type == "aws_access_key" and m.group(0) in AWS_EXAMPLE_KEYS:
+                    continue
+                if secret_type == "db_url" and DB_URL_LOOPBACK_RE.match(m.group(0)):
+                    continue
                 line_no = content[:m.start()].count("\n") + 1
                 findings.append({
                     "rule_id": f"GS029-{secret_type}",

@@ -91,8 +91,38 @@ def _is_placeholder(value: str) -> bool:
                     "getpass.getpass",  # prompts user, not hardcoded
                     "min_length=", "max_length=",  # form/validator fields
                     "ImageField", "FileField",  # Django fields, not upload handlers
+                    # Vendor test/integration keys (hCaptcha docs, Stripe test mode, etc.)
+                    "00000000-", "aaaa-bbbb", "ffff-ffff",  # zero-padded / placeholder UUIDs
+                    "0x0000000000000000000000000000000000000000",  # hCaptcha test secret
                     )
     return any(p in value.lower() for p in placeholders)
+
+
+def _luhn_valid(number: str) -> bool:
+    """Luhn checksum — mandatory on every real PAN (ISO/IEC 7812).
+
+    Rejects 13-16 digit numeric identifiers (Brightcove player IDs, order IDs,
+    timestamps) that start with 4/5/3/6 but are not payment card numbers.
+    """
+    digits = [d for d in number if d.isdigit()]
+    if not digits:
+        return False
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        n = int(d) * 2 if i % 2 == 1 else int(d)
+        total += n - 9 if n > 9 else n
+    return total % 10 == 0
+
+
+# A value that is a pure UPPER_WITH_UNDERSCORES identifier is an enum/error-code
+# constant, not a secret — e.g. TOKEN = "RESET_PASSWORD_BAD_TOKEN",
+# PASSWORD = "REGISTER_INVALID_PASSWORD" (fastapi-users ErrorCode enum).
+_SYMBOLIC_VALUE_RE = re.compile(r'[:=]\s*["\'][A-Z][A-Z0-9_]{3,}["\']')
+
+
+def _is_symbolic_constant(matched: str) -> bool:
+    """True when the secret value is an identifier-shaped symbolic constant."""
+    return bool(_SYMBOLIC_VALUE_RE.search(matched))
 
 
 # Valid ISO 3166-1 alpha-2 country codes that issue IBANs
@@ -162,6 +192,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     continue
                 # IBAN validation: require valid country code + mod-97 checksum
                 if "IBAN" in label and not _is_valid_iban(matched):
+                    continue
+                # PAN validation: require Luhn checksum (rejects numeric IDs)
+                if "PAN" in label and not _luhn_valid(matched):
+                    continue
+                # Symbolic constants: enum/error-code values are not secrets
+                if _is_symbolic_constant(matched):
                     continue
                 findings.append(Finding(
                     rule_id=RULE_ID,

@@ -95,9 +95,9 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
      "SQL f-string injection in execute()", "python", False),
     (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%',
      "SQL %-formatting injection in execute()", "python", False),
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*\{.*\}.*["\']',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*\{.*\}.*["\']\s*\.format\s*\(',
      "SQL .format() injection in execute()", "python", False),
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*["\']\s*\+\s*',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*["\']\s*\+\s*(?!\s*["\'])',
      "SQL string concatenation in execute()", "python", False),
     (r'executemany\s*\(\s*f["\']',
      "SQL f-string injection in executemany()", "python", False),
@@ -125,7 +125,7 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
 
     # SQLAlchemy
     (r'text\s*\(\s*f["\']', "SQLAlchemy text() with f-string", "python", False),
-    (r'text\s*\(\s*["\'].*\{.*\}.*["\']', "SQLAlchemy text() with .format()", "python", False),
+    (r'text\s*\(\s*["\'].*\{.*\}.*["\']\s*\.format\s*\(', "SQLAlchemy text() with .format()", "python", False),
     (r'text\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%', "SQLAlchemy text() with %-formatting", "python", False),
     (r'text\s*\(\s*["\'].*["\']\s*\+', "SQLAlchemy text() with string concat", "python", False),
     (r'\.execute\s*\(\s*text\s*\(', "SQLAlchemy execute(text()) pattern", "python", False),
@@ -264,6 +264,21 @@ _TAINT_SOURCE_PATTERNS = re.compile(
 )
 
 
+# Patterns that only represent SQLi when the query is *built by interpolation*.
+# A bare `execute(<collection>[idx])` (prebuilt query) or a hardcoded `IN [...]`
+# list inside a static query is NOT injection — skip when no interpolation is present.
+_INTERPOLATION_REQUIRED = {
+    "GS005-GEN-PY-008",  # Second-order SQLi from stored data
+    "GS005-GEN-PY-009",  # execute with list unpacking
+    "GS005-GEN-PY-010",  # execute with nested attribute
+    "GS005-GEN-PY-011",  # execute with dict unpacking
+}
+
+_REAL_INTERPOLATION = re.compile(
+    r'f["\']|\.format\s*\(|["\']\s*%|\+\s*(?!\s*["\'])',
+)
+
+
 def _has_sanitizer(context: str) -> bool:
     return bool(_SANITIZER_PATTERNS.search(context))
 
@@ -332,7 +347,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         continue
                 if re.search(r'(\?|%s)', line) and re.search(r'\.join\s*\(', line):
                     continue
-                if re.search(r'%s\s*,\s*\(|%s\s*,\s*\[|\?\s*,\s*\[', line):
+                if re.search(r'(?:%[sd]|\?|:\w+)\s*["\']\s*,\s*[\[({]', line):
+                    continue
+                if pid in _INTERPOLATION_REQUIRED and not _REAL_INTERPOLATION.search(line):
                     continue
 
                 key = (line_no, snippet)

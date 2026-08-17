@@ -19,7 +19,7 @@ run_case('Secrets FP fix confirmed', t1)
 
 def t2():
     from pathlib import Path
-    dets = list((Path('.')/'gsc_detectors').glob('gs*.py'))
+    dets = list((Path('.')/'gsc_core'/'gsc_detectors').glob('gs*.py'))
     assert len(dets) >= 28, f"only {len(dets)} detector files"
 run_case('28+ detector files present', t2)
 
@@ -85,6 +85,69 @@ def t10():
     assert fs, "GS025 should flag hardcoded secret"
     assert all(f.get('file_path') for f in fs), f"GS025 finding missing file_path: {fs}"
 run_case('GS025: findings carry file_path', t10)
+
+def t11():
+    from gsc_detectors import gs001_hardcoded_secret as g1
+    ctx = _ctx_with({"app.py": 'player_id = "4463358922001"\ncard = "4111111111111111"\n'})
+    fs = g1.detect(ctx)
+    titles = [f.get('title') or '' for f in fs]
+    assert not any('PAN' in t and '4463358922001' in (f.get('detail') or '') for f, t in zip(fs, titles)), \
+        f"Brightcove-style numeric ID flagged as PAN: {fs}"
+    assert any('PAN' in t for t in titles), f"Luhn-valid PAN not detected: {fs}"
+run_case('GS001: PAN requires Luhn checksum', t11)
+
+def t12():
+    from gsc_detectors import gs001_hardcoded_secret as g1
+    ctx = _ctx_with({"common.py": 'TOKEN = "RESET_PASSWORD_BAD_TOKEN"\nPASSWORD = "REGISTER_INVALID_PASSWORD"\n'})
+    fs = g1.detect(ctx)
+    assert not fs, f"Enum constants flagged as secrets: {fs}"
+run_case('GS001: enum/error-code constants are not secrets', t12)
+
+def t13():
+    from gsc_detectors import gs001_hardcoded_secret as g1
+    ctx = _ctx_with({"captcha.py": 'token="10000000-aaaa-bbbb-cccc-000000000001"\n'})
+    fs = g1.detect(ctx)
+    assert not fs, f"hCaptcha test credential flagged: {fs}"
+run_case('GS001: vendor test credentials are placeholders', t13)
+
+def t14():
+    from gsc_detectors import gs001_hardcoded_secret as g1
+    ctx = _ctx_with({"app.py": 'password = "my-super-secret-password"\n'})
+    fs = g1.detect(ctx)
+    assert fs, "Real hardcoded password not detected (TP regression)"
+run_case('GS001: real secrets still detected (TP guard)', t14)
+
+def t15():
+    from gsc_detectors import gs005_sql_injection as g5
+    safe = [
+        'cursor.execute("SELECT * FROM users WHERE id=%s", (uid,))\n',
+        'cursor.execute("SELECT * FROM users WHERE id=?", [uid])\n',
+        'User.objects.raw("SELECT * FROM u WHERE id=%s", [u])\n',
+        'session.execute(text("SELECT * FROM u WHERE name=:name"), {"name": name})\n',
+        'cursor.execute("SELECT count(*) FROM t" + " WHERE x=1")\n',
+        'cursor.execute("SELECT * FROM t WHERE data = \'{}\'::jsonb")\n',
+        'cursor.execute("SELECT * FROM t WHERE x IN [1,2,3]")\n',
+        'cursor.execute(queries[0])\n',
+        'cursor.execute(config["sql_select"])\n',
+    ]
+    for code in safe:
+        fs = g5.detect(_ctx_with({"app.py": code}))
+        assert not fs, f"parameterized/static query flagged as SQLi: {code!r} -> {[f.get('title') for f in fs]}"
+run_case('GS005: parameterized/static queries are not SQLi (FP fix)', t15)
+
+def t16():
+    from gsc_detectors import gs005_sql_injection as g5
+    vuln = [
+        'cursor.execute(f"SELECT * FROM users WHERE id={uid}")\n',
+        'cursor.execute("SELECT * FROM users WHERE id=%s" % uid)\n',
+        'cursor.execute("SELECT * FROM users WHERE id=" + uid)\n',
+        'cursor.execute("SELECT {} FROM {}".format(t, c))\n',
+        'session.execute(text(f"SELECT * FROM users WHERE name={name}"))\n',
+    ]
+    for code in vuln:
+        fs = g5.detect(_ctx_with({"app.py": code}))
+        assert fs, f"real SQLi not detected (TP regression): {code!r}"
+run_case('GS005: real SQLi still detected (TP guard)', t16)
 
 print(f'\n{"="*50}')
 print(f'Regression: {passed} passed, {failed} failed')

@@ -30,20 +30,19 @@ OPEN_REDIRECT_PATTERNS: list[tuple[str, str, str]] = [
     (r'redirect\s*\(\s*(?:request\.(?:args|form|query|params)|params\[|req\.(?:query|body))',
      "Open Redirect: redirect() with user-controlled URL", "HIGH"),
     (r'redirect\(.*\$_(?:GET|POST|REQUEST)', "Open Redirect: PHP redirect with user input", "CRITICAL"),
-    (r'(?-i:Redirect\s*\(\s*Request)', "Open Redirect: ASP.NET Redirect with Request", "CRITICAL"),
+    # ASP.NET: только user-controlled источники (индексаторы), НЕ Request.Url.AbsoluteUri/UrlReferrer
+    (r'(?-i:Redirect\s*\(\s*Request(?:\[[\'"]|\.QueryString\[[\'"]|\.Form\[[\'"]|\.Params\[[\'"]))',
+     "Open Redirect: ASP.NET Redirect with user input", "CRITICAL"),
     (r'redirect_to\s+.*(?:params|request)', "Open Redirect: Rails redirect_to with params", "HIGH"),
     (r'window\.location\s*=\s*.*(?:url|redirect|next|callback|return)', "Open Redirect: JS window.location with redirect param", "MEDIUM"),
     (r'window\.location\.(?:href|replace)\s*=\s*.*(?:url|redirect|next|callback)', "Open Redirect: JS location change with redirect param", "MEDIUM"),
     (r'HttpResponseRedirect\s*\(.*request', "Open Redirect: Django redirect with request data", "HIGH"),
-    # Redirect param names
     (r'request\.(?:args|form|query|params)\.get\s*\(\s*[\"\'](?:redirect|url|next|return|callback|goto|redir|continue|target)[\"\']',
      "Open Redirect: redirect/url/next param extracted from request", "HIGH"),
     (r'\$_(?:GET|POST|REQUEST)\s*\[\s*[\"\'](?:redirect|url|next|return|callback|goto|redir)[\"\']',
      "Open Redirect: PHP redirect param from user input", "CRITICAL"),
-    # URL validation bypass attempts
     (r'url\.startswith\s*\(\s*[\"\']/', "Weak URL validation: only checks for leading /", "MEDIUM"),
     (r'urlparse|url\.parse|URL\(', "URL parsing present — verify whitelist, not blacklist", "INFO"),
-    # Dangerous redirect patterns
     (r'\.replace\s*\(\s*[\"\']https?://[\"\']\s*,\s*[\"\']', "Weak URL validation: simple string replace", "MEDIUM"),
 ]
 
@@ -70,7 +69,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
             for match in re.finditer(pattern, content, re.IGNORECASE):
                 line_no = content[:match.start()].count('\n') + 1
                 snippet = _extract_line(content, line_no)
-                if _is_false_positive(snippet):
+                if _is_false_positive(snippet, content, line_no):
                     continue
                 findings.append(Finding(
                     rule_id=RULE_ID, severity=severity, category=severity,
@@ -99,7 +98,14 @@ def _extract_line(content: str, line_no: int) -> str:
     return lines[line_no - 1] if 0 < line_no <= len(lines) else ''
 
 
-def _is_false_positive(snippet: str) -> bool:
+def _context(content: str, line_no: int, before: int, after: int) -> str:
+    lines = content.split('\n')
+    lo = max(0, line_no - 1 - before)
+    hi = min(len(lines), line_no - 1 + after + 1)
+    return '\n'.join(lines[lo:hi])
+
+
+def _is_false_positive(snippet: str, content: str, line_no: int) -> bool:
     s = snippet.strip()
     if s.startswith('//') or s.startswith('#') or s.startswith('/*') or s.startswith('*'):
         return True
@@ -110,4 +116,14 @@ def _is_false_positive(snippet: str) -> bool:
     # не на user-controlled URL (url_has_allowed_host_and_scheme не нужен)
     if re.search(r'redirect\s*\(\s*request\.(?:path|get_full_path|path_info)', s, re.I):
         return True
+    # INFO urlparse/URL( без redirect-контекста — легитимный парсинг, не open redirect
+    if re.search(r'urlparse|url\.parse|URL\(', s, re.I):
+        ctx = _context(content, line_no, 4, 3)
+        if not re.search(r'redirect|window\.location|HttpResponseRedirect|redirect_to', ctx, re.I):
+            return True
+    # request.args.get('next') с Django safe-валидацией — не open redirect
+    if re.search(r'request\.(?:args|form|query|params)\.get\s*\(\s*[\'\"](?:redirect|url|next|return|callback|goto|redir|continue|target)[\'\"]', s, re.I):
+        ctx = _context(content, line_no, 1, 4)
+        if re.search(r'url_has_allowed_host_and_scheme|is_safe_url|allowed_hosts', ctx, re.I):
+            return True
     return False

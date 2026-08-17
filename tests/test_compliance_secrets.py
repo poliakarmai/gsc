@@ -45,7 +45,7 @@ run_case('enrich_finding injects compliance', t3)
 
 def t4():
     det = GS029SecretsDetector()
-    hits = det.detect("app.py", 'aws = "AKIAIOSFODNN7EXAMPLE"')
+    hits = det.detect("app.py", 'aws = "AKIA1234567890ABCDEF"')
     assert len(hits) == 1
     assert hits[0]["rule_id"] == "GS029-aws_access_key"
     assert hits[0]["severity"] == "CRITICAL"
@@ -54,8 +54,8 @@ run_case('GS029 detects AWS key', t4)
 
 def t5():
     det = GS029SecretsDetector()
-    hits = det.detect("app.py", 'aws = "AKIAIOSFODNN7EXAMPLE"')
-    assert "AKIAIOSFODNN7EXAMPLE" not in hits[0]["detail"]
+    hits = det.detect("app.py", 'aws = "AKIA1234567890ABCDEF"')
+    assert "AKIA1234567890ABCDEF" not in hits[0]["detail"]
     assert "<redacted:" in hits[0]["detail"]
 run_case('GS029 redacts snippet', t5)
 
@@ -71,6 +71,25 @@ def t7():
     det = GS029SecretsDetector()
     assert det.detect("tests/fixtures.py", 'aws = "AKIAIOSFODNN7EXAMPLE"') == []
 run_case('GS029 excludes test paths', t7)
+
+
+def t8():
+    det = GS029SecretsDetector()
+    # canonical AWS docs example key — placeholder, not a real credential
+    assert det.detect("app.py", 'aws = "AKIAIOSFODNN7EXAMPLE"') == []
+    # placeholder / demo config secrets are filtered
+    assert det.detect("app.py", 'api_key = "your_api_key_here"') == []
+    assert det.detect("app.py", 'password = "changeme123456"') == []
+    assert det.detect("app.py", 'token = "dummy_token_value"') == []
+    assert det.detect("app.py", 'password = "test-password-123"') == []
+    # loopback db urls are dev/default examples, not leaked prod credentials
+    assert det.detect("app.py", 'redis://localhost:6379/0') == []
+    assert det.detect("app.py", 'mysql://user:password@localhost:3306/mydb') == []
+    # TP guards — real secrets still detected
+    assert len(det.detect("app.py", 'password = "Xk9#mQ2vL7pR4z"')) == 1
+    assert len(det.detect("app.py", 'aws = "AKIA1234567890ABCDEF"')) == 1
+    assert len(det.detect("app.py", 'DATABASE_URL = "mysql://prod:S3cret@db.internal:3306/app"')) == 1
+run_case('GS029 filters placeholders/examples, keeps real secrets', t8)
 
 
 print(f'\n{"="*50}')
