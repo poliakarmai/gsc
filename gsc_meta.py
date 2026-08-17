@@ -79,10 +79,23 @@ def _read_schema() -> int:
     except Exception:
         return -1
 
+def _is_shim(path: Path) -> bool:
+    """Shim-модуль (alias на gsc_core) не считается отдельным модулем."""
+    try:
+        head = path.read_text(encoding="utf-8")[:300]
+    except Exception:
+        return False
+    return "Shim:" in head
+
+
 def _count_modules() -> int:
-    return len([f for f in GSC.glob("gsc_*.py") if f.is_file()]) + len(
-        [f for f in (GSC/"gsc_detectors").glob("*.py") if f.is_file()]) + len(
-        [f for f in (GSC/"enterprise").glob("*.py") if f.is_file()])
+    # Трек 0.5 (packages split): реальные модули = корневые (без shim-алиасов)
+    # + gsc_core (движки) + gsc_core/gsc_detectors (детекторы) + enterprise.
+    root = [f for f in GSC.glob("gsc_*.py") if f.is_file() and not _is_shim(f)]
+    core = [f for f in (GSC / "gsc_core").glob("gsc_*.py") if f.is_file()]
+    det = [f for f in (GSC / "gsc_core" / "gsc_detectors").glob("*.py") if f.is_file()]
+    ent = [f for f in (GSC / "enterprise").glob("*.py") if f.is_file()]
+    return len(root) + len(core) + len(det) + len(ent)
 
 
 if __name__ == "__main__":

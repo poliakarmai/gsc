@@ -20,6 +20,8 @@
 
 | 9 | **BrowserlessAPI/VortexPanel** | 22 | OS Command Injection in file manager — `subprocess.run(shell=True)` interpolates unsanitized user input (`q` in `/api/files/search`, `path` in `/api/files/scan`, `src`/`dst`/`output` in extract/compress); `safe_path()` only normalizes paths, doesn't escape shell metacharacters → authenticated RCE | CWE-78 | GS025 (CVE pattern) | [#19](https://github.com/BrowserlessAPI/VortexPanel/pull/19) |
 
+| 10 | **django-files/django-files** | 12 | Hardcoded Django `SECRET_KEY` (`SECRET=JYGTKLzt…`) + default admin creds (`testuser`/`demopassword`) in `docker-compose-prod.yaml` — allows session forgery, CSRF bypass, password-reset token forgery and default admin login | CWE-798, CWE-521 | GS001 (Hardcoded Secrets) | [#428](https://github.com/django-files/django-files/pull/428) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:
