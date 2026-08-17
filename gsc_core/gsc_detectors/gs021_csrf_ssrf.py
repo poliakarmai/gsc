@@ -53,7 +53,6 @@ SSRF_PATTERNS: list[tuple[str, str, str]] = [
      "SSRF: HTTP request to a variable (verify URL is not user-controlled)", "HIGH"),
     (r'file_get_contents\s*\(\s*\$_(?:GET|POST|REQUEST)', "SSRF: PHP file_get_contents with user input", "CRITICAL"),
     (r'curl_exec\s*\(.*\$_(?:GET|POST|REQUEST)', "SSRF: PHP curl_exec with user-controlled URL", "CRITICAL"),
-    (r'open-uri|open\(.*(?:params|request)', "SSRF: Ruby open-uri with user input", "HIGH"),
     # Internal host references
     (r'localhost|127\.0\.0\.1|0\.0\.0\.0', "SSRF candidate: reference to localhost", "INFO"),
     (r'169\.254\.169\.254', "SSRF: AWS metadata endpoint in code", "CRITICAL"),
@@ -62,6 +61,11 @@ SSRF_PATTERNS: list[tuple[str, str, str]] = [
     # URL construction with user input
     (r'url\s*=\s*[\"\']https?://.*\{\{', "SSRF: URL template with variable interpolation", "HIGH"),
     (r'f[\"\']https?://\{', "SSRF: f-string URL with user variable", "HIGH"),
+]
+
+# Ruby-only SSRF — `open()`/`open-uri` открывают HTTP в Ruby, но `open()` в Python читает файл
+RUBY_SSRF_PATTERNS: list[tuple[str, str, str]] = [
+    (r'open-uri|URI\.open|open\s*\(\s*params\[', "SSRF: Ruby open-uri with user input", "HIGH"),
 ]
 
 FILE_EXTENSIONS = {'.py', '.js', '.jsx', '.ts', '.tsx', '.php', '.rb', '.go', '.java', '.cs'}
@@ -108,6 +112,20 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     detail=snippet.strip()[:200], cwe="CWE-918",
                     cvss={"CRITICAL":"9.1","HIGH":"7.5","INFO":"0.0"}.get(severity,"5.0"),
                 ))
+
+        if file_path.suffix == '.rb':
+            for pattern, message, severity in RUBY_SSRF_PATTERNS:
+                for match in re.finditer(pattern, content, re.IGNORECASE):
+                    line_no = content[:match.start()].count('\n') + 1
+                    snippet = _extract_line(content, line_no)
+                    if _is_false_positive(snippet):
+                        continue
+                    findings.append(Finding(
+                        rule_id=RULE_ID, severity=severity, category=severity,
+                        title=message, file_path=rel_path, line=line_no,
+                        detail=snippet.strip()[:200], cwe="CWE-918",
+                        cvss={"CRITICAL":"9.1","HIGH":"7.5","INFO":"0.0"}.get(severity,"5.0"),
+                    ))
 
     return findings
 
