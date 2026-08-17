@@ -389,6 +389,28 @@ def lang_to_rg_types(lang: str) -> str:
                "rust": "rs", "java": "java", "terraform": "tf", "docker": "docker"}
     return mapping.get(lang, "")
 
+# Python-fallback эквивалент ripgrep -t <type>. Ключи — значения из lang_to_rg_types.
+_RG_TYPE_EXTS = {
+    "py": {".py", ".pyi"},
+    "go": {".go"},
+    "ts": {".ts", ".tsx"},
+    "js": {".js", ".jsx", ".mjs", ".cjs"},
+    "rs": {".rs"},
+    "java": {".java"},
+    "tf": {".tf", ".tfvars", ".hcl"},
+}
+
+def _matches_file_type(fp, file_types: str) -> bool:
+    """Python-fallback аналог ripgrep -t <type>. Dockerfile матчится по имени (нет расширения)."""
+    if not file_types:
+        return True
+    if file_types == "docker":
+        return fp.name.lower().startswith("dockerfile")
+    exts = _RG_TYPE_EXTS.get(file_types)
+    if exts is None:
+        return True  # неизвестный тип — не фильтруем (безопасно)
+    return fp.suffix.lower() in exts
+
 
 def check_plugin_detectors(project: str, path: Path, echelon: int | None = None) -> list[dict]:
     """Run plugin-based detectors (CVE Lite-inspired architecture).
@@ -541,6 +563,8 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
             if any(part in skip_dirs for part in fp.parts):
                 continue
             if exclude_md and fp.suffix == ".md":
+                continue
+            if not _matches_file_type(fp, file_types):
                 continue
             # Pre-filter: skip non-code/binary and oversized files
             if fp.suffix.lower() in _non_code_suffixes:
