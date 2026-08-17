@@ -93,7 +93,7 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
 
     (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*f["\']',
      "SQL f-string injection in execute()", "python", False),
-    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*%s.*["\']',
+    (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%',
      "SQL %-formatting injection in execute()", "python", False),
     (r'(?:execute|cursor\.execute|conn\.execute)\s*\(\s*["\'].*\{.*\}.*["\']',
      "SQL .format() injection in execute()", "python", False),
@@ -115,7 +115,7 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
 
     # Django ORM
     (r'\.raw\s*\(\s*f["\']', "Django raw() with f-string", "python", False),
-    (r'\.raw\s*\(\s*["\'].*%s', "Django raw() with %-formatting", "python", False),
+    (r'\.raw\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%', "Django raw() with %-formatting", "python", False),
     (r'\.extra\s*\(\s*where\s*=\s*["\'].*["\']\s*[\+%]', "Django extra() with dynamic WHERE", "python", False),
     (r'\.extra\s*\(\s*tables\s*=\s*\[.*["\']\s*\+', "Django extra() with dynamic tables", "python", False),
     (r'cursor\.execute\s*\(\s*.*SELECT.*\{.*\}.*FROM', "Django cursor.execute() with interpolation", "python", False),
@@ -126,7 +126,7 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
     # SQLAlchemy
     (r'text\s*\(\s*f["\']', "SQLAlchemy text() with f-string", "python", False),
     (r'text\s*\(\s*["\'].*\{.*\}.*["\']', "SQLAlchemy text() with .format()", "python", False),
-    (r'text\s*\(\s*["\'].*%s.*["\']', "SQLAlchemy text() with %-formatting", "python", False),
+    (r'text\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%', "SQLAlchemy text() with %-formatting", "python", False),
     (r'text\s*\(\s*["\'].*["\']\s*\+', "SQLAlchemy text() with string concat", "python", False),
     (r'\.execute\s*\(\s*text\s*\(', "SQLAlchemy execute(text()) pattern", "python", False),
     (r'\.from_statement\s*\(\s*text\s*\(', "SQLAlchemy from_statement(text())", "python", False),

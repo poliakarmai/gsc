@@ -146,6 +146,11 @@ SKIP_PATTERNS = [
     r'middleware\s*\(\s*[\'\"]auth[\'\"]\s*\)',
     r'@UseGuards\s*\(\s*AuthGuard',
     r'@Protected\s*\(',
+    r'_enforce_\w+',
+    r'check_ownership\s*\(',
+    r'check_object_permission\s*\(',
+    r'has_object_permission\s*\(',
+    r'_check_access\s*\(',
 ]
 
 
