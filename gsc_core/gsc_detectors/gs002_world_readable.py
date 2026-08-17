@@ -3,13 +3,14 @@
 # Licensed under Apache License 2.0 — see LICENSE
 
 """
-GS002 — World-readable files.
+GS002 — World-readable sensitive files.
 
-Detects files with overly permissive permissions (644+ on sensitive files).
+Detects sensitive files (private keys, certs, credential stores) with
+world-readable permissions. Public data (authorized_keys, known_hosts,
+generic *.conf/*.config) and code modules (credentials.py) are NOT sensitive.
 Inspired by CVE Lite OA002-floating-tag pattern.
 """
 
-import os
 import stat
 from pathlib import Path
 
@@ -18,25 +19,36 @@ from . import AuditContext, Finding
 RULE_ID = "GS002"
 ECHELON = 2
 
-# Sensitive file patterns to check
+# Sensitive files whose content is a SECRET (not public config/code).
 _SENSITIVE_PATTERNS = [
+    # Private keys & certificates
     "*.pem", "*.key", "*.crt", "*.cer",
     "*.pkcs12", "*.pfx", "*.p12",
+    # Environment / secret stores
     ".env", ".env.*",
-    "*.conf", "*.config",
-    "id_rsa*", "id_ed25519*", "id_ecdsa*",
-    "authorized_keys", "known_hosts",
-    "credentials*", "secrets*",
+    # SSH private keys (exact name — *.pub is public, not sensitive)
+    "id_rsa", "id_ed25519", "id_ecdsa", "id_dsa",
+    # Credential/secret DATA files (NOT code: credentials.py is a module)
+    "credentials.json", "credentials.txt", "credentials.yml", "credentials.yaml",
+    "credentials.env", "credentials.ini", "credentials.cfg",
+    "secrets.json", "secrets.txt", "secrets.yml", "secrets.yaml",
+    "secrets.env", "secrets.ini",
+    # Config files that hold credentials by convention
+    ".netrc", ".npmrc", ".pypirc", ".pgpass",
 ]
+
+# Directories that hold test/demo/sample material (vectors, dummy servers, etc.)
+_DEMO_DIRS = frozenset({
+    "vectors", "dummyserver", "testdata", "dummy", "demo",
+    "examples", "sample", "samples",
+})
 
 
 def _is_sensitive(filepath: Path) -> bool:
     """Check if file matches sensitive patterns."""
-    name = filepath.name
     for p in _SENSITIVE_PATTERNS:
         if filepath.match(p):
             return True
-    # Also check: files with mode 0o777, 0o666 (world-read/write)
     return False
 
 
@@ -47,9 +59,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
     findings: list[Finding] = []
     for fp in ctx.get_files():
+        # Skip test/demo/vector directories — their certs/keys are expected readable
+        if any(d in _DEMO_DIRS for d in fp.parts):
+            continue
         if not _is_sensitive(fp):
             continue
-        # Skip test certs/keys — expected to be world-readable for CI/CD
         if ctx.is_test_file(fp):
             continue
         try:
