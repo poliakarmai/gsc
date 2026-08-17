@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.3.0 · **Detectors:** 41 (37 registry + 4 engines) · **Schema:** v32 · **Modules:** 114
+**Version:** v1.3.0 · **Detectors:** 41 (37 registry + 4 engines) · **Schema:** v32 · **Modules:** 148
 <!-- GSC-META-END -->
 
 
@@ -72,35 +72,36 @@ Finding GS005 (SQL Injection) — app.py:42
   ✅ VERIFIED (sandbox + DAST)
 ```
 
-> **Verification strength** (due-diligence, честный контракт): «verified» означает полный
-> before/after exploit evidence. OS-изоляция PoC требует container runtime (Docker/Podman);
-> без него GSC деградирует в rlimit (CPU/mem limits без filesystem/network namespace) и
-> помечает результат **NOT verified** (fail-closed) — не «verified». PoF-пайплайн
-> **Python-first** (JS/TS — roadmap). Для **hostile/repository code** обязателен
-> container/VM backend — см. `docs/THREAT_MODEL.md`.
+> **Verification strength** (due-diligence contract): «verified» means full
+> before/after exploit evidence. PoC OS-isolation requires a container runtime
+> (Docker/Podman); without it GSC degrades to rlimit (CPU/mem limits with no
+> filesystem/network namespace) and marks the result **NOT verified** (fail-closed)
+> — never «verified». The PoF pipeline is **Python-first** (JS/TS — roadmap). For
+> **hostile/untrusted repository code** a container/VM backend is required — see
+> `docs/THREAT_MODEL.md`.
 
 ### 🚫 What GSC does NOT do
 
-Честные границы продукта (подробнее — `docs/KNOWN_LIMITATIONS.md`):
+Honest product boundaries (details — `docs/KNOWN_LIMITATIONS.md`):
 
-| GSC НЕ делает | Что это значит |
-|---------------|----------------|
-| Не заменяет ручной pentest | Автоматизация покрывает только то, что видят детекторы + PoC |
-| Не гарантирует 100% precision | CRITICAL precision ~8–12% на реальных проектах; свой замер обязателен |
-| Не исполняет PoF без изоляции | Нет container runtime → `NOT verified`, а не ложный «verified» |
-| Не полноценный PoF для JS/TS | Python-first; JS/TS PoC — roadmap |
-| Не multi-writer store на SQLite | Production требует PostgreSQL (`GSC_DATABASE_URL`) |
-| Не даёт «вшитых» процентов точности | Цифры детекторов — через `gsc_meta.py`, не в маркетинге |
+| GSC does NOT | What that means |
+|--------------|-----------------|
+| Replace manual pentesting | Automation covers only what detectors + PoC can see |
+| Guarantee 100% precision | CRITICAL precision ~8–12% on real projects; run your own measurement |
+| Run PoF without isolation | No container runtime → `NOT verified`, never a false «verified» |
+| Fully verify JS/TS PoFs | Python-first; JS/TS PoC is on the roadmap |
+| Multi-writer store on SQLite | Production requires PostgreSQL (`GSC_DATABASE_URL`) |
+| Hardcode accuracy percentages | Detector numbers come from `gsc_meta.py`, not marketing |
 
 ### 🎯 Use cases
 
-1. **CI/CD gate** — GSC в PR-пайплайне: блокирует merge при новых CRITICAL/HIGH,
-   комментирует находки прямо в PR (`gsc github-pr-report`).
-2. **Self-healing** — вместо тикета на фикс GSC сам открывает verified PR
-   (`gsc pof batch --create-pr`), проверяя фикс Proof-of-Fix перед отправкой.
-3. **Security audit с доказательством** — для compliance/пентеста: каждая находка
-   с before/after PoC-доказательством (`gsc pof generate <key>`), которое можно
-   приложить к отчёту.
+1. **CI/CD gate** — GSC in your PR pipeline: blocks merge on new CRITICAL/HIGH,
+   comments findings directly in the PR (`gsc github-pr-report`).
+2. **Self-healing** — instead of a fix ticket, GSC opens a verified PR itself
+   (`gsc pof batch --create-pr`), verifying the fix with Proof-of-Fix before submitting.
+3. **Security audit with proof** — for compliance/pentest: every finding comes
+   with before/after PoC evidence (`gsc pof generate <key>`) that you can
+   attach to the report.
 
 ### 🥈 Self-Healing CI — automatic remediation PRs
 Wire GSC into CI. On every `CRITICAL`/`HIGH` finding, GSC runs Proof-of-Fix
@@ -211,11 +212,11 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
-└── SQLite DB — schema 32, WAL, 403K fingerprints
+└── SQLite DB — schema 32, WAL, hashed-only secret fingerprinting
 ```
 
-> **Packages:** `gsc_core/` (движок) · `gsc_cli/` (CLI + сканеры) · `gsc_cloud/` (SaaS API).
-> Корневые `gsc_*.py` — shim'ы (re-export) для обратной совместимости.
+> **Packages:** `gsc_core/` (engine) · `gsc_cli/` (CLI + scanners) · `gsc_cloud/` (SaaS API).
+> Top-level `gsc_*.py` are shims (re-export) for backward compatibility.
 
 **Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)
 
