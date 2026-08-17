@@ -80,6 +80,13 @@ _PATTERNS: list[tuple[str, str, str]] = [
     ),
 ]
 
+# Static-literal command passed to shell=True / os.popen (no interpolation,
+# concat, format, or $-var) is bad practice, not user-controlled injection.
+_STATIC_SHELL = re.compile(
+    r'(?:subprocess\.\w+\(\s*["\']|os\.popen\s*\(\s*["\'])'
+    r'(?![\s\S]*(\$\{|["\']\s*\+|\{[a-zA-Z_]\w*\}|\.format\s*\(|%\s*\(|%[sd]))'
+)
+
 
 def detect(ctx: AuditContext) -> list[Finding]:
     """Find dangerous subprocess/shell usage in source code."""
@@ -95,12 +102,17 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 line_text = content.split("\n")[line_no - 1].strip()
                 if "gsc:ignore" in line_text:
                     continue
+                severity = "HIGH"
+                # shell=True / os.popen with a static literal command is bad
+                # practice, not user-controlled command injection → downgrade.
+                if ("shell" in pattern or "popen" in pattern) and _STATIC_SHELL.search(line_text):
+                    severity = "MEDIUM"
                 findings.append(Finding(
                     rule_id=RULE_ID,
-                    category="HIGH",
+                    severity=severity,
                     title=title,
                     file_path=str(fp),
-                    line_number=line_no,
+                    line=line_no,
                     detail=f"Line {line_no}: {line_text[:100]}",
                     fix_suggestion=fix,
                     references=[
