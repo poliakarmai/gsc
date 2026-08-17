@@ -236,6 +236,7 @@ def find_existing_comment(client: GitHubAPIClient, ctx: GitHubPRContext) -> Opti
 def upsert_comment(client: GitHubAPIClient, ctx: GitHubPRContext,
                    body: str, dry_run: bool = False) -> Optional[int]:
     """Create or update PR comment. Returns comment_id or None."""
+    from gsc_cli.gsc_signature import comment_signature
     full_body = f"{COMMENT_MARKER}\n{body}"
 
     # Truncate if needed
@@ -250,6 +251,8 @@ def upsert_comment(client: GitHubAPIClient, ctx: GitHubPRContext,
                 full_body = full_body[:MAX_COMMENT_BYTES - 500]
                 break
         full_body += trunc_note
+
+    full_body += comment_signature()
 
     if dry_run:
         print(f"\n📝 [DRY-RUN] Comment ({len(full_body.encode())} bytes)")

@@ -27,6 +27,7 @@ except ImportError:
 
 sys.path.insert(0, str(Path(__file__).parent))
 from gsc_poc_generator import SUCCESS_MARKERS
+from gsc_signature import DEFAULT_REPO_URL
 
 
 @dataclass
@@ -46,6 +47,7 @@ class NucleiTemplate:
                 "severity": self.severity.lower(),
                 "description": self.description,
                 "tags": "gsc,sast," + self.severity.lower(),
+                "reference": [DEFAULT_REPO_URL],
             },
             "requests": self.requests,
         }

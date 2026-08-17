@@ -140,13 +140,20 @@ def autofix(report_path: str, project_root: str = ".",
 
 
 def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) -> str:
+    from gsc_signature import pr_signature, sign_commit_message, label_name, badge_markdown
+
     branch = f"gsc-autofix-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
     root = Path(project_root)
 
     fixed = [r for r in results if r.get("fixed")]
+    badge = badge_markdown()
     body_lines = [
         "## 🛡️ GSC Self-Healing CI: Auto-Fix",
         "",
+    ]
+    if badge:
+        body_lines += [badge, ""]
+    body_lines += [
         f"**{len(fixed)} verified fixes** applied automatically.",
         "",
         "| # | Rule | Key | File | Level |",
@@ -161,7 +168,7 @@ def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) 
         "> This PR was created automatically by GSC Self-Healing CI.",
         "> Label `gsc-autofix` prevents re-processing of the same findings.",
     ]
-    body = "\n".join(body_lines)
+    body = "\n".join(body_lines) + pr_signature(verified=True)
 
     # Try gh CLI
     gh_available = subprocess.run(["which", "gh"], capture_output=True).returncode == 0
@@ -171,15 +178,24 @@ def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) 
 
     subprocess.run(["git", "-C", str(root), "checkout", "-b", branch], capture_output=True)
     subprocess.run(["git", "-C", str(root), "add", str(fixes_dir)], capture_output=True)
+    commit_msg = sign_commit_message(f"gsc-autofix: {len(fixed)} verified fixes [skip ci]")
     subprocess.run(
-        ["git", "-C", str(root), "commit", "-m", f"gsc-autofix: {len(fixed)} verified fixes [skip ci]"],
+        ["git", "-C", str(root), "commit", "-m", commit_msg],
         capture_output=True,
     )
     subprocess.run(["git", "-C", str(root), "push", "origin", branch], capture_output=True)
 
+    labels = [AUTOFIX_LABEL]
+    verified_label = label_name()
+    if verified_label:
+        labels.append(verified_label)
+    label_args = []
+    for lbl in labels:
+        label_args += ["--label", lbl]
+
     r = subprocess.run(
         ["gh", "pr", "create", "--title", f"🛡️ gsc-autofix: {len(fixed)} verified fixes",
-         "--body", body, "--label", AUTOFIX_LABEL, "--base", "main", "--head", branch],
+         "--body", body, *label_args, "--base", "main", "--head", branch],
         capture_output=True, text=True, cwd=str(root),
     )
     pr_url = r.stdout.strip() if r.returncode == 0 else ""

@@ -617,6 +617,10 @@ def evidence_to_markdown(ev: FixEvidence) -> str:
     ]
     if ev.error:
         lines.append(f"\n### Error\n{ev.error}")
+    from gsc_cli.gsc_signature import pr_signature
+    verified = bool(getattr(ev, "verified", False)) or ev.level == "verified"
+    poc_success = bool(ev.exploited_before and ev.exploited_after is False)
+    lines.append(pr_signature(verified=verified, poc_success=poc_success, rule_id=ev.rule_id))
     return "\n".join(lines)
 
 
