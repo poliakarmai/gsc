@@ -66,7 +66,7 @@ detect → prove → fix → verify → heal → predict → learn.
 | Метрика | Значение | Проверено |
 |---------|----------|:---:|
 | Python-тесты | 276 (60 файлов) | `pytest -q` |
-| Enterprise | 10/10 | `enterprise/tests/` |
+| Enterprise | 10/10 | `tests/` |
 | VSCode | tsc 0 errors, npm test 7/7 | `gsc-vscode/` |
 | Calibration | 13/13 | `calibration run` |
 | Schema | 32 | DB verify |

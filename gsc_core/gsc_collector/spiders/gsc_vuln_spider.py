@@ -13,7 +13,7 @@ import re
 import json
 import hashlib
 from urllib.parse import quote, urljoin
-from gsc_collector.items import VulnerabilityItem
+from gsc_core.gsc_collector.items import VulnerabilityItem
 
 
 # ── Search queries matching GSC detectors ─────────────────────────────────

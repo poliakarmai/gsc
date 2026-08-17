@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """enterprise/tests/test_enterprise.py — RBAC, SSO, Audit, Compliance, Air-gap."""
 import sys, os, importlib
-os.chdir(os.path.join(os.path.dirname(__file__), "../.."))
+os.chdir(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, '.')
 
 from enterprise.rbac import can

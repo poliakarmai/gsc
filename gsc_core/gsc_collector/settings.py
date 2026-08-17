@@ -3,8 +3,8 @@ from pathlib import Path
 GSC Collector — Scrapy settings.
 """
 BOT_NAME = "gsc_collector"
-SPIDER_MODULES = ["gsc_collector.spiders"]
-NEWSPIDER_MODULE = "gsc_collector.spiders"
+SPIDER_MODULES = ["gsc_core.gsc_collector.spiders"]
+NEWSPIDER_MODULE = "gsc_core.gsc_collector.spiders"
 
 # Polite crawling
 USER_AGENT = "GSC-Collector/1.0 (+https://github.com/poliakarmai/gsc)"
@@ -15,9 +15,9 @@ CONCURRENT_REQUESTS_PER_DOMAIN = 1
 
 # Pipelines
 ITEM_PIPELINES = {
-    "gsc_collector.pipelines.GscDatabasePipeline": 300,
-    "gsc_collector.pipelines.ObsidianExportPipeline": 400,
-    "gsc_collector.pipelines.JsonExportPipeline": 500,
+    "gsc_core.gsc_collector.pipelines.GscDatabasePipeline": 300,
+    "gsc_core.gsc_collector.pipelines.ObsidianExportPipeline": 400,
+    "gsc_core.gsc_collector.pipelines.JsonExportPipeline": 500,
 }
 
 # Cache (don't re-download unchanged pages)

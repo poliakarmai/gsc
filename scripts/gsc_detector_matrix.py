@@ -20,7 +20,7 @@ from pathlib import Path
 GSC = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(GSC))
 
-from gsc_detectors.registry import get_detectors  # noqa: E402
+from gsc_core.gsc_detectors.registry import get_detectors  # noqa: E402
 
 
 def _fixture_rule_ids() -> set[str]:

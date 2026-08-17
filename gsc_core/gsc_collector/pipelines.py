@@ -11,7 +11,7 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
-from gsc_collector.items import VulnerabilityItem
+from gsc_core.gsc_collector.items import VulnerabilityItem
 
 
 class GscDatabasePipeline:

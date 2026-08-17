@@ -7,5 +7,7 @@ prune gsc-vscode
 prune benchmark
 prune calibration
 prune example_projects
+prune tests
+prune enterprise/tests
 global-exclude *.db *.sqlite *.sqlite3 *.pkl *.whl *.vsix *.tar.gz *.pyc *.pyo
 global-exclude .repowise .DS_Store

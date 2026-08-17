@@ -72,7 +72,7 @@ def save_pattern_and_finding(db, title, category, severity, pattern_str, languag
         pattern_id = existing[0]
 
     try:
-        from gsc_db import compute_finding_key
+        from gsc_core.gsc_db import compute_finding_key
         db.execute(
             """INSERT INTO findings (project, echelon, category, title, file_path, detail, pattern_id, noise_tier, finding_key)
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",

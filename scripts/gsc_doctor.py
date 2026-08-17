@@ -76,7 +76,7 @@ for f in [db]:
 print("\n🔍 Detector Registry (roadmap 2.4)")
 try:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-    from gsc_detectors.registry import get_detectors
+    from gsc_core.gsc_detectors.registry import get_detectors
     dets = get_detectors()
     check("Registry", True, f"{len(dets)} detectors + 4 standalone engines")
     smoke = Path(__file__).resolve().parents[1] / "tests" / "test_detector_registry.py"

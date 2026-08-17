@@ -4,7 +4,7 @@ import argparse, sqlite3, sys, time
 from pathlib import Path
 
 sys.path.insert(0, str(Path.home() / "gsc"))
-from gsc_mutation_tracker import normalize_snippet, fingerprint
+from gsc_cli.gsc_mutation_tracker import normalize_snippet, fingerprint
 
 DB_PATH = Path.home() / ".hermes/state/gsc_audit.db"
 

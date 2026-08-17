@@ -61,7 +61,7 @@ TP_SEEDS = [
 
 
 def seed():
-    from gsc_db import compute_finding_key
+    from gsc_core.gsc_db import compute_finding_key
     db = sqlite3.connect(DB)
     now = datetime.now(timezone.utc).isoformat()
     inserted = 0

@@ -15,9 +15,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gsc_external import run_external_scan
-from gsc_poc_generator import attach_pocs
-from gsc_pof_sandbox import PoFSandbox
+from gsc_cli.gsc_external import run_external_scan
+from gsc_cli.gsc_poc_generator import attach_pocs
+from gsc_cli.gsc_pof_sandbox import PoFSandbox
 
 
 def _source_map(repo: Path, findings: list[dict]) -> dict:

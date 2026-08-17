@@ -11,7 +11,7 @@ GSC = Path(__file__).parent.parent
 sys.path.insert(0, str(GSC))
 
 def check_static():
-    from gsc_detectors.registry import get_detectors
+    from gsc_core.gsc_detectors.registry import get_detectors
     issues = []
     for det in get_detectors():
         rid = getattr(det, "rule_id", None)

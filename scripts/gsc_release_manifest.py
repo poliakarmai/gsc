@@ -50,7 +50,7 @@ def _detectors() -> dict:
 def _schema_version() -> int | None:
     sys.path.insert(0, str(ROOT))
     try:
-        from gsc_db import TARGET_VERSION
+        from gsc_core.gsc_db import TARGET_VERSION
         return TARGET_VERSION
     except Exception:
         return None

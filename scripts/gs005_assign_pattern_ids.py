@@ -48,7 +48,7 @@ def assign_ids(patterns):
 
 
 if __name__ == "__main__":
-    from gsc_detectors.gs005_sql_injection import _PATTERNS as OLD_PATTERNS
+    from gsc_core.gsc_detectors.gs005_sql_injection import _PATTERNS as OLD_PATTERNS
     new = assign_ids(OLD_PATTERNS)
     print(f"Total patterns: {len(new)}")
 

@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from gsc_nlpolicy import MAX_POLICY_PATTERN_LEN, BAD_RE
+from gsc_cli.gsc_nlpolicy import MAX_POLICY_PATTERN_LEN, BAD_RE
 
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
 YAML_DIR = Path(__file__).parent.parent / "gsc_detectors" / "yaml_rules"
@@ -366,7 +366,7 @@ def register_auto_detector(
 
     # COMPLIANCE_MAP required — otherwise findings lack CWE/OWASP mapping
     try:
-        from gsc_compliance import COMPLIANCE_MAP
+        from gsc_core.gsc_compliance import COMPLIANCE_MAP
         COMPLIANCE_MAP[rule_id] = {
             "cwe": cwe,
             "owasp": _cwe_to_owasp(cwe),
@@ -384,7 +384,7 @@ def register_auto_detector(
 # TP rate: {tp_rate:.2f} | Validation: {json.dumps(validation)}
 # SHADOW MODE — collects verdicts, does not block
 # Auto-promote after ≥10 verdicts + TP ≥70%
-from gsc_detectors.base import RegexDetector
+from gsc_core.gsc_detectors.base import RegexDetector
 
 RULE_ID = "{rule_id}"
 ECHELON = 2

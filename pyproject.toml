@@ -55,6 +55,8 @@ Hall-of-Fame = "https://github.com/poliakarmai/gsc/blob/master/HALL_OF_FAME.md"
 
 [tool.setuptools]
 # A-02 (audit): every advertised top-level module must ship in the wheel.
+# 0.5.4: disable auto data-include (VCS finder) so dev .py (enterprise/tests) stay out of the wheel.
+include-package-data = false
 py-modules = [
     "gsc", "server",
     "gsc_agentless", "gsc_api", "gsc_archaeology", "gsc_ast_dataflow",
@@ -82,9 +84,9 @@ exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenc
 # GSC roadmap 6.3: pytest markers — чтобы можно было селективно запускать
 # subsets (`pytest -m unit`, `-m "not slow"`, `-m sandbox`).
 [tool.pytest.ini_options]
-# DD-10: include enterprise/tests (test_enterprise.py) — README claims
-# "10/10 Enterprise" but testpaths only covered tests/.
-testpaths = ["tests", "enterprise/tests"]
+# DD-10: enterprise-тест перенесён из enterprise/tests/ в tests/ (0.5.4 —
+# тесты не должны жить внутри пакета и попадать в wheel).
+testpaths = ["tests"]
 markers = [
     "unit: fast unit tests, no external deps",
     "integration: require external services (docker/postgres/nuclei/network)",

@@ -33,7 +33,7 @@ def main() -> int:
     # 1) pytest-style tests
     print("── pytest (def test_*) ──")
     r = subprocess.run(
-        [sys.executable, "-m", "pytest", "tests", "enterprise/tests", "-q"],
+        [sys.executable, "-m", "pytest", "tests", "-q"],
         cwd=str(ROOT),
     )
     if r.returncode != 0:

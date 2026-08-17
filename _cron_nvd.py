@@ -100,7 +100,7 @@ def main():
                     pid = existing[0]
 
                 try:
-                    from gsc_db import compute_finding_key
+                    from gsc_core.gsc_db import compute_finding_key
                     db.execute(
                         "INSERT INTO findings (project, rule_id, category, title, file_path, detail, noise_tier, pattern_id, finding_key) VALUES (?,?,?,?,?,?,?,?,?)",
                         ("gsc-collector", detector or "COLLECTED", severity, f"{cve_id}: {title}", f"https://nvd.nist.gov/vuln/detail/{cve_id}", desc_en[:500], "normal", pid,

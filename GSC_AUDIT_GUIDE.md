@@ -69,7 +69,7 @@ python3 -c "from gsc_detectors.registry import get_detectors; d=get_detectors();
 
 | Файл | Назначение | Тесты |
 |------|-----------|-------|
-| `enterprise/rbac.py` | 5 ролей (admin…readonly) | `enterprise/tests/test_enterprise.py` → 10/10 |
+| `enterprise/rbac.py` | 5 ролей (admin…readonly) | `tests/test_enterprise.py` → 10/10 |
 | `enterprise/sso.py` | OIDC JWT + JIT provisioning | |
 | `enterprise/audit_log.py` | Tamper-evident hash chain | |
 | `cloud/tenancy.py` | SaaS S1: api_keys, tenant-изоляция | `tests/test_cloud_s1.py` → 5/5 |
@@ -116,7 +116,7 @@ python3 tests/test_schema_integrity.py          # Schema
 python3 tests/test_agent.py                     # Agent
 python3 tests/test_cloud_s1.py                  # 5/5 SaaS S1
 python3 tests/test_cloud_s4.py                  # S4
-python3 enterprise/tests/test_enterprise.py     # 10/10
+python3 tests/test_enterprise.py     # 10/10
 ```
 
 **SKIP:** `test_cloud_s2.py`, `test_cloud_s3.py` — SaaS S2–S3 не реализованы.

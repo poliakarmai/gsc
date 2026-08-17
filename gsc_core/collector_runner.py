@@ -13,7 +13,12 @@ import sys
 import os
 from pathlib import Path
 
-# Ensure we're in the right directory
+# Ensure gsc_core (parent package) is importable before Scrapy resolves settings
+_GSC_ROOT = Path(__file__).resolve().parent.parent
+if str(_GSC_ROOT) not in sys.path:
+    sys.path.insert(0, str(_GSC_ROOT))
+
+# Ensure we're in the right directory (where scrapy.cfg lives)
 os.chdir(Path(__file__).parent)
 
 SPIDERS = {

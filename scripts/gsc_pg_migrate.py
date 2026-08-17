@@ -20,7 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from gsc_db_backend import SqliteBackend, PgBackend
+from gsc_cloud.gsc_db_backend import SqliteBackend, PgBackend
 
 _SCHEMA_RUNTIME = Path(__file__).resolve().parents[1] / "cloud" / "schema_runtime.sql"
 

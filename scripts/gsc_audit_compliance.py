@@ -2,9 +2,9 @@
 """scripts/gsc_audit_compliance.py — verify COMPLIANCE_MAP against detector registry."""
 import sys
 sys.path.insert(0, ".")
-from gsc_compliance import COMPLIANCE_MAP
+from gsc_core.gsc_compliance import COMPLIANCE_MAP
 try:
-    from gsc_detectors import DETECTORS
+    from gsc_core.gsc_detectors import DETECTORS
     real_rules = {d.rule_id.split("-")[0] for d in DETECTORS if hasattr(d, 'rule_id')}
 except ImportError:
     real_rules = set()
