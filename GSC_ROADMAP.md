@@ -122,8 +122,8 @@ Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
 | 0.5.1 | `gsc_core/` | ✅ `78222dc`: движок + детекторы (db, blocking, detectors/, invariant_engine, compliance, sca, epss, federated, ast_dataflow, iac, secrets_core, yaml_rules) + shim (module-aliasing), 272 passed | `tests/test_schema_integrity.py` + `tests/test_corpus.py` зелёные |
 | 0.5.2 | `gsc_cli/` | ✅ `e821e62`: CLI+сканеры (51 модуль + main.py) — orchestrator, external, github_adapter, poc_*, chain/exploit, proofoffix, selfhealing, archaeology, forecast, nlpolicy, nuclei, dast, sbom, spdx, revalidate, runtime_validator + `scripts/`; entry `gsc = "gsc_cli.main:main"` | `gsc scan` + `gsc external-scan` smoke |
 | 0.5.3 | `gsc_cloud/` | ✅ `b29af60`: SaaS (39 модулей) — api, api_v2, auth, billing, tenancy, sso, worker(s), scan_queue, marketplace, federated_server, mcp_server, pr_commands + `server.py` shim | TestClient smoke (signup/stats/findings) |
-| 0.5.4 | dev/collector | ✅ `gsc_collector/` → `gsc_core/gsc_collector/` (Scrapy-пакет + runner + scrapy.cfg); `enterprise/tests/test_enterprise.py` → `tests/`; `include-package-data=false` + MANIFEST `prune` | wheel без dev-артефактов (grep чист) |
-| 0.5.5 | shim + cleanup | ✅ cron/scripts мигрированы на `gsc_core`/`gsc_cli`/`gsc_cloud` (21 импорт); shim остаются re-export; `build/lib` удалён | `compileall` OK + 272 passed/5 skipped + reconcile ALL MATCH |
+| 0.5.4 | dev/collector | ✅ `b1cb6c6`: `gsc_collector/` → `gsc_core/gsc_collector/` (Scrapy-пакет + runner + scrapy.cfg); `enterprise/tests/test_enterprise.py` → `tests/`; `include-package-data=false` + MANIFEST `prune` | wheel без dev-артефактов (grep чист) |
+| 0.5.5 | shim + cleanup | ✅ `b1cb6c6`: cron/scripts мигрированы на `gsc_core`/`gsc_cli`/`gsc_cloud` (21 импорт); shim остаются re-export; `build/lib` удалён | `compileall` OK + 272 passed/5 skipped + reconcile ALL MATCH |
 
 **Инварианты:** каждый шаг — зелёные тесты перед/после; shim-слой живёт до миграции всех cron-скриптов; `build/lib` (вторичная копия) удаляется в 0.5.5.
 
