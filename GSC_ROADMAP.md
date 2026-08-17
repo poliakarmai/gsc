@@ -13,7 +13,7 @@
 | Ядро сканера (v0.11→v1.3) | ✅ готово (41 детектор) | ничего |
 | Безопасность (аудит 28 + AppSec DD-01..DD-10) | ✅ 28/28 + 10/10 закрыто (13.08 + 15.08) | PostgreSQL для multi-tenant (DD-09) |
 | Pre-фильтр файлов (скорость скана) | ✅ `6071d5d` (15.08) | ничего |
-| Packages split (core/cli/cloud) | 🟡 логический ✅ (`e06c355`), физический ⏳ | перенос ~40 модулей (3–5 дней) |
+| Packages split (core/cli/cloud) | 🟡 логический ✅ (`e06c355`), физический 🟡 начат (gsc_core/ + proof) | перенос ~40 модулей (3–5 дней) |
 | Production rollout Phase 0–5 | ✅ завершён | наблюдение |
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
 | SaaS Cloud (S1–S4) | 📝 спроектирован | PostgreSQL + RLS (S1) + реализация (~4 мес) |
@@ -119,7 +119,7 @@ Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
 
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
-| 0.5.1 | `gsc_core/` | `gsc_db.py`, `gsc_blocking.py`, `gsc_detectors/`, `gsc_invariant_engine.py`, `gsc_ast_dataflow.py`, `gsc_compliance.py`, `gsc_sca.py`, `gsc_epss.py`, `gsc_federated.py` | `tests/test_schema_integrity.py` + `tests/test_corpus.py` зелёные |
+| 0.5.1 | `gsc_core/` | ✅ proof-of-pattern: `gsc_ast_dataflow.py` перенесён + shim (module-aliasing), 272 passed. Остальное ⏳: `gsc_db.py`, `gsc_blocking.py`, `gsc_detectors/`, `gsc_invariant_engine.py`, `gsc_compliance.py`, `gsc_sca.py`, `gsc_epss.py`, `gsc_federated.py` | `tests/test_schema_integrity.py` + `tests/test_corpus.py` зелёные |
 | 0.5.2 | `gsc_cli/` | `gsc.py`, `gsc_external.py`, `gsc_orchestrator.py`, `gsc_github_adapter.py`, `gsc_collect_light.py`, PoC/Chain/Mutation/Revalidate/ProofOfFix/SelfHealing/Archaeology/Forecast/NLPolicy/CrossRepo/Nuclei/DAST/SBOM/SPDX/IaC/DeepReducer/PoFSandbox/Meta + `scripts/`; entry `gsc = "gsc_cli.main:main"` | `gsc scan` + `gsc external-scan` smoke |
 | 0.5.3 | `gsc_cloud/` | `server.py` + `cloud/` (github_auth, pr_commands, sso, user_auth, agent_api, api_v2, worker, mutations_cloud) | TestClient smoke (signup/stats/findings) |
 | 0.5.4 | dev/collector | `gsc_collector/` → core; `tests/`+`benchmark/`+`calibration/` только dev (не в wheel) | wheel без dev-артефактов |
