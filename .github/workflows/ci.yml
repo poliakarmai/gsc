@@ -32,17 +32,11 @@ jobs:
         run: pip install -r requirements-dev.txt
       - name: Build sandbox image
         run: docker build -t gsc-sandbox:latest sandbox/
-      - name: Debug container runtime (GSC)
-        run: |
-          which docker || true
-          docker info 2>&1 | head -8 || true
-          docker run --rm gsc-sandbox:latest python3 -c "import flask; print('flask OK')" 2>&1 || true
-          python3 -c "import gsc_pof_sandbox as s; print('isolation_backend:', s._isolation_backend())"
       - name: Run tests (coverage gate on core)
         run: |
           python3 -m pytest tests/ -q -rs \
             --cov=gsc_pof_sandbox --cov-report=term-missing \
-            --cov-fail-under=45
+            --cov-fail-under=58
 
   wheel:
     name: build wheel + clean-venv smoke

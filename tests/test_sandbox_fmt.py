@@ -78,8 +78,16 @@ def test_free_port_is_int():
 
 
 def _sandbox_has_flask() -> bool:
+    """True, если sandbox способен serve web-приложение.
+
+    Container-path (GSC 3.x) требует flask в образе gsc-sandbox; host-side
+    fallback (rlimit) требует flask в host venv. Проверяем оба, чтобы тест
+    скипался только когда serve реально невозможен.
+    """
     import subprocess
-    from gsc_pof_sandbox import SANDBOX_ROOT
+    from gsc_pof_sandbox import SANDBOX_ROOT, _sandbox_image_has_flask
+    if _sandbox_image_has_flask():
+        return True
     py = SANDBOX_ROOT / "venv" / "bin" / "python3"
     if not py.exists():
         return False
@@ -90,7 +98,7 @@ def test_curl_serves_ssti_flask_app():
     """Phase 2 e2e: serve a Flask SSTI app and hit it with a deterministic curl PoC."""
     if not _sandbox_has_flask():
         import pytest
-        pytest.skip("flask not installed in sandbox venv")
+        pytest.skip("no flask runtime (sandbox image or host venv)")
     from gsc_poc_deterministic import get_deterministic_poc
     target = (
         "from flask import Flask, request, render_template_string\n"
@@ -109,7 +117,7 @@ def test_curl_serves_multimodule_flask_app(tmp_path):
     """Phase 3 e2e: serve a multi-module Flask project (app.py + views.py)."""
     if not _sandbox_has_flask():
         import pytest
-        pytest.skip("flask not installed in sandbox venv")
+        pytest.skip("no flask runtime (sandbox image or host venv)")
     (tmp_path / "app.py").write_text(
         "from flask import Flask\nfrom views import bp\n"
         "app = Flask(__name__)\napp.register_blueprint(bp)\n")
@@ -132,3 +140,29 @@ def test_detect_app_creation():
     # bare import (Blueprint) must NOT be detected as app creation
     assert _detect_app_creation("from flask import Blueprint\nbp = Blueprint('bp', __name__)") is None
     assert _detect_framework("from flask import Blueprint") == "flask"  # broad still works
+
+
+def test_detect_framework_sanic_bottle():
+    from gsc_pof_sandbox import _detect_framework
+    assert _detect_framework("from sanic import Sanic\napp = Sanic('x')") == "sanic"
+    assert _detect_framework("from bottle import Bottle\napp = Bottle()") == "bottle"
+
+
+def test_find_web_entrypoint_no_py(tmp_path):
+    from gsc_pof_sandbox import _find_web_entrypoint
+    (tmp_path / "README.md").write_text("no code here")
+    assert _find_web_entrypoint(str(tmp_path)) is None
+
+
+def test_sandbox_image_has_flask_rlimit_false(monkeypatch):
+    import gsc_pof_sandbox as s
+    monkeypatch.setattr(s, "_isolation_backend", lambda: "rlimit")
+    monkeypatch.setattr(s, "_sandbox_flask_cache", None)
+    assert s._sandbox_image_has_flask() is False
+
+
+def test_isolation_backend_falls_back_to_rlimit(monkeypatch):
+    import gsc_pof_sandbox as s
+    monkeypatch.setattr(s.shutil, "which", lambda exe: None)
+    monkeypatch.setattr(s, "_backend_cache", None)
+    assert s._isolation_backend() == "rlimit"
