@@ -57,17 +57,21 @@ detect → prove → fix → verify → heal → predict → learn.
 ФУНДАМЕНТ:            — SQLite, REST API, finding_key
 ```
 
-## 4. Текущее состояние (v1.1.0)
+> **Packages split 0.5.x:** слои физически разнесены — ядро/поверхность → `gsc_core/`,
+> CLI/оркестрация/эксклюзивы → `gsc_cli/`, SaaS/интерфейсы → `gsc_cloud/`.
+> Корневые `gsc_*.py` — shim'ы (re-export через `sys.modules`) для обратной совместимости.
+
+## 4. Текущее состояние (v1.3.0)
 
 | Метрика | Значение | Проверено |
 |---------|----------|:---:|
-| Python-тесты | 25/27 OK + 2 SKIP | `gsc_reconcile.py` |
+| Python-тесты | 276 (60 файлов) | `pytest -q` |
 | Enterprise | 10/10 | `enterprise/tests/` |
 | VSCode | tsc 0 errors, npm test 7/7 | `gsc-vscode/` |
-| Calibration | 8/10 (2 известных gap) | `calibration run` |
-| Schema | 28 | DB verify |
-| Детекторы | 28 plugin + GS024 LLM = 29 | registry |
-| Модулей | ~75 | filesystem count |
+| Calibration | 13/13 | `calibration run` |
+| Schema | 32 | DB verify |
+| Детекторы | 41 (37 registry + 4 движка) | registry |
+| Модулей | 147 (core 13 + cli 51 + cloud 39) | `gsc_meta.py` |
 
 ## 5. Calibration gaps (v1.1.0)
 

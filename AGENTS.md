@@ -16,58 +16,38 @@ Predictive Forecasting, Federated Learning.
 **P0 (поверхность):** SCA (OSV.dev), GS029 Secrets, Compliance mapping (CWE/OWASP/PCI).
 **P1 (доверие):** EPSS exploitability, OWASP Benchmark, Federated Self-Learning.
 
-## Структура v1.0
+## Структура (packages split 0.5.x — core/cli/cloud)
 
 ```
 gsc/
-├── gsc.py                        ← CLI (50+ команд)
-├── gsc_orchestrator.py           ← Master orchestrator (v0.39)
-├── gsc_external.py               ← External Scanner
-├── gsc_github_adapter.py         ← GitHub PR Adapter
-├── gsc_blocking.py               ← Blocking Engine (+ federated guard)
-├── gsc_poc_generator.py          ← PoC + SUCCESS_MARKERS
-├── gsc_poc_deterministic.py      ← Deterministic PoC (curl/bash fmt)
-├── gsc_poc_watermark.py          ← 🆕 PoC watermarking (dual-use)
-├── gsc_supply_chain_chains.py    ← Supply-Chain Chain Composer (code flaw × CVE)
-├── gsc_exploit_refiner.py        ← Exploit Refinement Loop (feedback-driven PoC)
-├── gsc_chain_composer.py         ← Exploit Chain Composer
-├── gsc_attack_graph.py           ← 🆕 Attack-path graph (Mermaid)
-├── gsc_fix_quality.py            ← 🆕 Fix quality scoring
-├── gsc_sla.py                    ← 🆕 MTTFV SLA (time-to-verified-fix)
-├── gsc_mutation_tracker.py       ← Temporal Mutation Tracker
-├── gsc_invariant_engine.py       ← Security Invariant Engine
-├── gsc_ast_dataflow.py           ← Python taint tracking (shim → gsc_core/)
-├── gsc_runtime_validator.py      ← 🆕 Runtime validator IAST-lite (Phase 1 in-process + Phase 2 strace)
-├── gsc_core/                     ← 🆕 core-пакет (packages split 0.5.1, proof-of-pattern)
-├── gsc_revalidate.py             ← Structured revalidator
-├── gsc_db.py                     ← SQLite, schema 32, auto-migrate
-├── gsc_compliance.py             ← 🆕 CWE/OWASP/PCI mapping
-├── gsc_sca.py                    ← 🆕 SCA via OSV.dev
-├── gsc_epss.py                   ← 🆕 EPSS exploitability
-├── gsc_federated.py              ← 🆕 Federated learning (DP)
-├── gsc_proofoffix.py             ← Proof-of-Fix + DAST validation
-├── gsc_selfhealing.py            ← Self-Healing CI
-├── gsc_archaeology.py            ← Security Archaeology
-├── gsc_forecast.py               ← Predictive Forecasting
-├── gsc_nlpolicy.py               ← NL Policy + ReDoS guard
-├── gsc_crossrepo_secrets.py      ← Cross-Repo Secrets + FP fix
-├── gsc_nuclei_export.py          ← Nuclei YAML export (Wave 1)
-├── gsc_nuclei_import.py          ← Nuclei import (Wave 2)
-├── gsc_dast_scanner.py           ← DAST scanner (Wave 2)
-├── gsc_dast_validator.py         ← DAST in Proof-of-Fix (Wave 3)
-├── gsc_sbom.py                   ← SBOM CycloneDX + VEX
-├── gsc_spdx.py                   ← SPDX 2.3 + signing
-├── gsc_iac.py                    ← IaC misconfigurations
-├── gsc_detectors/                ← 41 детектор (37 registry + 4 движка)
-├── benchmark/                    ← 🆕 OWASP Benchmark + perf (benchmark_perf.py)
+├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
+├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
+├── gsc_meta.py                   ← SSOT: 147 модулей, 41 детектор, schema 32
+├── gsc_core/                     ← движок (13): db, blocking, detectors/, invariant_engine,
+│                                   compliance, sca, epss, federated, ast_dataflow, iac,
+│                                   secrets_core, yaml_rules
+├── gsc_cli/                      ← CLI+сканеры (51 + main.py): orchestrator, external,
+│                                   github_adapter, poc_generator/deterministic/watermark,
+│                                   chain_composer, exploit_refiner, attack_graph, fix_quality,
+│                                   sla, mutation_tracker, proofoffix, selfhealing, archaeology,
+│                                   forecast, nlpolicy, crossrepo_secrets, nuclei_*, dast_*,
+│                                   sbom, spdx, revalidate, runtime_validator, noise_engine, ...
+├── gsc_cloud/                    ← SaaS (39): api, api_v2, auth, billing, tenancy, sso,
+│                                   user_auth, worker(s), scan_queue, scan_worker, marketplace,
+│                                   federated_server, mcp_server, pr_commands, webhook, ...
+├── gsc_*.py (top-level)          ← shim'ы: re-export из gsc_core/cli/cloud (sys.modules alias)
+│                                   для обратной совместимости; без __main__ → alias,
+│                                   с __main__ → runpy-run + alias
+├── _cron_*.py                    ← cron-скрипты (collect, nvd)
+├── benchmark/                    ← OWASP Benchmark + perf (benchmark_perf.py)
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension (v1.0.0, Open VSX)
 ├── calibration/                  ← 13 проектов (9 clean + 4 vuln)
-├── scripts/                      ← dry-run, feedback, audit, metrics
-├── cloud/                        ← SaaS S1–S4 (auth, billing, tenancy, SSO, marketplace, worker, federated_server)
-├── tests/                        ← 276 тестов (59 файлов)
-├── .pre-commit-hooks.yaml        ← 🆕 pre-commit hook (gsc-scan)
-├── .pre-commit-config.yaml       ← 🆕 self-check pre-commit
+├── scripts/                      ← dry-run, feedback, audit, metrics, reconcile
+├── cloud/                        ← deploy-артефакты (Dockerfile, k8s-манифесты)
+├── tests/                        ← 276 тестов (60 файлов)
+├── .pre-commit-hooks.yaml        ← pre-commit hook (gsc-scan)
+├── .pre-commit-config.yaml       ← self-check pre-commit
 └── PROJECT.md AGENTS.md README.md
 ```
 

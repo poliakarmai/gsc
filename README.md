@@ -214,6 +214,9 @@ GSC SAST+DAST Hybrid Platform
 └── SQLite DB — schema 32, WAL, 403K fingerprints
 ```
 
+> **Packages:** `gsc_core/` (движок) · `gsc_cli/` (CLI + сканеры) · `gsc_cloud/` (SaaS API).
+> Корневые `gsc_*.py` — shim'ы (re-export) для обратной совместимости.
+
 **Scan modes:** `quick` (CI, ~5s, regex-only) · `standard` (daily, LLM) · `deep` (full audit with chains)
 
 ---

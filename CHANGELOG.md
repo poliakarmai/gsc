@@ -17,6 +17,12 @@
 ### License
 - **BSL 1.1 → Apache 2.0 + Commercial dual** (`LICENSE` + `COMMERCIAL.md`)
 
+### Packages split (core/cli/cloud) — 2026-08-17
+- **0.5.1** `gsc_core/` (13 модулей) — движок + детекторы (`gsc_db`, `gsc_blocking`, `gsc_detectors/`, `gsc_invariant_engine`, `gsc_compliance`, `gsc_sca`, `gsc_epss`, `gsc_federated`, `gsc_ast_dataflow`, `gsc_iac`, `gsc_secrets_core`, `gsc_yaml_rules`) → `78222dc`
+- **0.5.2** `gsc_cli/` (51 модуль + `main.py`) — CLI + сканеры (orchestrator, external, github_adapter, poc_*, chain/exploit, proofoffix, selfhealing, archaeology, forecast, nlpolicy, nuclei, dast, sbom, spdx, revalidate, runtime_validator) → `e821e62`
+- **0.5.3** `gsc_cloud/` (39 модулей) — SaaS API (api, api_v2, auth, billing, tenancy, sso, worker(s), scan_queue, marketplace, federated_server, mcp_server, pr_commands) → `b29af60`
+- Корневые `gsc_*.py` — shim'ы (re-export через `sys.modules`) для обратной совместимости; `gsc_meta.py` — SSOT (147 модулей, 41 детектор, schema 32)
+
 ### Killer Features
 - **Supply-Chain Chain Composer** (`gsc_supply_chain_chains.py`) — связывает code flaws с reachable CVE через SBOM; CLI `gsc supply-chain`
 - **Exploit Refinement Loop** (`gsc_exploit_refiner.py`) — feedback-driven PoC (RL-цикл: generate → execute → reward → refine)
