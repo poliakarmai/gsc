@@ -379,7 +379,7 @@ class TestLLMTriage(unittest.TestCase):
     def test_fallback_behavior(self):
         """Without API key, scanner must have graceful degradation path."""
         # Check across all GSC files (not just gsc.py)
-        gsc_files = list(GSC_DIR.glob("gsc*.py"))
+        gsc_files = list(GSC_DIR.rglob("gsc*.py"))
         has_ref = any("DEEPSEEK_API_KEY" in f.read_text() for f in gsc_files if f.exists())
         has_fallback = any(
             "regex-only" in f.read_text().lower() or

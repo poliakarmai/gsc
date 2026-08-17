@@ -4,6 +4,10 @@
 
 """Shim: gsc_federated → gsc_core.gsc_federated (трек 0.5 packages split)."""
 import sys as _sys
-from gsc_core import gsc_federated as _impl
 
+if __name__ == "__main__":
+    import runpy
+    runpy.run_module('gsc_core.gsc_federated', run_name='__main__')
+
+from gsc_core import gsc_federated as _impl
 _sys.modules[__name__] = _impl

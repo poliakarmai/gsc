@@ -4,6 +4,10 @@
 
 """Shim: gsc_sca → gsc_core.gsc_sca (трек 0.5 packages split)."""
 import sys as _sys
-from gsc_core import gsc_sca as _impl
 
+if __name__ == "__main__":
+    import runpy
+    runpy.run_module('gsc_core.gsc_sca', run_name='__main__')
+
+from gsc_core import gsc_sca as _impl
 _sys.modules[__name__] = _impl

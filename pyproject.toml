@@ -28,7 +28,7 @@ classifiers = [
 ]
 
 [project.scripts]
-gsc = "gsc:main"
+gsc = "gsc_cli.main:main"
 
 [project.optional-dependencies]
 # Audit A-01: runtime surface split by extras — install what you need.
@@ -59,7 +59,7 @@ py-modules = [
     "gsc", "server",
     "gsc_agentless", "gsc_api", "gsc_archaeology", "gsc_ast_dataflow",
     "gsc_blocking", "gsc_bounty_loader", "gsc_chain_composer", "gsc_check_run",
-    "gsc_cli", "gsc_collect_bounty", "gsc_collect_light", "gsc_compliance",
+    "gsc_collect_bounty", "gsc_collect_light", "gsc_compliance",
     "gsc_crossrepo_secrets", "gsc_dast_scanner", "gsc_dast_validator",
     "gsc_db_backend", "gsc_db", "gsc_deep_reducer", "gsc_edu", "gsc_epss",
     "gsc_exploit_refiner", "gsc_external", "gsc_federated", "gsc_forecast",
@@ -76,7 +76,7 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
+include = ["gsc_core*", "gsc_cli*", "gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
 exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenchmark*", "HuixiangDou*", "gsc-vscode*", "example_projects*"]
 
 # GSC roadmap 6.3: pytest markers — чтобы можно было селективно запускать

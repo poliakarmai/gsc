@@ -90,12 +90,15 @@ def _is_shim(path: Path) -> bool:
 
 def _count_modules() -> int:
     # Трек 0.5 (packages split): реальные модули = корневые (без shim-алиасов)
-    # + gsc_core (движки) + gsc_core/gsc_detectors (детекторы) + enterprise.
+    # + gsc_core (движки) + gsc_core/gsc_detectors (детекторы)
+    # + gsc_cli (CLI-слой) + enterprise.
     root = [f for f in GSC.glob("gsc_*.py") if f.is_file() and not _is_shim(f)]
     core = [f for f in (GSC / "gsc_core").glob("gsc_*.py") if f.is_file()]
     det = [f for f in (GSC / "gsc_core" / "gsc_detectors").glob("*.py") if f.is_file()]
+    cli = [f for f in (GSC / "gsc_cli").glob("*.py")
+           if f.is_file() and f.name != "__init__.py"]
     ent = [f for f in (GSC / "enterprise").glob("*.py") if f.is_file()]
-    return len(root) + len(core) + len(det) + len(ent)
+    return len(root) + len(core) + len(det) + len(cli) + len(ent)
 
 
 if __name__ == "__main__":
