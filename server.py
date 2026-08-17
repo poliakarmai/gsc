@@ -17,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
-from jose import jwt, JWTError
+import jwt
 
 # ── GSC paths ──
 GSC_DIR = Path(os.environ.get("GSC_DIR", "/app"))
@@ -379,7 +379,7 @@ def verify_session(token: str, db=None) -> Optional[int]:
             (token, now)
         )
         return row["tenant_id"] if row else None
-    except JWTError:
+    except jwt.PyJWTError:
         return None
 
 # ═══════════════════════════════════════════════════════════

@@ -38,7 +38,7 @@ cloud = [
     "uvicorn[standard]>=0.34",
     "pydantic>=2.13",
     "httpx>=0.28",
-    "python-jose[cryptography]>=3.5",
+    "PyJWT>=2.10",
     "stripe>=12.0",
 ]
 collector = ["Scrapy>=2.11"]
