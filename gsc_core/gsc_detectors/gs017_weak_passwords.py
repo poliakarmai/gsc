@@ -123,6 +123,7 @@ WEAK_VALUE_WORDS = frozenset({
     "qwerty", "qwerty123", "secret", "secret123", "changeme", "default",
     "temp", "test", "test123", "guest", "demo", "demopassword",
     "letmein", "welcome", "welcome1", "iloveyou", "monkey", "dragon",
+    "p@ssw0rd", "pa55word", "p@ssword",
     "master", "login", "abc123", "000000", "111111", "123123", "654321",
     "football", "baseball", "superman", "batman", "sunshine", "princess",
 })
@@ -131,24 +132,30 @@ WEAK_VALUE_WORDS = frozenset({
 def _is_weak_value(value: str) -> bool:
     """True if `value` plausibly looks like a WEAK/default password.
 
-    Strong-looking values (mixed case + digits, punctuation) are deliberately
-    NOT treated as weak — those belong to hardcoded-secret detectors, not a
-    weak-password detector. This keeps GS017 on-scope and cuts the synthetic
-    benchmark FP (`password = 'SuperSecret331'`, 13 chars, mixed-case+digits).
+    In scope: all-digit values, short values (<8 chars), single-case words,
+    and word+digits patterns (case-insensitive). Out of scope: long (>12)
+    mixed-case values with digits/punctuation — those belong to hardcoded-secret
+    detectors, not a weak-password detector. This cuts the synthetic benchmark
+    FP (`password = 'SuperSecret331'`, 13 chars) while keeping Summer2024 /
+    Pass1234 / P@ssw0rd in scope.
     """
     v = value.strip()
     if not v:
         return False
     low = v.lower()
+    if low in ENV_SENTINELS:
+        return False                              # None/true/false/null — not a password
     if low in WEAK_VALUE_WORDS:
         return True
-    if v.isdigit():                              # pure digits → weak
-        return True
+    if v.isdigit():
+        return True                               # all-digit → weak regardless of length
     if len(v) > 12:
-        return False                              # long → not weak (heuristic)
+        return False                              # long mixed → not weak (heuristic)
+    if len(v) < 8:
+        return True                               # short → weak
     if v.isalpha() and (v.islower() or v.isupper()):
         return True                               # single-case word → weak
-    if re.fullmatch(r"[a-z]+[0-9]{1,4}", v):      # word + trailing digits → weak
+    if re.fullmatch(r"[a-z]+[0-9]{1,4}", low):    # word + trailing digits (Summer2024)
         return True
     return False
 
@@ -226,7 +233,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 line=_lineno(content, match.start()),
                 severity="HIGH",
                 title=f"Hardcoded password variable: {match.group(0).strip()[:100]}",
-                detail=f"Password variable with short weak value ({len(password_value)} chars).",
+                detail=f"Password variable with short value ({len(password_value)} chars).",
                 fix_suggestion="Move to secure secrets manager. Use env vars with fallback to generated secrets.",
                 noise_tier="normal",
             ))
