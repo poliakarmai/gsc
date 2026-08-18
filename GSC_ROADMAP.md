@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 17.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace)
+> **Статус на 18.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13**
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -13,7 +13,7 @@
 | Ядро сканера (v0.11→v1.3) | ✅ готово (41 детектор) | ничего |
 | Безопасность (аудит 28 + AppSec DD-01..DD-10) | ✅ 28/28 + 10/10 закрыто (13.08 + 15.08) | PostgreSQL для multi-tenant (DD-09) |
 | Pre-фильтр файлов (скорость скана) | ✅ `6071d5d` (15.08) | ничего |
-| Packages split (core/cli/cloud) | ✅ 0.5.1 core + 0.5.2 cli + 0.5.3 cloud запушены (`78222dc`,`e821e62`,`b29af60`) | 0.5.4 dev-изоляция + 0.5.5 shim/cleanup (1–2 дня) |
+| Packages split (core/cli/cloud) | ✅ 0.5.1–0.5.5 все запушены (`78222dc`,`e821e62`,`b29af60`,`b1cb6c6`) | ничего |
 | Production rollout Phase 0–5 | ✅ завершён | наблюдение |
 | Юридическая защита | 🟡 частично (BSL + SPDX ✅, CLA ❌) | CONTRIBUTING.md + trademark (1 день) |
 | SaaS Cloud (S1–S4) | 📝 спроектирован | PostgreSQL + RLS (S1) + реализация (~4 мес) |
@@ -222,6 +222,36 @@ S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
 | 0.11.3 | Trail | фиксация попыток в evidence (какой патч прошёл) | audit trail попыток |
 | 0.11.4 | Лимиты | MAX_RETRY + budget + rollback | нет бесконечного цикла |
 
+### Трек 0.12. Precision — от шума к доверию (из экспертного анализа 18.08)
+
+> Первый замер `benchmark/PRECISION_REPORT.md`: **2 695 находок** на 10 проектах,
+> **precision CRITICAL ~8–12%** (129 CRITICAL, 244 HIGH). Это главный технический барьер
+> перед пилотами и инвесторами: «41 детектор» звучит мощно, но ~9 из 10 CRITICAL — FP.
+
+| # | Порция | Содержание | Проверка |
+|---|---|---|---|
+| 0.12.1 | Baseline | PRECISION_REPORT.md как эталон (10 проектов, 2695 находок) | цифры заморожены |
+| 0.12.2 | Precision-hunt | срез FP из БД по `rule_id×category`, фикс топ-генераторов FP (GS001 extractor уже починен) | CRITICAL 8–12% → ≥30% |
+| 0.12.3 | Data-quality | пустые/заголовочные `rule_id` → `GS000-LEGACY`, де-контаминация категорий | 0 мусорных rule_id |
+| 0.12.4 | Self-learning пруф | метрика TP до/после ночного revalidate (federated, DP) | график TP-тренда (инвестору) |
+
+**Цель:** precision CRITICAL ≥ 50%, HIGH ≥ 40% до старта пилотов (S2). Без этого любой
+pitch про «self-learning» разобьётся вопросом «какой % фич реально работает в production».
+
+### Трек 0.13. Traction / GTM (из экспертного анализа 18.08)
+
+> Экспертный разбор: реальный дифференциатор — **Proof-of-Fix** (уже есть). Главные gap'ы —
+> **traction (4★, 0 форков)** и **распыление ICP**. Ниша: AI-generated code (Semgrep/Snyk
+> заточены под human-written code, у LLM-кода другие паттерны уязвимостей).
+
+| # | Порция | Содержание | Проверка |
+|---|---|---|---|
+| 0.13.1 | ICP-фокус | 1 ICP: mid-size SaaS с активным CI/CD (FinTech/Gov — только после Series A) | ICP в one-pager |
+| 0.13.2 | GitHub traction | 4★ → 100+: README+демо, HALL_OF_FAME, GSC Bot (Трек 0.8) как виральность, HN/Product Hunt | звёзды/форки растут |
+| 0.13.3 | Ниша AI-code | позиционирование «security для LLM-generated code» (GS025 AI-provenance — козырь) | pitch + статья/блог |
+| 0.13.4 | Free/paid граница | явно: что бесплатно (self-hosted OSS), что платно (Cloud/Enterprise) — до выхода к инвестору | таблица в one-pager |
+| 0.13.5 | GHAS-митигация | CodeQL бесплатен для public → позиционировать «verified remediation + AI-code», НЕ «бесплатный SAST» | pitch не пересекается с GHAS |
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
@@ -306,7 +336,9 @@ CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3
 | LLM-расходы при росте | Глобальный кэш по fingerprint, regex-first |
 | Стоимость SOC 2 | Отложить до Enterprise-спроса |
 | Конкуренты (Semgrep/Snyk) | Ниша self-learning + PoC, PLG free-tier |
+| GHAS (CodeQL бесплатен для public) — экзистенциальный в OSS | Ниша AI-code + verified remediation, НЕ «бесплатный SAST» (Трек 0.13.5) |
+| Precision CRITICAL 8–12% (FP-шум) | Precision-hunt + data-quality до пилотов (Трек 0.12) |
 
 ---
 
-*Обновлено: 17.08.2026*
+*Обновлено: 18.08.2026*
