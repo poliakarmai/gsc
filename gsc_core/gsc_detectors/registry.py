@@ -49,6 +49,7 @@ from . import gs036_nodejs as _gs036
 from . import gs037_python as _gs037
 from . import gs038_go as _gs038
 from . import gs039_ruby as _gs039
+from . import gs040_pii_disclosure as _gs040
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -288,6 +289,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs039.detect,
         description=_gs039.description,
         noise_tier=getattr(_gs039, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS040: PII & information disclosure (from ZAP passive-scan signals)
+    DetectorEntry(
+        rule_id=_gs040.RULE_ID,
+        echelon=_gs040.ECHELON,
+        detect_fn=_gs040.detect,
+        description=_gs040.description,
+        noise_tier=getattr(_gs040, "NOISE_TIER", "normal"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(

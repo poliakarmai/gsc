@@ -9,7 +9,7 @@ from gsc_compliance import COMPLIANCE_MAP, compliance_for
 KNOWN_PREFIXES = {"GS001","GS002","GS003","GS004","GS005","GS007","GS008","GS009",
                   "GS010","GS011","GS012","GS013","GS014","GS015","GS016","GS017",
                   "GS018","GS019","GS020","GS021","GS022","GS023","GS024","GS025",
-                  "GS028","GS029","GS030","GS031"}
+                  "GS028","GS029","GS030","GS031","GS040"}
 
 passed, failed = 0, 0
 def run_case(name, fn):

@@ -7,7 +7,7 @@
 
 ## 1. Что такое GSC
 
-GSC (Git Security Checker) — self-learning AppSec-платформа, 41 детектор (37 registry + 4 движка:
+GSC (Git Security Checker) — self-learning AppSec-платформа, 42 детектора (38 registry + 4 движка:
 Secrets/SCA/IaC/Invariants). Полный цикл `detect → prove → fix → verify → heal`.
 Репозиторий: `~/gsc`. Детекторы: `gsc_core/gsc_detectors/gsXXX_*.py`.
 

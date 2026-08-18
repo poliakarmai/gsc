@@ -73,7 +73,7 @@
 |---|--------|--------|------------|
 | 2.1 | 4 corpus failures | ✅ | |
 | 2.2 | detector_contract.json | ✅ | `scripts/gsc_detector_matrix.py` |
-| 2.3 | Fixtures для 37+4 детекторов | ✅ | smoke: `tests/test_detector_registry.py` (37) |
+| 2.3 | Fixtures для 38+4 детекторов | ✅ | smoke: `tests/test_detector_registry.py` (38) |
 | 2.4 | `gsc doctor` (registry + fixtures + coverage matrix) | ✅ | `scripts/gsc_doctor.py` расширен |
 | 2.5 | OWASP Benchmark / Juliet | ✅ | прогон зафиксирован: `benchmark/owasp_results.json` (2740 cases) + `OWASP_PROCEDURE.md` |
 | 2.6 | Generated DETECTORS.md | ✅ | `DETECTORS.md` (gen: detector_matrix) |

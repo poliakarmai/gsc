@@ -15,7 +15,7 @@
 
 ## Цифры (SSOT `gsc_meta.py`)
 
-- **41 детектор** (37 registry + 4 движка: Secrets/SCA/IaC/Invariants)
+- **42 детектора** (38 registry + 4 движка: Secrets/SCA/IaC/Invariants)
 - **Schema v32** · SAST + DAST + SCA + IaC + SBOM + Supply-Chain
 - **Precision CRITICAL ~8–12%** (замер на 10 реальных проектах, честный disclosure)
 

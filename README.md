@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.3.0 · **Detectors:** 41 (37 registry + 4 engines) · **Schema:** v32 · **Modules:** 148
+**Version:** v1.3.0 · **Detectors:** 41 (38 registry + 4 engines) · **Schema:** v32 · **Modules:** 148
 <!-- GSC-META-END -->
 
 
@@ -37,7 +37,7 @@ have to triage, verify, and fix manually.
 
 | Stage | What GSC does | Who else does this? |
 |---|---|---|
-| **Detect** | 41 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
+| **Detect** | 42 detectors + LLM revalidation | Semgrep, Snyk, CodeQL, Sonar |
 | **Prove** | Auto-generates a working exploit (PoC) | 🟡 *partial* — PT Application Inspector (exploit confirmation), Checkmarx (exploitability) |
 | **Fix** | Auto-generates a minimal patch via LLM | 🟡 Snyk DeepCode Fix, Sonar AI CodeFix, GitHub Copilot Autofix |
 | **Verify** | Re-runs PoC in sandbox — exploit must *fail* | 🟢 *rare* — few close the full PoC→patch→re-verify loop (closest: PT Application Inspector) |
@@ -199,7 +199,7 @@ isolated sandbox. Full guide: **[docs/MCP_SERVER.md](docs/MCP_SERVER.md)**.
 
 ```
 GSC SAST+DAST Hybrid Platform
-├── 41 detectors (37 registry + 4 engines: Secrets/SCA/IaC/Invariants)
+├── 42 detectors (38 registry + 4 engines: Secrets/SCA/IaC/Invariants)
 ├── LLM revalidator (DeepSeek) — confidence scoring
 ├── PoC Auto-Generator — working exploits (Python/curl)
 ├── Proof-of-Fix — sandbox + staging verification

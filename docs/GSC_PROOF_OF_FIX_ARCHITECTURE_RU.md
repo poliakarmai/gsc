@@ -140,14 +140,14 @@ detect ──► prove ──► fix ──► verify ──► heal ──► p
 
 | Фаза | Что делает |
 |---|---|
-| **detect** | статический анализ, 41 детектор |
+| **detect** | статический анализ, 42 детектора |
 | **prove** | генерация PoC, подтверждение эксплуатации |
 | **fix** | генерация патча (LLM) |
 | **verify** | исполнение PoC против before/after в sandbox |
 | **heal** | авто-исправление в CI (self-healing) |
 | **predict** | прогнозная аналитика по истории |
 
-Текущее состояние ядра: **41 детектор** (37 registry + 4 standalone-движка:
+Текущее состояние ядра: **42 детектора** (38 registry + 4 standalone-движка:
 Invariants GS028, Secrets GS029, SCA/OSV.dev GS030, IaC GS031), schema 32,
 114 модулей, ~494K находок в SQLite-БД, 276 тестов в 59 файлах. Числа
 верифицируются командой `python3 gsc_meta.py`.
@@ -297,7 +297,7 @@ regex-only режима. Каждое исполнение ограничено:
 | Параметр | Значение |
 |---|---|
 | Версия | 1.3.0 |
-| Детекторы | 41 (37 registry + 4 standalone) |
+| Детекторы | 41 (38 registry + 4 standalone) |
 | Schema БД | 32 |
 | Модули | 109 |
 | Находок в БД | ~494K |
@@ -348,7 +348,7 @@ Proof-of-Fix превращает SAST из «детектора» в «маши
 
 | Утверждение | Файл:строки |
 |---|---|
-| 41 детектор (37+4), schema 32, 114 модулей | `gsc_meta.py` → `get_meta()` |
+| 42 детектора (38+4), schema 32, 114 модулей | `gsc_meta.py` → `get_meta()` |
 | Уровни `verified/structural/syntax_only/failed` | `gsc_proofoffix.py:52`, `_classify()` ~476 |
 | Маркеры эксплуатации | `gsc_pof_sandbox.py:21` |
 | Таймаут/лимиты PoC | `gsc_proofoffix.py:31-34` |

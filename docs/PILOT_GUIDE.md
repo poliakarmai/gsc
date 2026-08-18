@@ -56,7 +56,7 @@ Workers: `python3 -m gsc_scan_worker --loop 5` (или server спавнит и�
 ## 6. Границы pilot (что можно честно заявлять)
 
 **Заявляйте:**
-- SAST (37 registry-детекторов) + 4 движка (Secrets/SCA/IaC/Invariants).
+- SAST (38 registry-детекторов) + 4 движка (Secrets/SCA/IaC/Invariants).
 - Auto-PoC и Proof-of-Fix **с OS-изоляцией** (docker/podman) — full before/after evidence.
 - Self-healing CI, SBOM (CycloneDX/SPDX).
 
