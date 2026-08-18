@@ -22,6 +22,10 @@
 
 | 10 | **django-files/django-files** | 12 | Hardcoded Django `SECRET_KEY` (`SECRET=JYGTKLzt…`) + default admin creds (`testuser`/`demopassword`) in `docker-compose-prod.yaml` — allows session forgery, CSRF bypass, password-reset token forgery and default admin login | CWE-798, CWE-521 | GS001 (Hardcoded Secrets) | [#428](https://github.com/django-files/django-files/pull/428) |
 
+| 11 | **sankalpjonn/elchapo** | 23 | SSRF via webhook notification — `call_url()` fetches an attacker-controlled webhook URL with no internal-IP validation (blind SSRF to cloud metadata / internal network; reachable unauthenticated because `SECRET_KEY` defaults to the known value `somekey`) | CWE-918 | GS025 (SSRF) | [#7](https://github.com/sankalpjonn/elchapo/pull/7) |
+
+| 12 | **NadirAliOfficial/IBKR-Webhook-to-Order-Bot** | 13 | Missing Authentication on `/webhook` — unauthenticated POST places real trades on the connected Interactive Brokers account (bound to `0.0.0.0`) | CWE-306 | GS007 (access control, manual confirm) | [#3](https://github.com/NadirAliOfficial/IBKR-Webhook-to-Order-Bot/pull/3) |
+
 ## How It Works
 
 GSC scans open-source projects daily using its precision-hunt profile:
