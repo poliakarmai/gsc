@@ -94,7 +94,13 @@ def _is_placeholder(value: str) -> bool:
                     # Vendor test/integration keys (hCaptcha docs, Stripe test mode, etc.)
                     "00000000-", "aaaa-bbbb", "ffff-ffff",  # zero-padded / placeholder UUIDs
                     "0x0000000000000000000000000000000000000000",  # hCaptcha test secret
+                    # Очевидные демо/тестовые пароли (не секреты)
+                    "example-password", "test-password", "dummy-password",
+                    "demo-password", "sample-password", "fake-password",
                     )
+    if "{" in value and "}" in value:
+        # f-string / template placeholder: password='{password}', token='{token}'
+        return True
     return any(p in value.lower() for p in placeholders)
 
 
@@ -123,6 +129,18 @@ _SYMBOLIC_VALUE_RE = re.compile(r'[:=]\s*["\'][A-Z][A-Z0-9_]{3,}["\']')
 def _is_symbolic_constant(matched: str) -> bool:
     """True when the secret value is an identifier-shaped symbolic constant."""
     return bool(_SYMBOLIC_VALUE_RE.search(matched))
+
+
+# A UUID-shaped value is an identifier (hCaptcha/Stripe test tokens), not a secret.
+_UUID_RE = re.compile(
+    r'\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b',
+    re.IGNORECASE,
+)
+
+
+def _is_uuid(value: str) -> bool:
+    """True when the matched value is a UUID-shaped identifier."""
+    return bool(_UUID_RE.search(value))
 
 
 # Valid ISO 3166-1 alpha-2 country codes that issue IBANs
@@ -198,6 +216,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     continue
                 # Symbolic constants: enum/error-code values are not secrets
                 if _is_symbolic_constant(matched):
+                    continue
+                # UUID-shaped identifiers are not secrets
+                if _is_uuid(matched):
                     continue
                 findings.append(Finding(
                     rule_id=RULE_ID,
