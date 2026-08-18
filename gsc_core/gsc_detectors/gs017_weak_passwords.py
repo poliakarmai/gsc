@@ -28,6 +28,18 @@ description = (
     "weak password policies, hardcoded DB passwords"
 )
 
+# Paths that can never hold a real production credential — benchmark/calibration
+# corpora (deliberately vulnerable), tutorials/examples, vendored deps. Mirrors the
+# EXCLUDE_PATH_RE of sibling detectors (GS029/GS034/GS035/GS040); get_source_files()
+# only drops tests/fixtures, so these leak into the scan.
+EXCLUDE_PATH_RE = re.compile(
+    r'(?:^|[/\\])'
+    r'(?:benchmark|calibration|examples?|samples?|tutorials?|mock|__mocks__|'
+    r'node_modules|vendor|\.git|venv|\.venv|third[_-]party)'
+    r'(?:[/\\]|$)',
+    re.IGNORECASE,
+)
+
 # ── Default credential pairs ─────────────────────────────────────────────────
 
 # Common Russian/enterprise default:password pairs
@@ -59,10 +71,11 @@ DOCKER_DEFAULT_PASSWORDS = re.compile(
     re.IGNORECASE | re.MULTILINE,
 )
 
-# Hardcoded passwords in variable assignments
+# Hardcoded passwords in variable assignments. The key is captured so a value
+# equal to its own key (SECRET = "SECRET") can be filtered as a placeholder stub.
 HARDCODED_PASSWORD_VARS = re.compile(
-    r'^\s*(?:PASSWORD|PASSWD|PASS|PWD|SECRET|ADMIN_PASS|DB_PASS|DB_PASSWORD|API_SECRET)'
-    r'\s*[:=]\s*[\'"]([^\'"]{1,20})[\'"]\s*$',
+    r'^\s*(?P<k>PASSWORD|PASSWD|PASS|PWD|SECRET|ADMIN_PASS|DB_PASS|DB_PASSWORD|API_SECRET)'
+    r'\s*[:=]\s*[\'"](?P<v>[^\'"]{1,20})[\'"]\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -72,13 +85,13 @@ WEAK_PASSWORD_POLICY = re.compile(
     re.IGNORECASE,
 )
 
-# .env files with short passwords (< 8 chars)
-# NOTE: gated in detect() to files whose name contains ".env" — the rule was
-# firing on ordinary .py/.sh code (keyword args, default args, shell params),
-# which is out of scope. Value class is narrowed to secret-ish chars so commas,
-# parens and shell expansions can no longer be swallowed as the "value".
+# .env files with short passwords (< 8 chars). The bare KEY token is dropped — it
+# was a documented noise source (KEY=dev, key=s, …) — in favour of explicit *_KEY
+# tokens that are actually secrets. Longest alternatives first so SECRET_KEY= is
+# not consumed as SECRET.
 SHORT_ENV_PASSWORDS = re.compile(
-    r'^\s*(?P<k>PASSWORD|PASS|PWD|SECRET|KEY)\s*=\s*[\'"]?(?P<v>[A-Za-z0-9_@#.\-]{1,7})[\'"]?\s*$',
+    r'^\s*(?P<k>PASSWORD|PASS|PWD|SECRET_KEY|SECRET|API_KEY|PRIVATE_KEY|ACCESS_KEY|AUTH_KEY|ENCRYPTION_KEY)'
+    r'\s*=\s*[\'"]?(?P<v>[A-Za-z0-9_@#.\-]{1,7})[\'"]?\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -91,7 +104,7 @@ WEAK_HASH_ALGORITHMS = re.compile(
 # Password in comments/documentation
 COMMENTED_PASSWORDS = re.compile(
     r'^\s*(?:#|//|<!--|;)\s*'
-    r'(?:password|пароль)\s*[:=]\s*\S+\s*$',
+    r'(?:password|пароль)\s*[:=]\s*(?P<v>\S+)\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -133,11 +146,11 @@ def _is_weak_value(value: str) -> bool:
     """True if `value` plausibly looks like a WEAK/default password.
 
     In scope: all-digit values, short values (<8 chars), single-case words,
-    and word+digits patterns (case-insensitive). Out of scope: long (>12)
-    mixed-case values with digits/punctuation — those belong to hardcoded-secret
-    detectors, not a weak-password detector. This cuts the synthetic benchmark
-    FP (`password = 'SuperSecret331'`, 13 chars) while keeping Summer2024 /
-    Pass1234 / P@ssw0rd in scope.
+    and short word+digits patterns. Out of scope: long (>12) mixed-case values
+    with digits/punctuation (hardcoded-secret detectors' job), and mixed-case
+    word+digits longer than 10 chars (SuperSecret5 — a deliberate password, not
+    a default stub). This cuts the synthetic benchmark FP (`password =
+    'SuperSecret331'`) while keeping Pass1234 / Summer2024 / P@ssw0rd in scope.
     """
     v = value.strip()
     if not v:
@@ -155,7 +168,12 @@ def _is_weak_value(value: str) -> bool:
         return True                               # short → weak
     if v.isalpha() and (v.islower() or v.isupper()):
         return True                               # single-case word → weak
-    if re.fullmatch(r"[a-z]+[0-9]{1,4}", low):    # word + trailing digits (Summer2024)
+    if re.fullmatch(r"[a-z]+[0-9]{1,4}", low):    # word + trailing digits (Pass1234/Summer2024)
+        # Mixed-case forms long enough are deliberate, not default stubs —
+        # only short ones stay in scope for a *weak* password detector.
+        is_mixed_case = any(c.isupper() for c in v) and any(c.islower() for c in v)
+        if is_mixed_case and len(v) > 10:
+            return False
         return True
     return False
 
@@ -180,6 +198,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
         except Exception:
             continue
         rel_path = str(fp.relative_to(ctx.path))
+
+        # Path exclusion: benchmark/calibration/examples/vendor can never hold
+        # a real production credential.
+        if EXCLUDE_PATH_RE.search(rel_path):
+            continue
 
         # 1. Default credential pairs
         for match in DEFAULT_CREDS.finditer(content):
@@ -219,13 +242,18 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # 4. Hardcoded password variables (short + weak values only)
         for match in HARDCODED_PASSWORD_VARS.finditer(content):
-            password_value = match.group(1)
+            password_key = match.group("k")
+            password_value = match.group("v")
             if _is_placeholder(password_value):
                 continue
+            if password_value.strip().lower() == password_key.strip().lower():
+                continue  # self-reference placeholder (SECRET = "SECRET")
             if len(password_value) >= 20:
                 continue  # Skip long random-looking strings
             if password_value.startswith("$"):
                 continue  # shell expansion (${N:-...} / $VAR), not a literal
+            if password_value.startswith(("/", "./", "../", "~")) or re.match(r"^[A-Za-z]:[\\/]", password_value):
+                continue  # path value (PWD = "/app"), not a credential
             if not _is_weak_value(password_value):
                 continue  # strong/non-weak value — out of scope for GS017
             findings.append(Finding(
@@ -256,6 +284,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
             for match in SHORT_ENV_PASSWORDS.finditer(content):
                 env_value = match.group("v")
                 env_key = match.group("k").lower()
+                if _is_placeholder(env_value):
+                    continue  # PASSWORD=xxxx, SECRET=test — unfilled templates
                 if len(env_value) < 5:
                     if env_value.lower() in ENV_SENTINELS:
                         continue  # default arg / boolean / numeric sentinel
@@ -273,6 +303,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # 7. Commented passwords
         for match in COMMENTED_PASSWORDS.finditer(content):
+            commented_value = match.group("v")
+            if _is_placeholder(commented_value) or commented_value.startswith(("$", "{", "%", "<", "(")):
+                continue  # placeholder/reference in docs, not a literal credential
             findings.append(Finding(
                 rule_id=RULE_ID, file_path=rel_path,
                 line=_lineno(content, match.start()),

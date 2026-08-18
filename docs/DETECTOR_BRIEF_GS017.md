@@ -1,72 +1,34 @@
-# Бриф: GS017 — Weak & Default Passwords (precision-улучшение)
+# Brief: Improve GS017 (Weak & Default Passwords) precision in GSC
 
-> Самодостаточный бриф для внешнего агента **без доступа к репозиторию**.
-> Весь код детектора вшит внутрь. Задача — **снизить FP при неизменном recall (TPR drop ≤ 3%)**.
-> Формат и контракт — по образцу `DETECTOR_BRIEF_GS020.md` / `DETECTOR_BRIEF_GS022.md`.
-
----
-
-## 1. Что это за детектор
-
-**GS017 — Weak & Default Passwords**, Echelon 2 (SECURITY). Ищет:
-- default-креды (`admin:admin`, `root:root`, русские/enterprise дефолты);
-- слабые пароли в connection strings (`mysql://user:password@...`);
-- Docker `ENV`/`ARG` с дефолтным паролем;
-- хардкод переменных `PASSWORD/PWD/SECRET/...` с коротким значением;
-- слабую парольную политику (min length < 8);
-- короткие пароли в `.env`;
-- закомментированные пароли;
-- слабые хеши паролей (`md5/sha1/crypt($password)`).
-
-**Проблема:** на живых сканах GS017 даёт **852 HIGH** находки, из которых подавляющее большинство — FP. Цель брифа — срезать этот шум, не потеряв реальные weak/default пароли.
-
-## 2. Срез из живой БД (снимок 2026-08-17)
-
-```
-GS017 по severity:  HIGH 852 | CRITICAL 6 | LOW 1  (итого 859)
-```
-
-Раскладка по проектам (откуда шум):
-
-| Проект | Находок | Что это |
-|---|---|---|
-| `/tmp/gsc-perf-h_xcndkh/1m` | 664 | **перф-корпус (синтетика, `mod_*.py`)** |
-| `/tmp/gsc-perf-h_xcndkh/100k` | 67 | перф-корпус |
-| `/tmp/gsc-hunt-4` | 28 | hunt-скан (real code) |
-| `benchmark/real_world/sanic` | 24 | **фреймворк Sanic (real code)** |
-| `twisted` | 14 | фреймворк Twisted (real code) |
-| `/tmp/gsc-perf-ud1o1lji/10k` | 7 | перф-корпус |
-| `benchmark/real_world/youtube-dl` | 9 | youtube-dl (real code) |
-| `benchmark/real_world/piccolo-api` | 6 | piccolo-api (real code) |
-| … остальное | <4/проект | httpie, sphinx, pipenv, Telegram-shop и т.д. |
-
-**Ключевой вывод:** ~86% шума (738 из 852) приходит из **перф-корпусов `/tmp/gsc-perf-*/`** — это синтетические файлы `mod_0000.py … mod_0499.py` с автогенерированными строками `password = 'SuperSecretNNN'`. Остальной шум — **реальный код фреймворков**, где детектор ловит `key=None`, `pwd=None`, `key=key`, `password = pwd` и т.п.
+> For an external AI agent (Claude Code / Codex / ChatGPT). **Self-contained** — the full
+> detector source is embedded below, no repo access needed. Return only proposals in the
+> format from §6.
 
 ---
 
-## 3. Код детектора (вшит целиком)
+## 1. Context
 
-Файл: `gsc_core/gsc_detectors/gs017_weak_passwords.py` (229 строк).
+GSC is a self-learning SAST platform (Python, 42 detectors). Detectors are regex patterns +
+context filters. **The current pain is precision, not recall**: on 10 real-world projects
+(160–132K ⭐) the scan yields 2695 findings, precision CRITICAL ~8–12%. The goal is to remove
+false positives (FP) **without losing** true positives (TP).
+
+Detector GS017 flags Weak & Default Passwords (CWE-521): hardcoded default credentials,
+weak password policies, short passwords in `.env`, weak DB connection strings, commented
+passwords, weak hash algorithms (MD5/SHA1/crypt).
+
+**Current state in the findings DB** (`~/.hermes/state/gsc_audit.db`): GS017 has **859
+findings (852 HIGH, 6 CRITICAL, 1 LOW)** — it is the single noisiest detector after GS001.
+The DB is *cumulative* (history across many scans), so many of these titles reflect bugs
+already patched. A fresh self-scan on the GSC repo itself yields only **7 findings**, of
+which **5 are the same FP** (`SECRET = "SECRET"` self-reference). Your job is to find what
+*still* fires wrongly on real code and kill it.
+
+## 2. Current detector code (change only patterns/filters, not the contract)
 
 ```python
+# gs017_weak_passwords.py
 # SPDX-License-Identifier: Apache-2.0
-# Copyright (c) 2026 Алексей Поляков
-# Licensed under Apache License 2.0 — see LICENSE
-
-"""
-GS017 — Weak & Default Passwords Detector
-Echelon: 2 (SECURITY)
-Category: CRITICAL
-
-Detects weak and default credentials — a top-3 fintech vulnerability per 2026 pentests:
-- Hardcoded default passwords (admin:admin, root:root)
-- Weak password policies (no complexity, short minimums)
-- Default credentials in configs, Dockerfiles, .env files
-- Common Russian/enterprise default passwords
-- Database connection strings with weak passwords
-
-Sources: 2026 Fintech Pentest Report, OWASP ASVS V2.1, PCI-DSS 8.3
-"""
 import re
 from pathlib import Path
 from . import AuditContext, Finding
@@ -80,8 +42,6 @@ description = (
 )
 
 # ── Default credential pairs ─────────────────────────────────────────────────
-
-# Common Russian/enterprise default:password pairs
 DEFAULT_CREDS = re.compile(
     r'(?:^|\n)\s*'
     r'(?:'
@@ -125,7 +85,7 @@ WEAK_PASSWORD_POLICY = re.compile(
 
 # .env files with short passwords (< 8 chars)
 SHORT_ENV_PASSWORDS = re.compile(
-    r'^\s*(?:PASSWORD|PASS|PWD|SECRET|KEY)\s*=\s*[\'"]?([^\s\'"]{1,7})[\'"]?\s*$',
+    r'^\s*(?P<k>PASSWORD|PASS|PWD|SECRET|KEY)\s*=\s*[\'"]?(?P<v>[A-Za-z0-9_@#.\-]{1,7})[\'"]?\s*$',
     re.IGNORECASE | re.MULTILINE,
 )
 
@@ -150,6 +110,47 @@ def _is_placeholder(value: str) -> bool:
         'test', 'xxxx', 'secrethere', 'put_your', 'replace',
         'ваш_', 'пример',
     ))
+
+
+ENV_SENTINELS = frozenset({
+    "none", "null", "nil", "true", "false", "undefined", "nan", "inf",
+})
+
+
+WEAK_VALUE_WORDS = frozenset({
+    "admin", "admin123", "administrator", "root", "root123", "toor",
+    "password", "password1", "password123", "pass", "passwd", "pwd",
+    "passw0rd", "123456", "12345678", "123456789", "1234567890",
+    "qwerty", "qwerty123", "secret", "secret123", "changeme", "default",
+    "temp", "test", "test123", "guest", "demo", "demopassword",
+    "letmein", "welcome", "welcome1", "iloveyou", "monkey", "dragon",
+    "p@ssw0rd", "pa55word", "p@ssword",
+    "master", "login", "abc123", "000000", "111111", "123123", "654321",
+    "football", "baseball", "superman", "batman", "sunshine", "princess",
+})
+
+
+def _is_weak_value(value: str) -> bool:
+    """True if `value` plausibly looks like a WEAK/default password."""
+    v = value.strip()
+    if not v:
+        return False
+    low = v.lower()
+    if low in ENV_SENTINELS:
+        return False
+    if low in WEAK_VALUE_WORDS:
+        return True
+    if v.isdigit():
+        return True
+    if len(v) > 12:
+        return False
+    if len(v) < 8:
+        return True
+    if v.isalpha() and (v.islower() or v.isupper()):
+        return True
+    if re.fullmatch(r"[a-z]+[0-9]{1,4}", low):
+        return True
+    return False
 
 
 def _lineno(content: str, pos: int) -> int:
@@ -209,13 +210,17 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 noise_tier="precise",
             ))
 
-        # 4. Hardcoded password variables (short values only)
+        # 4. Hardcoded password variables (short + weak values only)
         for match in HARDCODED_PASSWORD_VARS.finditer(content):
             password_value = match.group(1)
             if _is_placeholder(password_value):
                 continue
             if len(password_value) >= 20:
-                continue  # Skip long random-looking strings
+                continue
+            if password_value.startswith("$"):
+                continue
+            if not _is_weak_value(password_value):
+                continue
             findings.append(Finding(
                 rule_id=RULE_ID, file_path=rel_path,
                 line=_lineno(content, match.start()),
@@ -239,19 +244,25 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 noise_tier="normal",
             ))
 
-        # 6. Short .env passwords
-        for match in SHORT_ENV_PASSWORDS.finditer(content):
-            env_value = match.group(1)
-            if len(env_value) < 5:
-                findings.append(Finding(
-                    rule_id=RULE_ID, file_path=rel_path,
-                    line=_lineno(content, match.start()),
-                    severity="HIGH",
-                    title=f"Very short password in .env: {match.group(0).strip()[:80]}",
-                    detail=f"Password length = {len(env_value)} chars.",
-                    fix_suggestion="Use minimum 20+ character random passwords for all secrets.",
-                    noise_tier="precise",
-                ))
+        # 6. Short .env passwords — only for .env-named files
+        if ".env" in fp.name.lower():
+            for match in SHORT_ENV_PASSWORDS.finditer(content):
+                env_value = match.group("v")
+                env_key = match.group("k").lower()
+                if len(env_value) < 5:
+                    if env_value.lower() in ENV_SENTINELS:
+                        continue
+                    if env_value.lower() == env_key:
+                        continue
+                    findings.append(Finding(
+                        rule_id=RULE_ID, file_path=rel_path,
+                        line=_lineno(content, match.start()),
+                        severity="HIGH",
+                        title=f"Very short password in .env: {match.group(0).strip()[:80]}",
+                        detail=f"Password length = {len(env_value)} chars.",
+                        fix_suggestion="Use minimum 20+ character random passwords for all secrets.",
+                        noise_tier="precise",
+                    ))
 
         # 7. Commented passwords
         for match in COMMENTED_PASSWORDS.finditer(content):
@@ -280,94 +291,114 @@ def detect(ctx: AuditContext) -> list[Finding]:
     return findings
 ```
 
----
+## 3. Metric — what counts as "better"
 
-## 4. Реальные FP (из БД, file:line → что заматчилось)
+- **Primary: precision** = TP/(TP+FP). Remove FP **without losing TP**.
+- **Guard:** any narrowing/disabling of a pattern is acceptable only if TP cases still fire.
+- Recall (new patterns) is secondary, and only after precision is stable.
 
-### 4.1 `SHORT_ENV_PASSWORDS` — главный источник шума в реальном коде
+## 4. Known FP candidates (leads — verify and confirm/refute each)
 
-Название правила — «.env short passwords», но оно выполняется на **всех** расширениях (`.py/.js/.sh/.go/...`). На реальном коде фреймворков ловит мусор:
+These are ordered by observed impact. Examples are real.
 
-| file:line | заматчилось | почему FP |
-|---|---|---|
-| `sanic/cookies/response.py:292,306` | `key=key,` | keyword-arg `key=key` |
-| `sanic/response/types.py:164,206` | `key=key,` | keyword-arg |
-| `sanic/cli/app.py:286` | `key = (` | вызов/продолжение, не пароль |
-| `sanic/http/tls/creators.py:96` | `key = (` | то же |
-| `src/twisted/python/util.py:17,21` | `pwd = None` / `pwd = _pwd` | default arg / импорт |
-| `src/twisted/conch/checkers.py:70` | `pwd = None` | default arg |
-| `youtube_dl/utils.py:6552` | `key = None` | default arg |
-| `youtube_dl/extractor/common.py:1164` | `password = None` | default arg |
-| `scripts/install.sh:525,771,1745…` | `key="$1"`, `key="$2"` | shell positional params |
-| `django_rls/context.py:120` | `key=key,` | keyword-arg |
-| `taser/exp/web/httpauth.py:63` | `password = pwd,` | HTTP-auth param |
-| `seo_recommend.py:167` | `key = pair` | dict-пример `{key: pair}` |
-| `database/models.py:14` | `KEY = "key"` | имя==значение |
+### A. Self-reference placeholder `SECRET = "SECRET"` (highest confirmed FP rate)
+`HARDCODED_PASSWORD_VARS` fires on `SECRET = "SECRET"`, `PASSWORD = "password"`,
+`API_SECRET = "api_secret"`, etc. — a value that equals its own key is a placeholder/stub,
+not a real credential. Note `SHORT_ENV_PASSWORDS` *already* has a self-reference filter
+(`if env_value.lower() == env_key: continue`), but `HARDCODED_PASSWORD_VARS` does **not**.
+- Real FP example (5 identical hits in one self-scan):
+  `benchmark/real_world/fastapi-users/examples/sqlalchemy/app/users.py` → `SECRET = "SECRET"`
+- Fix direction: add `if password_value.lower() == matched_key.lower(): continue`. Requires
+  capturing the key (currently only group(1) = value is captured).
 
-**Корень:** значение `([^\s'"]{1,7})` жадно хватает любой короткий токен — `None`, `(`, `$1`, `$2`, `_pwd`, `key`, `pair`, `pwd` — плюс глотает хвостовую запятую (`key=key,`).
+### B. Test/demo/fixture corpora are not excluded
+GS017 scans `benchmark/real_world/*`, `calibration/repos/*` (which contains a deliberately
+vulnerable `secrets-demo`), and `examples/*`. `get_source_files()` excludes `tests`/`fixtures`
+via `TEST_GLOBS`, but **not** `benchmark`, `calibration`, `examples`. Sibling detectors
+(e.g. GS037) carry an `EXCLUDE_PATH_RE` with `benchmark|tests?|fixtures?|examples?`.
+- Real examples: `calibration/repos/secrets-demo/config.py` (CRITICAL, intentional vuln),
+  `benchmark/real_world/piccolo-api/e2e/pages.py` (`PASSWORD = "piccolo123"`).
+- Fix direction: add a path-exclusion for `benchmark`, `calibration`, `examples` (mirror GS037).
 
-### 4.2 `HARDCODED_PASSWORD_VARS` — флагует не-слабые значения
+### C. `SHORT_ENV_PASSWORDS` — the historical mass-producer of HIGH
+The DB shows these top titles (note: some already fixed, verify against a *fresh* run):
+- `key=key` (39) — self-reference (filter exists, but `key=s,`, `key = (`, `key="("` variants slip)
+- `key = (` (14) — empty/paren value
+- `password = None` (8), `key = None` (7), `pwd = None` (6) — sentinels (filter exists)
+- `key="$1"` (6) — shell positional param; `HARDCODED_PASSWORD_VARS` rejects `startswith("$")`
+  but `SHORT_ENV_PASSWORDS` does **not**
+- The key token `KEY` is too generic: `key=…`, `monkey=…`, `turkey=…` all match `KEY`.
 
-| file:line | заматчилось | почему FP |
-|---|---|---|
-| `mod_0499.py:666` … `mod_0000.py` | `password = 'SuperSecret331'` (и NNN=000…331) | 13 симв., mixed-case+digits, **не слабый** пароль |
-| `scripts/install.sh:384` | `secret="${4:-0}"` | shell default, не пароль |
-| `docker-compose-prod.yaml:8` | `PASSWORD: "demopassword"` | *(это TP — реальный дефолт, не трогать)* |
+### D. `HARDCODED_PASSWORD_VARS` long/mixed values
+`SuperSecret500!`, `SuperSecret3000!` etc. appear in DB history. `_is_weak_value` already
+rejects `len>12` mixed-case — confirm these no longer fire; if any slip (e.g. exactly 12 chars
+mixed-case), tighten the boundary.
 
-**Корень:** правило ловит ЛЮБОЙ `PASSWORD/PWD/SECRET = "<1-19 симв.>"`, не проверяя, слабое ли значение. `SuperSecret331` — сильная строка, к «Weak & Default Passwords» отношения не имеет.
+### E. `COMMENTED_PASSWORDS` (LOW, minor)
+Matches `# password: xxx` and the Russian `# пароль: xxx`. In README/docs this is noise, but
+severity is LOW and volume is tiny — deprioritize unless trivial.
 
----
+## 5. Your task
 
-## 5. Лиды (по приоритету)
+Analyze the code above. For each candidate in §4 (and any OTHER FP you notice) propose a
+concrete fix. Three allowed tools (in order of preference):
 
-> Каждый лид — самостоятельный фикс. Принимаются только подтверждённые на реальном коде (`FP↓ при TP-константе`). Не резать recall.
+1. **Path exclusion** — add to a path/glob exclusion (tests, samples, benchmark, vendor).
+2. **Regex narrowing** — require more context in the pattern itself.
+3. **Context analysis** — extend a `_is_false_positive`-style filter (±3 lines / key capture).
 
-### Лид 1 (максимум эффекта) — перф-корпуса `/tmp/gsc-perf-*` не должны попадать в находки
-**Симптом:** 664 + 67 + 7 = 738 HIGH из перф-корпусов `mod_*.py`.
-**Фикс (на выбор, не в самом детекторе, а на уровне сбора проектов):**
-- исключить пути `/tmp/gsc-perf-*` из precision-замера/БД (это bench-запуски производительности, а не аудит реального кода);
-- либо в детекторе добавить path-exclusion для синтетических `mod_\d{4}\.py` (но это костыль — лучше чинить источник).
+## 6. Response format (strict)
 
-### Лид 2 (главный детекторный баг) — `SHORT_ENV_PASSWORDS` выполнять только на `.env`-файлах
-**Фикс:** гейт по расширению. `SHORT_ENV_PASSWORDS` — про `.env`, значит применять только к `.env`, `.env.*`, `.env.example`, `.env.local`, `.env.production` и т.п. (и, опционально, к `.ini/.conf/.cnf/.cfg` секциям с `KEY=`).
-**Ожидание:** снимает sanic/twisted/youtube-dl/httpie/piccolo-api/install.sh шум (~90% реального кода), сохраняя настоящие `.env` секреты.
+For each proposal, one block:
 
-### Лид 3 — `SHORT_ENV_PASSWORDS`: выкинуть `None`/`null`/`nil`/`true`/`false` и знаки в значении
-**Фикс:** значение не должно быть `None`/`null`/`nil`/`true`/`false`; и класс значения сузить до `[A-Za-z0-9_\-@#$.]{1,7}` (никаких `(`, `,`, `$`, пробелов). Плюс: значение ≠ имени ключа (отсекает `key=key`, `KEY="key"`).
+```
+### GS017: <name>
+- Type: path_exclusion | regex_narrowing | context_analysis
+- Pattern/code: <concrete regex or diff>
+- Rationale: why it's an FP (file/line example)
+- FP it removes: <real code line>
+- TP impact: which TP cases are NOT affected
+```
 
-### Лид 4 — `HARDCODED_PASSWORD_VARS`: проверять, что значение реально слабое
-**Фикс:** добавить `_is_weak_value()` — значение срабатывает только если:
-- входит в common/слабый словарь (`123456`, `password`, `admin`, `qwerty`, `admin123`, …), ИЛИ
-- полностью в нижнем регистре без цифр/смешанного регистра (`demopassword`, `testuser`), ИЛИ
-- чистые цифры/короткий (< 8).
-`SuperSecret331` (mixed-case+digits) — пропускаем. Это выравнивает правило с названием детектора («Weak & Default»).
+## 7. Do NOT do
 
-### Лид 5 — `HARDCODED_PASSWORD_VARS`: shell-подстановки `${N:-...}` / `$N` не пароли
-**Фикс:** пропускать значения вида `$...` и `${...}` (shell positional/default). `secret="${4:-0}"` → FP.
+- ❌ Do not change `RULE_ID`, the severity scale, the `detect()` signature, or `Finding` keys.
+- ❌ Do not disable the detector wholesale — only filters.
+- ❌ Do not "clean up" code beyond the task (scope discipline).
+- ❌ Do not propose without FP examples (can't assess risk/benefit).
+- ❌ Do not add new weak-password *detection* (recall) — this is a precision pass only.
 
-### Лид 6 (косметика) — дубликаты в БД
-Одна и та же находка (file:line:title) повторяется 3–4 раза (напр. `sanic/cookies/response.py:292` ×4). Это накопление по разным `run_id`, не баг детектора. Для отчётов — dedup по `finding_key` внутри одного `run_id`. **Не трогать сам детектор.**
+## 8. Verification procedure (run before claiming a fix)
 
----
+```bash
+cd ~/gsc
+# Fresh FP slice — do NOT trust the historical DB for "is it still firing"
+python3 - <<'PY'
+import sys; sys.path.insert(0, '.')
+from pathlib import Path
+from gsc_detectors import AuditContext
+from gsc_detectors import gs017_weak_passwords as g17
+for root in ('.', str(Path.home()/'bybit-ws')):
+    ctx = AuditContext(project='x', path=Path(root)); ctx.files = ctx.get_files()
+    fs = g17.detect(ctx)
+    print(root, '->', len(fs), 'findings')
+    for f in fs[:20]:
+        print('  ', f.get('severity'), f.get('file_path'), f.get('title'))
+PY
 
-## 6. Контракт верификации (обязателен перед приёмкой)
+# smoke
+python3 /tmp/gs017_smoke.py
 
-1. **Smoke** на синтетических TP/FP в `/tmp/gs017_smoke.py` через `AuditContext(project, path)`:
-   - **TP должны остаться:** `admin:admin`, `root:root` (DEFAULT_CREDS); `mysql://user:password@host` (WEAK_DB); `ENV MYSQL_ROOT_PASSWORD password` (DOCKER); `.env` с `SECRET=abc` (короткий реальный секрет); `password = "admin123"`; слабая политика `min_length=6`; `md5($password)`.
-   - **FP должны уйти:** `key=None`, `pwd=None`, `password=None`, `key=key`, `key = pair`, `key = (`, `KEY="key"`, `secret="${4:-0}"`, `key="$1"`, `password = 'SuperSecret331'`.
-2. **Полный прогон:** `python3 -m pytest -q` (ожидание 294 passed), `python3 tests/test_regression.py` (16/16), `python3 tests/test_compliance_secrets.py` (8/8) — они standalone, запускать `python3 tests/...` напрямую.
-3. **Проверка на живом коде:** перегнать GS017 на `benchmark/real_world/sanic` и `twisted` — FP-счёт должен упасть в разы, TP не потеряны.
+# full suite (306) + standalone regression/compliance
+python3 -m pytest -q
+python3 tests/test_regression.py
+python3 tests/test_compliance_secrets.py
+```
 
-## 7. Жёсткие инварианты (нарушать нельзя)
-
-- `RULE_ID = "GS017"` и `finding_key` не менять.
-- TP-кейсы не резать (TPR drop ≤ 3%).
-- Severity-шкалу не менять (`CRITICAL`/`HIGH`/`LOW` как есть).
-- Детектор целиком не отключать — только фильтры/сужения/гейты.
-- `_is_placeholder()` — расширять аккуратно, не ломая `changeme`/`example`/`test` (эти значения в TP-словаре DEFAULT_CREDS/DOCKER — не дублировать фильтрацию).
-- Код-стиль: только stdlib (`re`, `pathlib`); `Finding` — dict-like (`severity=`, `file_path=`, `line=`); `ctx.get_source_files(extensions=...)`.
-
----
-
-*Файл детектора: `gsc_core/gsc_detectors/gs017_weak_passwords.py`.*
-*Срез БД: `sqlite3 ~/.hermes/state/gsc_audit.db "SELECT rule_id, category, COUNT(*) FROM findings WHERE rule_id LIKE 'GS017%' GROUP BY rule_id, category;"` — переснять перед работой.*
+Pitfalls:
+- `Finding` is dict-like: `severity=`/`category=` (same), `file_path`/`line_number`/`detail`
+  (NOT `file=`/`message=`). Emit both where a bridge expects one.
+- `get_files()` filters non-code + dotfiles; `get_source_files()` further drops tests/fixtures.
+- `test_regression.py` / `test_compliance_secrets.py` are standalone — run with `python3 tests/…`,
+  not `pytest`.
+- **Commit only on explicit instruction** — the repo owner gates all commits.
