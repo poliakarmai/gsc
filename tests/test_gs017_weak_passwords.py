@@ -2,14 +2,8 @@
 
 Covers the precision fixes (self-reference, path exclusion, KEY narrowing,
 placeholder filtering, mixed-case length gate, path values, commented
-placeholders) plus the must-still-fire TP cases.
-
-Note on dotfiles: `Path(".env").suffix == ""` and `get_files()` filters by
-`suffix in extensions`, so a bare `.env`/`Dockerfile`/`.dockerfile` never passes
-the extension gate (and `rglob("*")` on Python ≥3.11 skips dotfiles anyway).
-The SHORT_ENV branch is therefore exercised via a `*.env` file (real suffix),
-and DOCKER via a direct regex assert. The bare-dotfile coverage gap is tracked
-separately as a recall defect.
+placeholders) plus the must-still-fire TP cases. The .env / Dockerfile
+branches are exercised end-to-end now that get_files() collects dotfiles.
 """
 
 import sys
@@ -77,18 +71,18 @@ def test_summer_fires(scan):
 
 
 def test_short_env_password(scan):
-    fs = scan({"config.env": "PASSWORD=1234\n"})
+    fs = scan({".env": "PASSWORD=1234\n"})
     assert any("Very short password" in t for t in _titles(fs))
 
 
 def test_api_key_env_fires(scan):
-    fs = scan({"config.env": "API_KEY=abc\n"})
+    fs = scan({".env": "API_KEY=abc\n"})
     assert any("Very short password" in t for t in _titles(fs))
 
 
-def test_docker_default_password_regex():
-    assert gs017.DOCKER_DEFAULT_PASSWORDS.search("ENV POSTGRES_PASSWORD admin")
-    assert gs017.DOCKER_DEFAULT_PASSWORDS.search("ARG MYSQL_ROOT_PASSWORD root")
+def test_docker_default_password(scan):
+    fs = scan({"Dockerfile": "ENV POSTGRES_PASSWORD admin\n"})
+    assert any("Docker default password" in t for t in _titles(fs))
 
 
 # ── negative (FP fixes — must NOT fire) ────────────────────────────────────
@@ -124,10 +118,10 @@ def test_commented_placeholder_ignored(scan):
 
 
 def test_generic_key_ignored(scan):
-    fs = scan({"config.env": "KEY=dev\n"})
+    fs = scan({".env": "KEY=dev\n"})
     assert not fs
 
 
 def test_env_placeholder_ignored(scan):
-    fs = scan({"config.env": "PASSWORD=xxxx\nSECRET=test\n"})
+    fs = scan({".env": "PASSWORD=xxxx\nSECRET=test\n"})
     assert not fs

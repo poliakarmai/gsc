@@ -19,6 +19,7 @@ Usage:
 
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol, Sequence
@@ -146,15 +147,38 @@ class AuditContext:
         """Return files matching glob relative to project root."""
         return sorted(self.path.glob(pattern))
 
+    def _walk_all_files(self) -> list[Path]:
+        """Collect every file under project root, including dotfiles.
+
+        Path.rglob("*") skips dotfiles on Python >=3.11, silently dropping
+        .env / .dockerfile / .git-credentials etc. os.walk yields them, so we
+        drive the walk ourselves and still prune hidden dirs + SKIP_DIRS.
+        """
+        out: list[Path] = []
+        for dirpath, dirnames, filenames in os.walk(self.path):
+            dirnames[:] = [
+                d for d in dirnames
+                if not d.startswith(".") and d not in self.SKIP_DIRS
+            ]
+            for fn in filenames:
+                out.append(Path(dirpath) / fn)
+        return out
+
     def get_files(self, extensions: Sequence[str] | None = None) -> list[Path]:
         """Return all source files, optionally filtered by extension.
 
         Pre-filter: skips hidden/skip dirs, non-code (binary/media/lock) files,
         and anything over MAX_SCAN_FILE_SIZE — so scans never stall on huge
-        static assets, ML models, or multi-MB text dumps."""
+        static assets, ML models, or multi-MB text dumps.
+
+        Dotfiles are collected via os.walk (rglob skips them on py>=3.11); the
+        per-name gate below still admits only .env* + SECRET_DOTFILES. The
+        extension filter also matches by exact file name so `Dockerfile` /
+        `.env` / `.dockerfile` (which have empty suffix) can be selected.
+        """
         if not self.files:
             self.files = sorted(
-                f for f in self.path.rglob("*")
+                f for f in self._walk_all_files()
                 if f.is_file()
                 and not any(p.startswith(".") for p in f.parts[:-1])
                 and (not f.name.startswith(".")
@@ -166,7 +190,8 @@ class AuditContext:
                 and self._within_size_limit(f)
             )
         if extensions:
-            return [f for f in self.files if f.suffix in extensions]
+            return [f for f in self.files
+                    if f.suffix in extensions or f.name in extensions]
         return self.files
 
     def _within_size_limit(self, filepath: Path) -> bool:
