@@ -95,6 +95,15 @@ class AuditContext:
         "dist", "build", ".next", ".nuxt",
     )
 
+    # Hidden files that are legitimate secret sources and MUST be scanned.
+    # Hidden DIRECTORIES stay excluded (.git/.idea/.vscode are never code),
+    # but .env / .credentials / .netrc / .bash_history hold the exact secrets
+    # GS001/GS014/GS017/GS029 are meant to catch (dotfiles gap).
+    SECRET_DOTFILES: frozenset[str] = frozenset({
+        ".credentials", ".netrc", ".bash_history",
+        ".pgpass", ".npmrc", ".pypirc", ".git-credentials",
+    })
+
     # Glob patterns for files that are NEVER code (skip in all detectors)
     NON_CODE_GLOBS: tuple[str, ...] = (
         "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.webp",
@@ -147,7 +156,10 @@ class AuditContext:
             self.files = sorted(
                 f for f in self.path.rglob("*")
                 if f.is_file()
-                and not any(p.startswith(".") for p in f.parts)
+                and not any(p.startswith(".") for p in f.parts[:-1])
+                and (not f.name.startswith(".")
+                     or f.name.startswith(".env")
+                     or f.name in self.SECRET_DOTFILES)
                 and not any(d in f.parts for d in self.SKIP_DIRS)
                 and ".git/" not in str(f)
                 and not self.is_non_code_file(f)

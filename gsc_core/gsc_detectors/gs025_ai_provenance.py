@@ -39,7 +39,8 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
      r'|Access-Control-Allow-Origin["\']?\s*[:=]\s*["\']?\*',
      "HIGH", 0.70),
     ("debug_mode",
-     r"\bdebug\s*=\s*True\b|\bDEBUG\s*=\s*True\b|\bapp\.run\([^)]*debug\s*=\s*True",
+     r"^[ \t]*debug[ \t]*=[ \t]*True[ \t]*(?:#.*)?$"
+     r"|\bapp\.run\([^)]*debug[ \t]*=[ \t]*True",
      "HIGH", 0.75),
     ("wildcard_bind",
      r'host\s*=\s*["\']0\.0\.0\.0["\']',
@@ -48,8 +49,8 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
      r"\beval\s*\(|\bexec\s*\(|\bchild_process\b.*\beval\b",
      "HIGH", 0.70),
     ("hardcoded_secret",
-     r"(?:api[_-]?key|secret|password|passwd|token|client_secret)"
-     r"\s*[:=]\s*[\"'][A-Za-z0-9_\-./+]{12,}[\"']",
+     r"^[ \t]*(?:api[_-]?key|secret|password|passwd|token|client_secret)"
+     r"[ \t]*=[ \t]*[\"'][A-Za-z0-9_\-./+]{12,}[\"']",
      "CRITICAL", 0.80),
     ("insecure_random",
      r"\brandom\.random\(\).*(?:auth|token|session|otp)"
@@ -57,7 +58,7 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
      "MEDIUM", 0.60),
     ("no_rate_limit_auth",
      r"@(?:app\.route|router\.(?:get|post|put|delete))\([^)]*"
-     r"(?:login|signin|auth|token|password)[^)]*\)",
+     r"(?:/login|/signin|/password|/register)[^)]*\)",
      "MEDIUM", 0.50),
 ]
 
@@ -145,6 +146,8 @@ def detect(ctx) -> list[Finding]:
         if not fp.is_file():
             continue
         if fp.suffix not in {'.py', '.js', '.ts', '.tsx', '.go', '.rs', '.java', '.rb', '.php'}:
+            continue
+        if ctx.is_test_file(fp):
             continue
         try:
             content = ctx.file_contents.get(str(fp), fp.read_text(errors='replace'))

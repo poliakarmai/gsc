@@ -47,7 +47,7 @@ MISSING_IDEMPOTENCY = re.compile(
 
 # 2. Promo code / coupon redeem without locking
 PROMO_REDEEM_NO_LOCK = re.compile(
-    r'def\s+(?:redeem|apply|use|activate).*(?:promo|coupon|discount|code|voucher)',
+    r'def\s+(?:redeem|apply|use(?!r)|activate).*(?:promo|coupon|discount|code|voucher)',
     re.IGNORECASE,
 )
 
@@ -74,9 +74,16 @@ RAW_BALANCE_INCREMENT = re.compile(
 
 # 4. Cancel/refund after payment without state validation
 CANCEL_MISSING_STATE_CHECK = re.compile(
-    r'def\s+(?:cancel|refund|void|chargeback|reverse|rollback)',
+    r'def\s+(?:cancel|refund|void|chargeback|reverse|rollback)\b',
     re.IGNORECASE,
 )
+
+# Payment-domain signal required inside a cancel/refund/rollback function body.
+# DB-driver rollback()/cancel() (peewee/django/twisted) carry none of these and
+# are filtered out (see DETECTOR_BRIEF_GS018.md, Лид 4).
+PAYMENT_CONTEXT = re.compile(
+    r'order|payment|invoice|billing|subscription|charge|refund_amount|'
+    r'transaction_id|purchase', re.IGNORECASE)
 
 STATE_CHECK_MISSING = re.compile(
     r'(?:cancel|refund|void|reverse).*'
@@ -89,7 +96,7 @@ STATE_CHECK_MISSING = re.compile(
 FLOAT_MONEY = re.compile(
     r'(?:price|amount|sum|total|balance|cost|fee|tax|commission|'
     r'cashback|bonus|discount|payment|charge|refund|deposit|withdrawal)'
-    r'\s*[:=]\s*float',
+    r'\s*=\s*float\s*\(',   # only real conversion float(...), not type annotation
     re.IGNORECASE,
 )
 
@@ -222,6 +229,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
         for match in cancel_funcs:
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
+            if not PAYMENT_CONTEXT.search(func_body):
+                continue
             if not re.search(r'\.status\s*==|\.state\s*==|if\s+.*status|'
                             r'can_be_cancelled|can_be_refunded|'
                             r'is_refundable|is_cancellable|allowed_states',

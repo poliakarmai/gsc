@@ -29,44 +29,55 @@ ECHELON = 2
 description = "Credential exposure — stored credentials, backup auth files, weak sudoers"
 
 
-# Files that indicate credential exposure
+# Files that indicate credential exposure.
+# Entry shape: (patterns, title, severity, detail, fixture_sensitive).
+# `fixture_sensitive=True` → skip test/fixture paths (vectors/, test/, tests/,
+# fixtures/, dummyserver/, *.example/*.sample/*.template/*.test) — those are
+# test fixtures / public materials, not real committed credentials.
 CREDENTIAL_FILE_PATTERNS = [
     # Windows-like credential files
     (["*.sam", "*.sam.bak", "SYSTEM", "SYSTEM.bak", "ntds.dit"],
      "Potential SAM/SYSTEM backup — Windows credential database",
-     "CRITICAL", "SAM/SYSTEM backups allow offline credential extraction."),
+     "CRITICAL", "SAM/SYSTEM backups allow offline credential extraction.", False),
 
     # DPAPI master keys
     (["*/DPAPI/*", "*/Microsoft/Protect/*"],
      "DPAPI master key file — encrypted credential storage",
-     "MEDIUM", "DPAPI keys may contain decryptable credentials if user password is known."),
+     "MEDIUM", "DPAPI keys may contain decryptable credentials if user password is known.", False),
 
     # Credential manager files
     (["*.rdp", "*.rdg", "credentials.xml", "SiteList.xml"],
      "Stored credential file (RDP/MacAfee/credential manager)",
-     "HIGH", "RDP and credential manager files may contain saved passwords."),
+     "HIGH", "RDP and credential manager files may contain saved passwords.", False),
 
     # SSH keys with weak paths
     (["id_rsa", "id_ed25519", "id_ecdsa", "*.pem", "*.key"],
      "Private key file — verify proper permissions and no passphrase",
-     "MEDIUM", "Private keys should have 600 permissions and passphrase protection."),
+     "MEDIUM", "Private keys should have 600 permissions and passphrase protection.", True),
 
     # Config files with potential credentials
-    (["*.env", ".env.*", "*.envrc", ".credentials", "*credentials*"],
+    (["*.env", ".env.*", "*.envrc", ".credentials", "credentials.yml",
+      "credentials.json", "credentials.ini", ".netrc"],
      "Environment/credential file — check for hardcoded secrets",
-     "LOW", "These files should be gitignored. Verify no secrets are committed."),
+     "LOW", "These files should be gitignored. Verify no secrets are committed.", True),
 
     # Unattended installation files
     (["autounattend.xml", "unattend.xml", "Unattend.xml",
       "*.kickstart", "preseed.cfg", "answerfile*"],
      "Unattended installation file — may contain encoded passwords",
-     "CRITICAL", "Unattended files often contain base64-encoded admin passwords."),
+     "CRITICAL", "Unattended files often contain base64-encoded admin passwords.", False),
 
     # Shell history files (shouldn't be in repo)
     ([".bash_history", ".zsh_history", ".fish_history", ".psql_history", ".mysql_history"],
      "Shell history file in repo — may contain credentials in command lines",
-     "MEDIUM", "Shell history files may contain passwords passed as command arguments."),
+     "MEDIUM", "Shell history files may contain passwords passed as command arguments.", False),
 ]
+
+# Placeholder/example passwords used in docstrings and examples. A connection
+# string carrying one of these is documentation, not an exposed credential.
+POSTGRES_PLACEHOLDER = (
+    r"(?:\*\*\*|pass|password|secret|changeme|example|your|xxx|pwd|scott|tiger|user|test|admin)"
+)
 
 # Content-based patterns
 CONTENT_PATTERNS = [
@@ -82,8 +93,8 @@ CONTENT_PATTERNS = [
      "WireGuard PrivateKey exposed in configuration file. "
      "Use external key storage or environment variable."),
 
-    # PostgreSQL connection strings with password
-    (re.compile(r'postgres(?:ql)?://[^:]+:[^@]+@', re.I),
+    # PostgreSQL connection strings with password (skip placeholder/example passwords)
+    (re.compile(r'postgres(?:ql)?://[^:@]+:(?!' + POSTGRES_PLACEHOLDER + r'@)[^@]+@', re.I),
      "PostgreSQL connection string with embedded password", "HIGH",
      "Database URL contains password in plaintext. Use environment variable."),
 
@@ -99,6 +110,18 @@ CONTENT_PATTERNS = [
      "Full sudo access detected. Verify user requires full privileges."),
 ]
 
+# Public cert/key PEM headers — these are NOT private keys and must not be flagged.
+PUBLIC_KEY_MARKERS = (
+    "BEGIN CERTIFICATE", "BEGIN PUBLIC KEY", "BEGIN X509",
+    "BEGIN TRUSTED CERTIFICATE", "BEGIN RSA PUBLIC KEY",
+    "BEGIN EC PUBLIC KEY", "BEGIN DSA PUBLIC KEY",
+)
+
+# Directory components that mark a test/fixture path (not real credentials).
+TEST_FIXTURE_COMPONENTS = {
+    "vectors", "testdata", "fixtures", "__fixtures__", "tests", "test", "dummyserver",
+}
+
 
 def _match_glob(path: Path, pattern: str) -> bool:
     """Simple glob matching for credential file patterns."""
@@ -107,6 +130,28 @@ def _match_glob(path: Path, pattern: str) -> bool:
     if "/" in pattern or "\\" in pattern:
         return fnmatch.fnmatch(str(path).replace("\\", "/"), pattern)
     return fnmatch.fnmatch(path.name, pattern)
+
+
+def _is_test_fixture_path(rel_path: str) -> bool:
+    """True if rel_path is a test vector / fixture / example file, not a real credential."""
+    p = rel_path.replace("\\", "/").lower()
+    parts = p.split("/")
+    for comp in parts[:-1]:                     # directory components only
+        if comp in TEST_FIXTURE_COMPONENTS:
+            return True
+    name = parts[-1]
+    if name == "test.env":
+        return True
+    return name.endswith((".example", ".sample", ".template", ".test"))
+
+
+def _is_public_key_material(fp: Path) -> bool:
+    """True if a .pem/.key file's head is a public certificate/key (not a private key)."""
+    try:
+        head = fp.read_bytes()[:2048].decode("utf-8", errors="ignore")
+    except Exception:
+        return False
+    return any(m in head for m in PUBLIC_KEY_MARKERS)
 
 
 def detect(ctx: AuditContext) -> list[Finding]:
@@ -121,27 +166,34 @@ def detect(ctx: AuditContext) -> list[Finding]:
         rel_path = str(fp.relative_to(ctx.path))
 
         # 1. Check filename patterns
-        for patterns, title, severity, detail in CREDENTIAL_FILE_PATTERNS:
-            for pat in patterns:
-                if _match_glob(fp, pat):
-                    # Don't flag SSH keys in .ssh/ directories (user home)
-                    if fp.suffix in (".pem", ".key") or fp.name.startswith("id_"):
-                        if ".ssh/" in str(fp):
-                            continue  # Expected location for SSH keys
+        for patterns, title, severity, detail, fixture_sensitive in CREDENTIAL_FILE_PATTERNS:
+            if not any(_match_glob(fp, pat) for pat in patterns):
+                continue
 
-                    findings.append(Finding(
-                        rule_id=RULE_ID,
-                        file_path=rel_path,
-                        line=1,
-                        severity=severity,
-                        title=title,
-                        detail=detail,
-                        fix_suggestion="Remove from repository. Add to .gitignore. "
-                                       "Rotate any exposed credentials.",
-                        references=["Window Privilege Escalation Guide",
-                                    "SSH Hardening & Offensive Mastery"]
-                    ))
-                    break  # One finding per file
+            # Don't flag SSH keys in .ssh/ directories (user home)
+            if (fp.suffix in (".pem", ".key") or fp.name.startswith("id_")) and ".ssh/" in str(fp):
+                continue
+
+            # Skip test vectors / fixtures / examples (not real credentials)
+            if fixture_sensitive and _is_test_fixture_path(rel_path):
+                continue
+
+            # .pem/.key that are public certs/keys — not private keys
+            if fp.suffix in (".pem", ".key") and _is_public_key_material(fp):
+                continue
+
+            findings.append(Finding(
+                rule_id=RULE_ID,
+                file_path=rel_path,
+                line=1,
+                severity=severity,
+                title=title,
+                detail=detail,
+                fix_suggestion="Remove from repository. Add to .gitignore. "
+                               "Rotate any exposed credentials.",
+                references=["Window Privilege Escalation Guide",
+                            "SSH Hardening & Offensive Mastery"]
+            ))
 
         # 2. Check content-based patterns (only for text files)
         if fp.suffix in (".xml", ".conf", ".cfg", ".ini", ".yaml", ".yml", ".json",

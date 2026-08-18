@@ -483,15 +483,17 @@ def _derive_rule_id(pattern: dict) -> str:
     if "eval" in title: return "GS008"
     if "pickle" in title or "deserial" in title: return "GS037"
     if "except" in title: return "GS010"
-    if "assert" in title: return "GS018"
+    # NB: "assert" is a generic Python anti-pattern, NOT payment abuse — let it
+    # fall through to GS000-LEGACY rather than polluting GS018 (DETECTOR_BRIEF_GS018.md, Лид 1).
     if "docker" in title or "container" in title: return "GS031"
-    if "permission" in title or "world-readable" in title or "writable" in title: return "GS025"
-    if "cve" in title: return "GS025"
+    # NB: "permission"/"world-readable"/"writable" (file-perm) and "cve" (SCA/CVE)
+    # are NOT AI-provenance — let them fall through to GS000-LEGACY rather than
+    # polluting GS025 (DETECTOR_BRIEF_GS025.md, Лид 1).
     return "GS000-LEGACY"
 
 def _perm_finding(file_path: str, title: str, detail: str) -> dict:
     import hashlib
-    rule_id = "GS025"
+    rule_id = "GS000-LEGACY"  # file-permission finding, NOT AI-provenance (DETECTOR_BRIEF_GS025.md, Лид 1)
     finding_key = hashlib.sha256(f"{rule_id}{file_path}{title[:100]}".encode()).hexdigest()[:12]
     return {"finding_key": finding_key, "rule_id": rule_id,
             "category": "HIGH", "echelon": 2,
