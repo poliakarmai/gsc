@@ -3,7 +3,7 @@
 **Document version:** 2.0
 **Date:** 2026-08-15
 **Author:** Alexey Polyakov
-**Product:** GSC (Git Security Checker) v1.3.0
+**Product:** GSC (Git Security Checker) v1.4.0
 **Status:** for review (technical audit incorporated)
 
 ---
@@ -294,8 +294,8 @@ grounded in evidence, not declarations.
 
 | Parameter | Value |
 |---|---|
-| Version | 1.3.0 |
-| Detectors | 41 (38 registry + 4 standalone) |
+| Version | 1.4.0 |
+| Detectors | 42 (38 registry + 4 standalone) |
 | DB schema | 32 |
 | Modules | 114 |
 | Findings in DB | ~494K |

@@ -1,5 +1,23 @@
 # GSC Changelog
 
+## v1.4.0 — 2026-08-19
+
+### Новые фичи
+- **SAST↔DAST correlation** — корреляция результатов SAST и DAST (в духе Solar
+  appScreener): DAST-находка подтверждает SAST при совпадении класса и
+  confidence ≥0.90 → `review_status='confirmed'` + `dast_evidence`. CLI `gsc correlate`.
+- **Business-risk prioritisation** — приоритизация находок по бизнес-контексту
+  (critical path × exploit-chain × EPSS), не только по CVSS. CLI `gsc business-risk`.
+- **Dev security scorecard** — per-developer score через git-blame + статусы находок.
+  CLI `gsc scorecard`.
+- **Negation guards** — `pattern-not`/`not`/`not-patterns` в YAML-DSL (line-level
+  подавление FP).
+- **Trap corpus** — регресс-гард против FP на lookalike-но-безопасных сниппетах.
+
+### Chore
+- CI: `upload-artifact@v4` запинен на commit SHA (GSC-009).
+- Версия → 1.4.0, 42 детектора, schema 33.
+
 ## Unreleased — 2026-08-13
 
 ### Roadmap maturity — волны A–D (2026-08-14)

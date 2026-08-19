@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.3.0 · **Detectors:** 41 (38 registry + 4 engines) · **Schema:** v32 · **Modules:** 148
+**Version:** v1.4.0 · **Detectors:** 42 (38 registry + 4 engines) · **Schema:** v33 · **Modules:** 148
 <!-- GSC-META-END -->
 
 
@@ -13,8 +13,8 @@ Not just another scanner. GSC **proves** vulnerabilities with generated exploits
 **fixes** them with verified patches, and **heals** your codebase with automatic PRs.
 
 [![Tests](https://img.shields.io/badge/tests-pytest-brightgreen)]()
-[![Detectors](https://img.shields.io/badge/detectors-41-blue)]()
-[![Version](https://img.shields.io/badge/version-v1.3.0-blue)]()
+[![Detectors](https://img.shields.io/badge/detectors-42-blue)]()
+[![Version](https://img.shields.io/badge/version-v1.4.0-blue)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0%20%2B%20Commercial-blue)](LICENSE)
 [![GSC Score](https://img.shields.io/badge/GSC-84%2F100-green?style=flat&logo=shield)]()
 [![Hall of Fame](https://img.shields.io/badge/hall%20of%20fame-5%20finds-gold)](HALL_OF_FAME.md)

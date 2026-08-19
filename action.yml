@@ -121,7 +121,7 @@ runs:
             }
           }
 
-          body += '\n---\n*GSC v1.3.0 — [poliakarmai/gsc](https://github.com/poliakarmai/gsc)*';
+          body += '\n---\n*GSC v1.4.0 — [poliakarmai/gsc](https://github.com/poliakarmai/gsc)*';
 
           const { data: comments } = await github.rest.issues.listComments({
             owner: context.repo.owner,

@@ -79,7 +79,7 @@ if high > 0:
 
 print(f"---")
 print(f"![GSC Score](https://img.shields.io/badge/GSC-{score}%2F100-{color}?style=flat&logo=shield)")
-print(f"*Git Security Checker v1.3.0 — [poliakarmai/gsc](https://github.com/poliakarmai/gsc)*")
+print(f"*Git Security Checker v1.4.0 — [poliakarmai/gsc](https://github.com/poliakarmai/gsc)*")
 
 # ── Environment variables for GitHub Actions ────────────────────────────────
 import os

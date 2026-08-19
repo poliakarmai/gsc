@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 18.08.2026** | Ядро v1.3.0, 41 детектор | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13**
+> **Статус на 18.08.2026** | Ядро v1.4.0, 42 детектора | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13**
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -10,7 +10,7 @@
 
 | Трек | Статус | Что осталось |
 |---|---|---|
-| Ядро сканера (v0.11→v1.3) | ✅ готово (41 детектор) | ничего |
+| Ядро сканера (v0.11→v1.3) | ✅ готово (42 детектора) | ничего |
 | Безопасность (аудит 28 + AppSec DD-01..DD-10) | ✅ 28/28 + 10/10 закрыто (13.08 + 15.08) | PostgreSQL для multi-tenant (DD-09) |
 | Pre-фильтр файлов (скорость скана) | ✅ `6071d5d` (15.08) | ничего |
 | Packages split (core/cli/cloud) | ✅ 0.5.1–0.5.5 все запушены (`78222dc`,`e821e62`,`b29af60`,`b1cb6c6`) | ничего |
@@ -42,7 +42,7 @@
 | v0.21 | AST taint, cross-file chains, hard calibration | 17/17 |
 | v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
 
-**Итог (v1.3.0, 17.08):** 41 детектор, 276 тестов (60 файлов), calibration 13/13, schema 32, 147 модулей (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
+**Итог (v1.4.0, 17.08):** 42 детектора, 276 тестов (60 файлов), calibration 13/13, schema 33, 147 модулей (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
 
 ### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
 
@@ -226,7 +226,7 @@ S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
 
 > Первый замер `benchmark/PRECISION_REPORT.md`: **2 695 находок** на 10 проектах,
 > **precision CRITICAL ~8–12%** (129 CRITICAL, 244 HIGH). Это главный технический барьер
-> перед пилотами и инвесторами: «41 детектор» звучит мощно, но ~9 из 10 CRITICAL — FP.
+> перед пилотами и инвесторами: «42 детектора» звучит мощно, но ~9 из 10 CRITICAL — FP.
 
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|

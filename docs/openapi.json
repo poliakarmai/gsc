@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "GSC Cloud API",
-    "version": "1.3.0",
+    "version": "1.4.0",
     "description": "GSC Cloud API — multi-tenant SaaS (server.py). Single-tenant pilot: см. docs/PILOT_GUIDE.md."
   },
   "paths": {

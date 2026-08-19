@@ -21,7 +21,7 @@ GSC:     "4 proven vulnerabilities, auto-PR with fix attached"
 
 ## ✨ Features
 
-- **🔍 Scan** — 41 detectors: SAST + SCA + Secrets + IaC + DAST + LLM
+- **🔍 Scan** — 42 detectors: SAST + SCA + Secrets + IaC + DAST + LLM
 - **💥 PoC** — Auto-generated proof-of-concept for each vulnerability
 - **🔗 Exploit Chains** — Multi-step attack paths
 - **🔧 Auto-Fix** — One-click fix suggestions

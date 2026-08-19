@@ -2,7 +2,7 @@
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
 > **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
-> **Версия:** v1.3.0 | **Schema:** 33 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
+> **Версия:** v1.4.0 | **Schema:** 33 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
 > **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это

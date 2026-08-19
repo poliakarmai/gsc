@@ -3,7 +3,7 @@
 > Для: внешнего AI-агента для аудита кодовой базы
 > Автор: Море (Hermes orchestrator, профиль default)
 > Дата: 2026-08-13
-> Версия: v1.3.0 — AppSec Platform (числа → gsc_meta.py) (P0/P1/P2 + VSCode + Enterprise + SaaS S1–S4)
+> Версия: v1.4.0 — AppSec Platform (числа → gsc_meta.py) (P0/P1/P2 + VSCode + Enterprise + SaaS S1–S4)
 > Репозиторий: github.com/poliakarmai/gsc
 
 ## 1. Что это
@@ -53,7 +53,7 @@ detect → prove → fix → verify → heal → predict → learn.
 Слой 4: ОРКЕСТРАЦИЯ   — gsc_orchestrator.py (единый пайплайн)
 Слой 3: ЭКСКЛЮЗИВЫ    — PoF, Self-Healing, Archaeology, Forecast, NL Policy
 Слой 2: ПОВЕРХНОСТЬ   — SCA, Secrets, Compliance, IaC, EPSS, Federated, Benchmark, SBOM
-Слой 1: ЯДРО          — 41 детектор, PoC, Chains, Mutations, Invariants, Blocking
+Слой 1: ЯДРО          — 42 детектора, PoC, Chains, Mutations, Invariants, Blocking
 ФУНДАМЕНТ:            — SQLite, REST API, finding_key
 ```
 
@@ -61,7 +61,7 @@ detect → prove → fix → verify → heal → predict → learn.
 > CLI/оркестрация/эксклюзивы → `gsc_cli/`, SaaS/интерфейсы → `gsc_cloud/`.
 > Корневые `gsc_*.py` — shim'ы (re-export через `sys.modules`) для обратной совместимости.
 
-## 4. Текущее состояние (v1.3.0)
+## 4. Текущее состояние (v1.4.0)
 
 | Метрика | Значение | Проверено |
 |---------|----------|:---:|

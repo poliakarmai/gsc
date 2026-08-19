@@ -148,7 +148,7 @@ async def lifespan(_app):
     yield
 
 
-app = FastAPI(title="GSC Cloud API", version="1.3.0", docs_url="/docs", lifespan=lifespan)
+app = FastAPI(title="GSC Cloud API", version="1.4.0", docs_url="/docs", lifespan=lifespan)
 
 # CORS: explicit allowlist from env (audit S-04). No wildcard — a wildcard
 # combined with a cookie/API-key auth model enables cross-origin abuse.
@@ -465,7 +465,7 @@ def health():
     size = db_path.stat().st_size if db_path.exists() else 0
     return {
         "status": "ok",
-        "version": "1.3.0",
+        "version": "1.4.0",
         "timestamp": datetime.now(timezone.utc).isoformat(),
         "db_size_kb": round(size / 1024, 1),
         "detectors": _detector_count(),
@@ -1148,5 +1148,5 @@ if __name__ == "__main__":
     import uvicorn
     init_cloud_db()
     port = int(os.environ.get("PORT", 8000))
-    print(f"GSC Cloud API v1.3.0 starting on :{port}")
+    print(f"GSC Cloud API v1.4.0 starting on :{port}")
     uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")

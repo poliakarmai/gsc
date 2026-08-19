@@ -31,7 +31,7 @@ api (HPA 2→10), worker (2 реплики), dashboard+ingress. В `k8s/overlays
 
 ```bash
 helm install gsc ./helm \
-  --set image.tag=v1.3.0 \
+  --set image.tag=v1.4.0 \
   --set gsc.projects='["https://github.com/you/repo"]' \
   --set sso.enabled=false
 ```
