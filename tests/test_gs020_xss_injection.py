@@ -64,6 +64,21 @@ def test_ssti_request_args_fires(scan):
     assert any("SSTI" in t for t in _titles(fs))
 
 
+def test_innerhtml_variable_fires(scan):
+    # .innerHTML = <variable> is ambiguous — must NOT be suppressed. The variable
+    # may be attacker-controlled (pygoat a9.js `li.innerHTML = data.logs[i]`).
+    # Only static string literals are FP-suppressed (in _is_false_positive).
+    fs = scan({"app.js": "li.innerHTML = data.logs[i];\n"})
+    assert any(".innerHTML" in t for t in _titles(fs))
+
+
+def test_fstring_function_param_fires(scan):
+    # reflected XSS where the interpolated value arrives as a function argument
+    # (taint source lives in the caller, outside the context window) — must fire.
+    fs = scan({"web.py": "def render(name):\n    return f\"<div>{name}</div>\"\n"})
+    assert any("f-string" in t for t in _titles(fs))
+
+
 # ── OWASP seed: no "print() instead of logging" quality noise ──────────────
 
 def test_seed_has_no_print_instead_of_logging():

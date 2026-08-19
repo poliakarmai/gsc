@@ -73,7 +73,6 @@ XSS_PATTERNS: list[tuple[str, str, str]] = [
 HTML_INJECTION_PATTERNS: list[tuple[str, str, str]] = [
     (r'v-html\s*=', "HTML Injection: Vue v-html directive — use v-text", "MEDIUM"),
     (r'ng-bind-html\s*=', "HTML Injection: Angular ng-bind-html", "MEDIUM"),
-    (r'RichText|rich.?text|WYSIWYG', "Potential HTML Injection: rich text editor output", "INFO"),
 ]
 
 # ── Files to scan ─────────────────────────────────────────────────────────────
@@ -117,6 +116,31 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 context = '\n'.join(lines[context_start:context_end])
                 adjusted_severity = _adjust_xss_severity(severity, pattern, context)
 
+                # Suppress reflected-XSS with no taint and no sanitizer —
+                # framework-internal rendering (error pages, debuggers, test apps).
+                # BUT preserve TP: if the interpolated var is a function parameter,
+                # it may be user-controlled upstream — downgrade instead of suppress.
+                if adjusted_severity == "_SUPPRESS":
+                    var = _interpolated_var(snippet, pattern)
+                    if var and _is_function_parameter(content, line_no, var):
+                        adjusted_severity = {"CRITICAL": "HIGH", "HIGH": "MEDIUM"}.get(severity, severity)
+                    else:
+                        continue
+
+                # SSTI: env.from_string(<bare_lowercase_id>) with no taint is a
+                # library-internal API call (jinja's own from_string), not user
+                # input. render_template_string is NOT suppressed — a bare id
+                # there (e.g. render_template_string(user_input)) is a TP.
+                if pattern == r'env\.from_string\s*\(':
+                    m = re.search(r'from_string\s*\(\s*([a-z_]\w*)', snippet)
+                    if m and not _has_tainted_source(context) and not _has_xss_sanitizer(context):
+                        continue
+
+                # DOM XSS: .innerHTML/.outerHTML = <variable> is ambiguous — the
+                # variable may be attacker-controlled (e.g. pygoat a9.js
+                # `li.innerHTML = data.logs[i]`). Static string literals are
+                # already suppressed in _is_false_positive; a variable is NOT
+                # suppressed (it is a potential TP, kept as-is).
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=adjusted_severity,
@@ -249,7 +273,8 @@ def _has_tainted_source(context: str) -> bool:
 
 # Reflected-XSS patterns are HTML interpolation where a taint source must be
 # present to justify HIGH/CRITICAL. Without taint they are a weak signal.
-_REFLECTED_PATTERN_MARKERS = ('.format(', '%s', '${', 'f"', "f'")
+# NOTE: f-string patterns are `f["']...`, so the marker is `f[` (not `f"`/`f'`).
+_REFLECTED_PATTERN_MARKERS = ('.format(', '%s', '${', 'f[')
 
 
 def _adjust_xss_severity(
@@ -266,10 +291,38 @@ def _adjust_xss_severity(
             return "HIGH"     # tainted source, no sanitizer — escalate
         return severity
     # No taint, no sanitizer: HTML interpolation without confirmed user input
-    # is a weak signal — downgrade reflected-XSS patterns one level.
+    # is framework-internal rendering (error pages, debuggers, test apps), not an
+    # XSS sink — suppress. Real reflected XSS requires attacker-controlled input
+    # reaching the sink. Sentinel "_SUPPRESS" is handled by detect().
     if any(m in pattern for m in _REFLECTED_PATTERN_MARKERS):
-        return {"CRITICAL": "HIGH", "HIGH": "MEDIUM"}.get(severity, severity)
+        return "_SUPPRESS"
     return severity
+
+
+def _interpolated_var(snippet: str, pattern: str) -> str:
+    """Return the interpolated identifier from an f-string/format HTML snippet."""
+    m = re.search(r'\{([a-zA-Z_]\w*)\}', snippet)
+    return m.group(1) if m else ""
+
+
+def _is_function_parameter(content: str, line_no: int, var: str) -> bool:
+    """True if `var` is a parameter of the nearest enclosing `def` above line_no.
+
+    Preserves TP for reflected XSS where the interpolated value arrives as a
+    function argument (e.g. `def render(name): return f"<div>{name}</div>"`) —
+    the taint source lives in the caller, outside this file's context window.
+    """
+    lines = content.split("\n")
+    # line_no is 1-indexed; lines[] is 0-indexed, so the line above is
+    # lines[line_no-2]. Walk upward from there (up to 60 lines).
+    start = max(0, line_no - 2)
+    stop = max(-1, line_no - 62)
+    for i in range(start, stop, -1):
+        m = re.search(r'def\s+\w+\s*\(([^)]*)\)', lines[i])
+        if m:
+            params = re.findall(r'[a-zA-Z_]\w*', m.group(1))
+            return var in params
+    return False
 
 
 def _cvss_for_severity(severity: str) -> str:
