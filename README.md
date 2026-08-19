@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 42 (38 registry + 4 engines) · **Schema:** v33 · **Modules:** 148
+**Version:** v1.4.0 · **Detectors:** 42 (38 registry + 4 engines) · **Schema:** v33 · **Modules:** 153
 <!-- GSC-META-END -->
 
 
@@ -212,7 +212,7 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
-└── SQLite DB — schema 32, WAL, hashed-only secret fingerprinting
+└── SQLite DB — schema 33, WAL, hashed-only secret fingerprinting
 ```
 
 > **Packages:** `gsc_core/` (engine) · `gsc_cli/` (CLI + scanners) · `gsc_cloud/` (SaaS API).

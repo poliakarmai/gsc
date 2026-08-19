@@ -22,7 +22,7 @@ Predictive Forecasting, Federated Learning.
 gsc/
 ├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
 ├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
-├── gsc_meta.py                   ← SSOT: 147 модулей, 42 детектора, schema 33
+├── gsc_meta.py                   ← SSOT: 153 модуля, 42 детектора, schema 33
 ├── gsc_core/                     ← движок (13): db, blocking, detectors/, invariant_engine,
 │                                   compliance, sca, epss, federated, ast_dataflow, iac,
 │                                   secrets_core, yaml_rules
@@ -45,7 +45,7 @@ gsc/
 ├── calibration/                  ← 13 проектов (9 clean + 4 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics, reconcile
 ├── cloud/                        ← deploy-артефакты (Dockerfile, k8s-манифесты)
-├── tests/                        ← 276 тестов (60 файлов)
+├── tests/                        ← 426 тестов (75 файлов)
 ├── .pre-commit-hooks.yaml        ← pre-commit hook (gsc-scan)
 ├── .pre-commit-config.yaml       ← self-check pre-commit
 └── PROJECT.md AGENTS.md README.md

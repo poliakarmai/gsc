@@ -43,7 +43,7 @@ GSC — AppSec-платформа с полным циклом
 |--------|------|
 | `gsc.py` | CLI (50+ команд), entrypoint `gsc` |
 | `gsc_orchestrator.py` | master orchestrator |
-| `gsc_db.py` / `gsc_db_backend.py` | SQLite (schema 32, auto-migrate) / PgBackend |
+| `gsc_db.py` / `gsc_db_backend.py` | SQLite (schema 33, auto-migrate) / PgBackend |
 | `gsc_pof_sandbox.py` | изолированное исполнение PoC (container-first, fail-closed) |
 | `gsc_verify_fix.py` | Proof-of-Fix: tests + DAST, `StageOutcome` NOT_RUN/PASSED/FAILED |
 | `gsc_scan_worker.py` | out-of-process scan worker (очередь scan_jobs) |
@@ -82,7 +82,7 @@ finding → fix → gsc_verify_fix:
   insert_id/close`), переключается через `GSC_DATABASE_URL`. `server.py` (SQLite
   local) и `cloud/` (PG prod) — один cloud contour на уровне storage.
 - **SQLite** (default, dev): `~/.hermes/state/gsc_audit.db` (CLI) и
-  `~/.gsc/gsc_cloud.db` (server). WAL, schema 32, auto-migrate v23→v32.
+  `~/.gsc/gsc_cloud.db` (server). WAL, schema 33, auto-migrate v23→v33.
 - **PostgreSQL** (production): `GSC_DATABASE_URL`, enterprise схема `cloud/schema_s1.sql`
   (RLS FORCE, FK, composite UNIQUE). Миграция SQLite→PG: `scripts/gsc_pg_migrate.py`.
 

@@ -3,7 +3,7 @@
 > Статус: **план согласован на исполнение 0.5.1**
 > Дата: 2026-08-17
 > Автор: Море (Hermes)
-> SSOT чисел: `python3 gsc_meta.py` (v1.4.0, 42 детектора, schema 33, 114 модулей)
+> SSOT чисел: `python3 gsc_meta.py` (v1.4.0, 42 детектора, schema 33, 153 модуля)
 
 ---
 
@@ -109,7 +109,7 @@ gsc_X.py (корень)       ← shim 5 строк: sys.modules alias → gsc_c
 
 ### Шаг 0. Подготовка
 - [ ] `git -C ~/gsc status` — чисто, либо зафиксировать текущее.
-- [ ] Снимок baseline: `python3 gsc_meta.py` (сохранить 114 модулей) + `pytest -q` (276 passed).
+- [ ] Снимок baseline: `python3 gsc_meta.py` (сохранить 153 модуля) + `pytest -q` (426 passed).
 - [ ] Бэкап: `scripts/gsc_backup.py` (или tar корня без .git).
 
 ### Шаг 1. `gsc_db` (фундамент, 23 импортёра)
@@ -144,10 +144,10 @@ gsc_X.py (корень)       ← shim 5 строк: sys.modules alias → gsc_c
 
 ### Шаг 6. Финальная верификация 0.5.1
 - [ ] `python3 -m compileall gsc_core/` — без ошибок.
-- [ ] `pytest -q` — полный прогон (276 tests, ожидание 0 failed).
+- [ ] `pytest -q` — полный прогон (426 tests, ожидание 0 failed).
 - [ ] `python3 scripts/gsc_reconcile.py` — version/detectors/schema совпадают.
 - [ ] Живой smoke: `python3 gsc.py --version`, `python3 gsc.py external-scan --help`.
-- [ ] `python3 gsc_meta.py` → modules остаётся 114 (shim не создаёт новых, перенос не теряет).
+- [ ] `python3 gsc_meta.py` → modules остаётся 153 (shim не создаёт новых, перенос не теряет).
 - [ ] Проверить cron-скрипты `_cron_collect.py`, `_cron_nvd.py` (`import gsc_db` работает).
 
 ---
@@ -170,7 +170,7 @@ gsc_X.py (корень)       ← shim 5 строк: sys.modules alias → gsc_c
 | Циклический импорт через shim-пакет gsc_detectors | Относительные импорты внутри детекторов устраняют самовызов через shim. Проверка `import gsc_detectors` на каждом шаге. |
 | Сломанный `import gsc_db` у 23 потребителей | Shim-модуль = прозрачный alias, потребители не правятся. Проверка `python3 -c "import gsc_db"`. |
 | registry.py пропустит детектор при правке | Авто-скрипт + ручная сверка списка 39 импортов + `len(get_detectors())==41`. |
-| Регрессия в 276 тестах | Полный pytest после каждого шага; при падении — `git checkout` конкретного файла. |
+| Регрессия в 426 тестах | Полный pytest после каждого шага; при падении — `git checkout` конкретного файла. |
 
 **Откат:** любой шаг обратим через `git checkout -- <файлы>` (перенос = `git mv`, shim = новый файл). Полный откат = `git reset --hard` до снапшота Шага 0.
 
@@ -189,8 +189,8 @@ gsc_X.py (корень)       ← shim 5 строк: sys.modules alias → gsc_c
 
 - [ ] Все 9 движков физически в `gsc_core/`, корневые shim на месте.
 - [ ] `from gsc_detectors.registry import get_detectors` возвращает 41.
-- [ ] Полный `pytest -q` = 276 passed, 0 failed.
+- [ ] Полный `pytest -q` = 426 passed, 0 failed.
 - [ ] `gsc_reconcile.py` — OK (version/detectors/schema).
 - [ ] `compileall gsc_core/` — чисто.
 - [ ] Живой smoke `gsc.py` и cron-скрипты не сломаны.
-- [ ] `gsc_meta.py` modules = 114.
+- [ ] `gsc_meta.py` modules = 153.
