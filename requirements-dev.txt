@@ -11,7 +11,9 @@ pytest-cov==7.1.0
 fakeredis==2.37.0
 fastmcp==3.4.7
 
-# cloud/SaaS dev (sso, marketplace, redis)
+# cloud/SaaS dev (sso, marketplace, redis, billing RBAC test)
 Authlib==1.7.2
 redis==8.1.0
 requests==2.33.0
+stripe==15.4.0
+fastapi==0.139.0
