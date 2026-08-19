@@ -8,7 +8,7 @@ import json, subprocess, sys
 from pathlib import Path
 from collections import Counter
 
-GSC = "/home/openclaw/gsc"
+GSC = str(Path(__file__).resolve().parent.parent)   # repo root
 CAL = "/tmp/gsc-calibration"
 
 projects = [

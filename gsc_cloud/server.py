@@ -875,9 +875,11 @@ def dashboard(tid: int = Depends(get_tenant_from_key), db=Depends(get_db)):
             stats["last_scan"] = {"project": last["project"], "at": last["started_at"],
                                  "findings": last["total_findings"]}
 
-        # PR stats
+        # PR stats — GSC-004: tenant-scoped like findings
         try:
-            stats["prs_created"] = db.fetchone("SELECT COUNT(*) FROM published_comments")[0]
+            stats["prs_created"] = db.fetchone(
+                "SELECT COUNT(*) FROM published_comments WHERE tenant_id = ?", (tid,)
+            )[0]
         except Exception:
             stats["prs_created"] = 0
         # Findings stats — GSC-004: tenant-scoped via the cloud DB (which has
@@ -931,13 +933,13 @@ def dashboard(tid: int = Depends(get_tenant_from_key), db=Depends(get_db)):
         except Exception:
             stats["fixed_count"] = 0
 
-        # PR feedback
+        # PR feedback — GSC-004: tenant-scoped like findings
         try:
             rows = db.query("""
                 SELECT repo, pr_number, pr_state, author_response, comment_count,
                        reactions_json, merged, checked_at
-                FROM pr_feedback ORDER BY checked_at DESC LIMIT 10
-            """)
+                FROM pr_feedback WHERE tenant_id = ? ORDER BY checked_at DESC LIMIT 10
+            """, (tid,))
             stats["pr_feedback"] = [dict(r) for r in rows]
         except Exception:
             stats["pr_feedback"] = []

@@ -13,10 +13,11 @@ from pathlib import Path
 from urllib.parse import quote
 
 CORPUS = Path(__file__).resolve().parent
-GSC = Path.home() / "gsc" / "gsc.py"
+REPO = CORPUS.parent.parent          # repo root (gsc/)
+GSC = REPO / "gsc.py"
 PY = sys.executable
 
-sys.path.insert(0, str(Path.home() / "gsc"))
+sys.path.insert(0, str(REPO))
 
 
 def scan(app_dir) -> list:

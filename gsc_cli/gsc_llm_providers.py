@@ -39,6 +39,10 @@ _DEEPSEEK_BASE = "https://api.deepseek.com/v1"
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
 
+class _NonRetryableError(RuntimeError):
+    """HTTP 4xx / config error — retrying won't help (bad key, bad model)."""
+
+
 @dataclass
 class LLMProvider:
     """A single OpenAI-compatible chat-completions provider."""
@@ -69,8 +73,10 @@ class LLMProvider:
             "temperature": temperature,
         }
         url = self.base_url.rstrip("/") + "/chat/completions"
-        resp = requests.post(url, headers=headers, json=body, timeout=self.timeout)
+        resp = requests.post(url, headers=headers, json=body, timeout=(5, self.timeout))
         if resp.status_code != 200:
+            if 400 <= resp.status_code < 500:
+                raise _NonRetryableError(f"{self.name} HTTP {resp.status_code}")
             raise RuntimeError(f"{self.name} HTTP {resp.status_code}: {resp.text[:200]}")
         try:
             return resp.json()["choices"][0]["message"]["content"]
@@ -94,6 +100,8 @@ class LLMProviderManager:
             for attempt in range(retries):
                 try:
                     return self.active.chat(system, user, max_tokens, temperature)
+                except _NonRetryableError:
+                    break
                 except Exception:
                     if attempt < retries - 1:
                         time.sleep(2 ** attempt)
@@ -201,3 +209,30 @@ def llm_chat(system: str, user: str, max_tokens: int = 800,
              temperature: float = 0.1) -> Optional[str]:
     """One-shot convenience: call the default provider chain."""
     return get_manager().chat(system, user, max_tokens, temperature)
+
+
+def llm_chat_with_deadline(system: str, user: str, max_tokens: int = 800,
+                           temperature: float = 0.1, deadline: float = 10.0) -> Optional[str]:
+    """Best-effort LLM call with a hard wall-clock deadline.
+
+    ``llm_chat``'s timeout is per-read (a chunked response can trickle bytes and
+    defeat it) and ``LLMProviderManager.chat`` retries with backoff. A slow or
+    unreachable LLM must never hang the scan, so enforce an overall deadline on a
+    daemon thread and degrade to regex-only (None) on timeout/error. Daemon thread
+    means a stuck provider never blocks process exit either.
+    """
+    import threading
+    import queue
+    q = queue.Queue(maxsize=1)
+
+    def _run():
+        try:
+            q.put(llm_chat(system, user, max_tokens, temperature))
+        except Exception:
+            q.put(None)
+
+    threading.Thread(target=_run, daemon=True).start()
+    try:
+        return q.get(timeout=deadline)
+    except queue.Empty:
+        return None

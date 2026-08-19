@@ -27,6 +27,7 @@ import os, sys, json, sqlite3, uuid, time, threading, re
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
+from urllib.parse import urlparse
 import subprocess
 
 try:
@@ -149,6 +150,34 @@ def _enforce_loopback(host: str) -> None:
         "or set GSC_LEGACY_ALLOW_REMOTE=1 to accept the risk explicitly."
     )
 
+
+ALLOWED_GIT_HOSTS = {
+    h.strip().lower() for h in os.environ.get(
+        "GSC_ALLOWED_GIT_HOSTS", "github.com,gitlab.com,bitbucket.org"
+    ).split(",") if h.strip()
+}
+
+
+def _validate_target(target: str) -> None:
+    """Reject SSRF-prone git targets (audit S-09, parity with server.py).
+
+    Local paths (no scheme) are allowed — this legacy API is a self-hosted,
+    single-tenant local wrapper. Anything with a scheme must be https:// to a
+    known public host; file://, ssh://, git://, credentials-in-URL and
+    private/link-local hosts are rejected up front so an arbitrary target
+    can't be used as an SSRF/egress primitive.
+    """
+    parsed = urlparse(target)
+    if not parsed.scheme:
+        return  # local path — self-hosted scan, operator-controlled
+    if parsed.scheme != "https":
+        raise HTTPException(400, "Only https:// git targets (or local paths) are allowed")
+    host = (parsed.hostname or "").lower()
+    if not host or host not in ALLOWED_GIT_HOSTS:
+        raise HTTPException(400, "Target host is not in the allowlist")
+    if parsed.username or parsed.password:
+        raise HTTPException(400, "Credentials in the target URL are not allowed")
+
 # ── Helpers ───────────────────────────────────────────────
 
 def _db_query(sql: str, params: tuple = ()) -> list[dict]:
@@ -265,6 +294,7 @@ async def health():
 async def scan(req: ScanRequest, bg: BackgroundTasks, x_api_key: str = Header(..., alias="x-api-key")):
     """Trigger a security scan. Returns scan_id immediately, runs in background."""
     verify_api_key(x_api_key)
+    _validate_target(req.target)
     scan_id = uuid.uuid4().hex[:12]
     _save_scan_state(scan_id, {"scan_id": scan_id, "status": "queued",
                                  "target": req.target, "profile": req.profile,

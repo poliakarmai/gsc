@@ -15,6 +15,35 @@ from typing import Any, Dict
 # Scan mode definitions — override existing profile settings
 # ---------------------------------------------------------------------------
 SCAN_MODES: Dict[str, Dict[str, Any]] = {
+    "ci": {
+        "description": "Детерминированный (regex-only) для calibration/CI: все правила, CRITICAL+HIGH, без LLM/PoC/chains.",
+        "llm_enabled": False,
+        "llm_max_calls": 0,
+        "llm_severities": [],
+        "block_min_severity": "HIGH",
+        "block_min_confidence": 0.80,
+        "warn_min_severity": "MEDIUM",
+        "warn_min_confidence": 0.60,
+        "show_uncertain": False,
+        "disabled_rules_extra": [],
+        "chain_budget": 0,
+        "poc_budget": 0,
+    },
+    "calibrate": {
+        "description": "Для calibration: LLM revalidate (confidence-boost), без PoC/rejudge/chains — детерминированный recall.",
+        "llm_enabled": True,
+        "llm_max_calls": 20,
+        "llm_severities": ["CRITICAL", "HIGH"],
+        "block_min_severity": "HIGH",
+        "block_min_confidence": 0.80,
+        "warn_min_severity": "MEDIUM",
+        "warn_min_confidence": 0.60,
+        "show_uncertain": False,
+        "disabled_rules_extra": [],
+        "chain_budget": 0,
+        "poc_budget": 0,
+        "rejudge_enabled": False,
+    },
     "quick": {
         "description": "Быстрая проверка — только CRITICAL, без LLM, 5 сек. Для CI/PR-быстро.",
         "llm_enabled": False,
@@ -77,6 +106,7 @@ def apply_scan_mode(profile: Dict[str, Any], scan_mode: str) -> Dict[str, Any]:
         "block_min_severity", "block_min_confidence",
         "warn_min_severity", "warn_min_confidence",
         "show_uncertain", "chain_budget", "poc_budget",
+        "rejudge_enabled",
     ):
         if key in mode:
             result[key] = mode[key]

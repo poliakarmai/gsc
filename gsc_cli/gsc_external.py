@@ -24,7 +24,7 @@ Usage:
   gsc feedback <id> --verdict fp --reason "..."
 """
 
-import os, sys, json, subprocess, tempfile, shutil, re, hashlib
+import os, sys, json, subprocess, tempfile, shutil, re, hashlib, time
 from pathlib import Path
 from datetime import datetime, timezone
 from dataclasses import dataclass, field, asdict
@@ -1136,6 +1136,9 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         return sev.get(f.get("category", "LOW"), 4)
     raw_findings.sort(key=_sort_key)
 
+    # Hard wall-clock budget for LLM revalidation: a slow/unreachable LLM must
+    # degrade to regex-only, never hang the scan (audit A-02b).
+    llm_budget_deadline = time.monotonic() + 60.0
     for f in raw_findings:
         fp = f.get("file_path", "")
         fp_abs = target_path / fp if not fp.startswith("/") else Path(fp)
@@ -1146,7 +1149,8 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         if rule in policy.get("disabled_rules", []):
             continue
         # LLM revalidate (audit A-02: honor use_llm_flag, not just policy)
-        if use_llm_flag and policy.get("llm_enabled") and llm_calls < max_llm:
+        if use_llm_flag and policy.get("llm_enabled") and llm_calls < max_llm \
+                and time.monotonic() < llm_budget_deadline:
             if f.get("category") in policy.get("llm_severities", ["CRITICAL", "HIGH"]):
                 f = _revalidate(f, target_path, policy.get("llm_severities"))
                 llm_calls += 1
@@ -1157,7 +1161,7 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
 
     # Step 4.5: Rejudge multi-model consensus on top CRITICAL (if available)
     rejudge_count = 0
-    if policy.get("rejudge_enabled", True):
+    if policy.get("rejudge_enabled", True) and use_llm_flag:
         try:
             from gsc_rejudge import revalidate_findings as rejudge_findings
             critical_enriched = [f for f in enriched if f.get("category") == "CRITICAL"][:5]
@@ -1167,7 +1171,18 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
                     json.dump({"findings": critical_enriched}, tmp)
                     tmp_path = tmp.name
-                rej_result = rejudge_findings(tmp_path)
+                import threading, queue
+                _q = queue.Queue(maxsize=1)
+                def _rej():
+                    try:
+                        _q.put(rejudge_findings(tmp_path))
+                    except Exception:
+                        _q.put({})
+                threading.Thread(target=_rej, daemon=True).start()
+                try:
+                    rej_result = _q.get(timeout=30.0)
+                except queue.Empty:
+                    rej_result = {}
                 os.unlink(tmp_path)
                 rejudge_count = rej_result.get("revalidated", 0)
                 # Boost confidence for findings Rejudge confirmed
@@ -1217,7 +1232,18 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
         print(f"   Generating PoCs (budget: {poc_budget})...")
         try:
             from gsc_poc_generator import attach_pocs
-            enriched = attach_pocs(enriched, source_map, budget=poc_budget)
+            import threading, queue
+            _q = queue.Queue(maxsize=1)
+            def _poc():
+                try:
+                    _q.put(attach_pocs(enriched, source_map, budget=poc_budget))
+                except Exception:
+                    _q.put(enriched)
+            threading.Thread(target=_poc, daemon=True).start()
+            try:
+                enriched = _q.get(timeout=45.0)
+            except queue.Empty:
+                pass  # keep regex-only enriched (PoC best-effort)
             poc_generated = sum(1 for f in enriched if f.get("metadata", {}).get("poc"))
             poc_failed = sum(1 for f in enriched if f.get("metadata", {}).get("poc_failed"))
             print(f"   PoCs: {poc_generated} generated, {poc_failed} failed (confidence penalized)")
@@ -1388,7 +1414,7 @@ def _revalidate(finding: dict, project_path: Path, severities=None) -> dict:
     if not snippet:
         return f
 
-    from gsc_llm_providers import llm_chat
+    from gsc_llm_providers import llm_chat_with_deadline
 
     try:
         safe_snippet = redact(snippet[:2000])
@@ -1409,7 +1435,7 @@ Reply JSON: {{"verdict":"true-positive"|"false-positive"|"uncertain","confidence
 
 RULES: localhost/127.0.0.1 defaults → false-positive. Test files/docs → false-positive. Placeholders → false-positive. Real secrets/injection in production code → true-positive."""
 
-        content = llm_chat("Security auditor. JSON only.", prompt, max_tokens=300, temperature=0.1)
+        content = llm_chat_with_deadline("Security auditor. JSON only.", prompt, 300, 0.1)
         if content:
             sj, ej = content.find("{"), content.rfind("}") + 1
             if sj >= 0 and ej > sj:
@@ -1437,7 +1463,7 @@ def main():
     scan.add_argument("target", help="GitHub URL or local path")
     scan.add_argument("--profile", choices=list(PROFILES.keys()), default="developer-review")
     scan.add_argument("--mode", choices=["full", "diff", "pr"])
-    scan.add_argument("--scan-mode", choices=["quick", "standard", "deep"], default="standard")
+    scan.add_argument("--scan-mode", choices=["quick", "standard", "deep", "ci", "calibrate"], default="standard")
     scan.add_argument("--ref", default="main")
     scan.add_argument("--base", default="", help="Base ref for diff mode (e.g. origin/main)")
     scan.add_argument("--head", default="HEAD", help="Head ref for diff mode")

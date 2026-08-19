@@ -145,6 +145,7 @@ def run_calibration(dataset_path: str = None, fail_on_regression: bool = False,
             r = subprocess.run(
                 [sys.executable, str(GSC_EXTERNAL), "scan", str(target),
                  "--profile", "developer-review",
+                 "--scan-mode", "calibrate",
                  "--format", "json"],
                 capture_output=True, text=True, timeout=300
             )

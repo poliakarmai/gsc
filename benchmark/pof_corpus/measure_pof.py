@@ -14,7 +14,7 @@ import json, subprocess, sys, time
 from pathlib import Path
 
 CORPUS = Path(__file__).resolve().parent
-GSC = Path.home() / "gsc" / "gsc.py"
+GSC = CORPUS.parent.parent / "gsc.py"   # repo root / gsc.py
 PY = sys.executable
 
 # rule_id с deterministic PoC (не требует LLM)

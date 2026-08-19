@@ -75,6 +75,13 @@ py-modules = [
     "gsc_shadow_manager", "gsc_spdx", "gsc_supply_chain_chains",
     "gsc_threat_model", "gsc_verify_fix", "gsc_workspace", "gsc_xss_poc",
     "gsc_yaml_rules",
+    # 0.5.x shim re-exports (top-level -> gsc_cli/gsc_core). MUST ship in the
+    # wheel: gsc attack-graph / fix-quality / sla / correlate / scorecard /
+    # business-risk import these lazily from gsc_cli/main.py and crash with
+    # ModuleNotFoundError on a clean `pip install gsc-security` if absent.
+    "gsc_attack_graph", "gsc_business_risk", "gsc_correlate", "gsc_correlation",
+    "gsc_fix_quality", "gsc_poc_watermark", "gsc_runtime_validator",
+    "gsc_scorecard", "gsc_sla",
 ]
 
 [tool.setuptools.packages.find]

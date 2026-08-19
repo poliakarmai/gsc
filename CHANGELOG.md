@@ -76,7 +76,7 @@
 - **Dead code removed**: `ORIGINAL_PATTERNS` in crossrepo, inverted PoF logic
 
 ### Quality
-- **Calibration**: 10/10 projects (was 9/10 before IaC integration)
+- **Calibration**: 13/13 projects (9 clean + 4 vulnerable) — fixed scan hang on slow LLM (hard deadlines for revalidate/rejudge/PoC; new `ci`/`calibrate` scan-modes)
 - **Tests**: 25/27 Python OK + 6 pipeline-refactor tests + 10/10 Enterprise + 7/7 VSCode
 - **Metadata**: `gsc_meta.py` — single source of truth for detectors/schema/modules count
 - **Docs synced**: PROJECT.md and AGENTS.md reference `gsc_meta.py` instead of hardcoded numbers

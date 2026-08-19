@@ -1,10 +1,16 @@
--- Роль приложения БЕЗ superuser — иначе RLS молча не применяется
+-- Роль приложения БЕЗ superuser — иначе RLS молча не применяется.
+-- Пароль инжектится из env контейнера GSC_APP_PASSWORD через psql \set
+-- (backtick-shell). Fail-closed (GSC-007): дефолтного секрета в репо нет —
+-- если GSC_APP_PASSWORD не задан, роль создаётся БЕЗ пароля (логин запрещён),
+-- а не с предсказуемым dev_app_pw.
+\set gsc_pw `echo "${GSC_APP_PASSWORD:-}"`
+
 DO $$
 BEGIN
    IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'gsc_app') THEN
-      CREATE ROLE gsc_app LOGIN PASSWORD 'dev_app_pw';
+      CREATE ROLE gsc_app LOGIN PASSWORD :'gsc_pw';
    ELSE
-      ALTER ROLE gsc_app PASSWORD 'dev_app_pw';
+      ALTER ROLE gsc_app PASSWORD :'gsc_pw';
    END IF;
 END $$;
 

@@ -7,6 +7,8 @@ services:
       # GSC-007: fail-closed — no insecure default password. `:?` makes
       # `docker compose up` refuse to start without an explicit PG_PASSWORD.
       POSTGRES_PASSWORD: ${PG_PASSWORD:?PG_PASSWORD is required — set in cloud/.env (see .env.example)}
+      # gsc_app role password, injected into bootstrap_roles.sql via psql \set.
+      GSC_APP_PASSWORD: ${GSC_APP_PASSWORD:?GSC_APP_PASSWORD is required — set in cloud/.env (see .env.example)}
     ports:
       - "127.0.0.1:5432:5432"
     volumes:
