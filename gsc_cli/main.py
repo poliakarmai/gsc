@@ -2473,6 +2473,21 @@ def main():
         + (['--enrich-report', a.enrich_report] if getattr(a,'enrich_report',None) else [])
         + (['--output', a.output] if getattr(a,'output',None) else [])))
 
+    # gsc business-risk (приоритизация по бизнес-контексту)
+    p_brisk = sub.add_parser('business-risk', help='Prioritise findings by business risk')
+    p_brisk.add_argument('scan_json', help='scan.json (findings)')
+    p_brisk.add_argument('--chains-json', help='chains.json (ChainComposer output)')
+    p_brisk.add_argument('--critical-paths', help='comma-separated extra critical paths')
+    p_brisk.add_argument('--output', '-o')
+    p_brisk.add_argument('--top', type=int, default=10)
+
+    # gsc scorecard (per-developer security score)
+    p_score = sub.add_parser('scorecard', help='Per-developer security scorecard')
+    p_score.add_argument('--repo', default='.')
+    p_score.add_argument('--project', help='project name in findings DB')
+    p_score.add_argument('--limit', type=int, default=200)
+    p_score.add_argument('--json', action='store_true')
+
     # gsc sbom (v0.33: CycloneDX + VEX)
     p_sbom = sub.add_parser('sbom', help='Generate SBOM + VEX (v0.33)')
     p_sbom.add_argument('--repo', default='.')
@@ -2789,6 +2804,26 @@ def main():
                args.sast_report, args.dast_report]
         if hasattr(args, 'output') and args.output:
             cmd += ["--output", args.output]
+        if getattr(args, 'json', False):
+            cmd += ["--json"]
+        subprocess.run(cmd)
+
+    elif args.command == "business-risk":
+        cmd = [sys.executable, str(_GSC_ROOT / "gsc_business_risk.py"), args.scan_json]
+        if getattr(args, 'chains_json', None):
+            cmd += ["--chains-json", args.chains_json]
+        if getattr(args, 'critical_paths', None):
+            cmd += ["--critical-paths", args.critical_paths]
+        if getattr(args, 'output', None):
+            cmd += ["--output", args.output]
+        cmd += ["--top", str(getattr(args, 'top', 10))]
+        subprocess.run(cmd)
+
+    elif args.command == "scorecard":
+        cmd = [sys.executable, str(_GSC_ROOT / "gsc_scorecard.py"),
+               "--repo", args.repo, "--limit", str(args.limit)]
+        if getattr(args, 'project', None):
+            cmd += ["--project", args.project]
         if getattr(args, 'json', False):
             cmd += ["--json"]
         subprocess.run(cmd)
