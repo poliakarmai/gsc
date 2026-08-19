@@ -122,13 +122,15 @@ DASH_URL = os.environ.get("GSC_DASHBOARD_URL", "http://localhost:3000")
 @billing_router.post("/api/v2/billing/checkout")
 def checkout(request: Request, body: dict):
     from gsc_cloud.dash_api import _ctx
-    _, tid = _ctx(request)
+    uid, tid = _ctx(request)
     db = control_plane()
     row = db.fetchone(
         "SELECT role FROM memberships WHERE user_id = ? AND tenant_id = ?",
-        (None, tid))  # _ctx already verified membership
-    # role check: only owner/security
-    # (simplified: _ctx already validates; we trust the tenant context)
+        (uid, tid))
+    # GSC-05: enforce billing role — only owner/security may create checkout
+    role = row["role"] if row else None
+    if role not in ("owner", "security"):
+        raise HTTPException(403, "insufficient role for billing checkout")
     url = billing.create_checkout(
         control_plane(tid), tid, body["plan"], int(body.get("seats", 1)),
         success_url=f"{DASH_URL}/billing?ok=1",

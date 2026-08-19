@@ -85,7 +85,7 @@ py-modules = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["gsc_core*", "gsc_cli*", "gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
+include = ["gsc_core*", "gsc_cli*", "gsc_cloud*", "gsc_detectors*", "cloud*", "gsc_collector*", "scripts*", "enterprise*"]
 exclude = ["tests*", "benchmark*", "calibration*", "build*", "dist*", "OWASPBenchmark*", "HuixiangDou*", "gsc-vscode*", "example_projects*"]
 
 # GSC roadmap 6.3: pytest markers — чтобы можно было селективно запускать

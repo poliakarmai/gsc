@@ -18,8 +18,8 @@ spec:
       containers:
         - name: worker
           image: ghcr.io/poliakarmai/gsc-cloud:latest
-          imagePullPolicy: Always
-          command: ["python", "-m", "cloud.worker"]
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "gsc_cloud.worker"]
           envFrom:
             - secretRef:
                 name: gsc-secrets

@@ -421,6 +421,22 @@ async def submit_feedback(req: FeedbackRequest, request: Request):
 
     return {"status": "ok", "finding_key": req.finding_key, "verdict": verdict}
 
+def _latest_calibration() -> Optional[str]:
+    """GSC-04b: report latest calibration result from a signed report, never a
+    hardcoded literal. Returns 'N/M' + status, or None when no report exists."""
+    try:
+        root = Path(__file__).resolve().parent.parent
+        reports = sorted(root.glob("calibration/reports/*/calibration_report.json"),
+                         key=lambda p: p.stat().st_mtime, reverse=True)
+        if not reports:
+            return None
+        data = json.loads(reports[0].read_text(encoding="utf-8"))
+        passed, total, failed = data.get("passed", 0), data.get("total", 0), data.get("failed", 1)
+        return f"{passed}/{total}{' ✅' if failed == 0 else ' ⚠️'}"
+    except Exception:
+        return None
+
+
 @app.get("/api/v1/metrics", dependencies=[Depends(verify_api_key)])
 async def get_metrics():
     """Rollout metrics."""
@@ -433,8 +449,8 @@ async def get_metrics():
         "total_findings": findings[0]["cnt"] if findings else 0,
         "total_patterns": patterns[0]["cnt"] if patterns else 0,
         "revalidated": revalidated[0]["cnt"] if revalidated else 0,
-        "calibration": "14/14 ✅",
-        "corpus_tests": "8/8 ✅",
+        "calibration": _latest_calibration() or "N/A",
+        "corpus_tests": "N/A",  # GSC-04b: removed hardcoded "8/8" claim
         "rollout_phase": "warn-only",
         "last_scan": last_scan[0].stem if last_scan else None,
     }

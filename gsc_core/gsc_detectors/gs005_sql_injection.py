@@ -128,7 +128,6 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
     (r'text\s*\(\s*["\'].*\{.*\}.*["\']\s*\.format\s*\(', "SQLAlchemy text() with .format()", "python", False),
     (r'text\s*\(\s*["\'][^"\']*%[sd]\b[^"\']*["\']\s*%', "SQLAlchemy text() with %-formatting", "python", False),
     (r'text\s*\(\s*["\'].*["\']\s*\+', "SQLAlchemy text() with string concat", "python", False),
-    (r'\.execute\s*\(\s*text\s*\(', "SQLAlchemy execute(text()) pattern", "python", False),
     (r'\.from_statement\s*\(\s*text\s*\(', "SQLAlchemy from_statement(text())", "python", False),
     (r'session\.execute\s*\(\s*text\s*\(\s*f["\']', "SQLAlchemy session.execute(text(f))", "python", False),
 

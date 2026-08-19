@@ -64,7 +64,7 @@ services:
     build:
       context: ..
       dockerfile: cloud/Dockerfile
-    command: python -m gsc_cloud.workers
+    command: python -m gsc_cloud.worker
     environment:
       GSC_DATABASE_URL: ${GSC_DATABASE_URL:?GSC_DATABASE_URL is required — set in cloud/.env (see .env.example)}
       GSC_REDIS_URL: ${GSC_REDIS_URL:-redis://redis:6379/0}
