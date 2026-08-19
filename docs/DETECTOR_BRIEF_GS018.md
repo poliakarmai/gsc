@@ -1,76 +1,49 @@
-# Бриф: GS018 — Payment Logic Abuse (precision-улучшение)
+# Brief: Improve GS018 (Payment Logic Abuse) precision in GSC
 
-> Самодостаточный бриф для внешнего агента **без доступа к репозиторию**.
-> Весь код детектора вшит внутрь. Задача — **снизить FP при неизменном recall (TPR drop ≤ 3%)**.
-> Формат и контракт — по образцу `DETECTOR_BRIEF_GS017.md`.
+> For an external AI agent (Claude Code / Codex / ChatGPT). **Self-contained** — the full
+> detector source is embedded below, no repo access needed. Return only proposals in the
+> format from §6.
 
 ---
 
-## 1. Что это за детектор
+## 1. Context
 
-**GS018 — Payment Logic Abuse**, Echelon 2 (SECURITY). Ищет business-logic уязвимости в платёжном коде:
-- отсутствие идемпотентности на payment/webhook callback'ах (double cashback);
-- abuse промокодов (redeem без блокировки);
-- race condition в балансовых апдейтах (без `SELECT FOR UPDATE`);
-- cancel/refund после оплаты без валидации состояния;
-- отсутствие валидации отрицательной суммы/цены;
-- float-арифметика для денег (rounding exploit);
-- webhook без проверки подписи (replay).
+GSC is a self-learning SAST platform (Python, 42 detectors). Detectors are regex patterns +
+context filters. **The current pain is precision, not recall**: on 10 real-world projects
+(160–132K ⭐) the scan yields 2695 findings, precision CRITICAL ~8–12%. The goal is to remove
+false positives (FP) **without losing** true positives (TP).
 
-**Проблема:** на живых сканах под `rule_id LIKE 'GS018%'` лежит **985 строк**, из которых **697 (71%) — вообще не платёжный детектор**, а legacy-коллизия generic-правила «assert in production». Из остальных 288 HIGH **~238 (83%) — FP** от одного регэкса `FLOAT_MONEY`, который ловит **аннотации типов** `amount: float` вместо float-арифметики.
+Detector **GS018 — Payment Logic Abuse** (Echelon 2, SECURITY) flags business-logic bugs in
+payment/fintech code: missing idempotency on payment/webhook callbacks (double cashback),
+promo-code redeem without locking, balance-update race conditions, cancel/refund without
+state validation, float arithmetic for money, webhook without signature verification,
+missing negative-amount validation, missing rate limiting.
 
-## 2. Срез из живой БД (снимок 2026-08-18)
-
-```sql
-SELECT rule_id, category, COUNT(*) FROM findings
-WHERE rule_id LIKE 'GS018%' GROUP BY rule_id, category;
-```
+**Current state in the findings DB** (`~/.hermes/state/gsc_audit.db`): `rule_id LIKE 'GS018%'`
+has ~985 rows. **Be careful**: 697 of those are a *legacy rule_id collision* (see Lead 3) —
+they are NOT payment findings. Of the remaining ~288 HIGH, **~238 (83%)** come from a single
+regex, `FLOAT_MONEY`. A fresh self-scan on real code confirms the detector is still noisy:
 
 ```
-GS018                                              | HIGH    | 266
-GS018                                              | MEDIUM  | 697
-GS018 (Payment logic abuse — double cashback, ...) | HIGH    | 22
+bybit-ws (real trading bot):  32 findings — all "Float used for monetary value"
+gsc (self-scan):                0 findings
 ```
 
-**Итого 985 строк, из них два «грязных» правила:**
-- `rule_id = "GS018"` → 963 строки (266 HIGH + 697 MEDIUM);
-- `rule_id = "GS018 (Payment logic abuse — double cashback, promo code abuse, rac)"` → 22 HIGH — это **`description`, записанное в `rule_id`** в старой версии детектора (текущий код пишет `rule_id=RULE_ID`). Legacy-данные, к текущему коду отношения не имеют.
+The historical DB top titles:
 
-**Критически важно:** `category = MEDIUM` в GS018 — это **697 находок «Python: assert in production»**. Они порождены НЕ детектором `gs018_payment_abuse.py`, а generic-паттерном `\bassert\s` из `gsc_cli/main.py:1566`, которому функция `_derive_rule_id()` в `gsc_cli/main.py:486` присваивает rule_id `GS018`:
-
-```python
-# gsc_cli/main.py:477-490
-def _derive_rule_id(pattern: dict) -> str:
-    title = (pattern.get("title") or "").lower()
-    ...
-    if "assert" in title: return "GS018"   # ← строка 486, коллизия
-```
-
-Раскладка по проектам (откуда шум):
-
-| Проект | Находок | Что это |
+| title | count | severity |
 |---|---|---|
-| `/tmp/gsc-hunt-4` | 236 | Telegram-шоп/raid-бот — **float-аннотации + cancel_*** (real code) |
-| `benchmark/real_world/youtube-dl` | 222 | **«assert in production» (legacy-коллизия)** |
-| `benchmark/real_world/rich` | 144 | «assert in production» |
-| `benchmark/real_world/httpie` | 69 | «assert in production» |
-| `/tmp/gsc-external/Hyperion` | 67 | «assert in production» + float |
-| `/tmp/gsc-hunt-5` | 49 | «assert in production» |
-| `benchmark/real_world/sanic` | 40 | «assert in production» |
-| `/tmp/gsc-hunt-20260817/Telegram-shop` | 24 | **float-аннотации + cancel_*** (real code) |
-| `peewee` / `twisted` / `django` | 8+8+3 | **`def rollback`/`def cancel` в ORM/DB-драйверах** (real code) |
+| Python: assert in production (legacy rule_id collision) | 697 | MEDIUM |
+| Float used for monetary value: `…: float` / `…=float(` | ~238 | HIGH |
+| Cancel/refund without state validation: `def cancel`/`def rollback` | ~44 | HIGH |
+| Promo code redeem without locking | 2 | HIGH |
+| Amount from request without negative validation | 3 | HIGH |
+| Payment callback without idempotency | 2 | HIGH |
 
-**Ключевой вывод:** шум GS018 имеет ДВА независимых источника:
-1. **Legacy-коллизия rule_id** (697 MEDIUM «assert in production») — 71% всех строк, не платёжный код вообще;
-2. **Два широких регэкса** в самом детекторе — `FLOAT_MONEY` (238 HIGH) и `CANCEL_MISSING_STATE_CHECK` (44 HIGH) — дают 282 из 288 HIGH.
-
----
-
-## 3. Код детектора (вшит целиком)
-
-Файл: `gsc_core/gsc_detectors/gs018_payment_abuse.py` (311 строк).
+## 2. Current detector code (change only patterns/filters, not the contract)
 
 ```python
+# gs018_payment_abuse.py
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Алексей Поляков
 # Licensed under Apache License 2.0 — see LICENSE
@@ -110,7 +83,7 @@ description = (
 
 # 1. Missing idempotency keys on payment/callback endpoints
 MISSING_IDEMPOTENCY = re.compile(
-    r'(?:@(?:app|router|bp|blueprint)\\.(?:route|post|get|put).*\n'
+    r'(?:@(?:app|router|bp|blueprint)\.(?:route|post|get|put).*\n'
     r'^(?!.*(?:idempotenc|idempotent|idempotency_key|idempotencyKey|'
     r'X-Idempotency|duplicate_check|already_processed))'
     r'.*def\s+(?:payment_?callback|payout_?callback|webhook|'
@@ -120,40 +93,47 @@ MISSING_IDEMPOTENCY = re.compile(
 
 # 2. Promo code / coupon redeem without locking
 PROMO_REDEEM_NO_LOCK = re.compile(
-    r'def\s+(?:redeem|apply|use|activate).*(?:promo|coupon|discount|code|voucher)',
+    r'def\s+(?:redeem|apply|use(?!r)|activate).*(?:promo|coupon|discount|code|voucher)',
     re.IGNORECASE,
 )
 
 PROMO_WITHOUT_LOCK_CHECK = re.compile(
     r'promo.*(?:count|usage|uses|redeemed).*\\+=|'
-    r'promo.*\\.save\\s*\\(\\)(?!.*select_for_update|with transaction|atomic)',
+    r'promo.*\.save\s*\(\s*\)(?!.*select_for_update|with transaction|atomic)',
     re.IGNORECASE | re.DOTALL,
 )
 
 # 3. Balance/account update without atomic locking
 BALANCE_RACE_CONDITION = re.compile(
-    r'(?:balance|amount|credit|debit|wallet)\\s*[+\\-]?=\\s*'
-    r'(?!.*(?:\\.select_for_update|SELECT.*FOR UPDATE|'
-    r'BEGIN.*COMMIT|with.*transaction|@transaction\\.atomic|'
+    r'(?:balance|amount|credit|debit|wallet)\s*[+\-]?=\s*'
+    r'(?!.*(?:\.select_for_update|SELECT.*FOR UPDATE|'
+    r'BEGIN.*COMMIT|with.*transaction|@transaction\.atomic|'
     r'UPDATE.*WHERE.*balance))',
     re.IGNORECASE | re.DOTALL,
 )
 
 # Simple balance increment without protection
 RAW_BALANCE_INCREMENT = re.compile(
-    r'(?:balance|wallet|account)\\s*\\.\\s*(?:balance|amount|sum)\\s*\\+=\\s*',
+    r'(?:balance|wallet|account)\s*\.\s*(?:balance|amount|sum)\s*\+=\s*',
     re.IGNORECASE,
 )
 
 # 4. Cancel/refund after payment without state validation
 CANCEL_MISSING_STATE_CHECK = re.compile(
-    r'def\s+(?:cancel|refund|void|chargeback|reverse|rollback)',
+    r'def\s+(?:cancel|refund|void|chargeback|reverse|rollback)\b',
     re.IGNORECASE,
 )
 
+# Payment-domain signal required inside a cancel/refund/rollback function body.
+# DB-driver rollback()/cancel() (peewee/django/twisted) carry none of these and
+# are filtered out.
+PAYMENT_CONTEXT = re.compile(
+    r'order|payment|invoice|billing|subscription|charge|refund_amount|'
+    r'transaction_id|purchase', re.IGNORECASE)
+
 STATE_CHECK_MISSING = re.compile(
     r'(?:cancel|refund|void|reverse).*'
-    r'(?!.*(?:\\.status\\s*==|\\.state\\s*==|if.*status|'
+    r'(?!.*(?:\.status\s*==|\.state\s*==|if.*status|'
     r'can_be_cancelled|can_be_refunded|is_refundable|is_cancellable))',
     re.IGNORECASE | re.DOTALL,
 )
@@ -162,20 +142,20 @@ STATE_CHECK_MISSING = re.compile(
 FLOAT_MONEY = re.compile(
     r'(?:price|amount|sum|total|balance|cost|fee|tax|commission|'
     r'cashback|bonus|discount|payment|charge|refund|deposit|withdrawal)'
-    r'\s*[:=]\s*float',
+    r'\s*=\s*float\s*\(',   # only real conversion float(...), not type annotation
     re.IGNORECASE,
 )
 
 # Float operations on money
 FLOAT_MONEY_OP = re.compile(
-    r'(?:float|int)\\(.*(?:price|amount|sum|total|balance|cost|fee|tax|'
-    r'commission|cashback|bonus|payment)\\)',
+    r'(?:float|int)\(.*(?:price|amount|sum|total|balance|cost|fee|tax|'
+    r'commission|cashback|bonus|payment)\)',
     re.IGNORECASE,
 )
 
 # 6. Webhook handler without signature verification
 WEBHOOK_NO_SIGNATURE = re.compile(
-    r'@(?:app|router|bp|blueprint)\\.(?:route|post).*(?:webhook|callback|hook)',
+    r'@(?:app|router|bp|blueprint)\.(?:route|post).*(?:webhook|callback|hook)',
     re.IGNORECASE,
 )
 
@@ -189,7 +169,7 @@ NO_SIG_VERIFY = re.compile(
 
 # 7. Rate limiting missing on sensitive payment ops
 NO_RATE_LIMIT_PAYMENT = re.compile(
-    r'@(?:app|router|bp)\\.(?:route|post).*(?:payment|payout|transfer|'
+    r'@(?:app|router|bp)\.(?:route|post).*(?:payment|payout|transfer|'
     r'withdraw|deposit|charge|redeem|checkout|topup)'
     r'(?!.*(?:rate_limit|RateLimit|throttle|Throttle|limiter))',
     re.IGNORECASE | re.DOTALL,
@@ -228,15 +208,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
             continue
 
         # 1. Missing idempotency on payment callbacks
-        # (We use a combined approach: find payment callback functions,
-        #  then check if they have idempotency logic)
         payment_endpoints = re.finditer(
             r'def\s+(payment_?callback|payout_?callback|webhook|'
             r'charge_?callback|transaction_?callback|cashback)\s*\(',
             content, re.IGNORECASE,
         )
         for match in payment_endpoints:
-            # Get ~20 lines around the function
             func_start = match.start()
             func_end = min(func_start + 2000, len(content))
             func_body = content[func_start:func_end]
@@ -259,7 +236,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
             if not re.search(r'select_for_update|SELECT.*FOR UPDATE|'
-                            r'with.*transaction|@transaction\\.atomic|'
+                            r'with.*transaction|@transaction\.atomic|'
                             r'BEGIN|lock|Lock|mutex|Mutex',
                             func_body):
                 findings.append(Finding(
@@ -295,6 +272,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
         for match in cancel_funcs:
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
+            if not PAYMENT_CONTEXT.search(func_body):
+                continue
             if not re.search(r'\.status\s*==|\.state\s*==|if\s+.*status|'
                             r'can_be_cancelled|can_be_refunded|'
                             r'is_refundable|is_cancellable|allowed_states',
@@ -343,7 +322,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # 7. Rate limiting missing on payment endpoints
         payment_routes = list(re.finditer(
-            r'@(?:app|router|bp|blueprint)\\.(?:route|post|get).*'
+            r'@(?:app|router|bp|blueprint)\.(?:route|post|get).*'
             r'(?:payment|payout|transfer|withdraw|deposit|charge|redeem|checkout|topup)',
             content, re.IGNORECASE,
         ))
@@ -367,7 +346,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
         for match in amount_lines:
             ctx_end = min(match.end() + 500, len(content))
             ctx_body = content[match.end():ctx_end]
-            if not re.search(r'(?:if|assert).*(?:>\\s*0|>=|positive|'
+            if not re.search(r'(?:if|assert).*(?:>\s*0|>=|positive|'
                             r'amount.*>[^=]|price.*>[^=]|validate.*amount|'
                             r'raise.*ValueError)',
                             ctx_body, re.I):
@@ -384,175 +363,146 @@ def detect(ctx: AuditContext) -> list[Finding]:
     return findings
 ```
 
-> **Примечание для агента (не менять код, только знать):** в `detect()` реально используются только паттерны `PROMO_REDEEM_NO_LOCK`, `RAW_BALANCE_INCREMENT`, `CANCEL_MISSING_STATE_CHECK`, `FLOAT_MONEY`, `WEBHOOK_NO_SIGNATURE`, `MISSING_NEGATIVE_CHECK` + inline-регэксы. Скомпилированные `MISSING_IDEMPOTENCY`, `PROMO_WITHOUT_LOCK_CHECK`, `BALANCE_RACE_CONDITION`, `STATE_CHECK_MISSING`, `FLOAT_MONEY_OP`, `NO_SIG_VERIFY`, `NO_RATE_LIMIT_PAYMENT` — **мёртвый код** (нигде не вызываются). При сужении паттернов это учитывать.
+> **Note (do NOT change, just know):** `detect()` actually uses only
+> `PROMO_REDEEM_NO_LOCK`, `RAW_BALANCE_INCREMENT`, `CANCEL_MISSING_STATE_CHECK`,
+> `FLOAT_MONEY`, `WEBHOOK_NO_SIGNATURE`, `MISSING_NEGATIVE_CHECK` + inline regexes.
+> The compiled `MISSING_IDEMPOTENCY`, `PROMO_WITHOUT_LOCK_CHECK`,
+> `BALANCE_RACE_CONDITION`, `STATE_CHECK_MISSING`, `FLOAT_MONEY_OP`, `NO_SIG_VERIFY`,
+> `NO_RATE_LIMIT_PAYMENT` are **dead code** (never called). Account for this when
+> narrowing patterns.
 
----
+## 3. Metric — what counts as "better"
 
-## 4. Реальные FP (из БД, file:line → что заматчилось)
+- **Primary: precision** = TP/(TP+FP). Remove FP **without losing TP**.
+- **Guard:** any narrowing/disabling of a pattern is acceptable only if TP cases still fire.
+- Recall (new patterns) is secondary, and only after precision is stable.
 
-### 4.0 `rule_id`-коллизия: «Python: assert in production» (697 MEDIUM, 71% всех строк)
+## 4. Known FP candidates (leads — verify and confirm/refute each)
 
-Не платёжный код. Generic-паттерн `\bassert\s` (`gsc_cli/main.py:1566`), который `_derive_rule_id()` (`gsc_cli/main.py:486`) мапит на `GS018`. Подтверждено `scan.json` и БД:
+### Lead 1 (main detector bug) — `FLOAT_MONEY`: conversion ≠ arithmetic
 
-| file:line | заматчилось | почему FP |
+`FLOAT_MONEY = (price|amount|…)\s*=\s*float\s*\(` flags **any** `price = float(…)`,
+including parsing a value out of an API/JSON response — which is NOT monetary
+arithmetic and carries no rounding-exploit risk. A fresh self-scan of a real trading
+bot (bybit-ws) shows **32 findings, all of this type**:
+
+| file:line | matched | real code |
 |---|---|---|
-| `rich/rich/color.py:365,368,371,374,377` | `assert ...` | rich — консольный рендер, не платёж |
-| `httpie/httpie/internal/daemon_runner.py:44,45` | `assert ...` | httpie — HTTP-клиент |
-| `httpie/httpie/downloads.py:217,263,319` | `assert ...` | httpie |
-| `sanic/sanic/cli/console.py:91,110,112,271` | `assert ...` | sanic — web-фреймворк |
-| `piccolo-api/piccolo_api/session_auth/endpoints.py:287` | `assert ...` | piccolo-api ORM |
+| `bybit_ws/api.py:301` | `price = float(` | parsing ticker price from exchange API |
+| `bybit_ws/auto_entry.py:626` | `balance = float(` | parsing account balance from API |
+| `bybit_ws/auto_short.py:392` | `price = float(` | parsing price |
+| `bybit_ws/auto_short.py:512` | `balance = float(` | parsing balance |
 
-**Корень:** не в детекторе `gs018_payment_abuse.py`. Это отдельный баг `_derive_rule_id()` — «assert» ≠ payment abuse.
+These are `float(str_value_from_api)` conversions, not `float` *arithmetic* on money.
 
-### 4.1 `FLOAT_MONEY` — аннотации типов `amount: float` (127 из 238 float-FP)
+**Fix direction (regex narrowing / context):** only flag when `float(...)` actually
+participates in arithmetic or a money computation, e.g. require one of `+ - * /`
+nearby, or a comparison/accumulation, or narrow the value source (reject
+`float(request…|response…|json…|str…|data[…])`). Alternatively drop `price`/`amount`/
+`balance`/`cost`/`fee` from the bare-conversion branch and keep only a clearly
+arithmetic signal. **Do not simply delete `FLOAT_MONEY`** — the TP case
+"float arithmetic for money" (e.g. `total = float(a) * 0.9`) must still fire.
 
-Регэкс `(price|amount|sum|total|balance|cost|fee|...)[:=]\s*float` ловит **объявление типа** `: float` — Pydantic-поля, параметры функций, TypedDict-ключи. Это не float-арифметика. Подтверждено живым кодом Telegram-shop:
+### Lead 2 — `CANCEL_MISSING_STATE_CHECK`: residual ORM/DB-driver FP
 
-| file:line | заматчилось | реальный код |
+The current code already has a word boundary (`\b`) and a `PAYMENT_CONTEXT` gate, but
+verify whether DB-driver functions still slip through when the surrounding file mentions
+`transaction`/`refund` (the file-level keyword gate lets them in):
+
+| file:line | matched | why FP |
 |---|---|---|
-| `services/crypto_bot.py:15` | `amount: float` | `def generate_payment_address(self, amount: float, transaction_id: int, ...)` — **параметр функции** |
-| `services/crypto_bot.py:90` | `amount: float` | `def check_payment_status(self, crypto_address: str, expected_amount: float) -> bool` — **параметр** |
-| `utils/helpers.py:46` | `price: float` | `def format_price(price: float) -> str:` — **параметр** |
-| `backend/bot/app/web/admin_api_impl/response_schemas.py:130,147` | `price: float` | Pydantic-схема |
-| `backend/bot/infra/event_payloads.py:70,78,79` | `amount: float` | dataclass/payload-схема |
-
-**Корень:** `[:=]` включает `:` (аннотация типа). Для «float-арифметики для денег» аннотация типа TP не является никогда.
-
-### 4.2 `CANCEL_MISSING_STATE_CHECK` — UI-обработчики `cancel_*` (prefix-match)
-
-Регэкс `def\s+(?:cancel|refund|void|chargeback|reverse|rollback)` **без `\b`** матчит префикс `cancel` в `cancel_restock`, `cancel_topup` и т.д. — это Telegram-bot «отмена диалога», а не отмена/возврат платежа:
-
-| file:line | заматчилось | реальный код |
-|---|---|---|
-| `handlers/admin_handlers.py:1363` | `def cancel` | `async def cancel_restock(...)` — отмена пополнения склада (UI) |
-| `handlers/payment_handlers.py:377` | `def cancel` | `async def cancel_topup(...)` — выход из диалога пополнения |
-| `handlers/payment_handlers.py:395` | `def cancel` | `async def cancel_payment_page(...)` — выход из UI |
-| `handlers/payment_handlers.py:821` | `def cancel` | `async def cancel_purchase(...)` — выход из UI |
-| `app/modules/raid/endpoints_raid.py:1327` | `def cancel` | raid-модуль (игра), не платёж |
-| `app/modules/sport_competition/cruds_sport_competition.py:562` | `def cancel` | спорт-соревнования, не платёж |
-
-**Корень:** нет `\b` после глагола → `cancel_xxx` считается `def cancel`.
-
-### 4.3 `CANCEL_MISSING_STATE_CHECK` — `def rollback`/`def cancel` в ORM/DB-драйверах (22 HIGH в description-bucket)
-
-`def rollback` в peewee/django/twisted — это **транзакционный rollback БД**, не возврат платежа. Файловый gate (`payment|refund|transaction|...`) пропускает ORM-файлы, потому что в них есть слова `transaction`/`refund`:
-
-| file:line | заматчилось | что это |
-|---|---|---|
-| `peewee.py:4037,4386,5261,5305` | `def rollback` | ORM-транзакция |
+| `peewee.py:4037,4386,5261,5305` | `def rollback` | ORM transaction rollback, not payment refund |
 | `django/db/backends/base/base.py:333` | `def rollback` | DB backend |
-| `src/twisted/enterprise/adbapi.py:46` | `def rollback` | DB-пул |
-| `src/twisted/internet/interfaces.py:133,1230` | `def cancel` | интерфейсы (Deferred cancel) |
-| `src/twisted/mail/smtp.py:2192` | `def cancel` | SMTP |
+| `src/twisted/enterprise/adbapi.py:46` | `def rollback` | DB pool |
+| `src/twisted/internet/interfaces.py:133,1230` | `def cancel` | Deferred.cancel, not payment |
 
-**Корень:** `CANCEL_MISSING_STATE_CHECK` не требует платёжного контекста в теле функции — только в файле.
+**Fix direction (context analysis):** tighten `PAYMENT_CONTEXT` so a bare `transaction`/
+`refund` word is not enough — require a payment *domain* noun (order, invoice, charge,
+checkout, refund_amount, transaction_id) rather than the generic `transaction`.
 
-### 4.4 `PROMO_REDEEM_NO_LOCK` — `use` префикс-матчит `user_...`
+### Lead 3 — legacy `rule_id` collision "assert in production" (NOT the detector)
 
-| file:line | заматчилось | реальный код |
-|---|---|---|
-| `backend/db/dal/promo_code_dal.py:646` | `def user_has_pending_payment_with_promo` | read-only проверка «есть ли pending payment с промо», НЕ redeem. Матч через `use` ← префикс «user» |
+697 MEDIUM rows titled "Python: assert in production" sit under `rule_id='GS018'` but are
+produced by a generic `\bassert\s` pattern in `gsc_cli/main.py`, which
+`_derive_rule_id()` maps to `GS018` (`if "assert" in title: return "GS018"`). This is a
+separate bug outside the detector; **do not "fix" it inside gs018_payment_abuse.py**. Just
+be aware that ~71% of the GS018 bucket in the DB is this collision, so when measuring your
+precision impact, filter it out (`AND title != 'Python: assert in production'`).
 
-**Корень:** альтернатива `(?:redeem|apply|use|activate)` без `\b` → `use` матчит `user_...`. `def apply_promo` (`billing_subscription.py:111`) — легитимный матч (потенциальный TP), не трогать.
+### Lead 4 — `PROMO_REDEEM_NO_LOCK`: `use` prefix-matches `user_…`
 
-### 4.5 Прочее (не подтверждено, низкий приоритет)
+`(?:redeem|apply|use(?!r)|activate)` — the `use` alternative (already neg-lookahead'd
+against `user`) can still prefix-match `user_…` in some spellings. Historical example:
+`backend/db/dal/promo_code_dal.py:646` → `def user_has_pending_payment_with_promo`
+(read-only check, not a redeem). `def apply_promo` is a legitimate TP — keep it.
+**Fix direction:** require a word boundary after the verb and confirm the function is a
+redeem/apply action (not a read-only `has_/get_/is_` check).
 
-- **«Amount from request without negative validation»** (3 HIGH, все в `/tmp/gsc-hunt-4/app/api/views.py:1027,2421,2523`) — hunt-4 перезаписан новым сканом, исходники недоступны. Требует ручной проверки; паттерн узкий, вероятнее TP/пограничные.
-- **«Payment callback without idempotency: def webhook(»** (1 HIGH, `app/core/payment/endpoints_payment.py:35`) — похоже на реальный TP (webhook без идемпотентности), НЕ резать.
-- **Дубликаты:** одна и та же строка встречается ×2–×3 (напр. `handlers/payment_handlers.py:377` ×3, `services/crypto_bot.py:15` ×3) — накопление по разным `run_id`, не баг детектора. Для отчётов — dedup по `finding_key` внутри `run_id`.
+### Lead 5 (minor, verify) — "Amount from request without negative validation"
 
----
+3 historical HIGH, all in `/tmp/gsc-hunt-4/app/api/views.py`. The pattern is narrow and
+likely TP/borderline. Verify on a fresh scan before touching.
 
-## 5. Лиды (по приоритету)
+## 5. Your task
 
-> Каждый лид — самостоятельный фикс. Принимаются только подтверждённые на реальном коде (`FP↓ при TP-константе`). Не резать recall.
+Analyze the code above. For each candidate in §4 (and any OTHER FP you notice) propose a
+concrete fix. Three allowed tools (in order of preference):
 
-### Лид 1 (максимум эффекта, но НЕ детектор) — убрать коллизию `_derive_rule_id`: «assert» → GS018
-**Тип:** path_exclusion (на уровне rule-id деривации, вне детектора).
-**Симптом:** 697 MEDIUM «Python: assert in production» под rule_id GS018 — 71% всех строк.
-**Фикс:** в `gsc_cli/main.py:486` `if "assert" in title: return "GS018"` → возвращать `"GS000-LEGACY"` (или отдельный rule_id для generic assert). Generic-паттерн `\bassert\s` не имеет отношения к payment abuse.
-**Риск:** меняется `finding_key` у legacy-assert находок (они перестанут ложиться в GS018). Это и есть цель — сейчас они ложно «в GS018». Текущий `gs018_payment_abuse.py` при этом НЕ трогается.
+1. **Path exclusion** — add to a path/glob exclusion (tests, samples, benchmark, vendor).
+2. **Regex narrowing** — require more context in the pattern itself.
+3. **Context analysis** — extend a filter (±3 lines / key capture).
 
-### Лид 2 (главный детекторный баг) — `FLOAT_MONEY` не должен матчить аннотации типов `: float`
-**Тип:** regex_сужение.
-**Симптом:** 238 HIGH (~83% HIGH), из них 127 — `: float` (аннотация типа).
-**Фикс:** сузить `[:=]\s*float` до `=\s*float\s*\(` (реальная конверсия `amount = float(...)`), убрав ветку `:` (аннотация). Паттерн `FLOAT_MONEY_OP` (`(?:float|int)\(...`) уже покрывает `float(x)`-конверсии, но он **мёртвый** — его либо подключить, либо удалить; дублировать не нужно.
+## 6. Response format (strict)
 
-```python
-FLOAT_MONEY = re.compile(
-    r'(?:price|amount|sum|total|balance|cost|fee|tax|commission|'
-    r'cashback|bonus|discount|payment|charge|refund|deposit|withdrawal)'
-    r'\s*=\s*float\s*\(',   # только реальная конверсия float(...), не аннотация типа
-    re.IGNORECASE,
-)
+For each proposal, one block:
+
 ```
-**Ожидание:** снимает `amount: float` / `price: float` (127 находок) и `amount = float`-без-скобок; сохраняет `amount = float(amount_str)` (реальные конверсии — как `utils/helpers.py:79`).
-**Влияние на TP:** TP-кейс «float-арифметика для денег» (`price = float(x)`, `float(amount)`) остаётся за счёт `=\s*float\s*\(` и `FLOAT_MONEY_OP`.
-
-### Лид 3 — `CANCEL_MISSING_STATE_CHECK`: word boundary после глагола
-**Тип:** regex_сужение.
-**Симптом:** `def cancel_restock`/`def cancel_topup`/`def cancel_purchase` матчатся как `def cancel` (UI-обработчики, не возврат платежа) — 20+ HIGH.
-**Фикс:** добавить `\b` после глагола:
-
-```python
-CANCEL_MISSING_STATE_CHECK = re.compile(
-    r'def\s+(?:cancel|refund|void|chargeback|reverse|rollback)\b',
-    re.IGNORECASE,
-)
+### GS018: <name>
+- Type: path_exclusion | regex_narrowing | context_analysis
+- Pattern/code: <concrete regex or diff>
+- Rationale: why it's an FP (file/line example)
+- FP it removes: <real code line>
+- TP impact: which TP cases are NOT affected
 ```
-**Ожидание:** отсекает все `cancel_*`/`refund_*`/`rollback_*` суффиксы, оставляет `def cancel(`/`def refund(`/`def rollback(`.
-**Влияние на TP:** TP «cancel/refund без проверки статуса» — это функции именно с именем `cancel`/`refund`, `\b` их не режет.
 
-### Лид 4 — `CANCEL_MISSING_STATE_CHECK`: платёжный контекст в теле функции
-**Тип:** context_analysis.
-**Симптом:** `def rollback` в `peewee.py`/`django/db/...`/`twisted/enterprise/adbapi.py` (транзакционный rollback БД) и `def cancel` в `twisted/internet/interfaces.py`/`smtp.py` — 22 HIGH (description-bucket) + часть из 20 HIGH.
-**Фикс:** для `cancel`/`refund`/`rollback` требовать платёжный признак в теле функции (первые ~3000 симв. после `def`): `order|payment|invoice|transaction_id|refund_amount|charge|billing|subscription` ИЛИ state-переход (`status`, `state`). БД-драйверы (`rollback` без `payment|order|refund`) отсекаются.
+## 7. Do NOT do
 
-```python
-PAYMENT_CONTEXT = re.compile(
-    r'order|payment|invoice|billing|subscription|charge|refund_amount|'
-    r'transaction_id|purchase', re.IGNORECASE)
-...
-# внутри cancel_funcs-loop, до state-check:
-if not PAYMENT_CONTEXT.search(func_body):
-    continue
+- ❌ Do not change `RULE_ID`, the severity scale, the `detect()` signature, or `Finding` keys.
+- ❌ Do not disable the detector wholesale — only filters.
+- ❌ Do not "clean up" code beyond the task (scope discipline). The dead compiled patterns
+  in §2 must stay as-is unless your fix genuinely touches them.
+- ❌ Do not propose without FP examples (can't assess risk/benefit).
+- ❌ Do not add new payment-abuse *detection* (recall) — this is a precision pass only.
+
+## 8. Verification procedure (run before claiming a fix)
+
+```bash
+cd ~/gsc
+# Fresh FP slice — do NOT trust the historical DB for "is it still firing"
+python3 - <<'PY'
+import sys; sys.path.insert(0, '.')
+from pathlib import Path
+from gsc_detectors import AuditContext
+from gsc_detectors import gs018_payment_abuse as g18
+for root in ('.', str(Path.home()/'bybit-ws')):
+    ctx = AuditContext(project='x', path=Path(root)); ctx.files = ctx.get_files()
+    fs = g18.detect(ctx)
+    print(root, '->', len(fs), 'findings')
+    for f in fs[:20]:
+        print('  ', f.get('severity'), f.get('file_path'), f.get('title'))
+PY
+
+# full suite + standalone regression/compliance
+python3 -m pytest -q
+python3 tests/test_regression.py
+python3 tests/test_compliance_secrets.py
 ```
-**Риск:** узкий — редкий TP, где функция `def refund` не содержит слов order/payment (крайне маловероятно в платёжном коде). Проверить на smoke-кейсах.
-**Влияние на TP:** реальный `def cancel(self)` в платёжном сервисе содержит `order`/`payment` в теле — остаётся.
 
-### Лид 5 — `PROMO_REDEEM_NO_LOCK`: word boundary на глаголах
-**Тип:** regex_сужение.
-**Симптом:** `def user_has_pending_payment_with_promo` (read-only check) матчится через `use`-префикс «user» — 1 HIGH.
-**Фикс:** `def\s+(?:redeem|apply|use|activate)\b.*(?:promo|coupon|discount|code|voucher)`.
-**Влияние на TP:** `def apply_promo` (`billing_subscription.py:111`, потенциальный TP) не задевается.
-
-### Лид 6 (косметика/данные) — legacy `description`-в-`rule_id` bucket + dedup
-**Симптом:** 22 HIGH с `rule_id = "GS018 (Payment logic abuse — ...)"` — `description`, записанное в `rule_id` старой версией детектора. Плюс дубликаты ×2–×3 по `run_id`.
-**Фикс:** разовая миграция `UPDATE findings SET rule_id='GS018' WHERE rule_id LIKE 'GS018 (%'`; для отчётов — dedup по `finding_key` внутри `run_id`. **Детектор не трогать** (текущий код уже пишет `rule_id=RULE_ID`).
-
----
-
-## 6. Контракт верификации (обязателен перед приёмкой)
-
-1. **Smoke** на синтетических TP/FP через `AuditContext` + `gs018_payment_abuse.detect(ctx)` (см. `tests/test_regression.py` паттерн `AuditContext(project="x", path=p)`):
-   - **TP должны остаться:** `def payment_callback(self):` без idempotency (идемпотентность отсутствует); `def redeem_promo(self):` без `select_for_update`; `def refund(self):` в классе с `order`/`payment` и без `.status ==`; `amount = float(request.json['amount'])` без проверки `> 0`; `price = float(x)`.
-   - **FP должны уйти:** `def generate_payment_address(self, amount: float, ...)` (аннотация); `def format_price(price: float) -> str:`; `def cancel_restock(...)`; `def cancel_topup(...)`; `def user_has_pending_payment_with_promo(...)`; `def rollback(self):` (ORM, без payment-контекста).
-2. **Регрессия:** `python3 tests/test_regression.py` — зелёный; `python3 -m pytest -q` — без новых падений (базовые кейсы не задевают GS018-специфику, но общий прогон обязателен).
-3. **Проверка на живом коде:** перегнать GS018 на `/tmp/gsc-hunt-20260817/Telegram-shop` (float + cancel_* FP-эталон) и `benchmark/real_world/rich`/`httpie` (assert-коллизия — должна уйти после Лида 1). FP-счёт по HIGH должен упасть с ~288 до <50, TP (webhook, redeem_promo, refund с order-контекстом) — не потеряны.
-4. **Проверка Лида 1 отдельно:** после правки `_derive_rule_id` — `SELECT COUNT(*) FROM findings WHERE rule_id='GS018' AND title='Python: assert in production'` на новом скане = 0.
-
-## 7. Жёсткие инварианты (нарушать нельзя)
-
-- `RULE_ID = "GS018"` и `finding_key` не менять (в детекторе — `rule_id=RULE_ID` везде).
-- TP-кейсы не резать (TPR drop ≤ 3%): webhook-идемпотентность, redeem без блокировки, `def refund`/`def cancel` **в платёжном контексте**, `amount = float(request...)` без `> 0`, `price = float(x)`.
-- Severity-шкалу не менять (`CRITICAL`/`HIGH`/`MEDIUM` как есть в коде).
-- Детектор целиком не отключать — только фильтры/сужения/гейты.
-- Мёртвые скомпилированные паттерны (`MISSING_IDEMPOTENCY`, `STATE_CHECK_MISSING`, `FLOAT_MONEY_OP`, `NO_SIG_VERIFY`, `NO_RATE_LIMIT_PAYMENT`, `BALANCE_RACE_CONDITION`, `PROMO_WITHOUT_LOCK_CHECK`) — можно подключать/удалять только если это НЕ меняет текущий вывод; `FLOAT_MONEY_OP` при сужении `FLOAT_MONEY` (Лид 2) использовать как уже готовый эквивалент, а не дублировать.
-- Лид 1 — правка `gsc_cli/main.py::_derive_rule_id`, **не** детектора; не менять сам `gs018_payment_abuse.py` ради assert-фикса.
-- Код-стиль: только stdlib (`re`, `pathlib`); `Finding` — dict-like (`severity=`, `file_path=`, `line=`); `ctx.get_source_files(extensions=...)`.
-
----
-
-*Файл детектора: `gsc_core/gsc_detectors/gs018_payment_abuse.py`.*
-*Срез БД: `sqlite3 ~/.hermes/state/gsc_audit.db "SELECT rule_id, category, COUNT(*) FROM findings WHERE rule_id LIKE 'GS018%' GROUP BY rule_id, category;"` — переснять перед работой.*
-*Коллизия rule_id: `gsc_cli/main.py:486` (`_derive_rule_id`).*
+Pitfalls:
+- `Finding` is dict-like: `severity=`/`category=` (same), `file_path`/`line_number`/`detail`
+  (NOT `file=`/`message=`). Emit both where a bridge expects one.
+- `get_source_files()` excludes tests/fixtures via `TEST_GLOBS`; the detector scans
+  `.py/.js/.ts/.go/.java/.rb/.php` only.
+- `test_regression.py` / `test_compliance_secrets.py` are standalone — run with
+  `python3 tests/…`, not `pytest`.
+- **Commit only on explicit instruction** — the repo owner gates all commits.

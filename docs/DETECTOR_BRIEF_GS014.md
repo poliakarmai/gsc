@@ -1,69 +1,49 @@
-# Бриф: GS014 — Credential Exposure (precision-улучшение)
+# Brief: Improve GS014 (Credential Exposure) precision in GSC
 
-> Самодостаточный бриф для внешнего агента **без доступа к репозиторию**.
-> Весь код детектора вшит внутрь. Задача — **снизить FP при неизменном recall (TPR drop ≤ 3%)**.
-> Формат и контракт — по образцу `DETECTOR_BRIEF_GS017.md`.
+> For an external AI agent (Claude Code / Codex / ChatGPT). **Self-contained** — the full
+> detector source is embedded below, no repo access needed. Return only proposals in the
+> format from §6.
 
 ---
 
-## 1. Что это за детектор
+## 1. Context
 
-**GS014 — Credential Exposure**, Echelon 2 (SECURITY). Ищет:
-- Unquoted service paths / Windows-креды (SAM/SYSTEM, `ntds.dit`, DPAPI, `SiteList.xml`);
-- Stored credential files (RDP/`.rdg`/`credentials.xml`);
-- приватные ключи (`id_rsa`, `*.pem`, `*.key`);
-- env/credential файлы (`.env`, `.envrc`, `.credentials`);
-- unattended-файлы (`autounattend.xml`, `kickstart`, `preseed.cfg`);
-- shell-history в репо (`.bash_history`, `.zsh_history`);
-- контентные паттерны: base64-пароль в unattend, WireGuard `PrivateKey`, **PostgreSQL connection string с паролем**, sudoers `NOPASSWD:ALL` / `ALL=(ALL) ALL`.
+GSC is a self-learning SAST platform (Python, 42 detectors). Detectors are regex patterns +
+context filters. **The current pain is precision, not recall**: on 10 real-world projects
+(160–132K ⭐) the scan yields 2695 findings, precision CRITICAL ~8–12%. The goal is to remove
+false positives (FP) **without losing** true positives (TP).
 
-**Проблема:** на живых сканах GS014 даёт **1347 находок**, из которых ~96% — FP. Почти весь шум сосредоточен в **трёх** паттернах из девяти:
-1. glob приватных ключей (`id_rsa`, `*.pem`, `*.key`) — **1243 MEDIUM** (92.3%);
-2. regex `postgres(?:ql)?://user:pass@` — **78 HIGH** (5.8%);
-3. glob env/credential (`*.env`, `*credentials*`) — **26 LOW** (1.9%).
+Detector **GS014 — Credential Exposure** (Echelon 2, SECURITY) flags exposed credentials:
+SAM/SYSTEM backups, DPAPI master keys, stored credential files (`.rdp`, `credentials.xml`),
+private keys (`id_rsa`, `*.pem`, `*.key`), env/credential files (`.env`, `.credentials`),
+unattended-install files (`autounattend.xml`, kickstart), shell-history files, plus
+content-based patterns: base64 admin password in unattend, WireGuard `PrivateKey`,
+**PostgreSQL connection strings with embedded password**, and sudoers `NOPASSWD:ALL`.
 
-Остальные 6 паттернов (SAM/DPAPI/RDP/unattend/history/WireGuard/sudoers/base64-unattend) в текущем срезе БД дают **0 находок** — их FP не подтверждён, их не трогаем.
-
-## 2. Срез из живой БД (снимок 2026-08-18)
+**Current state in the findings DB** (`~/.hermes/state/gsc_audit.db`): `rule_id LIKE 'GS014%'`
+has ~1350 rows, of which **~92% (1243 MEDIUM) is one pattern** — the private-key glob. A
+**fresh** self-scan of the GSC repo itself now yields **14 findings** (the private-key noise
+is already fixed by the current filters — the 1243 is cumulative history):
 
 ```
-GS014 по title:
-  Private key file — verify proper permissions …  1243  (MEDIUM)
-  PostgreSQL connection string with embedded pass   78  (HIGH)
-  Environment/credential file — check for …         26  (LOW)
-  ────────────────────────────────────────────────────
-  ИТОГО                                            1347
+gsc (self-scan):  14 findings
+    11  HIGH  PostgreSQL connection string with embedded password
+     3  LOW   Environment/credential file — check for hardcoded secrets
+bybit-ws:          0 findings
 ```
 
-Раскладка по проектам (откуда шум):
+Historical DB top titles (cumulative, some already fixed):
 
-| Проект | Находок | Что это |
+| title | count | severity |
 |---|---|---|
-| `cryptography` | 1220 | **тест-векторы** `vectors/cryptography_vectors/**/*.pem` (публичные ключи для тестов) |
-| `sqlalchemy` | 27 | docstring-примеры `postgresql://scott:***@localhost/test` |
-| `urllib3` | 20 | тестовые сертификаты `dummyserver/certs/*`, `test/*.pem` |
-| `pydantic` | 15 | docstring-примеры `PostgresDsn` / `MultiHostUrl` |
-| `/tmp/gsc-hunt-4` | 13 | **real code** (remnawave): compose/install.sh — mix TP/FP |
-| `peewee` | 12 | docstring-примеры `postgresql://` |
-| `polars` | 12 | docstring-примеры `postgresql://` |
-| `uv` | 6 | `credentials.rs` (source) + docstring postgres |
-| `pandas` | 4 | docstring `read_sql_table` |
-| `redis-py` | 4 | `redis/credentials.py` (source-код) |
-| `twisted` | 4 | `cred/credentials.py` (source) + postgres doc |
-| `youtube-dl` (benchmark/real_world) | 3 | `test/testcert.pem` |
-| `ansible` | 3 | `test/integration/.../types.env` (fixture) |
-| `salt` | 3 | `highstate_doc.py` (docstring postgres) |
-| `/tmp/gsc-hunt-3` | 1 | `test.env` |
+| Private key file — verify proper permissions | 1243 | MEDIUM |
+| PostgreSQL connection string with embedded password | 78 | HIGH |
+| Environment/credential file — check for hardcoded secrets | 26 | LOW |
 
-**Ключевой вывод:** 1240 из 1243 «private key» приходят из **`cryptography` — это тест-векторы криптобиблиотеки** (публичные ключи, нужны тестам). 78 «PostgreSQL» — это **docstring-примеры с уже замаскированным паролем `***`** (`scott:***@`) в SQLAlchemy/pydantic/pandas/peewee/polars. 26 «env/credential» — это **исходники `credentials.py`/`credentials.rs`**, пойманные слишком широким glob `*credentials*`.
-
----
-
-## 3. Код детектора (вшит целиком)
-
-Файл: `gsc_core/gsc_detectors/gs014_credential_exposure.py` (170 строк).
+## 2. Current detector code (change only patterns/filters, not the contract)
 
 ```python
+# gs014_credential_exposure.py
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Алексей Поляков
 # Licensed under Apache License 2.0 — see LICENSE
@@ -95,44 +75,55 @@ ECHELON = 2
 description = "Credential exposure — stored credentials, backup auth files, weak sudoers"
 
 
-# Files that indicate credential exposure
+# Files that indicate credential exposure.
+# Entry shape: (patterns, title, severity, detail, fixture_sensitive).
+# `fixture_sensitive=True` → skip test/fixture paths (vectors/, test/, tests/,
+# fixtures/, dummyserver/, *.example/*.sample/*.template/*.test) — those are
+# test fixtures / public materials, not real committed credentials.
 CREDENTIAL_FILE_PATTERNS = [
     # Windows-like credential files
     (["*.sam", "*.sam.bak", "SYSTEM", "SYSTEM.bak", "ntds.dit"],
      "Potential SAM/SYSTEM backup — Windows credential database",
-     "CRITICAL", "SAM/SYSTEM backups allow offline credential extraction."),
+     "CRITICAL", "SAM/SYSTEM backups allow offline credential extraction.", False),
 
     # DPAPI master keys
     (["*/DPAPI/*", "*/Microsoft/Protect/*"],
      "DPAPI master key file — encrypted credential storage",
-     "MEDIUM", "DPAPI keys may contain decryptable credentials if user password is known."),
+     "MEDIUM", "DPAPI keys may contain decryptable credentials if user password is known.", False),
 
     # Credential manager files
     (["*.rdp", "*.rdg", "credentials.xml", "SiteList.xml"],
      "Stored credential file (RDP/MacAfee/credential manager)",
-     "HIGH", "RDP and credential manager files may contain saved passwords."),
+     "HIGH", "RDP and credential manager files may contain saved passwords.", False),
 
     # SSH keys with weak paths
     (["id_rsa", "id_ed25519", "id_ecdsa", "*.pem", "*.key"],
      "Private key file — verify proper permissions and no passphrase",
-     "MEDIUM", "Private keys should have 600 permissions and passphrase protection."),
+     "MEDIUM", "Private keys should have 600 permissions and passphrase protection.", True),
 
     # Config files with potential credentials
-    (["*.env", ".env.*", "*.envrc", ".credentials", "*credentials*"],
+    (["*.env", ".env.*", "*.envrc", ".credentials", "credentials.yml",
+      "credentials.json", "credentials.ini", ".netrc"],
      "Environment/credential file — check for hardcoded secrets",
-     "LOW", "These files should be gitignored. Verify no secrets are committed."),
+     "LOW", "These files should be gitignored. Verify no secrets are committed.", True),
 
     # Unattended installation files
     (["autounattend.xml", "unattend.xml", "Unattend.xml",
       "*.kickstart", "preseed.cfg", "answerfile*"],
      "Unattended installation file — may contain encoded passwords",
-     "CRITICAL", "Unattended files often contain base64-encoded admin passwords."),
+     "CRITICAL", "Unattended files often contain base64-encoded admin passwords.", False),
 
     # Shell history files (shouldn't be in repo)
     ([".bash_history", ".zsh_history", ".fish_history", ".psql_history", ".mysql_history"],
      "Shell history file in repo — may contain credentials in command lines",
-     "MEDIUM", "Shell history files may contain passwords passed as command arguments."),
+     "MEDIUM", "Shell history files may contain passwords passed as command arguments.", False),
 ]
+
+# Placeholder/example passwords used in docstrings and examples. A connection
+# string carrying one of these is documentation, not an exposed credential.
+POSTGRES_PLACEHOLDER = (
+    r"(?:\*\*\*|pass|password|secret|changeme|example|your|xxx|pwd|scott|tiger|user|test|admin)"
+)
 
 # Content-based patterns
 CONTENT_PATTERNS = [
@@ -148,8 +139,8 @@ CONTENT_PATTERNS = [
      "WireGuard PrivateKey exposed in configuration file. "
      "Use external key storage or environment variable."),
 
-    # PostgreSQL connection strings with password
-    (re.compile(r'postgres(?:ql)?://[^:]+:[^@]+@', re.I),
+    # PostgreSQL connection strings with password (skip placeholder/example passwords)
+    (re.compile(r'postgres(?:ql)?://[^:@]+:(?!' + POSTGRES_PLACEHOLDER + r'@)[^@]+@', re.I),
      "PostgreSQL connection string with embedded password", "HIGH",
      "Database URL contains password in plaintext. Use environment variable."),
 
@@ -165,6 +156,18 @@ CONTENT_PATTERNS = [
      "Full sudo access detected. Verify user requires full privileges."),
 ]
 
+# Public cert/key PEM headers — these are NOT private keys and must not be flagged.
+PUBLIC_KEY_MARKERS = (
+    "BEGIN CERTIFICATE", "BEGIN PUBLIC KEY", "BEGIN X509",
+    "BEGIN TRUSTED CERTIFICATE", "BEGIN RSA PUBLIC KEY",
+    "BEGIN EC PUBLIC KEY", "BEGIN DSA PUBLIC KEY",
+)
+
+# Directory components that mark a test/fixture path (not real credentials).
+TEST_FIXTURE_COMPONENTS = {
+    "vectors", "testdata", "fixtures", "__fixtures__", "tests", "test", "dummyserver",
+}
+
 
 def _match_glob(path: Path, pattern: str) -> bool:
     """Simple glob matching for credential file patterns."""
@@ -173,6 +176,28 @@ def _match_glob(path: Path, pattern: str) -> bool:
     if "/" in pattern or "\\" in pattern:
         return fnmatch.fnmatch(str(path).replace("\\", "/"), pattern)
     return fnmatch.fnmatch(path.name, pattern)
+
+
+def _is_test_fixture_path(rel_path: str) -> bool:
+    """True if rel_path is a test vector / fixture / example file, not a real credential."""
+    p = rel_path.replace("\\", "/").lower()
+    parts = p.split("/")
+    for comp in parts[:-1]:                     # directory components only
+        if comp in TEST_FIXTURE_COMPONENTS:
+            return True
+    name = parts[-1]
+    if name == "test.env":
+        return True
+    return name.endswith((".example", ".sample", ".template", ".test"))
+
+
+def _is_public_key_material(fp: Path) -> bool:
+    """True if a .pem/.key file's head is a public certificate/key (not a private key)."""
+    try:
+        head = fp.read_bytes()[:2048].decode("utf-8", errors="ignore")
+    except Exception:
+        return False
+    return any(m in head for m in PUBLIC_KEY_MARKERS)
 
 
 def detect(ctx: AuditContext) -> list[Finding]:
@@ -187,27 +212,34 @@ def detect(ctx: AuditContext) -> list[Finding]:
         rel_path = str(fp.relative_to(ctx.path))
 
         # 1. Check filename patterns
-        for patterns, title, severity, detail in CREDENTIAL_FILE_PATTERNS:
-            for pat in patterns:
-                if _match_glob(fp, pat):
-                    # Don't flag SSH keys in .ssh/ directories (user home)
-                    if fp.suffix in (".pem", ".key") or fp.name.startswith("id_"):
-                        if ".ssh/" in str(fp):
-                            continue  # Expected location for SSH keys
+        for patterns, title, severity, detail, fixture_sensitive in CREDENTIAL_FILE_PATTERNS:
+            if not any(_match_glob(fp, pat) for pat in patterns):
+                continue
 
-                    findings.append(Finding(
-                        rule_id=RULE_ID,
-                        file_path=rel_path,
-                        line=1,
-                        severity=severity,
-                        title=title,
-                        detail=detail,
-                        fix_suggestion="Remove from repository. Add to .gitignore. "
-                                       "Rotate any exposed credentials.",
-                        references=["Window Privilege Escalation Guide",
-                                    "SSH Hardening & Offensive Mastery"]
-                    ))
-                    break  # One finding per file
+            # Don't flag SSH keys in .ssh/ directories (user home)
+            if (fp.suffix in (".pem", ".key") or fp.name.startswith("id_")) and ".ssh/" in str(fp):
+                continue
+
+            # Skip test vectors / fixtures / examples (not real credentials)
+            if fixture_sensitive and _is_test_fixture_path(rel_path):
+                continue
+
+            # .pem/.key that are public certs/keys — not private keys
+            if fp.suffix in (".pem", ".key") and _is_public_key_material(fp):
+                continue
+
+            findings.append(Finding(
+                rule_id=RULE_ID,
+                file_path=rel_path,
+                line=1,
+                severity=severity,
+                title=title,
+                detail=detail,
+                fix_suggestion="Remove from repository. Add to .gitignore. "
+                               "Rotate any exposed credentials.",
+                references=["Window Privilege Escalation Guide",
+                            "SSH Hardening & Offensive Mastery"]
+            ))
 
         # 2. Check content-based patterns (only for text files)
         if fp.suffix in (".xml", ".conf", ".cfg", ".ini", ".yaml", ".yml", ".json",
@@ -236,124 +268,132 @@ def detect(ctx: AuditContext) -> list[Finding]:
     return findings
 ```
 
----
+## 3. Metric — what counts as "better"
 
-## 4. Реальные FP (из БД, file:line → что заматчилось)
+- **Primary: precision** = TP/(TP+FP). Remove FP **without losing TP**.
+- **Guard:** any narrowing/disabling of a pattern is acceptable only if TP cases still fire.
+- Recall (new patterns) is secondary, and only after precision is stable.
 
-### 4.1 `Private key` glob (`id_rsa`, `*.pem`, `*.key`) — 1243 MEDIUM, главный шум
+## 4. Known FP candidates (leads — verify and confirm/refute each)
 
-`*.pem`/`*.key` матчатся по **имени файла** (`fnmatch(path.name, pattern)`), без разбора содержимого. Единственный skip — `.ssh/`-каталог. Всё остальное — тест-векторы и публичные сертификаты:
+### Lead 1 (main remaining bug) — PostgreSQL: flags documentation + its own brief
 
-| file:line | заматчилось | почему FP |
-|---|---|---|
-| `vectors/cryptography_vectors/asymmetric/DH/dhkey.pem:1` | `*.pem` | **тест-вектор** (публичный ключ для юнит-тестов) |
-| `vectors/cryptography_vectors/asymmetric/EC/secp256r1-explicit-seed.pem:1` | `*.pem` | тест-вектор |
-| `vectors/cryptography_vectors/asymmetric/Ed25519/ed25519-pkcs8.pem:1` | `*.pem` | тест-вектор |
-| `vectors/cryptography_vectors/asymmetric/MLKEM/mlkem768.pem:1` | `*.pem` | тест-вектор |
-| … (ещё ~1216 файлов `vectors/cryptography_vectors/**`) | `*.pem`/`*.key` | все — фикстуры крипто-тестов |
-| `dummyserver/certs/cacert.pem:1` (urllib3) | `*.pem` | **публичный CA-сертификат** тестового сервера |
-| `dummyserver/certs/server.key:1` (urllib3) | `*.key` | тестовый ключ dummyserver |
-| `test/contrib/duplicate_san.pem:1` (urllib3) | `*.pem` | тестовый сертификат |
-| `test/testcert.pem:1` (urllib3, youtube-dl) | `*.pem` | тестовый сертификат |
+`postgres(?:ql)?://[^:@]+:(?!placeholder@)[^@]+@` fires on **any** `postgres://user:pass@host`
+whose password is not in `POSTGRES_PLACEHOLDER`, regardless of whether it lives in
+documentation, a docstring, or a real config. The current placeholder list
+(`***|pass|password|secret|changeme|example|your|xxx|pwd|scott|tiger|user|test|admin`) does
+not cover everything. A fresh self-scan of the GSC repo yields **11 HIGH, and the detector
+flags its own documentation**:
 
-**Корень:** glob по имени файла не отличает (а) тестовые фикстуры от реальных кредов, (б) публичные ключи/сертификаты от приватных. `*.pem` ловит `cacert.pem`, `*pub*.pem`, `*.crt` — всё это НЕ приватные ключи.
+| file | why FP |
+|---|---|
+| `docs/DETECTOR_BRIEF_GS014.md` (×4) | **the brief itself** — example URLs in the doc |
+| `docs/DETECTOR_BRIEF_GS021.md` | example URL in another detector's brief |
+| `benchmark/real_world/sanic/guide/content/en/guide/how-to/orm.md` | documentation (Markdown) |
+| `gsc_core/gsc_detectors/gs040_pii_disclosure.py` | docstring example |
+| `gsc_core/gsc_collector/spiders/gsc_vuln_spider.py` | docstring example |
+| `docker-compose.yml`, `k8s/base/00-namespace-config.yaml` | deploy config (borderline — verify) |
 
-### 4.2 `PostgreSQL connection string` — 78 HIGH, docstring-примеры с замаскированным паролем
+**Fix direction (two-step):**
+1. **Placeholder widening** — treat any password that equals its own username (self-
+   reference `user:user@`, `postgres:postgres@`, `remnawave:remnawave@`) or a doc/example
+   token as a placeholder, OR
+2. **Context filter** — skip matches whose line is inside a docstring (`"""`/`'''` block)
+   or a Markdown file, OR drop `.md`/`.txt`/`.rst` from the content-scan extensions for the
+   postgres pattern specifically.
 
-Regex `postgres(?:ql)?://[^:]+:[^@]+@` хватает любой `user:pass@` в **документации**. Пароль в примерах SQLAlchemy — это `scott:***` (канонический пример с уже отредкетированным паролем):
+> ⚠️ **Do NOT over-filter:** `docker-compose.yml`, `k8s/*.yaml`, and `.env` with real
+> credentials are **TP** — keep them firing. The FP is documentation/docstring/self-reference,
+> not "any non-Python file".
 
-| file:line | заматчилось | почему FP |
-|---|---|---|
-| `lib/sqlalchemy/dialects/postgresql/psycopg.py:81,103` | `postgresql://scott:***@localhost/test` | docstring-пример, пароль = `***` (уже redacted) |
-| `lib/sqlalchemy/ext/automap.py:150,180` | `postgresql://scott:***@localhost/test` | docstring-пример |
-| `lib/sqlalchemy/dialects/oracle/base.py:195` | `postgresql://…` в доке | docstring-пример |
-| `lib/sqlalchemy/sql/events.py:76` | `postgresql://…` | docstring |
-| `lib/sqlalchemy/testing/provision.py:126` | `postgresql://…` | тестовый provision-код |
-| `pydantic/networks.py:765,767,770,773,775,778,786` | `postgres://user:***@localhost:5432/foobar` | docstring `PostgresDsn`/`MultiHostUrl`, пароль `***` |
-| `pandas/io/sql.py:369,683` | `postgresql://user:pass@…` | docstring `read_sql_table` |
-| `peewee.py:4410,4487,4549` | `postgresql://user:password@…` | docstring `PostgresqlDatabase` |
-| `playhouse/cockroachdb.py:62,68`, `playhouse/flask_utils.py:99,111` | `postgresql://…` | docstring-примеры |
-| `py-polars/.../frame.py:4417,4445`, `io/database/functions.py:367,438,445,458` | `postgresql://…` | docstring-примеры |
-| `salt/modules/highstate_doc.py:217` | `postgresql://…` | документация |
-| `test/typing/plain_files/engine/engines.py:33` | `postgresql://…` | typing-тест |
+### Lead 2 — Private-key glob (1243 historical) — ALREADY fixed, verify
 
-**НЕ трогать (TP):** `/tmp/gsc-hunt-4/docker-compose.remnawave-dev.yml`, `/tmp/gsc-hunt-4/scripts/install.sh`, `/tmp/gsc-hunt-4/backend/scripts/import_legacy.py` — там реальные default-креды `remnawave:remnawave@` (username == password), это настоящий credential exposure.
+The current code already has `fixture_sensitive=True` + `_is_test_fixture_path` +
+`_is_public_key_material`, so a fresh self-scan of gsc/bybit-ws yields **0** private-key
+findings. The 1243 rows in the DB are cumulative history (mostly `cryptography`'s
+`vectors/cryptography_vectors/**/*.pem` public test keys). **Your job is only to confirm**
+the existing filters hold on external projects — i.e. verify `_is_public_key_material`
+covers binary/DER `.pem` (no ASCII `BEGIN …` marker) and that `*.key` public keys are not
+misflagged. Do not weaken these filters.
 
-**Корень:** regex не различает (а) docstring/комментарий vs код, (б) пароль-плейсхолдер (`***`, `pass`, `password`, `scott`, `tiger`) vs реальное значение.
+### Lead 3 — env/credential glob (3 on self-scan) — these are TP, do NOT cut
 
-### 4.3 `Environment/credential file` glob (`*credentials*`, `*.env`) — 26 LOW
+The 3 self-scan hits are `cloud/.env`, `cloud/.env.bak-20260816_1215`,
+`cloud/.env.bak-20260816_212334` — real `.env` files committed to the repo (an actual
+credential exposure). These are **true positives**. The glob is already narrowed (no more
+`*credentials*` wildcard; explicit `credentials.yml/json/ini`, `.netrc`, `.credentials`).
+Only check: on *external* projects, does `*.env` still catch test fixtures that
+`_is_test_fixture_path` should have filtered (e.g. `test.env`, `*.env.example`)?
 
-| file:line | заматчилось | почему FP |
-|---|---|---|
-| `redis/credentials.py:1` (redis-py) | `*credentials*` | **исходник** — класс `CredentialProvider` |
-| `crates/uv-auth/src/credentials.rs:1` (uv) | `*credentials*` | исходник (Rust) |
-| `crates/uv-git/src/credentials.rs:1` (uv) | `*credentials*` | исходник |
-| `src/twisted/cred/credentials.py:1` (twisted) | `*credentials*` | исходник — `twisted.cred` интерфейс |
-| `test/integration/targets/config/files/types.env:1` (ansible) | `*.env` | тестовая фикстура |
-| `test.env:1` (/tmp/gsc-hunt-3) | `*.env` | тестовый env |
-| `deploy/dev/remnawave-stands/2.7.4/stand.env:1` … `3.2.3/stand.env:1` (hunt-4) | `.env.*` | dev-stand env (граничный случай — возможно TP) |
+### Lead 4 (data, NOT the detector) — split `rule_id` in the DB
 
-**Корень:** glob `*credentials*` ловит любые **исходники с именем "credentials"** (`credentials.py`/`credentials.rs` — это код авторизации, не файл с сохранёнными секретами). `*.env`/`.env.*` ловит тестовые и example-фикстуры.
+Some rows carry `rule_id = "GS014 (Credential exposure — stored credentials, backup auth
+files,)"` (the `description` leaked into `rule_id` in an old version). The current code is
+correct (`rule_id=RULE_ID`). This is a DB-migration concern (`UPDATE findings SET
+rule_id='GS014' …`), **not** a detector change. Ignore for precision work; just query with
+`LIKE 'GS014%'`.
 
----
+## 5. Your task
 
-## 5. Лиды (по приоритету)
+Analyze the code above. For each candidate in §4 (and any OTHER FP you notice) propose a
+concrete fix. Three allowed tools (in order of preference):
 
-> Каждый лид — самостоятельный фикс. Принимаются только подтверждённые на реальном коде (`FP↓ при TP-константе`). Не резать recall.
+1. **Path exclusion** — add to a path/glob exclusion (tests, samples, benchmark, vendor).
+2. **Regex narrowing** — require more context in the pattern itself.
+3. **Context analysis** — extend a `_is_false_positive`-style filter (±3 lines / key capture).
 
-### Лид 1 (максимум эффекта, ~92% шума) — path-exclusion для тест-векторов/фикстур в `Private key`-glob
-**Симптом:** 1243 MEDIUM, из них 1220 (`cryptography` vectors) + 20 (urllib3 dummyserver/test) + 3 (youtube-dl test) — всё тестовые публичные ключи/сертификаты.
-**Фикс:** гейт в `detect()` по пути (`rel_path`) — пропускать приватные ключи в тестовых/фикстурных каталогах:
-`vectors/`, `testdata/`, `fixtures/`, `tests/`, `test/`, `dummyserver/`, `*/test/*`, `*/tests/*`, `*.example`, `*.sample`.
-**Ожидание:** 1243 → ~0. Реальные приватные ключи в корне/конфигах репо остаются.
+## 6. Response format (strict)
 
-### Лид 2 (главный контентный баг, ~6% шума) — PostgreSQL: пропускать redacted/placeholder пароли и docstring
-**Симптом:** 78 HIGH, из них ~73 — docstring-примеры с `scott:***@` / `user:pass@` / `user:password@`.
-**Фикс (двухступенчатый):**
-1. **Пароль-плейсхолдер:** не матчить, если значение пароля (между `:` и `@`) ∈ `{***, pass, password, secret, changeme, example, your, xxx, pwd, scott, tiger, user, test, admin}` (case-insensitive, слово целиком). Это снимает `scott:***@` и `user:pass@`, но **сохраняет** `remnawave:remnawave@` (не в словаре).
-2. **Контекст docstring:** пропускать матч, если ближайший выше по строке стоит неэкранированный `"""`/`'''` (match внутри docstring) или строка закомментирована (`#`/`//`/`--`). Опционально — но надёжнее пароль-фильтра.
-**Ожидание:** 78 → ~5 (остаются hunt-4 compose/install.sh TP).
+For each proposal, one block:
 
-### Лид 3 — `*credentials*` glob ловит исходники
-**Симптом:** `redis/credentials.py`, `twisted/cred/credentials.py`, `uv-auth/src/credentials.rs`, `uv-git/src/credentials.rs` — это **код**, не файлы с сохранёнными секретами.
-**Фикс:** сузить паттерн — заменить `*credentials*` на явные имена файлов с секретами (`.credentials`, `credentials.yml`, `credentials.json`, `credentials.ini`, `.netrc`), **либо** исключить source-расширения (`.py`, `.rs`, `.js`, `.ts`, `.java`, `.go`, `.rb`, `.php`) для этого паттерна. Файл `credentials.py` — модуль авторизации, не хранилище.
-**Ожидание:** снимает 12 из 26 LOW (redis-py, uv×2, twisted).
+```
+### GS014: <name>
+- Type: path_exclusion | regex_narrowing | context_analysis
+- Pattern/code: <concrete regex or diff>
+- Rationale: why it's an FP (file/line example)
+- FP it removes: <real code line>
+- TP impact: which TP cases are NOT affected
+```
 
-### Лид 4 — `*.env`/`.env.*` glob: исключить example/test env-фикстуры
-**Симптом:** `test.env`, `test/integration/targets/config/files/types.env` — тестовые env-файлы, не реальные секреты.
-**Фикс:** пропускать имена `*.env.example`, `*.env.sample`, `*.env.template`, `*.env.test`, `test.env`, а также env-файлы внутри `test/`/`tests/`/`fixtures/` (пересекается с Лидом 1).
-**Ожидание:** снимает `test.env`, ansible fixture. **Граница:** `deploy/dev/remnawave-stands/*/stand.env` — dev-stand env, может быть TP; резать аккуратно, только `.example/.sample/.template/.test`.
+## 7. Do NOT do
 
-### Лид 5 — `*.pem`/`*.key`: отличать приватный ключ от публичного/сертификата по содержимому
-**Симптом:** `*.pem` матчит `cacert.pem`, `*pub*.pem`, `*.crt`, `ed25519-pub.pem` — публичные материалы.
-**Фикс:** для текстовых `.pem`/`.key` читать первые байты и срабатывать только при наличии приватного PEM-маркера (`BEGIN RSA PRIVATE KEY`, `BEGIN EC PRIVATE KEY`, `BEGIN PRIVATE KEY`, `BEGIN OPENSSH PRIVATE KEY`). Публичные (`BEGIN CERTIFICATE`, `BEGIN PUBLIC KEY`, `BEGIN X509`) и бинарные/пустые — пропускать. Это превращает грубый name-glob в контентный чек и снимает `cacert.pem`/`*pub*.pem`.
-**Ожидание:** дополнительный срез MEDIUM на реальных проектах (urllib3 dummyserver, если не покрыт Лидом 1).
+- ❌ Do not change `RULE_ID`, the severity scale, the `detect()` signature, or `Finding` keys.
+- ❌ Do not disable the detector wholesale — only filters.
+- ❌ Do not weaken `_is_test_fixture_path` / `_is_public_key_material` — they already fix the
+  private-key noise (Lead 2).
+- ❌ Do not "clean up" code beyond the task (scope discipline).
+- ❌ Do not propose without FP examples (can't assess risk/benefit).
+- ❌ Do not add new credential *detection* (recall) — this is a precision pass only.
 
-### Лид 6 (данные/косметика, НЕ детектор) — дубликаты и расщеплённый `rule_id`
-1. **Дубликаты:** одна и та же находка повторяется ×4 (`redis/credentials.py:1`), ×3 (`test/testcert.pem:1`), ×2 (`pydantic/networks.py:778`) — накопление по разным `run_id`. Для отчётов dedup по `finding_key` внутри `run_id`. **Детектор не трогать.**
-2. **Расщеплённый `rule_id`:** часть находок под `GS014`, часть под `GS014 (Credential exposure — stored credentials, backup auth files,)` — старый баг задания `rule_id` (title попал в rule_id). Это ломает инвариант `finding_key = sha256(rule_id+file+snippet)`: одни и те же находки дают разные ключи. Считать срез как `LIKE 'GS014%'`. Мигрировать правило в БД (`UPDATE findings SET rule_id='GS014' …`), **в коде детектора `RULE_ID = "GS014"` уже корректен — не менять.**
+## 8. Verification procedure (run before claiming a fix)
 
----
+```bash
+cd ~/gsc
+# Fresh FP slice — do NOT trust the historical DB for "is it still firing"
+python3 - <<'PY'
+import sys; sys.path.insert(0, '.')
+from pathlib import Path
+from gsc_detectors import AuditContext
+from gsc_detectors import gs014_credential_exposure as g14
+for root in ('.', str(Path.home()/'bybit-ws')):
+    ctx = AuditContext(project='x', path=Path(root)); ctx.files = ctx.get_files()
+    fs = g14.detect(ctx)
+    print(root, '->', len(fs), 'findings')
+    for f in fs[:20]:
+        print('  ', f.get('severity'), f.get('file_path'), f.get('title'))
+PY
 
-## 6. Контракт верификации (обязателен перед приёмкой)
+# full suite + standalone regression/compliance
+python3 -m pytest -q
+python3 tests/test_regression.py
+python3 tests/test_compliance_secrets.py
+```
 
-1. **Smoke** на синтетике в `/tmp/gs014_smoke/` через `AuditContext(project, path)`:
-   - **TP должны остаться:** `id_rsa` в корне репо; `server.key` вне `.ssh/`/`test/`; `autounattend.xml` с `<AdministratorPassword><Value>…base64…</Value>`; WireGuard `PrivateKey = <44 base64 chars>`; `postgresql://remnawave:remnawave@postgres:5432/remnawave` (username==password); `sudoers` `deploy ALL=(ALL) NOPASSWD: ALL`; `.bash_history`; `.credentials` (без расширения).
-   - **FP должны уйти:** `vectors/**/dhkey.pem`, `test/testcert.pem`, `dummyserver/certs/cacert.pem`; `postgresql://scott:***@localhost/test`, `postgresql://user:pass@host/db`, `postgres://user:password@…` (в docstring); `redis/credentials.py`, `credentials.rs`; `test.env`, `*.env.example`.
-2. **Полный прогон:** `python3 -m pytest -q`, `python3 tests/test_regression.py` — standalone, запускать `python3 tests/...` напрямую.
-3. **Проверка на живом коде:** перегнать GS014 на `cryptography`, `sqlalchemy`, `urllib3`, `pydantic` — FP-счёт должен упасть с 1347 до ~десятков, TP в `/tmp/gsc-hunt-4` (compose/install.sh) не потеряны.
-
-## 7. Жёсткие инварианты (нарушать нельзя)
-
-- `RULE_ID = "GS014"` и `finding_key` не менять.
-- TP-кейсы не резать (TPR drop ≤ 3%): реальные `id_rsa`/`*.key` вне тестовых каталогов, `remnawave:remnawave` в compose, WireGuard `PrivateKey`, sudoers, unattend/base64 — остаются.
-- Severity-шкалу не менять (`CRITICAL`/`HIGH`/`MEDIUM`/`LOW` как в `CREDENTIAL_FILE_PATTERNS`/`CONTENT_PATTERNS`).
-- Детектор целиком не отключать — только path-exclusion / regex-сужение / context-анализ.
-- `references` и `fix_suggestion` сохранить (совместимость с отчётами).
-- Код-стиль: stdlib (`re`, `pathlib`, `fnmatch`); `Finding` — dict-like (`severity=`, `file_path=`, `line=`); файлы через `ctx.get_files()` (этот детектор сканирует ВСЕ файлы, не только source — не сужать до `get_source_files`).
-- Лид 6 (дубликаты/rule_id) — правка БД/отчётов, **не** детектора.
-
----
-
-*Файл детектора: `gsc_core/gsc_detectors/gs014_credential_exposure.py`.*
-*Срез БД: `sqlite3 ~/.hermes/state/gsc_audit.db "SELECT rule_id, category, COUNT(*) FROM findings WHERE rule_id LIKE 'GS014%' GROUP BY rule_id, category;"` — переснять перед работой (учесть расщеплённый rule_id, см. Лид 6).*
+Pitfalls:
+- `Finding` is dict-like: `severity=`/`category=` (same), `file_path`/`line_number`/`detail`
+  (NOT `file=`/`message=`). Emit both where a bridge expects one.
+- This detector scans **ALL** files via `ctx.get_files()` (not `get_source_files()`) — do not
+  narrow it to source-only; credential files may be in any location.
+- `test_regression.py` / `test_compliance_secrets.py` are standalone — run with
+  `python3 tests/…`, not `pytest`.
+- **Commit only on explicit instruction** — the repo owner gates all commits.
