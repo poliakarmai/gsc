@@ -73,10 +73,22 @@ CREDENTIAL_FILE_PATTERNS = [
      "MEDIUM", "Shell history files may contain passwords passed as command arguments.", False),
 ]
 
-# Placeholder/example passwords used in docstrings and examples. A connection
-# string carrying one of these is documentation, not an exposed credential.
-POSTGRES_PLACEHOLDER = (
-    r"(?:\*\*\*|pass|password|secret|changeme|example|your|xxx|pwd|scott|tiger|user|test|admin)"
+# PostgreSQL connection strings, extracted from CONTENT_PATTERNS so they get
+# dedicated FP filters (self-reference, variable interpolation, placeholder
+# passwords, documentation/docstring) instead of the old single-lookahead.
+POSTGRES_CONN_RE = re.compile(
+    r'postgres(?:ql)?://(?P<pg_user>[^:@]+):(?P<pg_pass>[^@]+)@',
+    re.I,
+)
+
+# Placeholder/example passwords — PREFIX match, not exact token: password123@,
+# your_password@, test_password@ are all documentation, not real creds. The old
+# lookahead `(?!token@)` only matched the exact token@ and let these slip.
+PG_PLACEHOLDER_RE = re.compile(
+    r'(?:\*\*\*|passw(?:or)?d|pass|pwd|secret|change[_-]?me|example|your|xxx|'
+    r'scott|tiger|user|test|admin|postgres(?:ql)?|demo|sample|dummy|'
+    r'foo|bar|baz|redacted|placeholder)',
+    re.I,
 )
 
 # Content-based patterns
@@ -92,11 +104,6 @@ CONTENT_PATTERNS = [
      "WireGuard private key in config", "HIGH",
      "WireGuard PrivateKey exposed in configuration file. "
      "Use external key storage or environment variable."),
-
-    # PostgreSQL connection strings with password (skip placeholder/example passwords)
-    (re.compile(r'postgres(?:ql)?://[^:@]+:(?!' + POSTGRES_PLACEHOLDER + r'@)[^@]+@', re.I),
-     "PostgreSQL connection string with embedded password", "HIGH",
-     "Database URL contains password in plaintext. Use environment variable."),
 
     # sudoers: NOPASSWD for ALL commands
     (re.compile(r'^\s*\S+\s+ALL\s*=\s*\(\s*(?:ALL|root)\s*\)\s*NOPASSWD\s*:\s*ALL', re.I | re.MULTILINE),
@@ -145,13 +152,45 @@ def _is_test_fixture_path(rel_path: str) -> bool:
     return name.endswith((".example", ".sample", ".template", ".test"))
 
 
+def _in_docstring(content: str, pos: int) -> bool:
+    """True if `pos` sits inside a \"\"\"...\"\"\" / '''...''' docstring block.
+
+    Quote-parity is an approximation (acceptable per the brief's "context
+    analysis" tool): a URL inside a string literal is an example, not a real
+    credential, so a false "in docstring" only ever suppresses an FP.
+    """
+    for quote in ('"""', "'''"):
+        if content[:pos].count(quote) % 2 == 1:
+            return True
+    return False
+
+
 def _is_public_key_material(fp: Path) -> bool:
-    """True if a .pem/.key file's head is a public certificate/key (not a private key)."""
+    """True if a .pem/.key file is a public certificate/key (not a private key).
+
+    Covers three cases:
+    1. binary (DER) content — a PEM private key is always ASCII/base64, so a
+       binary .pem/.key is a DER certificate/public key;
+    2. PEM headers that mark a public cert/key (BEGIN CERTIFICATE / PUBLIC KEY);
+    3. raw OpenSSH public keys (ssh-rsa AAAA…, ssh-ed25519 …) stored in *.key.
+    """
     try:
-        head = fp.read_bytes()[:2048].decode("utf-8", errors="ignore")
+        head = fp.read_bytes()[:2048]
     except Exception:
         return False
-    return any(m in head for m in PUBLIC_KEY_MARKERS)
+    if not head:
+        return False
+    # Binary (DER) content cannot be a PEM private key (those are always ASCII).
+    printable = sum(1 for b in head if b in (9, 10, 13) or 32 <= b < 127)
+    if printable / len(head) < 0.9:
+        return True
+    text = head.decode("utf-8", errors="ignore")
+    if any(m in text for m in PUBLIC_KEY_MARKERS):
+        return True
+    # OpenSSH public key without a PEM header (sometimes stored in *.key)
+    stripped = text.lstrip()
+    return stripped.startswith(("ssh-rsa ", "ssh-ed25519 ", "ssh-dss ",
+                                "ecdsa-sha2-", "sk-ssh-ed25519 ", "sk-ecdsa-"))
 
 
 def detect(ctx: AuditContext) -> list[Finding]:
@@ -214,6 +253,45 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         severity=severity,
                         title=title,
                         detail=detail,
+                        fix_suggestion="Remove hardcoded credential. Use environment variables "
+                                       "or secrets manager. Rotate exposed secrets.",
+                        references=["Redteam Kit", "2025 Playbooks - Credential Stuffing"]
+                    ))
+
+            # 3. PostgreSQL connection strings — dedicated FP filters.
+            # Skip documentation files (examples, not real creds).
+            if fp.suffix.lower() not in (".md", ".txt", ".rst"):
+                for match in POSTGRES_CONN_RE.finditer(content):
+                    pg_user = match.group("pg_user").strip()
+                    pg_pass = match.group("pg_pass").strip()
+                    # user:user@ / postgres:postgres@ / remnawave:remnawave@ — stub self-reference
+                    if pg_pass.lower() == pg_user.lower():
+                        continue
+                    # ${ENV} / %(VAR) / {vault} / <password> — variable reference, no secret
+                    if pg_pass.startswith(("$", "%", "{", "<")):
+                        continue
+                    # placeholder/example passwords (prefix match)
+                    if PG_PLACEHOLDER_RE.match(pg_pass):
+                        continue
+                    # regex-pattern self-flagging: a password containing regex
+                    # alternation/groups is a detector's own pattern, not a URL
+                    if "|" in pg_pass or "(?:" in pg_pass:
+                        continue
+                    # URL in a commented-out line (example, not a live credential)
+                    line_start = content.rfind("\n", 0, match.start()) + 1
+                    if content[line_start:match.start()].lstrip().startswith(("#", "//", "--")):
+                        continue
+                    # URL inside a docstring (example, not a credential)
+                    if fp.suffix.lower() == ".py" and _in_docstring(content, match.start()):
+                        continue
+                    lineno = content[:match.start()].count("\n") + 1
+                    findings.append(Finding(
+                        rule_id=RULE_ID,
+                        file_path=rel_path,
+                        line=lineno,
+                        severity="HIGH",
+                        title="PostgreSQL connection string with embedded password",
+                        detail="Database URL contains password in plaintext. Use environment variable.",
                         fix_suggestion="Remove hardcoded credential. Use environment variables "
                                        "or secrets manager. Rotate exposed secrets.",
                         references=["Redteam Kit", "2025 Playbooks - Credential Stuffing"]
