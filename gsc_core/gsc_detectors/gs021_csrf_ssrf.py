@@ -54,13 +54,12 @@ SSRF_PATTERNS: list[tuple[str, str, str]] = [
     (r'file_get_contents\s*\(\s*\$_(?:GET|POST|REQUEST)', "SSRF: PHP file_get_contents with user input", "CRITICAL"),
     (r'curl_exec\s*\(.*\$_(?:GET|POST|REQUEST)', "SSRF: PHP curl_exec with user-controlled URL", "CRITICAL"),
     # Internal host references
-    (r'localhost|127\.0\.0\.1|0\.0\.0\.0', "SSRF candidate: reference to localhost", "INFO"),
     (r'169\.254\.169\.254', "SSRF: AWS metadata endpoint in code", "CRITICAL"),
     (r'metadata\.google\.internal', "SSRF: GCP metadata endpoint in code", "CRITICAL"),
     (r'/var/run/docker\.sock', "SSRF/LFI: Docker socket reference in code", "HIGH"),
     # URL construction with user input
     (r'url\s*=\s*[\"\']https?://.*\{\{', "SSRF: URL template with variable interpolation", "HIGH"),
-    (r'f[\"\']https?://\{', "SSRF: f-string URL with user variable", "HIGH"),
+    (r'f[\"\']https?://[^\"\']*\{[^}]*(?:request\.|params\[|req\.(?:query|body|params)|user_input|input\(|args\.get|form\.get|\$_GET|\$_POST)[^}]*\}', "SSRF: f-string URL with user variable", "HIGH"),
 ]
 
 # Ruby-only SSRF — `open()`/`open-uri` открывают HTTP в Ruby, но `open()` в Python читает файл
