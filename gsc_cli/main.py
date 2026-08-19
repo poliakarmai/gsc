@@ -1767,8 +1767,13 @@ def cmd_triage(args):
                     effectiveness = CAST(true_positive_count + 1 AS REAL) / NULLIF(true_positive_count + 1 + false_positive_count, 0)
                     WHERE id=?""", (pid,))
                 # Auto-deactivate if <30% AND >=10 ratings
-                conn.execute("""UPDATE patterns SET active = 0, deactivated_at = datetime('now')
+                cur = conn.execute("""UPDATE patterns SET active = 0, deactivated_at = datetime('now')
                     WHERE id=? AND effectiveness < 0.3 AND (true_positive_count + false_positive_count) >= 10""", (pid,))
+                if cur.rowcount > 0:
+                    # fp_log: structured auto-deactivation event (schema v33)
+                    conn.execute("""INSERT INTO fp_log (finding_id, pattern_id, rule_id, reason, action_taken, source, actor)
+                        VALUES (?, ?, ?, 'auto_deactivated', 'soft_disabled_pattern', 'triage', '')""",
+                        (r['id'], pid, r['pattern_title'] or r['rule_id']))
             tp += 1
         elif choice == 'n':
             conn.execute("UPDATE findings SET status='false_positive', reviewed_at=datetime('now') WHERE id=?", (r['id'],))
@@ -1777,6 +1782,10 @@ def cmd_triage(args):
                     false_positive_count = false_positive_count + 1,
                     effectiveness = CAST(true_positive_count AS REAL) / NULLIF(true_positive_count + false_positive_count + 1, 0)
                     WHERE id=?""", (pid,))
+            # fp_log: structured FP event (schema v33)
+            conn.execute("""INSERT INTO fp_log (finding_id, finding_key, pattern_id, rule_id, reason, action_taken, source, actor)
+                VALUES (?, ?, ?, ?, 'false_positive', 'marked_fp', 'triage', '')""",
+                (r['id'], r['finding_key'], pid, r['pattern_title'] or r['rule_id']))
             fp += 1
         elif choice == '$':
             if pid: skipped_patterns.add(pid)

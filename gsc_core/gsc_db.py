@@ -23,7 +23,7 @@ _DEFAULT_DB = (
     else str(Path.home() / ".hermes/state/gsc_audit.db")
 )
 DB_PATH = Path(os.environ.get("GSC_DB_PATH", _DEFAULT_DB))
-TARGET_VERSION = 32
+TARGET_VERSION = 33
 
 # Canonical base schema (v1). These tables are the foundation every migration
 # and query assumes. They MUST exist before any ALTER TABLE runs — fresh
@@ -447,6 +447,25 @@ CREATE INDEX IF NOT EXISTS idx_overrides_pr
     ON overrides(repo, pr_number);
 """
 
+SCHEMA_V033 = """
+CREATE TABLE IF NOT EXISTS fp_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    finding_id INTEGER,
+    finding_key TEXT,
+    pattern_id INTEGER,
+    rule_id TEXT,
+    reason TEXT NOT NULL DEFAULT 'false_positive',
+    comment TEXT DEFAULT '',
+    action_taken TEXT NOT NULL DEFAULT 'marked_fp',
+    source TEXT NOT NULL DEFAULT 'cli',
+    actor TEXT DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX IF NOT EXISTS idx_fp_log_rule ON fp_log(rule_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_fp_log_pattern ON fp_log(pattern_id);
+CREATE INDEX IF NOT EXISTS idx_fp_log_key ON fp_log(finding_key);
+"""
+
 
 def compute_finding_key(rule: str, file_path: str, snippet: str) -> str:
     """Stable finding key = sha256(rule|file|snippet)[:12] (invariant #1).
@@ -515,6 +534,8 @@ class GSCDatabase:
             self._apply_v031()
         if version < 32:
             self._apply_v032()
+        if version < 33:
+            self._apply_v033()
         self.conn.execute("DELETE FROM schema_version")
         self.conn.execute(
             "INSERT INTO schema_version(version) VALUES (?)",
@@ -732,6 +753,30 @@ class GSCDatabase:
             FROM comment_reactions;
             DROP TABLE comment_reactions;
             ALTER TABLE comment_reactions_new RENAME TO comment_reactions;
+        """)
+
+    def _apply_v033(self):
+        """Schema v33: fp_log — structured FP capture (self-learning + noise analytics).
+
+        Also backfills the ``feedback`` table for pre-existing DBs: it lives in
+        SCHEMA_BASE but _ensure_base_schema only creates base tables when
+        ``findings`` is absent, so DBs migrated from older versions never got it
+        (audit C-05) — yet record_feedback/detector_tp_rates query it.
+        """
+        self.conn.executescript(SCHEMA_V033)
+        self.conn.executescript("""
+            CREATE TABLE IF NOT EXISTS feedback (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                finding_key TEXT NOT NULL,
+                verdict TEXT NOT NULL,
+                reason TEXT DEFAULT '',
+                source TEXT DEFAULT 'cli',
+                actor TEXT DEFAULT '',
+                pr_number INTEGER,
+                created_at TEXT DEFAULT (datetime('now'))
+            );
+            CREATE INDEX IF NOT EXISTS idx_feedback_key ON feedback(finding_key);
+            CREATE INDEX IF NOT EXISTS idx_feedback_verdict ON feedback(verdict);
         """)
 
     def _apply_v027(self):
@@ -1009,6 +1054,47 @@ class GSCDatabase:
                 VALUES (?, ?, ?, ?, ?, ?, datetime('now'))
             """, (finding_key, verdict, reason[:500], source, actor,
                   pr_number))
+
+    def record_fp(self, finding_key=None, finding_id=None, pattern_id=None,
+                  rule_id=None, reason="false_positive", comment="",
+                  action_taken="marked_fp", source="cli", actor=""):
+        """Append a structured false-positive event to fp_log (schema v33).
+
+        Feeds self-learning + per-rule noise analytics. ``reason`` ∈
+        {quality_issue, false_positive, auto_deactivated, other};
+        ``action_taken`` ∈ {marked_fp, soft_disabled_pattern,
+        added_exclusion, federated_deactivated, other}.
+        """
+        self.conn.execute("""
+            INSERT INTO fp_log (finding_id, finding_key, pattern_id, rule_id,
+                reason, comment, action_taken, source, actor)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (finding_id, finding_key, pattern_id, rule_id, reason,
+              (comment or "")[:500], action_taken, source, actor))
+        self.conn.commit()
+
+    def fp_stats(self, days=None) -> list[dict]:
+        """Per-rule FP counts from fp_log, noisiest first.
+
+        Returns [{rule_id, fp_count, reasons, actions, last_seen}].
+        ``days`` restricts to the trailing window (default: all-time).
+        """
+        where, params = "", []
+        if days:
+            where = "WHERE created_at > datetime('now', ?)"
+            params.append(f"-{days} days")
+        rows = self.conn.execute(f"""
+            SELECT rule_id,
+                   COUNT(*) AS fp_count,
+                   GROUP_CONCAT(DISTINCT reason) AS reasons,
+                   GROUP_CONCAT(DISTINCT action_taken) AS actions,
+                   MAX(created_at) AS last_seen
+            FROM fp_log
+            {where}
+            GROUP BY rule_id
+            ORDER BY fp_count DESC
+        """, params).fetchall()
+        return [dict(r) for r in rows]
 
     def detector_tp_rates(self) -> list[dict]:
         """TP-rate per detector. fixed counts as positive signal."""

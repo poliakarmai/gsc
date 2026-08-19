@@ -237,6 +237,14 @@ def auto_deactivate_global(db, client: FederatedClient,
             VALUES (?, ?)
         """, (r["rule_id"],
               f"global_tp_rate={r['global_tp_rate']:.2f}@{r['global_verdicts']}verdicts"))
+        # fp_log: structured federated deactivation event (schema v33)
+        db.record_fp(
+            rule_id=r["rule_id"],
+            reason="auto_deactivated",
+            comment=f"global_tp_rate={r['global_tp_rate']:.2f}@{r['global_verdicts']}verdicts",
+            action_taken="federated_deactivated",
+            source="federated",
+        )
         deactivated.append(r["rule_id"])
     if deactivated:
         db.conn.commit()

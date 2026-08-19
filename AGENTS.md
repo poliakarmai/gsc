@@ -2,7 +2,7 @@
 
 > Навигация для AI-агентов. Git Security Checker — AppSec-платформа.
 > **Числа → `python3 gsc_meta.py`** (не зафиксированы в этом файле)
-> **Версия:** v1.3.0 | **Schema:** 32 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
+> **Версия:** v1.3.0 | **Schema:** 33 | **Статус:** SAST+DAST+SCA+IaC+SBOM+SupplyChain — RELEASE
 > **Сверка:** `python3 scripts/gsc_reconcile.py`
 
 ## Что это
@@ -22,7 +22,7 @@ Predictive Forecasting, Federated Learning.
 gsc/
 ├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
 ├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
-├── gsc_meta.py                   ← SSOT: 147 модулей, 42 детектора, schema 32
+├── gsc_meta.py                   ← SSOT: 147 модулей, 42 детектора, schema 33
 ├── gsc_core/                     ← движок (13): db, blocking, detectors/, invariant_engine,
 │                                   compliance, sca, epss, federated, ast_dataflow, iac,
 │                                   secrets_core, yaml_rules
@@ -51,7 +51,7 @@ gsc/
 └── PROJECT.md AGENTS.md README.md
 ```
 
-DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 32)
+DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 33)
 
 ## Precision (август 2026)
 
@@ -60,6 +60,8 @@ DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 32)
 - **Precision CRITICAL: ~8–12%** (до фикса GS001 extractor)
 - Основной шум: GS001 на extractor/конфигах, тестовые секреты
 - Подробнее: `benchmark/PRECISION_REPORT.md`
+- Живая сводка: `python3 scripts/gsc_metrics_dashboard.py` (Precision/FP-rate/TP-rate
+  по детекторам из feedback + fp_log; `--json` для машинной обработки)
 
 ## Быстрый старт
 
@@ -94,13 +96,19 @@ python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
 ```
 
-## DB Schema (v32)
+## DB Schema (v33)
 
-Таблицы: findings, feedback, chains, mutation_alerts, overrides, secret_fingerprints,
+Таблицы: findings, feedback, fp_log, chains, feedback, overrides, secret_fingerprints,
 secret_sightings, nuclei_templates, dast_findings, sca_cache, federated_global_weights,
-federated_deactivated, federated_log, epss_cache, schema_version... (31 таблица)
+federated_deactivated, federated_log, epss_cache, schema_version... (33 таблицы)
 
-Миграции: v23→v24→v25→v26→v27→v28→v29→v30→v31→v32, авто, backup, WAL, идемпотентно.
+Миграции: v23→v24→v25→v26→v27→v28→v29→v30→v31→v32→v33, авто, backup, WAL, идемпотентно.
+
+- **fp_log (v33)** — структурированный FP-лог: {finding_id, finding_key, pattern_id,
+  rule_id, reason, comment, action_taken, source, actor, created_at}. Питает
+  self-learning и noise-аналитику. Пишется в triage (FP/auto-deactivate) и federated.
+- **feedback backfill (v33)** — чинит audit C-05: старые БД, у которых `feedback`
+  отсутствовал (создавался только в SCHEMA_BASE при fresh install), получают его в v33.
 
 ## Self-Learning
 
