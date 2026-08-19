@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: dashboard
-          image: ghcr.io/poliakarmai/gsc-dashboard:latest
+          image: ghcr.io/poliakarmai/gsc-dashboard:v1.4.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 3000

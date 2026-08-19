@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: worker
-          image: ghcr.io/poliakarmai/gsc-cloud:latest
+          image: ghcr.io/poliakarmai/gsc-cloud:v1.4.0
           imagePullPolicy: IfNotPresent
           command: ["python", "-m", "gsc_cloud.worker"]
           envFrom:

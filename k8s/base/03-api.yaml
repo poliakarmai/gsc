@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: api
-          image: ghcr.io/poliakarmai/gsc-cloud:latest
+          image: ghcr.io/poliakarmai/gsc-cloud:v1.4.0
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
