@@ -128,8 +128,14 @@ def parse_repo_manifests(root) -> List[Package]:
     """Collect all packages from all manifests in repo."""
     root = Path(root)
     packages = []
-    skip_dirs = {"node_modules", "vendor", ".git", "venv", ".venv",
-                 "__pycache__", "tests", "test", "dist"}
+    skip_dirs = {".git", ".venv", "venv", "node_modules", "__pycache__",
+                 "vendor", "tests", "test", "dist",
+                 # never descend into vendored deps / benchmarks / other checkouts —
+                 # mirrors _SKIP_DIRS in gsc_supply_chain_chains.py so SCA reports
+                 # GSC's OWN dependency posture, not fixture noise.
+                 "build", "OWASPBenchmark", "HuixiangDou",
+                 "benchmark", "calibration", "example_projects", "gsc-vscode",
+                 "corpus", "FastAPI-ML"}
     for manifest_name, parser in MANIFEST_PARSERS.items():
         for manifest in root.rglob(manifest_name):
             if any(p in skip_dirs for p in manifest.parts):

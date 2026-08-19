@@ -1,11 +1,12 @@
-# Только для cloud-слоя. Ядро сканера эти зависимости НЕ требует.
-fastapi==0.115.*
-uvicorn==0.30.*
-pydantic==2.*
+# Cloud-слой (DD-04: единый источник правды — pyproject.toml + requirements.txt).
+# Синхронизировано с корневым requirements.txt; бампить все три файла вместе.
+fastapi==0.141.1
+uvicorn==0.51.0
+pydantic==2.13.4
 psycopg[binary]==3.2.*
-redis==5.*
-PyJWT[crypto]==2.9.*
-requests==2.32.*
-stripe>=5.0
-authlib>=1.0
-httpx>=0.25
+redis==8.1.0
+PyJWT[crypto]==2.13.0
+requests==2.33.0
+stripe==15.4.0
+authlib==1.7.2
+httpx==0.28.1

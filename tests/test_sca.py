@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """tests/test_sca.py — SCA parser + severity + bump tests (+7)."""
 import sys, os, json, tempfile
+from pathlib import Path
 os.chdir(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, '.')
 
@@ -101,6 +102,26 @@ def t7():
     assert "requests==2.19.0" not in fix["patched"]
     assert "flask==1.0" in fix["patched"]
 run_case('sca bump fix', t7)
+
+
+def t8():
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "requirements.txt").write_text("requests==2.33.0\n")
+        # fixture dirs MUST be skipped (benchmark/calibration/build)
+        for rel, content in [
+            ("calibration/repos/sca-vuln-demo", "requests==2.19.0\n"),
+            ("benchmark/real_world/piccolo-api", "Jinja2>=2.11.0\n"),
+            ("build/lib", "flask==1.0\n"),
+        ]:
+            d = root / rel
+            d.mkdir(parents=True, exist_ok=True)
+            (d / "requirements.txt").write_text(content)
+        pkgs = parse_repo_manifests(root)
+        names = {p.name for p in pkgs}
+        assert names == {"requests"}, f"expected only requests, got {names}"
+        assert all(p.version == "2.33.0" for p in pkgs)
+run_case('parse_repo_manifests skips fixtures', t8)
 
 
 print(f'\n{"="*50}')
