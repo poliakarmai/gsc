@@ -480,6 +480,8 @@ def _derive_rule_id(pattern: dict) -> str:
     if "sql" in title: return "GS005"
     if "xss" in title: return "GS020"
     if "secret" in title or "credential" in title or "token" in title or "encrypt" in title or "exposed" in title or "hardcoded" in title: return "GS029"
+    # information disclosure → GS014 (matches CVE_PATTERN_MAP detector='GS014')
+    if "disclos" in title: return "GS014"
     if "eval" in title: return "GS008"
     if "pickle" in title or "deserial" in title: return "GS037"
     if "except" in title: return "GS010"
@@ -666,7 +668,7 @@ def check_security(project: str, path: Path) -> list[dict]:
         if not data_dir.exists():
             continue
         for f in data_dir.rglob("*"):
-            if f.is_file() and f.suffix in (".db", ".json", ".log", ".env", ".yaml", ".yml", ".key", ".pem"):
+            if f.is_file() and f.suffix in (".db", ".sqlite", ".env", ".key", ".pem", ".p12", ".pfx"):
                 perms = oct(f.stat().st_mode)[-3:]
                 if int(perms[-1]) >= 4:  # world-readable
                     findings.append(_perm_finding(str(f),
@@ -677,7 +679,7 @@ def check_security(project: str, path: Path) -> list[dict]:
     sensitive_names = {".env", ".envrc", ".secrets", ".credentials"}
     for f in path.glob("*"):
         is_sensitive = (f.name in sensitive_names or 
-                       f.suffix in (".db", ".json", ".log", ".yaml", ".yml", ".key", ".pem"))
+                       f.suffix in (".db", ".sqlite", ".key", ".pem", ".p12", ".pfx"))
         if f.is_file() and is_sensitive:
             perms = oct(f.stat().st_mode)[-3:]
             if int(perms[-1]) >= 4:
@@ -1193,7 +1195,7 @@ def load_patterns(project: str, echelon: int = None) -> list[dict]:
         try:
             conn = sqlite3.connect(str(DB_PATH))
             conn.row_factory = sqlite3.Row
-            query = "SELECT * FROM patterns WHERE (project = ? OR project = '*')"
+            query = "SELECT * FROM patterns WHERE (project = ? OR project = '*') AND active = 1"
             params = [project]
             if echelon:
                 query += " AND echelon = ?"
@@ -1564,11 +1566,10 @@ def generate_seed_patterns(count: int) -> list[dict]:
         (1, "HIGH", "Unused import", "regex", r"^import \w+\s*$.*(?!.*\b\w+\b)"),
         (1, "MEDIUM", "Missing docstring", "regex", r"^def \w+\(.*\):\s*$\n\s+(?!\"\"\"|''')"),
         (1, "MEDIUM", "Bare except:", "regex", r"except\s*:"),
-        (1, "MEDIUM", "Python: assert in production", "regex", r"\bassert\s"),
-        (2, "HIGH", "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
+        (2, "HIGH",   "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
         (2, "CRITICAL", "pickle.load() — unsafe deserialization", "regex", r"pickle\.(load|loads)\("),  # gsc:ignore — pattern definition
         (2, "HIGH", "os.system() without sanitization", "regex", r"os\.system\(.*format\(|os\.system\(.*f['\"]"),
-        (2, "MEDIUM", "Hardcoded IP address", "regex", r"\b(?!127\.)(\d{1,3}\.){3}\d{1,3}\b"),
+        (2, "MEDIUM", "Hardcoded IP address", "regex", r"(?:host|server|ip|address|endpoint|url)\s*[:=]\s*['\"]?(?!127\.)(\d{1,3}\.){3}\d{1,3}['\"]?"),
         (2, "HIGH", "API key in git history", "semantic", r"(ghp_|sk-|xai-|eyJ).{10,}"),
         (3, "HIGH", "Race condition: check-then-act", "semantic", r"if.*exists\(\):.*\n.*(open|read|write|remove)"),
         (3, "MEDIUM", "No timeout on network call", "regex", r"requests\.(get|post|put|delete)\((?!.*timeout)"),

@@ -75,9 +75,11 @@ def test_clean_code():
     findings = scan_file("def add(a: int, b: int) -> int:\n    return a + b\n")
     assert not has_finding(findings, "", "CRITICAL"), f"False positive: {len(findings)} findings on clean code"
 
-def test_assert_in_prod():
+def test_assert_not_flagged():
+    # "assert in production" is a code-quality pattern, deliberately removed from the
+    # security scan (DETECTOR_BRIEF_GS000_LEGACY.md, Lead A) — assert must NOT fire.
     findings = scan_file("def validate(x):\n    assert x > 0\n    return x\n")
-    assert has_finding(findings, "assert", "MEDIUM"), "assert not detected"
+    assert not has_finding(findings, "assert", "MEDIUM"), "assert should not be flagged (quality, not security)"
 
 
 # ── CLI mode (backward compatible) ────────────────────────────────────────
