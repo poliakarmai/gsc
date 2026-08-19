@@ -31,9 +31,10 @@ from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 # ── Paths ────────────────────────────────────────────────────────────────────
-# gsc.py lives next to gsc_external.py — resolve relative to this file so the
-# scanner works from any checkout (CI runners clone to /home/runner/work/...).
-GSC = str(Path(__file__).resolve().parent / "gsc.py")
+# gsc.py lives at the repo root; gsc_external.py now lives in gsc_cli/ after the
+# packages split (0.5.2). Resolve to the parent of this package, not this file's
+# directory, so the scanner works from any checkout (CI clones to /home/runner/...).
+GSC = str(Path(__file__).resolve().parent.parent / "gsc.py")
 STATE_DIR = Path(os.path.expanduser("~/.hermes/state"))
 DB = STATE_DIR / "gsc_audit.db"
 EXTERNAL_DIR = Path(os.path.expanduser("~/.gsc/external"))
