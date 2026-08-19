@@ -42,7 +42,7 @@
 | v0.21 | AST taint, cross-file chains, hard calibration | 17/17 |
 | v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
 
-**Итог (v1.4.0, 19.08):** 42 детектора, 426 тестов (75 файлов), calibration 13/13, schema 33, 153 модуля (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
+**Итог (v1.4.0, 19.08):** 42 детектора, 426 тестов (75 файлов), calibration 13/13, schema 33, 154 модуля (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
 
 ### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
 

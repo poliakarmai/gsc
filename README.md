@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 42 (38 registry + 4 engines) · **Schema:** v33 · **Modules:** 153
+**Version:** v1.4.0 · **Detectors:** 42 (38 registry + 4 engines) · **Schema:** v33 · **Modules:** 154
 <!-- GSC-META-END -->
 
 
@@ -280,7 +280,7 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 - **13/13 calibration projects** (9 clean + 4 vulnerable)
 - Hard chain assertion with retry (2-of-3, temperature 0)
 - Production rollout Phase 0–5 complete (blocking-standard)
-- Schema 32, WAL, auto-backup migrations
+- Schema 33, WAL, auto-backup migrations
 
 ---
 

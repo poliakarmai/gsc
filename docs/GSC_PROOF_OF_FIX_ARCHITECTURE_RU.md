@@ -149,7 +149,7 @@ detect ──► prove ──► fix ──► verify ──► heal ──► p
 
 Текущее состояние ядра: **42 детектора** (38 registry + 4 standalone-движка:
 Invariants GS028, Secrets GS029, SCA/OSV.dev GS030, IaC GS031), schema 33,
-153 модуля, ~494K находок в SQLite-БД, 426 тестов в 75 файлах. Числа
+154 модуля, ~494K находок в SQLite-БД, 426 тестов в 75 файлах. Числа
 верифицируются командой `python3 gsc_meta.py`.
 
 ### 3.2 Поток данных
@@ -348,7 +348,7 @@ Proof-of-Fix превращает SAST из «детектора» в «маши
 
 | Утверждение | Файл:строки |
 |---|---|
-| 42 детектора (38+4), schema 33, 153 модуля | `gsc_meta.py` → `get_meta()` |
+| 42 детектора (38+4), schema 33, 154 модуля | `gsc_meta.py` → `get_meta()` |
 | Уровни `verified/structural/syntax_only/failed` | `gsc_proofoffix.py:52`, `_classify()` ~476 |
 | Маркеры эксплуатации | `gsc_pof_sandbox.py:21` |
 | Таймаут/лимиты PoC | `gsc_proofoffix.py:31-34` |

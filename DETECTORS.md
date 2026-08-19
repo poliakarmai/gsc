@@ -2,7 +2,7 @@
 
 Сгенерировано из registry — `scripts/gsc_detector_matrix.py`. SSOT по числам: `gsc_meta.py`.
 
-Всего registry-детекторов: **37** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 41).
+Всего registry-детекторов: **38** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 42).
 
 | Rule ID | Echelon | Noise | Fixture | Description |
 |---------|---------|-------|---------|-------------|
@@ -32,11 +32,12 @@
 | GS032 | 1 | sensitive | ⬜ | GS032: Prompt Injection — detect AI agent hijack via code/docs/issues |
 | GS033 | 1 | sensitive | ⬜ | GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns |
 | GS034 | 1 | sensitive | ⬜ | GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json |
-| GS035 | 1 | sensitive | ⬜ | GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization |
-| GS036 | 1 | sensitive | ⬜ | GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi |
+| GS035 | 1 | sensitive | ✅ | GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization |
+| GS036 | 1 | sensitive | ✅ | GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi |
 | GS037 | 1 | sensitive | ✅ | GS037: Python Vulnerability Detection — pickle, eval, SSTI, command injection, deserialization |
 | GS038 | 1 | sensitive | ⬜ | GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto |
-| GS039 | 1 | sensitive | ⬜ | GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal |
+| GS039 | 1 | sensitive | ✅ | GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal |
+| GS040 | 1 | normal | ✅ | GS040: PII & Information Disclosure — hardcoded emails, secrets in comments, debug tokens, private IPs in config |
 | GS024 | 2 | precise | ✅ | LLM-based SQL injection (pilot — replaces 87 regex patterns) |
 | YAML-36ACF0AD | 2 | custom | ⬜ | Use of eval() or exec() with dynamic input can lead to code injection |
 | YAML-ECB85AD8 | 2 | custom | ⬜ | DEBUG=True in production Django/Flask config |

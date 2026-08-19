@@ -3,7 +3,7 @@
 > Статус: **план согласован на исполнение 0.5.1**
 > Дата: 2026-08-17
 > Автор: Море (Hermes)
-> SSOT чисел: `python3 gsc_meta.py` (v1.4.0, 42 детектора, schema 33, 153 модуля)
+> SSOT чисел: `python3 gsc_meta.py` (v1.4.0, 42 детектора, schema 33, 154 модуля)
 
 ---
 
@@ -109,7 +109,7 @@ gsc_X.py (корень)       ← shim 5 строк: sys.modules alias → gsc_c
 
 ### Шаг 0. Подготовка
 - [ ] `git -C ~/gsc status` — чисто, либо зафиксировать текущее.
-- [ ] Снимок baseline: `python3 gsc_meta.py` (сохранить 153 модуля) + `pytest -q` (426 passed).
+- [ ] Снимок baseline: `python3 gsc_meta.py` (сохранить 154 модуля) + `pytest -q` (426 passed).
 - [ ] Бэкап: `scripts/gsc_backup.py` (или tar корня без .git).
 
 ### Шаг 1. `gsc_db` (фундамент, 23 импортёра)

@@ -186,14 +186,14 @@
     "echelon": 1,
     "noise_tier": "sensitive",
     "description": "GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization",
-    "covered_by_fixture": false
+    "covered_by_fixture": true
   },
   {
     "rule_id": "GS036",
     "echelon": 1,
     "noise_tier": "sensitive",
     "description": "GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi",
-    "covered_by_fixture": false
+    "covered_by_fixture": true
   },
   {
     "rule_id": "GS037",
@@ -214,7 +214,14 @@
     "echelon": 1,
     "noise_tier": "sensitive",
     "description": "GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal",
-    "covered_by_fixture": false
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS040",
+    "echelon": 1,
+    "noise_tier": "normal",
+    "description": "GS040: PII & Information Disclosure — hardcoded emails, secrets in comments, debug tokens, private IPs in config",
+    "covered_by_fixture": true
   },
   {
     "rule_id": "GS024",

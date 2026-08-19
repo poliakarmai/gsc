@@ -147,7 +147,7 @@ detect ──► prove ──► fix ──► verify ──► heal ──► p
 
 Current core state: **42 detectors** (38 registry + 4 standalone engines:
 Invariants GS028, Secrets GS029, SCA/OSV.dev GS030, IaC GS031), schema 33,
-153 modules, ~494K findings in a SQLite DB, 426 tests across 75 files. Figures
+154 modules, ~494K findings in a SQLite DB, 426 tests across 75 files. Figures
 are verified via `python3 gsc_meta.py`.
 
 ### 3.2 Data flow
@@ -346,7 +346,7 @@ making security *verifiable* rather than merely *declared*.
 
 | Claim | File:lines |
 |---|---|
-| 42 detectors (38+4), schema 33, 153 modules | `gsc_meta.py` → `get_meta()` |
+| 42 detectors (38+4), schema 33, 154 modules | `gsc_meta.py` → `get_meta()` |
 | Levels `verified/structural/syntax_only/failed` | `gsc_proofoffix.py:52`, `_classify()` ~476 |
 | Exploitation markers | `gsc_pof_sandbox.py:21` |
 | PoC timeout/limits | `gsc_proofoffix.py:31-34` |

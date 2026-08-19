@@ -69,9 +69,9 @@ detect → prove → fix → verify → heal → predict → learn.
 | Enterprise | 10/10 | `tests/` |
 | VSCode | tsc 0 errors, npm test 7/7 | `gsc-vscode/` |
 | Calibration | 13/13 | `calibration run` |
-| Schema | 32 | DB verify |
-| Детекторы | 41 (37 registry + 4 движка) | registry |
-| Модулей | 147 (core 13 + cli 51 + cloud 39) | `gsc_meta.py` |
+| Schema | 33 | DB verify |
+| Детекторы | 42 (38 registry + 4 движка) | registry |
+| Модулей | 154 | `gsc_meta.py` |
 
 ## 5. Calibration gaps (v1.1.0)
 
