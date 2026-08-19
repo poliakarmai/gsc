@@ -75,7 +75,7 @@ jobs:
           print(f"smoke OK: v{m['version']}, {m['detectors_total']} detectors, schema v{m['schema']}")
           PY
       - name: Upload wheel artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882  # v4.4.3 (pinned, GSC-009)
         with:
           name: wheel
           path: dist/*.whl
