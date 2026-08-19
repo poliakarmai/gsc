@@ -89,7 +89,7 @@ class TestYamlRules(unittest.TestCase):
             # Compile
             from gsc_yaml_rules import compile_rules, compile_and_write
             rules = compile_rules(str(rule_file))
-            self.assertEqual(len(rules), 3, "Should compile 3 rules")
+            self.assertEqual(len(rules), 4, "Should compile 4 rules")
 
             out_dir = tmp / "compiled"
             compile_and_write(rules, str(out_dir))

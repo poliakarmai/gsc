@@ -40,3 +40,18 @@ rules:
   - regex: \blogging\.\w+\(.*(?:password|secret|token|key|api_key)
     title: logging sensitive data
   severity: HIGH
+- confidence: 0.9
+  fix: Use ast.literal_eval() for data, or sandboxed execution
+  id: no-eval-literal-guard
+  languages:
+  - python
+  message: eval() is dangerous unless it's the safe ast.literal_eval()
+  not-patterns:
+  - regex: ast\.literal_eval
+    title: 'guard: ast.literal_eval is safe'
+  patterns:
+  - regex: \beval\s*\(
+    title: eval() call — potential code injection
+  references:
+  - https://cwe.mitre.org/data/definitions/95.html
+  severity: CRITICAL

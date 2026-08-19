@@ -31,6 +31,8 @@ from typing import Dict, List, Optional, Tuple
 #       - regex: "exec\\s*\\("
 #         title: "exec() with user input"
 #     fix: "Use safer alternative..."
+#     not-patterns:                 # negation guard (Semgrep `pattern-not`-аналог)
+#       - regex: "ast\\.literal_eval"
 #     references:
 #       - "https://cwe.mitre.org/data/definitions/95.html"
 #
@@ -120,6 +122,7 @@ class YamlRule:
 
         # Parse patterns
         self.patterns: List[Tuple[str, str]] = []
+        self.not_patterns: List[str] = []
 
         # Semgrep-style: single `pattern` (compiled to regex) or `pattern-regex` (raw)
         if "pattern" in rule_dict:
@@ -156,6 +159,10 @@ class YamlRule:
                     title = p.get("title") or p.get("message") or self.message
                     self.patterns.append((p["regex"], title))
 
+        # Negation guards (Semgrep `pattern-not` + GSC `not`/`not-patterns`).
+        for neg in self._parse_not_patterns(rule_dict):
+            self.not_patterns.append(neg)
+
         # Validate
         if not self.patterns:
             raise ValueError(f"Rule '{self.id}': no patterns defined")
@@ -164,11 +171,17 @@ class YamlRule:
                 re.compile(regex)
             except re.error as e:
                 raise ValueError(f"Rule '{self.id}': invalid regex '{regex[:50]}...': {e}")
+        for regex in self.not_patterns:
+            try:
+                re.compile(regex)
+            except re.error as e:
+                raise ValueError(f"Rule '{self.id}': invalid not-pattern regex '{regex[:50]}...': {e}")
 
     def to_detector_code(self) -> str:
         """Generate Python detector code from YAML rule."""
         rule_id = self._make_rule_id()
         patterns_repr = json.dumps(self.patterns, ensure_ascii=False)
+        not_patterns_repr = json.dumps(self.not_patterns, ensure_ascii=False)
 
         return f'''# Auto-generated from {self.source_file}
 # Rule: {self.id} — {self.message[:80]}
@@ -181,6 +194,7 @@ NOISE_TIER = "custom"
 description = """{self.message}"""
 
 patterns = {patterns_repr}
+not_patterns = {not_patterns_repr}
 
 detector = RegexDetector(
     rule_id=RULE_ID,
@@ -189,6 +203,7 @@ detector = RegexDetector(
     severity="{self.severity}",
     confidence={self.confidence},
     languages={tuple(self.languages)},
+    not_patterns=not_patterns,
 )
 
 def detect(file_path, content, language="auto"):
@@ -200,6 +215,43 @@ def detect(file_path, content, language="auto"):
         # Use hash for custom rules to avoid collisions with built-in GS000-GS035
         h = hashlib.sha256(f"yaml:{self.id}".encode()).hexdigest()[:8].upper()
         return f"YAML-{h}"
+
+    def _parse_not_patterns(self, rule_dict: dict) -> List[str]:
+        """Собрать negation-guard паттерны из `pattern-not` / `not` / `not-patterns`.
+
+        Semgrep `pattern-not` (строка или список) компилируется через
+        semgrep_pattern_to_regex; GSC-стиль `not` / `not-patterns` принимает
+        сырые regex-строки или `{regex: ...}`.
+        """
+        out: List[str] = []
+
+        # Semgrep-style: pattern-not (string или list)
+        pn = rule_dict.get("pattern-not")
+        if pn:
+            items = pn if isinstance(pn, list) else [pn]
+            for it in items:
+                if isinstance(it, str):
+                    out.append(semgrep_pattern_to_regex(it))
+                elif isinstance(it, dict):
+                    if "pattern" in it:
+                        out.append(semgrep_pattern_to_regex(it["pattern"]))
+                    elif "pattern-regex" in it:
+                        out.append(it["pattern-regex"])
+                    elif "regex" in it:
+                        out.append(it["regex"])
+
+        # GSC-style: `not` / `not-patterns` (regex-строки или {regex: ...})
+        for key in ("not", "not-patterns"):
+            np = rule_dict.get(key)
+            if not np:
+                continue
+            items = np if isinstance(np, list) else [np]
+            for it in items:
+                if isinstance(it, str):
+                    out.append(it)
+                elif isinstance(it, dict) and "regex" in it:
+                    out.append(it["regex"])
+        return out
 
 
 def compile_rules(path: str) -> List[YamlRule]:
@@ -299,6 +351,23 @@ def create_sample_rule():
                 ],
                 "fix": "Never log secrets. Use redacted logging: log.debug('Auth with key: %s', key[:4] + '***')",
             },
+            {
+                "id": "no-eval-literal-guard",
+                "severity": "CRITICAL",
+                "confidence": 0.90,
+                "languages": ["python"],
+                "message": "eval() is dangerous unless it's the safe ast.literal_eval()",
+                "patterns": [
+                    {"regex": r"\beval\s*\(", "title": "eval() call — potential code injection"},
+                ],
+                "not-patterns": [
+                    {"regex": r"ast\.literal_eval", "title": "guard: ast.literal_eval is safe"},
+                ],
+                "fix": "Use ast.literal_eval() for data, or sandboxed execution",
+                "references": [
+                    "https://cwe.mitre.org/data/definitions/95.html",
+                ],
+            },
         ]
     }
 
@@ -307,9 +376,9 @@ def update_registry(source: str, output_dir: str = "gsc_detectors/yaml_rules") -
     """Import community rules from a Semgrep registry (directory or git URL).
 
     Clones a git URL into a temp dir if needed, compiles every rule our
-    best-effort compiler supports (pattern / pattern-regex / pattern-either),
-    and writes them as Python detectors. Rules using unsupported Semgrep
-    operators (pattern-not, metavariable-regex, taint) are skipped.
+    best-effort compiler supports (pattern / pattern-regex / pattern-either /
+    pattern-not), and writes them as Python detectors. Rules using unsupported
+    Semgrep operators (metavariable-regex, taint) are skipped.
     """
     import shutil
     import tempfile

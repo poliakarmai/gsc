@@ -33,19 +33,37 @@ class BaseDetector:
 
 class RegexDetector(BaseDetector):
     def __init__(self, rule_id: str, name: str, patterns: List[Tuple[str, str]],
-                 severity: str, confidence: float, languages: Tuple[str, ...] = ()):
+                 severity: str, confidence: float, languages: Tuple[str, ...] = (),
+                 not_patterns: List[str] | None = None):
         self.rule_id = rule_id; self.name = name
         self.severity = severity; self.confidence = confidence
         self.languages = languages
         self._compiled = [(re.compile(p), desc) for p, desc in patterns]
+        self._not_compiled = [re.compile(p) for p in (not_patterns or [])]
 
     def detect(self, file_path, content, language="auto") -> List[Dict]:
         findings = []
         for pattern, title in self._compiled:
             for m in pattern.finditer(content):
+                line = _line_at(content, m.start())
+                if self._negated(line):
+                    continue
                 line_no = content[:m.start()].count("\n") + 1
                 findings.append(make_finding(
                     rule_id=self.rule_id, title=title, severity=self.severity,
                     confidence=self.confidence, file=file_path,
                     line=line_no, snippet=m.group(0)[:200]))
         return findings
+
+    def _negated(self, line: str) -> bool:
+        """True если строка с матчем попадает под negation-guard (pattern-not)."""
+        return any(np.search(line) for np in self._not_compiled)
+
+
+def _line_at(content: str, pos: int) -> str:
+    """Вернуть строку исходника, содержащую позицию pos."""
+    start = content.rfind("\n", 0, pos) + 1
+    end = content.find("\n", pos)
+    if end == -1:
+        end = len(content)
+    return content[start:end]
