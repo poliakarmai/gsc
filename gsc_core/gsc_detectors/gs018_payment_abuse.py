@@ -47,7 +47,7 @@ MISSING_IDEMPOTENCY = re.compile(
 
 # 2. Promo code / coupon redeem without locking
 PROMO_REDEEM_NO_LOCK = re.compile(
-    r'def\s+(?:redeem|apply|use(?!r)|activate).*(?:promo|coupon|discount|code|voucher)',
+    r'def\s+(?:redeem|apply|activate|use)[_(].*(?:promo|coupon|discount|code|voucher)',
     re.IGNORECASE,
 )
 
@@ -82,8 +82,14 @@ CANCEL_MISSING_STATE_CHECK = re.compile(
 # DB-driver rollback()/cancel() (peewee/django/twisted) carry none of these and
 # are filtered out (see DETECTOR_BRIEF_GS018.md, Лид 4).
 PAYMENT_CONTEXT = re.compile(
-    r'order|payment|invoice|billing|subscription|charge|refund_amount|'
-    r'transaction_id|purchase', re.IGNORECASE)
+    r'\b(?:payment|invoice|checkout|cashback|subscription|billing)(?:_\w+)?\b|'
+    r'\border[._](?:id|number|status|state|total|amount|line)|'
+    r'\bcharge[._](?:id|amount|status)|'
+    r'\brefund[._](?:amount|id|status|reason)|'
+    r'\btransaction[._]id|'
+    r'\bpurchase[._](?:id|order|total)',
+    re.IGNORECASE,
+)
 
 STATE_CHECK_MISSING = re.compile(
     r'(?:cancel|refund|void|reverse).*'
@@ -96,7 +102,7 @@ STATE_CHECK_MISSING = re.compile(
 FLOAT_MONEY = re.compile(
     r'(?:price|amount|sum|total|balance|cost|fee|tax|commission|'
     r'cashback|bonus|discount|payment|charge|refund|deposit|withdrawal)'
-    r'\s*=\s*float\s*\(',   # only real conversion float(...), not type annotation
+    r'\s*=\s*float\s*\(.*?\)\s*[-+*/%]',
     re.IGNORECASE,
 )
 
@@ -190,10 +196,15 @@ def detect(ctx: AuditContext) -> list[Finding]:
         # 2. Promo code redeem without locking
         promo_funcs = PROMO_REDEEM_NO_LOCK.finditer(content)
         for match in promo_funcs:
+            name_m = re.match(r'def\s+(\w+)', content[match.start():])
+            fname = name_m.group(1).lower() if name_m else ''
+            # read-only check (has_/is_/get_/check_/can_/pending), not a redeem action
+            if re.search(r'(?:^|_)(?:is|has|have|get|check|can|exists|pending)(?:_|$)', fname):
+                continue
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
             if not re.search(r'select_for_update|SELECT.*FOR UPDATE|'
-                            r'with.*transaction|@transaction\\.atomic|'
+                            r'with.*transaction|@transaction\.atomic|'
                             r'BEGIN|lock|Lock|mutex|Mutex',
                             func_body):
                 findings.append(Finding(
