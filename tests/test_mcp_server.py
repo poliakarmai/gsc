@@ -45,3 +45,21 @@ def test_severity_fallback_to_category():
     assert gscm._severity({"category": "MEDIUM"}) == "MEDIUM"
     assert gscm._severity({"severity": "HIGH"}) == "HIGH"
     assert gscm._severity({}) == "unknown"
+
+
+def test_scan_repo_rejects_outside_roots(tmp_path, monkeypatch):
+    # Path-guard должен сработать ДО запуска скана (без gsc_external).
+    root = tmp_path / "allowed"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    monkeypatch.setenv("GSC_ALLOWED_ROOTS", str(root))
+
+    async def _run():
+        r = await gscm.mcp.call_tool("scan_repo", {"repo_path": str(outside)})
+        content = getattr(r, "content", r)
+        if isinstance(content, list):
+            return "".join(getattr(c, "text", str(c)) for c in content)
+        return str(content)
+    out = asyncio.run(_run())
+    assert "outside allowed roots" in out

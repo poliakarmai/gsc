@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 Алексей Поляков
+# Licensed under Apache License 2.0 — see LICENSE
+
 """GSC MCP server — read-only security tools for AI coding agents.
 
 Exposes GSC to Claude / Cursor / Copilot-style agents over Model Context Protocol.
@@ -10,7 +14,14 @@ Tools:
   list_findings  — quick read of recent findings from the GSC database.
   verify_finding — re-run a finding's PoC in the sandbox, report exploit status.
 
-Run:  python3 gsc_mcp_server.py     (stdio transport)
+Security (ADR-0001 trigger activated):
+  - Auth: ``GSCMCPAuth`` (Bearer token) на HTTP/SSE transport — ``GSC_MCP_TOKEN``
+    (on-prem) или ``gsk_``-ключ через ``GSC_DATABASE_URL`` (cloud). Fail-closed.
+  - Path scoping: ``resolve_repo_path`` запрещает выход за ``GSC_ALLOWED_ROOTS``.
+
+Run:
+  python3 gsc_mcp_server.py                       # stdio (local, trusted)
+  GSC_MCP_TOKEN=... python3 gsc_mcp_server.py --transport http --host 0.0.0.0 --port 8001
 """
 from __future__ import annotations
 
@@ -21,8 +32,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 from fastmcp import FastMCP
+from fastmcp.server.dependencies import get_access_token, get_context
 
-mcp = FastMCP("gsc")
+from gsc_cloud.gsc_mcp_auth import GSCMCPAuth, auth_configured, resolve_repo_path
+
+mcp = FastMCP("gsc", auth=GSCMCPAuth())
 
 
 def _severity(f: dict) -> str:
@@ -31,6 +45,26 @@ def _severity(f: dict) -> str:
 
 def _finding_key(f: dict) -> str:
     return f.get("finding_key") or f.get("key") or ""
+
+
+def _caller() -> dict:
+    """Best-effort: tenant_id из токена + client_id агента (для аудита)."""
+    info: dict = {"tenant_id": None, "client_id": None}
+    try:
+        tok = get_access_token()
+        if tok is not None:
+            claims = getattr(tok, "claims", None) or {}
+            info["tenant_id"] = claims.get("tenant_id")
+    except Exception:
+        pass
+    try:
+        ctx = get_context()
+        cid = getattr(ctx, "client_id", None)
+        if cid:
+            info["client_id"] = cid
+    except Exception:
+        pass
+    return info
 
 
 @mcp.tool()
@@ -42,9 +76,13 @@ def scan_repo(repo_path: str, profile: str = "audit", scan_mode: str = "standard
         profile: scan profile (audit, developer-review, ci).
         scan_mode: quick (regex-only) | standard (LLM revalidate) | deep (chains).
     """
+    resolved, err = resolve_repo_path(repo_path)
+    if err:
+        return {"error": err, "repo_path": repo_path}
+
     from gsc_external import run_external_scan
 
-    res = run_external_scan(repo_path, profile_name=profile, scan_mode=scan_mode)
+    res = run_external_scan(str(resolved), profile_name=profile, scan_mode=scan_mode)
     findings = list(getattr(res, "findings", []) or [])
 
     by_sev: dict[str, int] = {}
@@ -53,7 +91,7 @@ def scan_repo(repo_path: str, profile: str = "audit", scan_mode: str = "standard
         by_sev[s] = by_sev.get(s, 0) + 1
 
     return {
-        "repo": repo_path,
+        "repo": str(resolved),
         "profile": profile,
         "scan_mode": scan_mode,
         "total_findings": len(findings),
@@ -70,6 +108,7 @@ def scan_repo(repo_path: str, profile: str = "audit", scan_mode: str = "standard
             }
             for f in findings[:20]
         ],
+        "_audit": _caller(),
     }
 
 
@@ -112,10 +151,14 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
     Scans the repo (to reconstruct the finding), locates the PoC, executes it in the
     isolated sandbox and returns the result. Read-only w.r.t. the host system.
     """
+    resolved, err = resolve_repo_path(repo_path)
+    if err:
+        return {"error": err, "repo_path": repo_path, "finding_key": finding_key}
+
     from gsc_external import run_external_scan
     from gsc_pof_sandbox import PoFSandbox
 
-    res = run_external_scan(repo_path, profile_name="audit", scan_mode="standard")
+    res = run_external_scan(str(resolved), profile_name="audit", scan_mode="standard")
     findings = list(getattr(res, "findings", []) or [])
 
     target = None
@@ -124,7 +167,7 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
             target = f
             break
     if target is None:
-        return {"error": f"finding not found: {finding_key}", "repo": repo_path}
+        return {"error": f"finding not found: {finding_key}", "repo": str(resolved)}
 
     meta = target.get("metadata") or {}
     poc = meta.get("poc")
@@ -137,7 +180,7 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
     # stripped snippet/detail — a SAFE on a snippet means "snippet didn't run",
     # not "vuln not exploitable". Resolve file_path against the repo root and
     # pass project_dir so curl PoCs get a live multi-module server.
-    project_root = os.path.abspath(repo_path)
+    project_root = os.path.abspath(str(resolved))
     file_path = target.get("file_path") or target.get("file") or ""
     src = ""
     src_from_file = False
@@ -163,6 +206,7 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
             "file": target.get("file_path") or target.get("file"),
             "status": "execution_error",
             "error": str(e),
+            "_audit": _caller(),
         }
 
     status = "verified" if r.success else "not_reproducible"
@@ -178,8 +222,30 @@ def verify_finding(repo_path: str, finding_key: str) -> dict:
         "exit_code": r.exit_code,
         "stdout": r.stdout[:2000],
         "stderr": r.stderr[:500],
+        "_audit": _caller(),
     }
 
 
 if __name__ == "__main__":
-    mcp.run()
+    import argparse
+
+    ap = argparse.ArgumentParser(description="GSC MCP server (read-only security tools)")
+    ap.add_argument(
+        "--transport",
+        choices=["stdio", "http", "sse"],
+        default="stdio",
+        help="stdio (default, local trusted) | http (streamable) | sse",
+    )
+    ap.add_argument("--host", default="127.0.0.1")
+    ap.add_argument("--port", type=int, default=8001)
+    args = ap.parse_args()
+
+    if args.transport == "stdio":
+        mcp.run()
+    else:
+        if not auth_configured():
+            raise SystemExit(
+                f"{args.transport.upper()} transport требует auth "
+                "(GSC_MCP_TOKEN или GSC_DATABASE_URL) — fail-closed (ADR-0001)."
+            )
+        mcp.run(transport=args.transport, host=args.host, port=args.port)

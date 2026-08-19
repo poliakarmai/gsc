@@ -68,3 +68,18 @@ multi-tenant доступ — обязан добавить auth по п.2 в т
 - `docs/SECURITY_FIX_REPORT.md` — S-01 (fail-closed key), A-06 (feedback poisoning),
   S-08 (invite-only onboarding).
 - `cloud/user_auth.py`, `cloud/apideps.py` — tenant scoping / OAuth для cloud-трека.
+
+## Реализация (2026-08-19)
+
+Триггер активирован (вывод MCP на HTTP/SSE — Yandex AI Studio / cloud / multi-tenant):
+
+- `gsc_cloud/gsc_mcp_auth.py` — `GSCMCPAuth` (FastMCP `TokenVerifier`): Bearer-токен →
+  `tenant_id`; два режима — `GSC_MCP_TOKEN` (on-prem, constant-time) или `gsk_`-ключ
+  через `auth_tenant` (cloud PG). Fail-closed: HTTP/SSE без сконфигурированного auth
+  не стартует.
+- `resolve_repo_path` + `GSC_ALLOWED_ROOTS` — path scoping для `scan_repo`/`verify_finding`
+  (запрет выхода за разрешённые корни; symlink/`..` раскрываются через `realpath`).
+- `--transport stdio|http|sse` в CLI.
+- `tenant_id` + `client_id` агента прокидываются в `_audit` каждого ответа
+  `scan_repo`/`verify_finding`.
+- Тесты: `tests/test_mcp_auth.py` (17) + `test_scan_repo_rejects_outside_roots`.

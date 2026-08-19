@@ -1,7 +1,8 @@
 # GSC MCP Server — подключи свой ИИ-агент к сканеру безопасности
 
-> **Идентификация агентов / auth:** см. [ADR-0001](adr/0001-mcp-agent-identification.md) —
-> сейчас (stdio + read-only) аутентификация не нужна; вводится при HTTP/multi-tenant.
+> **Идентификация агентов / auth:** см. [ADR-0001](adr/0001-mcp-agent-identification.md).
+> stdio (локально) — auth не нужен. HTTP/SSE — обязательный Bearer-auth (fail-closed),
+> реализован в `gsc_cloud/gsc_mcp_auth.py` (триггер ADR-0001 активирован).
 
 GSC умеет работать не только как CLI, но и как **MCP-сервер** — тогда любой
 ИИ-агент (Claude Code, Cursor, Cline, Windsurf, Copilot) может сам запускать
@@ -17,7 +18,7 @@ GSC умеет работать не только как CLI, но и как **M
 | Tool | Назначение |
 |------|-----------|
 | `scan_repo(repo_path, profile, scan_mode)` | прогоняет GSC по репозиторию → сводка + находки |
-| `list_findings(limit, severity)` | читает последние находки из базы |
+| `list_findings(limit, project)` | читает последние находки из базы (фильтр по проекту) |
 | `verify_finding(repo_path, finding_key)` | запускает PoC в песочнице → подтверждает, что уязвимость реально эксплуатируется |
 
 Сценарий: агент клонирует репозиторий → `scan_repo` → получает уязвимости →
@@ -145,10 +146,41 @@ Agent:
 - **Read-only** по дизайну: сервер не пишет файлы, не делает PR. Деструктив — только в CLI, осознанно.
 - PoC выполняется в **изолированной песочнице** (`gsc_pof_sandbox`): secret-free окружение, лимиты ресурсов, таймауты.
 - Ключи LLM (`DEEPSEEK_API_KEY` / `OLLAMA_BASE_URL`) читаются из `~/.hermes/.env` — **не** из сканируемого репозитория (S-07).
+- **Auth (HTTP/SSE):** обязательный Bearer-токен через `gsc_cloud/gsc_mcp_auth.py` (fail-closed). stdio — без auth (локальный доверенный процесс, ADR-0001).
+- **Path scoping:** `scan_repo` / `verify_finding` запрещают выход за `GSC_ALLOWED_ROOTS` (symlink + `..` раскрываются через `realpath`).
 
 ---
 
-## 6. Troubleshooting
+## 6. HTTP / SSE транспорт (Yandex AI Studio, cloud, multi-tenant)
+
+Для сетевого доступа (вместо локального stdio) сервер поднимается с обязательным auth:
+
+```bash
+# on-prem / single-tenant: статический токен
+GSC_MCP_TOKEN='gsk_...' GSC_MCP_TENANT=1 \
+  python3 gsc_mcp_server.py --transport http --host 0.0.0.0 --port 8001
+
+# cloud / multi-tenant: per-tenant gsk_ ключ из PostgreSQL (GSC_DATABASE_URL)
+GSC_DATABASE_URL='postgres://gsc:***@host/gsc' \
+  python3 gsc_mcp_server.py --transport http --host 0.0.0.0 --port 8001
+```
+
+Эндпоинт: `http://<host>:8001/mcp`. Запросы требуют `Authorization: Bearer <token>`.
+Без токена / с неверным токеном — `401`. Без сконфигурированного auth HTTP-транспорт
+**не стартует** (fail-closed, ADR-0001).
+
+Ограничение путей скана (что агенту разрешено сканировать):
+
+```bash
+export GSC_ALLOWED_ROOTS='/srv/repos/tenant1,/srv/repos/tenant2'
+```
+
+Агент (AI Studio) получит `tenant_id` из токена в поле `_audit` каждого ответа
+(`scan_repo`, `verify_finding`).
+
+---
+
+## 7. Troubleshooting
 
 | Проблема | Решение |
 |----------|---------|
