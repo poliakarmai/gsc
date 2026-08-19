@@ -56,6 +56,8 @@ class FixEvidence:
     reasoning: str = ""
     exploited_before: Optional[bool] = None
     exploited_after: Optional[bool] = None
+    isolation_before: str = ""
+    isolation_after: str = ""
     detector_fires_before: bool = False
     detector_fires_after: bool = False
     poc_before: str = ""
@@ -130,12 +132,41 @@ class PatchApplyError(Exception):
 
 
 # ── PoC execution with marker contract (C1) + isolation (H1) ──
-def _run_poc_sandboxed(poc_code: str, sandbox_dir: str) -> dict:
-    """Execute PoC in isolation. Returns {exploited, output, exit}.
+def _run_poc_sandboxed(poc_code: str, sandbox_dir: str, fmt: str = "python",
+                       target_code: str = "") -> dict:
+    """Execute PoC in isolation. Returns {exploited, output, exit, isolation}.
 
     exploited = True when exit_code == 0 AND a SUCCESS_MARKER is in output.
-    exploited = None when marker was not printed or process crashed.
+    exploited = None when the marker was not printed or the process crashed.
+
+    fmt dispatch (fix): curl/bash/shell/sh PoCs are executed as shell via
+    PoFSandbox._execute_shell (which serves the target web app and substitutes
+    TARGET_URL); anything else runs as a Python script. Previously a curl PoC
+    was written verbatim into poc_verify.py and run as Python → SyntaxError →
+    exploited always False, so "verified" was unreachable.
     """
+    fmt = (fmt or "python").lower()
+
+    # Shell/curl PoCs — delegate to the PoFSandbox shell executor.
+    if fmt in ("curl", "bash", "shell", "sh"):
+        try:
+            from gsc_pof_sandbox import PoFSandbox
+        except Exception as e:
+            return {"exploited": None, "output": f"<gsc_pof_sandbox unavailable: {e}>",
+                    "exit": None, "isolation": "rlimit"}
+        try:
+            res = PoFSandbox()._execute_shell(poc_code, target_code or "")
+            out = (res.stdout or "")
+            if res.stderr:
+                out += ("\n[stderr]\n" + res.stderr)
+            exploited = res.success if not res.error else None
+            return {"exploited": exploited, "output": out[-POC_MAX_OUTPUT:],
+                    "exit": res.exit_code, "isolation": res.isolation}
+        except Exception as e:
+            return {"exploited": None, "output": f"<shell exec error: {e}>",
+                    "exit": None, "isolation": "rlimit"}
+
+    # Python PoC — write to poc_verify.py and run under best isolation.
     poc_path = os.path.join(sandbox_dir, "poc_verify.py")
     Path(poc_path).write_text(poc_code, encoding="utf-8")
 
@@ -171,6 +202,7 @@ def _run_poc_sandboxed(poc_code: str, sandbox_dir: str) -> dict:
             timeout=POC_TIMEOUT_SEC, capture_output=True, text=True,
         )
 
+    isolation = "rlimit"
     try:
         proc = None
         # Container path first (strongest isolation — DD-02).
@@ -181,24 +213,42 @@ def _run_poc_sandboxed(poc_code: str, sandbox_dir: str) -> dict:
             except OSError:
                 pass
             try:
-                proc, _iso = _run_isolated(
+                proc, iso = _run_isolated(
                     ["python3", "poc_verify.py"], sandbox_dir, POC_TIMEOUT_SEC
                 )
+                if proc is not None and iso:
+                    isolation = iso
             except subprocess.TimeoutExpired:
-                return {"exploited": None, "output": "<timeout>", "exit": None}
+                return {"exploited": None, "output": "<timeout>", "exit": None,
+                        "isolation": "timeout"}
             except Exception:
                 proc = None
         if proc is None:
             proc = _host_run()
     except subprocess.TimeoutExpired:
-        return {"exploited": None, "output": "<timeout>", "exit": None}
+        return {"exploited": None, "output": "<timeout>", "exit": None,
+                "isolation": "timeout"}
     except Exception as e:
-        return {"exploited": None, "output": f"<error: {e}>", "exit": None}
+        return {"exploited": None, "output": f"<error: {e}>", "exit": None,
+                "isolation": "rlimit"}
 
     out = (proc.stdout or "")[-POC_MAX_OUTPUT:]
     has_marker = any(m in out.upper() for m in SUCCESS_MARKERS)
     exploited = (proc.returncode == 0) and has_marker
-    return {"exploited": exploited, "output": out, "exit": proc.returncode}
+    return {"exploited": exploited, "output": out, "exit": proc.returncode,
+            "isolation": isolation}
+
+
+def _isolation_allows_verified(iso_before: str, iso_after: str) -> bool:
+    """GSC-001: "verified" requires OS isolation (docker/podman) on BOTH the
+    before-fix and after-fix runs. rlimit fallback is a degradation, not proof
+    — a hostile PoC executed on the host must never yield "verified"."""
+    try:
+        from gsc_pof_sandbox import _is_container_isolation
+    except Exception:
+        def _is_container_isolation(iso: str) -> bool:
+            return bool(iso) and iso not in ("rlimit", "timeout") and "rlimit" not in iso
+    return _is_container_isolation(iso_before) and _is_container_isolation(iso_after)
 
 
 # ── LLM helpers ────────────────────────────────────────────
@@ -344,7 +394,7 @@ class ProofOfFix:
         hits = self.detect_fn(_norm_file(finding), source)
         return any(h.get("rule_id") == finding.get("rule_id", "") for h in hits)
 
-    def attempt(self, finding, source, poc_code) -> FixEvidence:
+    def attempt(self, finding, source, poc_code, poc_fmt: str = "python") -> FixEvidence:
         import hashlib
         raw = f"{finding.get('rule_id','')}+{finding.get('file_path','')}+{finding.get('detail','')[:80]}"
         key = hashlib.sha256(raw.encode()).hexdigest()[:12]
@@ -363,9 +413,11 @@ class ProofOfFix:
         # Pre-fix PoC (gold-standard signal)
         pre_sb = FixSandbox(finding.get("file_path", "t.py"), source)
         try:
-            pre = _run_poc_sandboxed(poc_code, pre_sb.dir.name)
+            pre = _run_poc_sandboxed(poc_code, pre_sb.dir.name, fmt=poc_fmt,
+                                     target_code=source)
             ev.exploited_before = pre["exploited"]
             ev.poc_before = pre["output"]
+            ev.isolation_before = pre.get("isolation", "")
         finally:
             pre_sb.cleanup()
 
@@ -383,13 +435,19 @@ class ProofOfFix:
                     continue
 
                 fires_after = self._detector_fires(finding, patched)
-                post = _run_poc_sandboxed(poc_code, sb.dir.name)
+                post = _run_poc_sandboxed(poc_code, sb.dir.name, fmt=poc_fmt,
+                                          target_code=patched)
                 exploited_after = post["exploited"]
 
                 level = self._classify(
                     ev.exploited_before, exploited_after,
                     fires_before, fires_after,
                 )
+                # GSC-001 fail-closed: "verified" requires OS isolation on both
+                # runs. rlimit fallback degrades to "structural", never "verified".
+                if level == "verified" and not _isolation_allows_verified(
+                        ev.isolation_before, post.get("isolation", "")):
+                    level = "structural"
 
                 if _rank(level) > _rank(best_level):
                     best_level = level
@@ -397,6 +455,7 @@ class ProofOfFix:
                     best_reason = patch["reasoning"]
                     ev.exploited_after = exploited_after
                     ev.poc_after = post["output"]
+                    ev.isolation_after = post.get("isolation", "")
                     ev.detector_fires_after = fires_after
                     ev.patch_display = _render_diff(source, patched, finding.get("file_path", "t.py"))
 
@@ -489,7 +548,7 @@ def _rank(level):
 
 
 # ── Generate PoC code for a finding ────────────────────────
-def _generate_poc_code(finding: dict, source_code: str) -> Optional[str]:
+def _generate_poc_code(finding: dict, source_code: str):
     sys.path.insert(0, str(Path(__file__).parent))
     # 1) deterministic PoC (no LLM) — covers SQLi/CMDI/IDOR/XSS/SSRF/redirect
     #    and (via title keywords) SSTI/pickle/XXE/path-traversal.
@@ -499,12 +558,14 @@ def _generate_poc_code(finding: dict, source_code: str) -> Optional[str]:
         finding.get("title", finding.get("pattern_title", "")),
     )
     if det:
-        return det._generate_code()
+        return det._generate_code(), det.fmt
     # 2) fall back to LLM PoC generator
     from gsc_poc_generator import PoCGenerator
     gen = PoCGenerator(budget=1)
     poc = gen.generate(finding, source_code)
-    return poc.code if poc and poc.code else None
+    if poc and poc.code:
+        return poc.code, "python"
+    return None, None
 
 
 # ── Main entry point ───────────────────────────────────────
@@ -533,7 +594,7 @@ def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEv
 
     # Generate PoC code
     print(f"[PoF] Generating PoC for {ev.rule_id} in {ev.file_path}...")
-    poc_code = _generate_poc_code(finding, source)
+    poc_code, poc_fmt = _generate_poc_code(finding, source)
     if not poc_code:
         ev.error = "PoC generation failed — cannot verify fix"
         return ev
@@ -590,7 +651,7 @@ def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEv
     print(f"[PoF] Running Proof-of-Fix orchestrator ({MAX_ITERATIONS} iterations)...")
     gen = PatchGenerator(budget=MAX_ITERATIONS)
     pof = ProofOfFix(gen, _detect_fn, max_iter=MAX_ITERATIONS)
-    result = pof.attempt(finding, source, poc_code)
+    result = pof.attempt(finding, source, poc_code, poc_fmt=poc_fmt or "python")
 
     result.error = ev.error
     return result
