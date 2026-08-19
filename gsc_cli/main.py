@@ -2431,6 +2431,13 @@ def main():
     list_nuc.add_argument('--severity', choices=['info','low','medium','high','critical'])
     list_nuc.add_argument('--tag', help='Filter by tag')
 
+    # gsc correlate (SAST↔DAST correlation — Solar appScreener-style)
+    corr = sub.add_parser('correlate', help='Correlate SAST findings with DAST results')
+    corr.add_argument('sast_report', help='SAST scan report JSON (key "findings")')
+    corr.add_argument('dast_report', help='DAST results JSON (key "findings")')
+    corr.add_argument('--output', '-o', help='Save unified report JSON')
+    corr.add_argument('--json', action='store_true', help='Print full JSON to stdout')
+
     # gsc sca (v0.28: SCA via OSV.dev)
     p_sca = sub.add_parser('sca', help='Scan dependencies for CVEs (OSV.dev)')
     p_sca.add_argument('--repo', default='.')
@@ -2775,6 +2782,15 @@ def main():
             cmd += ["--severity", args.severity]
         if hasattr(args, 'tag') and args.tag:
             cmd += ["--tag", args.tag]
+        subprocess.run(cmd)
+
+    elif args.command == "correlate":
+        cmd = [sys.executable, str(_GSC_ROOT / "gsc_correlate.py"),
+               args.sast_report, args.dast_report]
+        if hasattr(args, 'output') and args.output:
+            cmd += ["--output", args.output]
+        if getattr(args, 'json', False):
+            cmd += ["--json"]
         subprocess.run(cmd)
 
     elif args.command == "dork":

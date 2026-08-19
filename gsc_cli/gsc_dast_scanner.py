@@ -87,15 +87,50 @@ def scan_target(target_url: str, severity_filter: List[str] = None) -> dict:
     return {"target": target_url, "findings_count": len(findings), "findings": findings}
 
 def aggregate_report(sast_report: dict, dast_results: dict) -> dict:
+    from gsc_correlation import correlate_sast_dast
+
     sf = sast_report.get("findings", [])
     df = dast_results.get("findings", [])
+
+    # Solar appScreener-style: коррелируем SAST↔DAST, подтверждаем совпадения.
+    corr = correlate_sast_dast(sf, df)
+    enriched = corr["findings"]
+    csum = corr["summary"]
+
     sc = {}
     for f in sf + df:
         s = f.get("severity", f.get("category", "unknown")).upper()
         sc[s] = sc.get(s, 0) + 1
-    return {"summary": {"sast_total": len(sf), "dast_total": len(df), "total": len(sf)+len(df), "by_severity": sc},
-            "sast_findings": [{"rule_id": f.get("rule_id",""), "file": f.get("file_path",""), "severity": f.get("category",""), "title": f.get("title","")} for f in sf[:10]],
-            "dast_findings": df[:10]}
+
+    confirmed = [f for f in enriched
+                 if f.get("metadata", {}).get("correlated_dast")]
+
+    return {
+        "summary": {
+            "sast_total": len(sf),
+            "dast_total": len(df),
+            "total": len(sf) + len(df),
+            "by_severity": sc,
+            "confirmed_by_dast": csum["confirmed_by_dast"],
+        },
+        "correlation": csum["matched_pairs"],
+        "sast_findings": [
+            {"rule_id": f.get("rule_id", ""), "file": f.get("file_path", ""),
+             "severity": f.get("category", ""), "title": f.get("title", ""),
+             "review_status": f.get("review_status", ""),
+             "correlated_dast": f.get("metadata", {}).get("correlated_dast", False),
+             "dast_evidence": f.get("metadata", {}).get("dast_evidence", "")}
+            for f in enriched[:50]
+        ],
+        "confirmed_findings": [
+            {"rule_id": f.get("rule_id", ""), "file": f.get("file_path", ""),
+             "title": f.get("title", ""),
+             "dast_template_id": f.get("metadata", {}).get("dast_template_id", ""),
+             "dast_evidence": f.get("metadata", {}).get("dast_evidence", "")}
+            for f in confirmed
+        ],
+        "dast_findings": df[:10],
+    }
 
 def main():
     import argparse
