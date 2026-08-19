@@ -1548,7 +1548,6 @@ def generate_seed_patterns(count: int) -> list[dict]:
         ("Vulnerable Components", "A06", 2, "MEDIUM", "Outdated dependency pattern", "regex", r"(requirements\.txt|pyproject\.toml|package\.json)"),
         ("Auth Failures", "A07", 2, "CRITICAL", "Weak password validation", "regex", r"min_length\s*=\s*[0-7]"),
         ("Software/Data Integrity", "A08", 3, "HIGH", "Missing signature verification", "semantic", r"json\.loads\(.*\)(?!.*verify|.*validate)"),
-        ("Logging/Monitoring", "A09", 1, "MEDIUM", "print() instead of logging", "regex", r"print\(.*\)(?!.*flush)"),
         ("SSRF", "A10", 2, "HIGH", "User-controlled URL in request", "regex", r"requests\.(get|post)\(.*format\(|requests\.(get|post)\(.*f['\"]"),
     ]
 

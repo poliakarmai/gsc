@@ -190,8 +190,21 @@ def _is_false_positive(snippet: str, pattern: str) -> bool:
     if re.search(r'(?:eval|setTimeout|setInterval)\s*\(\s*["\'\`](?![\s\S]*(\$\{|["\'\`]\s*\+|\{\s*[a-zA-Z_]\w*\s*\}))', snippet):
         return True
     # dangerouslySetInnerHTML with a static literal is hardcoded markup, not user input — FP.
-    if re.search(r'dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*["\'\`]', snippet):
+    if re.search(r'dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*["\'`]', snippet):
         return True
+    # render_template_string(<CONSTANT>) / from_string(<CONSTANT>) — a static
+    # module template, not user input — FP. SSTI needs user input reaching the
+    # template *string* (DETECTOR_BRIEF_GS020.md, v6 precision pass).
+    if 'render_template_string' in pattern or 'from_string' in pattern:
+        m = re.search(r'(?:render_template_string|from_string)\s*\(\s*([^,)]+)', snippet)
+        if m:
+            arg = m.group(1).strip()
+            # module-level UPPER_SNAKE constant — static template
+            if re.fullmatch(r'[A-Z_][A-Z0-9_]*', arg):
+                return True
+            # plain string literal without interpolation/concat — static
+            if re.fullmatch(r'["\'`][^"\'`{}$+]*["\'`]', arg):
+                return True
     return False
 
 
