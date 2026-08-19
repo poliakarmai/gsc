@@ -73,3 +73,51 @@ def test_private_ip_in_app_code_ignored(det):
 def test_loopback_ignored(det):
     f = det.detect(".env", "DB_HOST=127.0.0.1\n")
     assert not f
+
+
+# ── PII data-flow patterns (Bearer-inspired) ──────────────────────────────
+
+
+def test_pii_in_log_email(det):
+    f = det.detect("app.py", 'logger.info("user john.doe@company.com logged in")\n')
+    assert "GS040-pii_in_log" in _ids(f)
+
+
+def test_pii_in_log_credit_card(det):
+    f = det.detect("app.py", 'logger.info("card 4111111111111111")\n')
+    assert "GS040-pii_in_log" in _ids(f)
+
+
+def test_pii_in_log_ssn(det):
+    f = det.detect("app.js", 'console.log("ssn 123-45-6789")\n')
+    assert "GS040-pii_in_log" in _ids(f)
+
+
+def test_pii_to_third_party(det):
+    f = det.detect(
+        "app.py",
+        'requests.post("https://api.example.com", '
+        'json={"email": "john@company.com"})\n',
+    )
+    assert "GS040-pii_to_third_party" in _ids(f)
+
+
+def test_log_without_pii_ignored(det):
+    f = det.detect("app.py", 'logger.info("user logged in")\n')
+    assert not f
+
+
+def test_log_placeholder_email_ignored(det):
+    f = det.detect("app.py", 'logger.info("test@example.com")\n')
+    assert not f
+
+
+def test_credit_card_without_keyword_ignored(det):
+    f = det.detect("app.py", 'logger.info("id 4111111111111111")\n')
+    assert not f
+
+
+def test_ssn_wrong_format_ignored(det):
+    f = det.detect("app.py", 'logger.info("id 123456789")\n')
+    assert not f
+

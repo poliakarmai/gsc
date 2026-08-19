@@ -25,6 +25,16 @@ CWEs (per-pattern, in metadata):
   - suspicious_comment → CWE-540 (Sensitive info in source code)
   - debug_token       → CWE-489 (Active Debug Code)
   - private_ip_config → CWE-200 (Exposure of Sensitive Information)
+  - pii_in_log        → CWE-532 (Insertion of Sensitive Information into Log)
+  - pii_to_third_party → CWE-359 (Exposure of Private Personal Information)
+
+The two data-flow patterns (pii_in_log, pii_to_third_party) are the Bearer-
+inspired extension: instead of only flagging a PII literal, they flag a
+validated hardcoded PII literal *flowing into a sink* — a logging call or an
+external HTTP request. This mirrors Bearer's sensitive-data-flow rules
+(python_lang_logger / third_parties_*) in a precision-first, single-pass
+regex form (hardcoded literals only; taint across assignments is out of scope
+for this detector and belongs to the AST dataflow engine).
 """
 
 from __future__ import annotations
@@ -149,6 +159,40 @@ _PRIVATE_IP_URL_RE = re.compile(
     r'169\.254\.\d{1,3}\.\d{1,3})'
 )
 
+# ── PII data-flow (hardcoded PII flowing into a sink) ──────────────────────
+# Logging sinks across languages. A validated hardcoded PII literal inside
+# one of these calls is CWE-532 (Insertion of Sensitive Information into Log).
+_LOG_SINK_RE = re.compile(
+    r'(?i)(?:'
+    r'\b(?:logger|logging|log|LOGGER|console)\s*\.\s*'
+    r'(?:info|debug|error|warn|warning|fatal|critical|exception|trace|log)\s*\(|'
+    r'\b(?:System\.out\.println|System\.err\.println|'
+    r'fmt\.Print(?:f|ln)?|log\.Print(?:f|ln)?|slog\.[A-Za-z]+|'
+    r'error_log|Log::(?:info|debug|error|warning)|Rails\.logger\.[a-z_]+)\s*\('
+    r')'
+)
+
+# HTTP sinks — a hardcoded PII literal sent to an external party (CWE-359).
+_HTTP_SINK_RE = re.compile(
+    r'(?i)(?:'
+    r'\b(?:requests|httpx|aiohttp|urllib\.request|urllib)\s*\.\s*'
+    r'(?:get|post|put|patch|delete|request|urlopen)\s*\(|'
+    r'\b(?:fetch|axios(?:\.(?:get|post|put|patch|delete))?|\.ajax)\s*\(|'
+    r'\b(?:http\.Client|client\.(?:get|post|put|delete)|curl_exec)\s*\('
+    r')'
+)
+
+# Credit-card PAN — 13-19 digits, Luhn-gated, plus a card-context keyword.
+_CC_RE = re.compile(r'(?<!\d)(?:[0-9][ -]?){13,19}(?!\d)')
+_CC_CONTEXT_RE = re.compile(
+    r'(?i)(?:credit[_-]?card|card[_-]?number|cc[_-]?num|\bcard\b|'
+    r'\bpan\b|cvv|cvc|cardnum)'
+)
+
+# US SSN — XXX-XX-XXXX, gated by a context keyword.
+_SSN_RE = re.compile(r'(?<!\d)\d{3}-\d{2}-\d{4}(?!\d)')
+_SSN_CONTEXT_RE = re.compile(r'(?i)(?:ssn|social[_-]?security|tax[_-]?id)')
+
 # Config files where a private IP is a real disclosure (not app code where
 # service mesh / local networking makes them legitimate).
 _CONFIG_EXTS = frozenset({
@@ -234,6 +278,34 @@ def _valid_email(email: str) -> bool:
     return True
 
 
+def _luhn_valid(num: str) -> bool:
+    """Luhn checksum for a candidate PAN (13-19 digits)."""
+    digits = [int(c) for c in num if c.isdigit()]
+    if len(digits) < 13 or len(digits) > 19:
+        return False
+    total = 0
+    for i, d in enumerate(reversed(digits)):
+        if i % 2 == 1:
+            d *= 2
+            if d > 9:
+                d -= 9
+        total += d
+    return total > 0 and total % 10 == 0
+
+
+def _has_pii_literal(line: str) -> bool:
+    """True when the line carries a validated hardcoded PII literal."""
+    for m in _EMAIL_RE.finditer(line):
+        if _valid_email(m.group(1)):
+            return True
+    for m in _CC_RE.finditer(line):
+        if _luhn_valid(m.group(0)) and _CC_CONTEXT_RE.search(line):
+            return True
+    if _SSN_RE.search(line) and _SSN_CONTEXT_RE.search(line):
+        return True
+    return False
+
+
 # ── Detector ─────────────────────────────────────────────────────────────
 
 class GS040PiiDisclosureDetector:
@@ -298,6 +370,23 @@ class GS040PiiDisclosureDetector:
                     "Private/internal IP address hardcoded in config",
                     file_path, line_no, _snippet(content, line_no),
                     0.65, "CWE-200"))
+
+            # 5) Hardcoded PII flowing into a logging sink (CWE-532).
+            if _LOG_SINK_RE.search(line) and _has_pii_literal(line):
+                findings.append(_finding(
+                    "GS040-pii_in_log", "MEDIUM",
+                    "Hardcoded PII value passed to a logging call",
+                    file_path, line_no, _snippet(content, line_no),
+                    0.75, "CWE-532"))
+
+            # 6) Hardcoded PII transmitted to a third-party HTTP endpoint
+            #    (CWE-359).
+            elif _HTTP_SINK_RE.search(line) and _has_pii_literal(line):
+                findings.append(_finding(
+                    "GS040-pii_to_third_party", "MEDIUM",
+                    "Hardcoded PII value sent to a third-party HTTP endpoint",
+                    file_path, line_no, _snippet(content, line_no),
+                    0.70, "CWE-359"))
 
         return findings
 
