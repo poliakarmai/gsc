@@ -15,9 +15,9 @@ Tools:
   verify_finding — re-run a finding's PoC in the sandbox, report exploit status.
 
 Security (ADR-0001 trigger activated):
-  - Auth: ``GSCMCPAuth`` (Bearer token) на HTTP/SSE transport — ``GSC_MCP_TOKEN``
-    (on-prem) или ``gsk_``-ключ через ``GSC_DATABASE_URL`` (cloud). Fail-closed.
-  - Path scoping: ``resolve_repo_path`` запрещает выход за ``GSC_ALLOWED_ROOTS``.
+  - Auth: ``GSCMCPAuth`` (Bearer token) on HTTP/SSE transport — ``GSC_MCP_TOKEN``
+    (on-prem) or a ``gsk_`` key via ``GSC_DATABASE_URL`` (cloud). Fail-closed.
+  - Path scoping: ``resolve_repo_path`` rejects paths outside ``GSC_ALLOWED_ROOTS``.
 
 Run:
   python3 gsc_mcp_server.py                       # stdio (local, trusted)
@@ -48,7 +48,7 @@ def _finding_key(f: dict) -> str:
 
 
 def _caller() -> dict:
-    """Best-effort: tenant_id из токена + client_id агента (для аудита)."""
+    """Best-effort: tenant_id from token + client_id of the agent (for audit)."""
     info: dict = {"tenant_id": None, "client_id": None}
     try:
         tok = get_access_token()
@@ -245,7 +245,7 @@ if __name__ == "__main__":
     else:
         if not auth_configured():
             raise SystemExit(
-                f"{args.transport.upper()} transport требует auth "
-                "(GSC_MCP_TOKEN или GSC_DATABASE_URL) — fail-closed (ADR-0001)."
+                f"{args.transport.upper()} transport requires auth "
+                "(GSC_MCP_TOKEN or GSC_DATABASE_URL) — fail-closed (ADR-0001)."
             )
         mcp.run(transport=args.transport, host=args.host, port=args.port)

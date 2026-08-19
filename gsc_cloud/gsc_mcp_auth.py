@@ -4,23 +4,23 @@
 
 """MCP auth + repo-path scoping.
 
-ADR-0001 триггер активирован (HTTP/SSE transport / multi-tenant): MCP выводится
-на сетевой транспорт — добавляем два рубежа:
+ADR-0001 trigger activated (HTTP/SSE transport / multi-tenant): MCP is now
+exposed over a network transport, so two boundaries are added:
 
-1. **Auth (кто имеет доступ).** `GSCMCPAuth` — FastMCP `TokenVerifier`,
-   валидирует `Authorization: Bearer <token>` на transport-уровне.
-   Разрешение токена в два режима:
-     - on-prem / single-tenant: статический ``GSC_MCP_TOKEN`` (+ ``GSC_MCP_TENANT``);
-     - cloud / multi-tenant: ``gsk_``-ключ через ``gsc_cloud.auth.auth_tenant`` (PG).
+1. **Auth (who has access).** ``GSCMCPAuth`` — a FastMCP ``TokenVerifier`` that
+   validates ``Authorization: Bearer <token>`` at the transport layer. Token
+   resolution runs in two modes:
+     - on-prem / single-tenant: static ``GSC_MCP_TOKEN`` (+ ``GSC_MCP_TENANT``);
+     - cloud / multi-tenant: ``gsk_`` key via ``gsc_cloud.auth.auth_tenant`` (PG).
 
-2. **Path scoping (что можно сканировать).** ``resolve_repo_path`` раскрывает
-   symlinks/``..`` через ``realpath`` и запрещает выход за ``GSC_ALLOWED_ROOTS``
-   (список разрешённых корней через запятую). Применяется к ``scan_repo`` и
+2. **Path scoping (what may be scanned).** ``resolve_repo_path`` resolves
+   symlinks/``..`` via ``realpath`` and rejects paths outside ``GSC_ALLOWED_ROOTS``
+   (comma-separated allowlist of roots). Applied to ``scan_repo`` and
    ``verify_finding``.
 
-Fail-closed: при HTTP/SSE транспорте без сконфигурированного auth ``verify_token``
-возвращает ``None`` → все запросы отклоняются. stdio-транспорт auth не
-консультирует (локальный доверенный процесс — ADR-0001, решение 1).
+Fail-closed: on HTTP/SSE transport without configured auth, ``verify_token``
+returns ``None`` → every request is rejected. stdio transport does not consult
+auth (local trusted process — ADR-0001, decision 1).
 """
 from __future__ import annotations
 
@@ -36,10 +36,10 @@ from mcp.server.auth.provider import AccessToken
 # Path scoping
 # ---------------------------------------------------------------------------
 def allowed_roots() -> list[Path]:
-    """Разрешённые корни из ``GSC_ALLOWED_ROOTS`` (через запятую).
+    """Allowed roots from ``GSC_ALLOWED_ROOTS`` (comma-separated).
 
-    Каждый элемент нормализуется через ``realpath`` (раскрытие ``~``, symlinks,
-    ``..``). Пустая переменная → ограничений нет (локальный stdio-режим).
+    Each entry is normalized through ``realpath`` (expands ``~``, symlinks and
+    ``..``). Empty variable → no restriction (local stdio mode).
     """
     raw = os.environ.get("GSC_ALLOWED_ROOTS", "").strip()
     if not raw:
@@ -61,13 +61,13 @@ def _is_within(path: Path, root: Path) -> bool:
 
 
 def resolve_repo_path(repo_path: str) -> tuple[Path, str | None]:
-    """Разрешить и проверить путь репозитория.
+    """Resolve and validate a repository path.
 
-    Возвращает ``(resolved_abs_path, error_or_None)``. Порядок проверок:
-      1. пустой путь → ошибка;
-      2. ``realpath`` (symlink + ``..``) должен лежать внутри ``GSC_ALLOWED_ROOTS``
-         (если ограничение задано);
-      3. путь должен существовать и быть директорией.
+    Returns ``(resolved_abs_path, error_or_None)``. Checks, in order:
+      1. empty path → error;
+      2. ``realpath`` (symlink + ``..``) must stay within ``GSC_ALLOWED_ROOTS``
+         (when the allowlist is set);
+      3. the path must exist and be a directory.
     """
     if not repo_path or not str(repo_path).strip():
         return Path("."), "empty repo_path"
@@ -87,18 +87,18 @@ def resolve_repo_path(repo_path: str) -> tuple[Path, str | None]:
 # Token resolution
 # ---------------------------------------------------------------------------
 def auth_configured() -> bool:
-    """True, если задан хотя бы один источник auth (иначе HTTP fail-closed)."""
+    """True if at least one auth source is set (otherwise HTTP is fail-closed)."""
     return bool(os.environ.get("GSC_MCP_TOKEN", "").strip()) or bool(
         os.environ.get("GSC_DATABASE_URL", "").strip()
     )
 
 
 def resolve_token(token: str) -> int | None:
-    """Bearer-токен → tenant_id. ``None`` = невалиден или auth не настроен.
+    """Bearer token → tenant_id. ``None`` = invalid or auth not configured.
 
-    Приоритет:
+    Priority:
       1. ``GSC_MCP_TOKEN`` (on-prem, constant-time compare);
-      2. ``GSC_DATABASE_URL`` + ``gsk_``-ключ (cloud, через ``auth_tenant``).
+      2. ``GSC_DATABASE_URL`` + ``gsk_`` key (cloud, via ``auth_tenant``).
     """
     if not token:
         return None
@@ -133,11 +133,11 @@ def resolve_token(token: str) -> int | None:
 
 
 class GSCMCPAuth(TokenVerifier):
-    """Bearer-token верификатор для FastMCP (HTTP/SSE transport).
+    """Bearer-token verifier for FastMCP (HTTP/SSE transport).
 
-    ``verify_token`` возвращает ``AccessToken`` с ``claims={"tenant_id": tid}`` —
-    этот tenant_id доступен в тулах через ``get_access_token()`` и используется
-    для аудита/скоупинга.
+    ``verify_token`` returns an ``AccessToken`` with ``claims={"tenant_id": tid}``
+    — that tenant_id is available inside tools via ``get_access_token()`` and is
+    used for audit/scoping.
     """
 
     def __init__(self, resolver=None):

@@ -17,8 +17,8 @@ def test_three_tools_registered():
 
 
 def test_list_findings_returns_list():
-    # Seed 1 finding в изолированную DB (conftest._isolate_gsc_db), чтобы тест был
-    # самодостаточным, а не зависел от засеянной/порядка-тестов DB.
+    # Seed 1 finding into the isolated DB (conftest._isolate_gsc_db) so the test is
+    # self-contained rather than dependent on a seeded/order-dependent DB.
     from gsc_db import GSCDatabase
     db = GSCDatabase()
     db.execute(
@@ -48,7 +48,7 @@ def test_severity_fallback_to_category():
 
 
 def test_scan_repo_rejects_outside_roots(tmp_path, monkeypatch):
-    # Path-guard должен сработать ДО запуска скана (без gsc_external).
+    # Path guard must fire BEFORE a scan runs (no gsc_external import needed).
     root = tmp_path / "allowed"
     root.mkdir()
     outside = tmp_path / "outside"
