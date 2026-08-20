@@ -8,7 +8,8 @@
 #   docker build -t gsc-sandbox:latest sandbox/
 # Переопределение образа:
 #   GSC_SANDBOX_IMAGE=my-sandbox:tag
-FROM python:3.12-slim
+# digest-pinned (DD P1-01)
+FROM python:3.12-slim@sha256:2c941e860699f878900b0edc2403613c234d4b32eda3cc9fa7036991a2a63c4a
 
 # curl нужен для curl/bash PoC; ca-certificates — для HTTPS
 RUN apt-get update && apt-get install -y --no-install-recommends \
