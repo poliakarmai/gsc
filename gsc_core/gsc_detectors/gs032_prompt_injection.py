@@ -236,24 +236,9 @@ class GS032PromptInjectionDetector:
                     },
                 })
 
-        # Flag entire file if too many patterns (likely an attack doc)
-        if pattern_hits >= 5:
-            findings.append({
-                "rule_id": "GS032-high_density",
-                "title": "High density of prompt injection patterns — likely attack document",
-                "severity": "CRITICAL",
-                "confidence": 0.90,
-                "file_path": file_path,
-                "line_number": 1,
-                "detail": f"File contains {pattern_hits} injection patterns — treat as hostile",
-                "snippet": self._snippet(content, 1),
-                "language": language,
-                "metadata": {
-                    "detector": "GS032",
-                    "pattern_id": "high_density",
-                    "total_pattern_hits": pattern_hits,
-                },
-            })
+        # Individual prompt-injection findings above already carry exact
+        # locations and pattern_ids; do not synthesize a second CRITICAL from
+        # their count.
 
         return findings
 

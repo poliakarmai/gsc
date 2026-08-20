@@ -150,10 +150,8 @@ class GS038GoDetector:
                     f"Go security: {pattern_id}",
                     file_path, line_no, _snippet(content, line_no), base_conf))
                 hits += 1
-        if hits >= 5:
-            findings.append(_finding("GS038-high_risk", "CRITICAL",
-                f"Go file has {hits} security issues",
-                file_path, 1, f"({hits} patterns)", 0.95))
+        # Individual Go rules above carry exact locations; no count-derived
+        # CRITICAL aggregate.
         return findings
 
 

@@ -162,10 +162,8 @@ class GS039RubyDetector:
                     f"Ruby security: {pattern_id}",
                     file_path, line_no, _snippet(content, line_no), base_conf))
                 hits += 1
-        if hits >= 5:
-            findings.append(_finding("GS039-high_risk", "CRITICAL",
-                f"Ruby file has {hits} security issues",
-                file_path, 1, f"({hits} patterns)", 0.95))
+        # Individual Ruby rules above carry exact locations; no count-derived
+        # CRITICAL aggregate.
         return findings
 
 

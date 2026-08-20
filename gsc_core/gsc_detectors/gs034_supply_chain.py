@@ -194,12 +194,8 @@ class GS034SupplyChainDetector:
                 ))
                 pattern_hits += 1
 
-        if pattern_hits >= 3:
-            findings.append(_finding(
-                "GS034-package_json_critical", "CRITICAL",
-                f"package.json has {pattern_hits} supply chain red flags — likely compromised",
-                file_path, 1, f"({pattern_hits} patterns matched)", 0.95,
-            ))
+        # Individual package.json IOCs above already carry exact locations; a
+        # count-derived CRITICAL adds no independent indicator.
 
         return findings
 

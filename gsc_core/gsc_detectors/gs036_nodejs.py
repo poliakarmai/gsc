@@ -165,10 +165,8 @@ class GS036NodeDetector:
                     f"Node.js security: {pattern_id}",
                     file_path, line_no, _snippet(content, line_no), base_conf))
                 hits += 1
-        if hits >= 5:
-            findings.append(_finding("GS036-high_risk", "CRITICAL",
-                f"Node.js file has {hits} security issues",
-                file_path, 1, f"({hits} patterns)", 0.95))
+        # Individual Node.js rules above carry exact locations; no count-derived
+        # CRITICAL aggregate.
         return findings
 
 

@@ -199,12 +199,8 @@ class GS035PHPDetector:
                 ))
                 pattern_hits += 1
 
-        if pattern_hits >= 5:
-            findings.append(_finding(
-                "GS035-high_risk_file", "CRITICAL",
-                f"PHP file has {pattern_hits} security issues — critical review required",
-                file_path, 1, f"({pattern_hits} patterns matched)", 0.95,
-            ))
+        # Individual PHP rules above already carry exact locations; do not
+        # synthesize a CRITICAL from the count.
 
         return findings
 

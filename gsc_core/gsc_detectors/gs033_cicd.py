@@ -181,27 +181,11 @@ class GS033CICDDetector:
                     file_path, line_no, snippet, confidence,
                 ))
 
-        # Special: check for CODEOWNERS when CI exists
-        if pattern_hits >= 1 and not self._has_codeowners(content):
-            findings.append(_finding(
-                "GS033-no_codeowners", "LOW",
-                "CI pipeline exists but no CODEOWNERS detected in workflow",
-                file_path, 1, "(check repo for CODEOWNERS file)", 0.30,
-            ))
-
-        # High density = CI file has many issues
-        if pattern_hits >= 4:
-            findings.append(_finding(
-                "GS033-high_risk_pipeline", "HIGH",
-                f"CI pipeline has {pattern_hits} anti-patterns — manual review required",
-                file_path, 1, f"({pattern_hits} anti-patterns found)", 0.85,
-            ))
+        # A single CI workflow file cannot establish repository-level CODEOWNERS
+        # absence, and a pattern-count aggregate adds no independent security
+        # signal. Individual CICD_PATTERNS findings above already carry locations.
 
         return findings
-
-    def _has_codeowners(self, content: str) -> bool:
-        # Code that mentions CODEOWNERS or @owner references in the CI file
-        return bool(re.search(r'(?i)(?:CODEOWNERS|code.owners)', content))
 
 
 # ── Registry bridge ───────────────────────────────────────────────────
