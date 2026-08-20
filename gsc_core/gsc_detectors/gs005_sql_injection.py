@@ -4,7 +4,7 @@
 
 """GS005 — SQL/NoSQL Injection Detector (v2.0: pattern_id decomposition).
 
-76+ patterns across 9 languages. Each pattern has a unique pattern_id.
+75 patterns across 9 languages. Each pattern has a unique pattern_id.
 Per-pattern precision can be tracked and noisy patterns selectively disabled.
 """
 from __future__ import annotations
@@ -50,7 +50,7 @@ def _assign_ids(patterns):
 RULE_ID = "GS005"
 ECHELON = 2
 NOISE_TIER = "precise"
-description = "GS005: SQL/NoSQL injection — 78 patterns, 9 languages, per-pattern precision tracking (v2.0)"
+description = "GS005: SQL/NoSQL injection — 75 patterns, 9 languages, per-pattern precision tracking (v2.0)"
 
 # ── User input sources for context filtering ───────────────────────────────
 
@@ -137,9 +137,10 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
 
     # Second-order SQLi
     (r'(?:SELECT|INSERT|UPDATE|DELETE).*FROM\s+\w+\s+WHERE.*\[.*\]', "Second-order SQLi from stored data", "python", False),
-    (r'cursor\.execute\s*\(\s*\w+\s*\[', "execute with list unpacking", "python", False),
-    (r'cursor\.execute\s*\(\s*\w+\s*\.\w+\s*\[', "execute with nested attribute", "python", False),
-    (r'\.execute\s*\(\s*.*\w+\s*\[\s*[\"\']\w+[\"\']\s*\].*\)', "execute with dict unpacking", "python", False),
+    # Deactivated (20.08.2026): "execute with <collection>[idx]" patterns are
+    # dict/list/attribute access — passing a value into execute(), NOT SQLi.
+    # 3/3 revalidated FP, 0 TP. The real SQLi case (interpolation around the
+    # access) is already caught by the dedicated f-string/format patterns above.
 
     # Pandas
     (r'read_sql_query\s*\(\s*f["\']', "Pandas read_sql_query with f-string", "python", False),
@@ -268,9 +269,6 @@ _TAINT_SOURCE_PATTERNS = re.compile(
 # list inside a static query is NOT injection — skip when no interpolation is present.
 _INTERPOLATION_REQUIRED = {
     "GS005-GEN-PY-008",  # Second-order SQLi from stored data
-    "GS005-GEN-PY-009",  # execute with list unpacking
-    "GS005-GEN-PY-010",  # execute with nested attribute
-    "GS005-GEN-PY-011",  # execute with dict unpacking
 }
 
 _REAL_INTERPOLATION = re.compile(
