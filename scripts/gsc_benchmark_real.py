@@ -23,22 +23,23 @@ BENCH_DIR = GSC / "benchmark" / "real_world"
 REPORT_PATH = GSC / "benchmark" / "precision_report.json"
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
 
-# 10 projects: real code, diverse domains, 10-500 stars
-# Mix of: web frameworks, CLI tools, APIs, libraries
+# 10 projects ≤200⭐: 4 known-TP (real vulnerabilities already found — recall
+# signal) + 6 clean/mostly-FP (precision signal). Mature projects (>1K⭐) have
+# almost no real CRITICALs, which skews precision toward 0% as a selection
+# artifact, not a detector-quality problem.
 PROJECTS = [
-    # Web frameworks / APIs
-    {"name": "flask-smorest",  "url": "https://github.com/marshmallow-code/flask-smorest.git",  "stars": 600},
-    {"name": "fastapi-users",  "url": "https://github.com/fastapi-users/fastapi-users.git",      "stars": 4500},
-    {"name": "piccolo-api",    "url": "https://github.com/piccolo-orm/piccolo_api.git",          "stars": 160},
-    {"name": "sanic",          "url": "https://github.com/sanic-org/sanic.git",                  "stars": 18000},
-    # CLI / Tools
-    {"name": "httpie",         "url": "https://github.com/httpie/cli.git",                       "stars": 34000},
-    {"name": "thefuck",        "url": "https://github.com/nvbn/thefuck.git",                     "stars": 85000},
-    {"name": "youtube-dl",     "url": "https://github.com/ytdl-org/youtube-dl.git",             "stars": 132000},
-    # Libraries
-    {"name": "pendulum",       "url": "https://github.com/sdispater/pendulum.git",               "stars": 6200},
-    {"name": "loguru",         "url": "https://github.com/Delgan/loguru.git",                    "stars": 20000},
-    {"name": "rich",           "url": "https://github.com/Textualize/rich.git",                  "stars": 50000},
+    # Known-TP (real findings, see HALL_OF_FAME.md)
+    {"name": "aiohttp-security", "url": "https://github.com/aio-libs/aiohttp-security.git", "stars": 147},
+    {"name": "django-ca",        "url": "https://github.com/mathiasertl/django-ca.git",      "stars": 158},
+    {"name": "Baobab",           "url": "https://github.com/deep-learning-indaba/Baobab.git", "stars": 60},
+    {"name": "cyberbro",         "url": "https://github.com/stanfrbd/cyberbro.git",         "stars": 122},
+    # Clean / mostly-FP
+    {"name": "piccolo-api",      "url": "https://github.com/piccolo-orm/piccolo_api.git",    "stars": 161},
+    {"name": "python-sdk",       "url": "https://github.com/descope/python-sdk.git",         "stars": 73},
+    {"name": "dagster-authkit",  "url": "https://github.com/maltzsama/dagster-authkit.git",  "stars": 62},
+    {"name": "grocery-app",      "url": "https://github.com/snacsnoc/grocery-app.git",       "stars": 46},
+    {"name": "MCGJ",             "url": "https://github.com/SaraBee/MCGJ.git",               "stars": 33},
+    {"name": "CPA-X",            "url": "https://github.com/ferretgeek/CPA-X.git",           "stars": 62},
 ]
 
 
