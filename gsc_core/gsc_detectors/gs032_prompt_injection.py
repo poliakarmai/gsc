@@ -279,6 +279,8 @@ def detect(ctx) -> list[dict]:
         if ext not in TARGET_EXTENSIONS:
             continue
         rel = str(fp.relative_to(ctx.path)) if ctx.path in fp.parents else str(fp)
+        if any(k in rel.lower() for k in ("tutorial", "docs", "example", "readme")):
+            continue
         try:
             content = ctx.file_contents.get(str(fp), fp.read_text(errors='replace'))
         except Exception:

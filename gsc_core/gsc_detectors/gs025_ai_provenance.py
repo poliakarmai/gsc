@@ -61,6 +61,16 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
 AI_THRESHOLD = 0.5
 
 
+# Vendor test/placeholder secrets (hCaptcha/Stripe test mode) — not real secrets.
+_TEST_SECRET_MARKERS = ("0x0000", "00000000-", "10000000-", "ffff-ffff",
+                        "example", "dummy", "fake", "test-", "your-", "xxxx", "changeme")
+
+
+def _is_test_secret(matched: str) -> bool:
+    low = matched.lower()
+    return any(m in low for m in _TEST_SECRET_MARKERS)
+
+
 class GS025Detector:
     """AI-Code Provenance + AI-favored insecure defaults. Regex-only, fork-safe."""
 
@@ -77,6 +87,9 @@ class GS025Detector:
 
         for pattern_id, regex, severity, base_conf in AI_VULN_PATTERNS:
             for match in re.finditer(regex, content, re.MULTILINE | re.IGNORECASE):
+                matched = match.group(0)
+                if _is_test_secret(matched):
+                    continue
                 line_no = content[:match.start()].count("\n") + 1
                 snippet = self._snippet(content, line_no)
 

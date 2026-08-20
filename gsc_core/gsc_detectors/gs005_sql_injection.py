@@ -108,7 +108,7 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
      "UNION SELECT injection with multi-table", "python", False),
     (r'\bOR\s+[\'"]\d[\'"]\s*=\s*[\'"]\d[\'"]\b', "Boolean-based blind SQLi", "python", False),
     (r'\bAND\s+[\'"]\d[\'"]\s*=\s*[\'"]\d[\'"]\b', "Boolean-based blind SQLi numeric", "python", False),
-    (r'\b(?:SLEEP|pg_sleep|WAITFOR\s+DELAY|BENCHMARK)\s*\(', "Time-based blind SQLi", "python", False),
+    (r'(?<![\w.])(?:SLEEP|pg_sleep|WAITFOR\s+DELAY|BENCHMARK)\s*\(', "Time-based blind SQLi", "python", False),
 
     # Stacked queries
     (r';\s*(?:SELECT|INSERT|UPDATE|DELETE|DROP)\b', "Stacked query injection", "python", False),
@@ -306,6 +306,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
     findings: list[Finding] = []
 
     for fp in ctx.get_source_files():
+        # Skip DB migrations (Alembic/Flyway) — SQL there is DDL/DML on
+        # constants, not user-facing query construction.
+        if "migration" in fp.as_posix().lower():
+            continue
         try:
             content = ctx.read_file(fp)
         except Exception:

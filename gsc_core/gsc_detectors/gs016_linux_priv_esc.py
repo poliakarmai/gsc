@@ -137,6 +137,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
             continue
         if ext in ('.md', '.txt', '.org', '.rst'):
             continue
+        # Provisioning/migration scripts legitimately set SUID/chmod during setup
+        if any(k in name for k in ("provision", "migrate", "setup", "install", "deploy", "bootstrap")):
+            continue
 
         try:
             content = fp.read_text()

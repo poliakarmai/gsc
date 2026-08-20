@@ -528,7 +528,10 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
     # 1) ripgrep (быстрый путь)
     try:
         rg_args = ["rg", "--no-heading", "-n", "--max-filesize", "1M",
-                   "--max-columns", "300", search_pattern, str(path)]
+                   "--max-columns", "300", search_pattern, str(path),
+                   "-g", "!**/migrations/**", "-g", "!*provision*",
+                   "-g", "!*migrate_database*", "-g", "!*install.sh",
+                   "-g", "!*deploy.sh", "-g", "!*setup.sh", "-g", "!*bootstrap*"]
         if file_types:
             rg_args.insert(2, "-t"); rg_args.insert(3, file_types)
         if exclude_md:
@@ -567,6 +570,9 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
             if any(part in skip_dirs for part in fp.parts):
                 continue
             if exclude_md and fp.suffix == ".md":
+                continue
+            _fp_low = fp.as_posix().lower()
+            if any(k in _fp_low for k in ("/migrations/", "provision", "migrate_database")):
                 continue
             if not _matches_file_type(fp, file_types):
                 continue

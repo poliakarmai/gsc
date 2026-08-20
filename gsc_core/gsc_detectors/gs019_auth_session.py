@@ -197,6 +197,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
     scan_extensions = (".py", ".js", ".ts", ".go", ".java", ".rb", ".php")
 
     for fp in ctx.get_source_files(extensions=scan_extensions):
+        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?)/', str(fp), re.I):
+            continue
+        if re.search(r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.)', fp.name, re.I):
+            continue
         try:
             content = fp.read_text()
         except Exception:
@@ -209,7 +213,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
             # An @abstractmethod declaration sends no SMS and has no body to
             # rate-limit — it is not an SMS-exhaustion vulnerability.
             decorators = content[max(0, match.start() - 300):match.start()]
-            if re.search(r'@(?:abc\.)?abstractmethod\s*$', decorators, re.I | re.S):
+            if re.search(r'@(?:abc\.)?abstractmethod\b', decorators, re.I):
                 continue
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]

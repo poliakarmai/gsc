@@ -193,6 +193,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
                        ".sql", "Dockerfile", ".dockerfile")
 
     for fp in ctx.get_source_files(extensions=scan_extensions):
+        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?)/', str(fp), re.I):
+            continue
+        if re.search(r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.)', fp.name, re.I):
+            continue
         try:
             content = fp.read_text()
         except Exception:
@@ -206,6 +210,14 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
         # 1. Default credential pairs
         for match in DEFAULT_CREDS.finditer(content):
+            m = match.group(0)
+            # Enum member like `ADMIN = "admin"` (UPPER lhs, self-referential value)
+            # inside `class X(Enum)` is a role name, not a credential pair — skip.
+            # Lowercase `admin = "admin"` stays a real default-credential pair.
+            lhs = re.search(r'(?:^|\n)\s*(\w+)\s*[:=]', m)
+            rhs = re.search(r'["\'](\w+)["\']', m)
+            if lhs and rhs and lhs.group(1).isupper() and lhs.group(1).lower() == rhs.group(1).lower():
+                continue
             findings.append(Finding(
                 rule_id=RULE_ID, file_path=rel_path,
                 line=_lineno(content, match.start()),

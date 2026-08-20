@@ -49,7 +49,7 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
     (r'eyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}', "Hardcoded JWT token"),
 
     # Connection strings
-    (r'(?:mongodb|mysql|postgres(?:ql)?|redis|sqlite)://[^"\'\\s]{10,}', "Hardcoded connection string"),
+    (r'(?:mongodb|mysql|postgres(?:ql)?|redis)://[^"\'\\s]{10,}', "Hardcoded connection string"),
     (r'(?:DATABASE_URL|DB_URL|MONGO_URI|REDIS_URL)\s*[:=]\s*["\'][^"\']{10,}["\']', "Hardcoded database URL"),
 
     # Generic credential prefixes in strings
@@ -186,7 +186,16 @@ _EXCLUDE_PATHS_GS001 = re.compile(
     r'migrations?|__pycache__|node_modules|generated|dist|build)(?:/|$)', re.IGNORECASE)
 
 _EXCLUDE_FILES_GS001 = re.compile(
-    r'(?:^test_|_test\.|conftest\.|setup\.cfg|\.ini$)', re.IGNORECASE)
+    r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.|setup\.cfg|\.ini$)', re.IGNORECASE)
+
+
+# Internal dev connection hosts (docker-compose services, localhost) without
+# credentials are config, not secrets.
+_INTERNAL_CONN_HOSTS = re.compile(
+    r'(?:://|@)(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]|'
+    r'cache|db|redis|postgres|mysql|mongo|rabbitmq|elasticsearch)[:/]',
+    re.IGNORECASE,
+)
 
 
 def detect(ctx: AuditContext) -> list[Finding]:
@@ -206,6 +215,13 @@ def detect(ctx: AuditContext) -> list[Finding]:
         for pattern, label in _SECRET_PATTERNS:
             for m in re.finditer(pattern, content, re.IGNORECASE | re.MULTILINE):
                 matched = m.group(0)
+                # input()/getpass() prompt — value is user-entered, not hardcoded
+                prefix = content[max(0, m.start() - 40):m.start()]
+                if "input(" in prefix or "getpass" in prefix:
+                    continue
+                # Internal dev connection string (localhost/docker service) → config
+                if "onnection" in label and _INTERNAL_CONN_HOSTS.search(matched):
+                    continue
                 if _is_placeholder(matched):
                     continue
                 # IBAN validation: require valid country code + mod-97 checksum
