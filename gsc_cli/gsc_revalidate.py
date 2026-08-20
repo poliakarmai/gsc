@@ -271,6 +271,168 @@ class Revalidator:
 
         return results
 
+    # ── Batch revalidation (token-lean) ──────────────────────────────────────
+
+    def _apply_verdict(self, finding: dict, verdict: str, reasoning: str,
+                       git_fixed: str | None = None) -> dict:
+        finding["revalidation_verdict"] = verdict
+        finding["revalidation_reasoning"] = reasoning
+        finding["revalidation_checked_at"] = datetime.now(timezone.utc).isoformat()
+        if git_fixed is not None:
+            finding["revalidation_git_fixed"] = git_fixed
+        self._save_verdict(finding.get("id"), finding)
+        return finding
+
+    def _cached_verdict(self, finding: dict) -> tuple[str, str] | None:
+        """Reuse a prior verdict for the same finding_key (cross-project cache).
+
+        Identical findings (same rule + file + snippet) from different projects or
+        runs share a finding_key, so revalidating them twice is wasted LLM spend.
+        """
+        key = finding.get("finding_key")
+        if not key:
+            return None
+        row = self.db.execute(
+            "SELECT revalidation_verdict, revalidation_reasoning FROM findings "
+            "WHERE finding_key = ? AND revalidation_verdict IS NOT NULL "
+            "ORDER BY revalidation_checked_at DESC LIMIT 1",
+            (key,),
+        ).fetchone()
+        if row:
+            return row["revalidation_verdict"], row["revalidation_reasoning"]
+        return None
+
+    def revalidate_findings_batch(self, findings: list[dict],
+                                  min_severity: str = "HIGH",
+                                  use_llm: bool = True,
+                                  batch_size: int = 30) -> list[dict]:
+        """Revalidate with batched LLM calls + finding_key cache.
+
+        Fast paths (heuristic / git / finding_key cache) skip the LLM entirely.
+        The rest are grouped into chunks of `batch_size`, one LLM call per chunk
+        instead of one call per finding — cutting token overhead ~batch_size×.
+        """
+        severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
+        results: list[dict] = []
+        pending: list[dict] = []
+
+        for f in findings:
+            sev = f.get("severity", "MEDIUM")
+            if severity_order.get(sev, 99) > severity_order.get(min_severity, 99):
+                f["revalidation_verdict"] = "uncertain"
+                f["revalidation_reasoning"] = "Below min_severity — skipped revalidation"
+                results.append(f)
+                continue
+            if f.get("revalidation_verdict"):
+                results.append(f)
+                continue
+
+            file_path = f.get("file_path", "")
+            line = int(f.get("line", f.get("line_number", 1)))
+            context = self._read_context(file_path, line)
+
+            # Fast path 1: heuristics
+            verdict, reason = self._heuristic_check(f, context)
+            if verdict:
+                self._apply_verdict(f, verdict, reason)
+                results.append(f)
+                continue
+
+            # Fast path 2: finding_key cache (cross-project reuse)
+            cached = self._cached_verdict(f)
+            if cached:
+                self._apply_verdict(f, cached[0], cached[1] or "cached (finding_key)")
+                results.append(f)
+                continue
+
+            # Fast path 3: git-fixed (LLM only when enabled)
+            git_fixed, git_info = self._check_git_fixed(file_path, line)
+            f["revalidation_git_fixed"] = git_info
+            if git_fixed and not use_llm:
+                self._apply_verdict(f, "uncertain", f"Git: {git_info}")
+                results.append(f)
+                continue
+
+            f["_context"] = context
+            f["_git_info"] = git_info
+            pending.append(f)
+
+        # Phase 2: batched LLM
+        for i in range(0, len(pending), batch_size):
+            chunk = pending[i:i + batch_size]
+            self._llm_check_batch(chunk, use_llm=use_llm)
+
+        for f in pending:
+            results.append(f)
+
+        return results
+
+    def _llm_check_batch(self, chunk: list[dict], use_llm: bool = True) -> None:
+        """One LLM call for a whole chunk of findings."""
+        if not use_llm:
+            for f in chunk:
+                f["revalidation_verdict"] = "uncertain"
+                f["revalidation_reasoning"] = "LLM disabled — manual review needed"
+                self._save_verdict(f.get("id"), f)
+            return
+
+        need = [f for f in chunk if not f.get("revalidation_verdict")]
+        if not need:
+            return
+
+        prompt = self._build_batch_prompt(need)
+        verdicts = self._call_llm_batch(prompt, len(need))
+        for f, (verdict, reasoning) in zip(need, verdicts):
+            self._apply_verdict(f, verdict, reasoning)
+
+    def _build_batch_prompt(self, findings: list[dict]) -> str:
+        parts = []
+        for i, f in enumerate(findings):
+            ctx = f.get("_context", {})
+            parts.append(
+                f"--- idx={i} ---\n"
+                f"rule: {f.get('rule_id', '?')}\n"
+                f"severity: {f.get('severity', '?')}\n"
+                f"title: {f.get('title', '')}\n"
+                f"file: {f.get('file_path', '')}:{f.get('line', f.get('line_number', 1))}\n"
+                f"git: {f.get('revalidation_git_fixed', '')}\n"
+                f"code:\n```\n{ctx.get('code_snippet', 'N/A')[:800]}\n```\n"
+            )
+        body = "\n".join(parts)
+        return (
+            "You are a security auditor. Classify each vulnerability finding below.\n"
+            "Reply ONLY with a JSON array, one object per finding, in index order:\n"
+            '[{"idx": <int>, "verdict": "<true-positive|false-positive|fixed|uncertain>", '
+            '"reasoning": "<1-2 sentences>"}]\n\n'
+            f"{body}\n\n"
+            "Return exactly one JSON object per idx, covering every idx."
+        )
+
+    def _call_llm_batch(self, prompt: str, expected: int) -> list[tuple[str, str]]:
+        """Call LLM once, parse a JSON array of verdicts."""
+        from gsc_llm_providers import llm_chat
+        content = llm_chat(
+            "You are a security auditor. Reply ONLY with a valid JSON array.",
+            prompt, max_tokens=max(800, expected * 120), temperature=0.1,
+        )
+        if content is None:
+            return [("uncertain", "No LLM provider configured")] * expected
+        try:
+            arr = json.loads(content)
+        except json.JSONDecodeError:
+            return [("uncertain", f"LLM response not valid JSON: {content[:80]}")] * expected
+        out = []
+        for i in range(expected):
+            item = next((x for x in arr if isinstance(x, dict) and x.get("idx") == i), None)
+            if item is None:
+                out.append(("uncertain", "missing in LLM response"))
+                continue
+            v = item.get("verdict", "uncertain")
+            if v not in self.VERDICTS:
+                v = "uncertain"
+            out.append((v, item.get("reasoning", "")))
+        return out
+
     # ── LLM integration ─────────────────────────────────────────────────────
 
     def _llm_check(self, finding: dict, context: dict, git_info: str) -> str:
