@@ -31,7 +31,7 @@ RACE_PATTERNS: list[tuple[str, str, str]] = [
     (r'os\.path\.exists\s*\(.*\).*\n.*open\s*\(', "TOCTOU: exists() then open() — file may change between calls", "HIGH"),
     (r'os\.access\s*\(.*\).*\n.*open\s*\(', "TOCTOU: os.access() then open() — race window", "HIGH"),
     (r'Path\(.*\)\.exists\s*\(\).*\n.*open\s*\(', "TOCTOU: Path.exists() then open()", "MEDIUM"),
-    (r'tempfile\.(?:mktemp|mkstemp|mkdtemp)', "TOCTOU: tempfile without secure flags", "MEDIUM"),
+    (r'tempfile\.mktemp\s*\(', "TOCTOU: tempfile.mktemp() race window", "MEDIUM"),
     (r'os\.symlink\s*\(', "Potential TOCTOU: symlink creation — verify target validation", "INFO"),
 
     # Double-spend / payment races
@@ -43,8 +43,6 @@ RACE_PATTERNS: list[tuple[str, str, str]] = [
 
     # Async races
     (r'await\s+.*\n.*await\s+.*(?:same_resource|balance|stock)', "Potential async race: parallel awaits on shared state", "MEDIUM"),
-    (r'Promise\.all\s*\(', "Potential JS race: Promise.all on mutable state", "MEDIUM"),
-    (r'async\s+def.*\n.*(?:global|self\.)', "Potential async race: async function with shared state", "MEDIUM"),
     (r'threading\.(?:Lock|RLock|Semaphore)', "Race protection: threading lock (verify scope)", "INFO"),
 
     # Coupon/promo races

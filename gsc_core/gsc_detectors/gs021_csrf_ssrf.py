@@ -50,7 +50,7 @@ SSRF_PATTERNS: list[tuple[str, str, str]] = [
      "SSRF: HTTP request with user-controlled URL", "CRITICAL"),
     # Indirect taint — request to a variable (likely a user-supplied URL)
     (r'(?:requests|urllib\.request|httpx)\.(?:get|post|head|put|request)\s*\(\s*[a-zA-Z_]\w*\s*\)',
-     "SSRF: HTTP request to a variable (verify URL is not user-controlled)", "HIGH"),
+     "SSRF review: HTTP request to a variable — taint not established", "INFO"),
     (r'file_get_contents\s*\(\s*\$_(?:GET|POST|REQUEST)', "SSRF: PHP file_get_contents with user input", "CRITICAL"),
     (r'curl_exec\s*\(.*\$_(?:GET|POST|REQUEST)', "SSRF: PHP curl_exec with user-controlled URL", "CRITICAL"),
     # Internal host references

@@ -56,10 +56,6 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
      r"\brandom\.random\(\).*(?:auth|token|session|otp)"
      r"|\bMath\.random\(\).*(?:auth|token|session|otp)",
      "MEDIUM", 0.60),
-    ("no_rate_limit_auth",
-     r"@(?:app\.route|router\.(?:get|post|put|delete))\([^)]*"
-     r"(?:/login|/signin|/password|/register)[^)]*\)",
-     "MEDIUM", 0.50),
 ]
 
 AI_THRESHOLD = 0.5

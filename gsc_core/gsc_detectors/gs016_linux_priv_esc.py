@@ -44,7 +44,7 @@ SUDO_NOPASSWD = re.compile(
 
 # World-readable files matching password/shadow/key patterns
 WORLD_READABLE_SECRETS = re.compile(
-    r'^-r..r..r[-x].*\s+(/etc/(shadow|passwd|gshadow|group)\b'
+    r'^-r..r..r[-x].*\s+(/etc/(?:shadow|gshadow)\b'
     r'|/home/[^/]+/\.(ssh|gnupg|aws|config/gcloud)/\S+'
     r'|.*\.(pem|key|p12|pfx|jks|keystore)$)',
     re.MULTILINE,

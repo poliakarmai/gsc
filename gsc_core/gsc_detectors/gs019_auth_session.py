@@ -206,6 +206,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
         # 1. OTP/SMS send without rate limiting
         otp_funcs = OTP_SEND_PATTERNS.finditer(content)
         for match in otp_funcs:
+            # An @abstractmethod declaration sends no SMS and has no body to
+            # rate-limit — it is not an SMS-exhaustion vulnerability.
+            decorators = content[max(0, match.start() - 300):match.start()]
+            if re.search(r'@(?:abc\.)?abstractmethod\s*$', decorators, re.I | re.S):
+                continue
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
             if not re.search(r'cooldown|rate_limit|RateLimit|throttle|'
