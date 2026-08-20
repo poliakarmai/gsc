@@ -13,7 +13,8 @@
       "fp": 5,
       "expected_vulns": [
         "hardcoded_secret"
-      ]
+      ],
+      "commit": "d68bb2522f9d71764bd2e67f9939bd7119859f20"
     },
     {
       "name": "dvpwa",
@@ -26,7 +27,8 @@
       "fp": 10,
       "expected_vulns": [
         "sql_injection"
-      ]
+      ],
+      "commit": "a1d8f89fac2e57093189853c6527c2b01fc1d9c1"
     },
     {
       "name": "vuln-flask",
@@ -40,7 +42,8 @@
       "expected_vulns": [
         "sql_injection",
         "xss"
-      ]
+      ],
+      "commit": "b6a4f97afd466e83e1f60781494252dec1c37039"
     },
     {
       "name": "pygoat",
@@ -56,7 +59,8 @@
         "xss",
         "idor",
         "command_injection"
-      ]
+      ],
+      "commit": "19d17cc8874861142b330636d068bbde54e86b85"
     },
     {
       "name": "click",
@@ -67,7 +71,8 @@
       "likely": 0,
       "uncertain": 21,
       "fp": 2,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "e1fd5946ab26aaf372009eaff1acf947140b40fb"
     },
     {
       "name": "rich",
@@ -78,7 +83,8 @@
       "likely": 0,
       "uncertain": 144,
       "fp": 14,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "9d8f9a372cc5916fd4781fec207ced7ddac2f08f"
     },
     {
       "name": "jinja",
@@ -89,7 +95,8 @@
       "likely": 0,
       "uncertain": 43,
       "fp": 9,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "5ef70112a1ff19c05324ff889dd30405b1002044"
     },
     {
       "name": "werkzeug",
@@ -100,7 +107,8 @@
       "likely": 0,
       "uncertain": 136,
       "fp": 15,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "53633feffb843932cd7b9f77eb6e42dbc6cb1a58"
     },
     {
       "name": "markupsafe",
@@ -111,7 +119,8 @@
       "likely": 0,
       "uncertain": 2,
       "fp": 3,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "b2e4d9c7687be25695fffbe93a37622302b24fb1"
     },
     {
       "name": "itsdangerous",
@@ -122,7 +131,8 @@
       "likely": 0,
       "uncertain": 1,
       "fp": 3,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "672971d66a2ef9f85151e53283113f33d642dabd"
     },
     {
       "name": "httpx",
@@ -133,7 +143,8 @@
       "likely": 0,
       "uncertain": 133,
       "fp": 7,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
     },
     {
       "name": "starlette",
@@ -144,7 +155,8 @@
       "likely": 0,
       "uncertain": 157,
       "fp": 9,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "398e5a3430eb1ddd33e1d48d766efe41426e231f"
     },
     {
       "name": "uvicorn",
@@ -155,7 +167,8 @@
       "likely": 0,
       "uncertain": 43,
       "fp": 13,
-      "expected_vulns": []
+      "expected_vulns": [],
+      "commit": "8988c23704fc373c9206cca53ec57dd8ad7f44a5"
     }
   ]
 }
