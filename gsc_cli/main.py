@@ -659,7 +659,7 @@ def check_security(project: str, path: Path) -> list[dict]:
                     "title": p["title"],
                     "file_path": fpath,
                     "line_number": line_no,
-                    "detail": f"Match: {matched[:100]}" if matched else p.get("description", ""),
+                    "detail": p.get("description", ""),
                     "pattern_title": p["title"],
                 })
 
