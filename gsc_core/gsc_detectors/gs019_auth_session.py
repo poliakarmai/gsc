@@ -178,6 +178,17 @@ def _has_auth_decorator(content: str, route_pos: int) -> bool:
     return bool(AUTH_DECORATORS.search(recent))
 
 
+_TEST_SECRET_MARKERS = (
+    '0x0000', '10000000-', '6leixact',   # hCaptcha / reCAPTCHA public test keys
+    'dummy', 'fake', 'placeholder', 'changeme', 'your-', 'example', 'sample',
+    'xxx', '***',
+)
+
+
+def _is_placeholder_secret(value: str) -> bool:
+    return any(m in value.lower() for m in _TEST_SECRET_MARKERS)
+
+
 def detect(ctx: AuditContext) -> list[Finding]:
     if "GS019" in ctx.skipped_detectors:
         return []
@@ -265,8 +276,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
         # 5. Hardcoded session secrets
         for match in SESSION_SECRET_HARDCODED.finditer(content):
             secret_value = match.group(1)
-            if any(skip in secret_value.lower() for skip in
-                   ('***', 'your-', 'changeme', 'placeholder', 'example', 'os.environ')):
+            if _is_placeholder_secret(secret_value) or 'os.environ' in secret_value.lower():
                 continue
             findings.append(Finding(
                 rule_id=RULE_ID, file_path=rel_path,
@@ -282,8 +292,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
         # 5b. Hardcoded secrets via Flask/object dict-assignment
         for match in FLASK_CONFIG_SECRET_HARDCODED.finditer(content):
             secret_value = match.group(1)
-            if any(skip in secret_value.lower() for skip in
-                   ('***', 'your-', 'changeme', 'placeholder', 'example', 'os.environ')):
+            if _is_placeholder_secret(secret_value) or 'os.environ' in secret_value.lower():
                 continue
             findings.append(Finding(
                 rule_id=RULE_ID, file_path=rel_path,
