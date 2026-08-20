@@ -276,7 +276,7 @@ nuclei -t nuclei-templates/ -u https://staging.example.com
 
 ## 🧪 Quality
 
-- **Test suite** — `pip install -e '.[test]' && pytest` (corpus + nuclei + schema integrity)
+- **Test suite** — `pip install -e '.[test]' && python3 -m pytest tests -q` (canonical; полный gate — `python3 scripts/run_test_suite.py`)
 - **13/13 calibration projects** (9 clean + 4 vulnerable)
 - Hard chain assertion with retry (2-of-3, temperature 0)
 - Production rollout Phase 0–5 complete (blocking-standard)

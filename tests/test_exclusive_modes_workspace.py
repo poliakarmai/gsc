@@ -14,7 +14,9 @@ def run_case(name, fn):
     except Exception as e: print(f'  ❌ {name}: {e}'); failed += 1
 
 def t1():
-    assert set(SCAN_MODES.keys()) == {"quick", "standard", "deep"}
+    # Mandatory modes must be present; `ci`/`calibrate` are additive runtime
+    # modes (DD P2-01) and must not break this contract.
+    assert {"quick", "standard", "deep"} <= set(SCAN_MODES.keys())
 run_case('scan modes defined', t1)
 
 def t2():
