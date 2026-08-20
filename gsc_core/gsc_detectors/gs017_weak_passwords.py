@@ -193,7 +193,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                        ".sql", "Dockerfile", ".dockerfile")
 
     for fp in ctx.get_source_files(extensions=scan_extensions):
-        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?)/', str(fp), re.I):
+        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?|e2e|__tests__)/', str(fp), re.I):
             continue
         if re.search(r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.)', fp.name, re.I):
             continue

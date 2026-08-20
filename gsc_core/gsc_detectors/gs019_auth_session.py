@@ -197,7 +197,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
     scan_extensions = (".py", ".js", ".ts", ".go", ".java", ".rb", ".php")
 
     for fp in ctx.get_source_files(extensions=scan_extensions):
-        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?)/', str(fp), re.I):
+        if re.search(r'(?:^|/)(?:tests?|fixtures?|examples?|samples?|e2e|__tests__)/', str(fp), re.I):
             continue
         if re.search(r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.)', fp.name, re.I):
             continue
@@ -214,6 +214,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
             # rate-limit — it is not an SMS-exhaustion vulnerability.
             decorators = content[max(0, match.start() - 300):match.start()]
             if re.search(r'@(?:abc\.)?abstractmethod\b', decorators, re.I):
+                continue
+            # A stub body (pass / ... / raise NotImplementedError) has no
+            # send-path to throttle either.
+            func_head = content[match.start():min(match.start() + 500, len(content))]
+            if re.search(r':\s*(?:pass|\.\.\.|raise\s+NotImplementedError)\s*(?:#.*)?$',
+                         func_head, re.M | re.I):
                 continue
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
@@ -236,10 +242,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
         for match in login_funcs:
             func_end = min(match.start() + 3000, len(content))
             func_body = content[match.start():func_end]
-            if not re.search(r'session\\.regenerate|session_regenerate_id|'
-                            r'new_session|clear_session|session\\.clear|'
+            if not re.search(r'session\.regenerate|session_regenerate_id|'
+                            r'new_session|clear_session|session\.clear|'
                             r'logout.*before|flush.*session|rotate.*session|'
-                            r'request\\.session\\.clear',
+                            r'request\.session\.clear|contrib\.auth|cycle_key',
                             func_body, re.I):
                 findings.append(Finding(
                     rule_id=RULE_ID, file_path=rel_path,
