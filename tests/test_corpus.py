@@ -56,8 +56,14 @@ def test_hardcoded_secret():
     assert len(findings) > 0, "Hardcoded secret not detected"
 
 def test_unsafe_pickle():
+    # pickle without a taint source → HIGH (potential, not confirmed RCE)
     findings = scan_file("import pickle\ndef load(x): return pickle.loads(x)\n")
-    assert has_finding(findings, "pickle", "CRITICAL"), "pickle.loads not detected"
+    assert has_finding(findings, "pickle", "HIGH"), "pickle.loads not detected"
+
+def test_pickle_rce_user_input():
+    # pickle.loads(user_input) → CRITICAL (confirmed RCE sink)
+    findings = scan_file("from flask import request\nimport pickle\npickle.loads(request.data)\n")
+    assert has_finding(findings, "pickle", "CRITICAL"), "pickle.loads(user_input) not CRITICAL"
 
 def test_bare_except():
     findings = scan_file("try:\n    risky()\nexcept:\n    pass\n")
@@ -93,7 +99,7 @@ def run_corpus():
     tests = [
         ("SQL injection", lambda: has_finding(scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n'), "sql", "CRITICAL")),
         ("Hardcoded secret", lambda: len(scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')) > 0),
-        ("Unsafe pickle", lambda: has_finding(scan_file("import pickle\ndef load(x): return pickle.loads(x)\n"), "pickle", "CRITICAL")),
+        ("Unsafe pickle", lambda: has_finding(scan_file("import pickle\ndef load(x): return pickle.loads(x)\n"), "pickle", "HIGH")),
         ("Bare except", lambda: has_finding(scan_file("try:\n    risky()\nexcept:\n    pass\n"), "bare except", "MEDIUM")),
         ("eval()", lambda: has_finding(scan_file("def exec(u): return eval(u)\n"), "eval", "HIGH")),
         ("World-readable .env", lambda: has_finding(scan_file("SECRET=abc123\ndb://localhost\n", ".env", "644"), "world-readable", "HIGH")),
