@@ -140,6 +140,37 @@ def _snippet(content: str, line_no: int, window: int = 2) -> str:
     return "\n".join(lines[start:end])
 
 
+def _mask_docstrings(content: str) -> str:
+    """Mask triple-quoted docstrings to spaces (preserve line numbers).
+
+    Regex rules like pickle_load_any match code inside docstring examples
+    (e.g. ``>>> record = pickle.loads(pipe.read())`` in a docstring), which is
+    documentation, not executable code. Masking keeps line numbers intact so
+    snippet/line reporting still points at the real location.
+    """
+    chars = list(content)
+    n = len(chars)
+    i = 0
+    while i < n:
+        # docstring open: ''' or """
+        if i + 2 < n and ''.join(chars[i:i + 3]) in ('"""', "'''"):
+            chars[i:i + 3] = '   '
+            i += 3
+            while i < n:
+                # closing delimiter
+                if i + 2 < n and ''.join(chars[i:i + 3]) in ('"""', "'''"):
+                    chars[i:i + 3] = '   '
+                    i += 3
+                    break
+                if chars[i] != '\n':
+                    chars[i] = ' '
+                i += 1
+            continue
+        i += 1
+    return ''.join(chars)
+
+
+
 class GS037PythonDetector:
     rule_id = "GS037"
     name = "Python Vulnerability Detection"
@@ -153,17 +184,18 @@ class GS037PythonDetector:
         if ext != '.py':
             return findings
         hits = 0
+        masked = _mask_docstrings(content)
         for pattern_id, regex, severity, base_conf in PYTHON_RULES:
-            for match in re.finditer(regex, content, re.MULTILINE):
-                line_no = content[:match.start()].count("\n") + 1
+            for match in re.finditer(regex, masked, re.MULTILINE):
+                line_no = masked[:match.start()].count("\n") + 1
                 findings.append(_finding(f"GS037-{pattern_id}", severity,
                     f"Python security: {pattern_id}",
                     file_path, line_no, _snippet(content, line_no), base_conf))
                 hits += 1
         if hits >= 5:
-            findings.append(_finding("GS037-high_risk", "CRITICAL",
+            findings.append(_finding("GS037-high_risk", "INFO",
                 f"Python file has {hits} security issues",
-                file_path, 1, f"({hits} patterns)", 0.95))
+                file_path, 1, f"({hits} patterns)", 0.40))
         return findings
 
 
