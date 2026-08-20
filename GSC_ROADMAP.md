@@ -252,6 +252,23 @@ pitch про «self-learning» разобьётся вопросом «како�
 | 0.13.4 | Free/paid граница | явно: что бесплатно (self-hosted OSS), что платно (Cloud/Enterprise) — до выхода к инвестору | таблица в one-pager |
 | 0.13.5 | GHAS-митигация | CodeQL бесплатен для public → позиционировать «verified remediation + AI-code», НЕ «бесплатный SAST» | pitch не пересекается с GHAS |
 
+### Трек 0.14. DD-аудит 19.08 (Manus AI) — закрытие остатков
+
+> Независимая техническая/коммерческая экспертиза (срез `0d4a9fe`). Закрыто за сессию
+> 20.08: P1-01 digest-pin (postgres/redis/python/node), P1-02 calibration commit (13/13),
+> P2-01 scan-mode test contract, P2-02 canonical test command. Осталось:
+
+| # | Порция | Содержание | Проверка |
+|---|---|---|---|
+| 0.14.1 | Sandbox escape CI | запустить escape-suite (network/write/host-read) в реальном Docker/Podman runner — сейчас 5 тестов скипаются без runtime | `verified=true` только после isolated before/after |
+| 0.14.2 | Внешний benchmark | ≥100 проектов, pinned revisions, blind labels, per-rule precision/recall/F1 | методология + raw результаты опубликованы |
+| 0.14.3 | SBOM + provenance | generate/sign SBOM (syft) + SLSA provenance; admission policy «digest only» в CI | CI блокирует tag-only image refs |
+| 0.14.4 | Свои образы digest | закрепить `gsc-scanner`, `poliakarmai/gsc` (helm) по digest при релизе | все production manifests digest-pinned |
+| 0.14.5 | AutoFix draft-only | задокументировать AutoFix: draft PR, least privilege, human approval, audit trail | SCM permission model задокументирован |
+
+**Цель:** закрыть формальные P1/P2 аудита до выхода к инвесторам — supply-chain
+immutability + воспроизводимый benchmark как доказательная база для «enterprise-grade».
+
 ### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
 
 | Этап | Содержание | Оценка |
