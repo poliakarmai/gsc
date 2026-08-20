@@ -18,6 +18,8 @@ dist/
 *.tar.gz
 .repowise/
 graphify-out/
+# Generated precision brief — recreated by scripts/gsc_gen_detector_brief.py
+docs/GSC_DETECTOR_PRECISION_BRIEF.md
 venv/
 .venv/
 OWASPBenchmark/

@@ -46,11 +46,16 @@ def section_detectors():
                "`NOISE_TIER`, `description`, and `detect(ctx) -> list[Finding]`.\n")
     out.append("**The code below is the ONLY source of truth. Do not invent "
                "signatures, DB columns, or helper functions not shown here.**\n")
+    out.append("Line numbers are shown as `N|` at the start of each line and "
+               "match the real source files — cite them as `file:line` in your "
+               "proposals (no `UNKNOWN` needed).\n")
     for name in DETECTORS:
         m = meta(name)
         out.append(f"\n---\n\n### {m['rule']} — `{name}.py` "
                    f"(echelon {m['echelon']}, noise_tier `{m['noise']}`, {m['lines']} lines)\n")
-        out.append(f"```python\n{m['code']}\n```\n")
+        numbered = "\n".join(f"{i+1:4d}| {line}"
+                             for i, line in enumerate(m['code'].splitlines()))
+        out.append(f"```\n{numbered}\n```\n")
     # YAML rules
     out.append("\n---\n\n### YAML custom rules\n")
     for name in YAML_RULES:
@@ -59,7 +64,9 @@ def section_detectors():
             continue
         code = p.read_text()
         out.append(f"\n#### yaml_rules/{name}.py\n")
-        out.append(f"```python\n{code}\n```\n")
+        numbered = "\n".join(f"{i+1:4d}| {line}"
+                             for i, line in enumerate(code.splitlines()))
+        out.append(f"```\n{numbered}\n```\n")
     return "".join(out)
 
 
@@ -92,31 +99,49 @@ invent it.
 
 ## 1. Context — precision already measured
 
-Fresh scan (2026-08-20) of 10 real open-source projects, `--ci` (regex-only):
+Two benchmarks (2026-08-20), both `--ci` (regex-only).
 
-| Metric | Value |
-|---|---|
-| Total findings | 506 |
-| CRITICAL | ~27 |
-| HIGH | ~218 |
+**A. Fresh 10-project set (≤200⭐, 4 known-TP + 6 clean)** — measured before and
+after the precision pass of 20.08:
 
-Manual verification of every CRITICAL found **~0 real vulnerabilities** — nearly
-all are FP. The measured FP causes (your hunting map):
-
-| # | FP cause | Example (project / file:line) |
+| Metric | Before fixes | After fixes |
 |---|---|---|
-| 1 | **Docstring example** matched as code | loguru `_logger.py:1607` `>>> record = pickle.loads(pipe.read())` |
-| 2 | **Public test keys** flagged as secrets | piccolo-api `captcha.py:57` hCaptcha `0x0000…` / `10000000-…` |
-| 3 | **Parameterized query** seen as SQLi | piccolo-api `crud/endpoints.py:491` `.raw(sql, f"%{search_term}%")` |
-| 4 | **Fixed subprocess args** as cmd-injection | youtube-dl `YoutubeDL.py:429` `['bidiv'] + width_args` |
-| 5 | **JS operator** as SQL keyword | youtube-dl `openload.py:86` `delete window._phantom` |
-| 6 | **Bare word `key`** as crypto secret | pendulum `formatter.py:351` `key = "translations.day_periods"` |
-| 7 | **Abstract method / aggregate marker** | piccolo-api `mfa/provider.py:40` `@abstractmethod send_code` |
-| 8 | **Fake CVE / extractor API token** | httpie `man_pages.py:21` `os.system == 'nt'` (comparison) |
+| Total findings | 1845 | 1786 |
+| CRITICAL (severity) | 54 | **1** |
+| HIGH | 346 | 342 |
+| Precision CRITICAL | ~2% (1 TP) | ~50% (1 TP / 2, n small) |
 
-Some of these are already patched (see §5 "already fixed"). Your job is to find
-the **remaining** noise, including patterns not yet listed here, across all
-detectors and all severity levels (CRITICAL / HIGH / MEDIUM / LOW / INFO).
+Manual classification of all 54 CRITICAL found **53 FP / 1 TP** (a real Stripe
+key in `Baobab`). The FP causes — all now FIXED (see §5, do not re-propose):
+
+| # | FP cause | Example |
+|---|---|---|
+| 1 | SQL in DB migrations | Baobab `migrations/versions/*.py` `.format()` |
+| 2 | Test passwords | `password='abcd'` in `tests.py` |
+| 3 | `input()`/`getpass()` prompt as secret | dagster `getpass.getpass("Password: ")` |
+| 4 | `time.sleep()` as blind SQLi | cyberbro `sleep(` |
+| 5 | Internal dev hosts | `redis://cache:6379`, `sqlite:///…` |
+| 6 | hCaptcha test keys | piccolo `0x0000…` / `10000000-…` |
+| 7 | abstract/stub OTP send | piccolo `mfa/provider.py:40` `@abstractmethod send_code` |
+| 8 | enum role as credential | descope `ADMIN="admin"` in `class X(Enum)` |
+| 9 | tutorial/provision SUID | django-ca `provision.sh`, Baobab `migrate_database.sh` |
+
+**B. Legacy 10-project set (large mature repos: youtube-dl, sanic, loguru,
+httpie, pendulum…)** — still has these **OPEN** FP classes. A regex-only fix is
+insufficient (they need AST/taint analysis or a DB-pattern row we can't trace):
+
+| # | FP cause | Example |
+|---|---|---|
+| 1 | Docstring example matched as code | loguru `_logger.py:1607` `>>> record = pickle.loads(pipe.read())` |
+| 2 | Parameterized query seen as SQLi | piccolo `crud/endpoints.py:491` `.raw(sql, f"%{search_term}%")` |
+| 3 | Fixed subprocess args as cmd-injection | youtube-dl `YoutubeDL.py:429` `['bidiv'] + width_args` |
+| 4 | JS `delete` operator as SQL keyword | youtube-dl `openload.py:86` `delete window._phantom` |
+| 5 | `os.system == 'nt'` comparison | httpie `man_pages.py:21` |
+| 6 | Bare word `key` as crypto secret | pendulum `formatter.py:351` `key = "translations.day_periods"` |
+
+**Your job:** hunt the **remaining** noise — the OPEN classes above plus any
+pattern not yet listed, across all detectors and all severity levels
+(CRITICAL / HIGH / MEDIUM / LOW / INFO).
 
 **Critical rule:** a finding that is real code matching an insecure-API name
 (e.g. `pickle.loads`, `os.system`, `.execute(`) is **NOT** automatically a
@@ -200,8 +225,14 @@ CONSTRAINTS = """
 
 ### Already fixed (do NOT re-propose)
 - GS037: docstring masking + aggregate `GS037-high_risk` demoted to INFO.
-- GS019: placeholder/test-secret markers (`0x0000…`, `10000000-…`, `6LeI…`).
-- GS005: removed `execute with <collection>[idx]` unpacking patterns.
+- GS005: removed `execute with <collection>[idx]` unpacking; skip DB migrations; `SLEEP` no longer matches `time.sleep()`.
+- GS001: exclude `tests.py`/`testing.py`; `input()`/`getpass()` prompt is not a secret; removed `sqlite://`; internal dev hosts (localhost/cache/db, even `@user:pass`) → config.
+- GS019: abstractmethod lookbehind (`\b` not `\s*$`); stub body (`pass`/`...`/`raise NotImplementedError`); `contrib.auth|cycle_key` (Django login rotation); test/`e2e`/`__tests__`/example path exclude.
+- GS025: vendor test-secret markers (`0x0000`, `ffff-ffff`, …).
+- GS016: skip provision/migrate/setup/install scripts.
+- GS017: test/`e2e` path exclude; enum-member role filter (`ADMIN="admin"` — UPPER lhs only).
+- GS032: skip tutorial/docs/example/readme.
+- `main.py` `_pattern_search`: migration/provision exclude for the DB-pattern layer.
 - DB seed `Hardcoded encryption key`: narrowed (bare `key` removed).
 - DB pattern `pickle.load()`: deactivated (duplicate of GS037).
 
@@ -262,17 +293,20 @@ Rank proposals by FP volume (biggest noise first). End with a summary table:
 
 ```bash
 cd ~/gsc
-# Full test suite (must stay green — 461 passed, 5 skipped)
+# Full test suite (must stay green — 462 passed, 5 skipped)
 python3 -m pytest -q
 
 # Clean projects (FP should drop)
-python3 gsc.py scan benchmark/real_world/loguru --ci --json | grep -c CRITICAL
-python3 gsc.py scan benchmark/real_world/pendulum --ci --json | grep -c CRITICAL
 python3 gsc.py scan benchmark/real_world/piccolo-api --ci --json | grep -c CRITICAL
+python3 gsc.py scan benchmark/real_world/cyberbro --ci --json | grep -c CRITICAL
+python3 gsc.py scan benchmark/real_world/python-sdk --ci --json | grep -c CRITICAL
 
 # Vulnerable projects (TP must NOT drop)
 python3 gsc.py scan /tmp/gsc-calibration/pygoat --ci --json | grep -c CRITICAL
 python3 gsc.py scan /tmp/gsc-calibration/dvpwa --ci --json | grep -c CRITICAL
+
+# 100-project benchmark (track 0.14.2)
+python3 scripts/gsc_benchmark_100.py --scan && python3 scripts/gsc_benchmark_100.py --report
 ```
 
 Expected after a correct fix: clean-project CRITICAL drops toward 0 while
