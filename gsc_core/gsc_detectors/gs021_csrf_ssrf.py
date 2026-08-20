@@ -34,7 +34,9 @@ CSRF_PATTERNS: list[tuple[str, str, str]] = [
     (r'csrf_protect\s*=\s*False', "CSRF: Flask-WTF CSRF protection disabled", "HIGH"),
     (r'WTF_CSRF_ENABLED\s*=\s*False', "CSRF: Flask CSRF disabled globally", "HIGH"),
     (r'csrf\.exempt', "CSRF: Django REST framework CSRF exempt", "HIGH"),
-    (r'@app\.route.*methods\s*=\s*\[.*POST', "Potential CSRF: POST route without token check", "MEDIUM"),
+    # Removed: "@app.route(...methods=['POST'])" matches any POST route, not a
+    # CSRF signal — JWT/JSON APIs have no CSRF surface. Real CSRF TPs are caught
+    # by @csrf_exempt / csrf_protect=False / skip_before_action above.
     # Cookie flags
     (r'SESSION_COOKIE_HTTPONLY\s*=\s*False', "CSRF: Django session cookie HttpOnly=False", "MEDIUM"),
     (r'SESSION_COOKIE_SAMESITE\s*=\s*[\"\']None[\"\']', "CSRF: SameSite=None without Secure flag", "HIGH"),

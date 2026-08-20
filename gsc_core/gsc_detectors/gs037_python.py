@@ -57,7 +57,7 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
      "CRITICAL", 0.95),
     ("command_injection_shell_true",
      r'(?i)subprocess\.(?:call|run|Popen|check_output)\s*\([^)]*shell\s*=\s*True',
-     "HIGH", 0.80),
+     "MEDIUM", 0.80),
 
     # --- YAML Deserialization ---
     ("yaml_unsafe_load",
@@ -102,7 +102,7 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
 
     # --- XXE ---
     ("xxe_lxml",
-     r'(?i)(?:etree\.parse|etree\.fromstring|etree\.XML)\s*\(', "HIGH", 0.60),
+     r'(?i)(?:etree\.parse|etree\.fromstring|etree\.XML)\s*\(', "MEDIUM", 0.50),
     ("xxe_sax",
      r'(?i)feature_external_(?:ges|entities)\s*[,\s]+True', "HIGH", 0.85),
 
@@ -185,6 +185,10 @@ class GS037PythonDetector:
             return findings
         hits = 0
         masked = _mask_docstrings(content)
+        # Doctest-style >>> / ... REPL blocks (may appear outside docstrings)
+        # are usage examples, not executable code.
+        masked = re.sub(r'^[ \t]*>>>[^\n]*$', lambda m: ' ' * len(m.group(0)), masked, flags=re.M)
+        masked = re.sub(r'^[ \t]*\.\.\.[^\n]*$', lambda m: ' ' * len(m.group(0)), masked, flags=re.M)
         for pattern_id, regex, severity, base_conf in PYTHON_RULES:
             for match in re.finditer(regex, masked, re.MULTILINE):
                 line_no = masked[:match.start()].count("\n") + 1

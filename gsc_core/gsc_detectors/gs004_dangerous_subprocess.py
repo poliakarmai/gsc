@@ -107,6 +107,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 # practice, not user-controlled command injection → downgrade.
                 if ("shell" in pattern or "popen" in pattern) and _STATIC_SHELL.search(line_text):
                     severity = "MEDIUM"
+                # "$variable" in a string arg is shell-env expansion, not user
+                # input → MEDIUM.
+                if r"\$" in pattern:
+                    severity = "MEDIUM"
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=severity,
