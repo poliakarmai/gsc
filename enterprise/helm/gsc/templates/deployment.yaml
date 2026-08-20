@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: gsc-api
-        image: poliakarmai/gsc:0.38
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}{{ if .Values.image.digest }}@{{ .Values.image.digest }}{{ end }}"
         command: ["gsc","api","--port","8766"]
         ports:
         - containerPort: 8766

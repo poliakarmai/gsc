@@ -3,6 +3,7 @@ replicaCount: 2
 image:
   repository: poliakarmai/gsc
   tag: "0.38"
+  # digest: ""  # при релизе: immutable sha256 digest (track 0.14.4, DD P1-01)
   pullPolicy: IfNotPresent
 
 api:

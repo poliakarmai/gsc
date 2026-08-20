@@ -262,9 +262,9 @@ pitch про «self-learning» разобьётся вопросом «како�
 |---|---|---|---|
 | 0.14.1 | Sandbox escape CI | запустить escape-suite (network/write/host-read) в реальном Docker/Podman runner — сейчас 5 тестов скипаются без runtime | `verified=true` только после isolated before/after |
 | 0.14.2 | Внешний benchmark | ≥100 проектов, pinned revisions, blind labels, per-rule precision/recall/F1 | методология + raw результаты опубликованы |
-| 0.14.3 | SBOM + provenance | generate/sign SBOM (syft) + SLSA provenance; admission policy «digest only» в CI | CI блокирует tag-only image refs |
-| 0.14.4 | Свои образы digest | закрепить `gsc-scanner`, `poliakarmai/gsc` (helm) по digest при релизе | все production manifests digest-pinned |
-| 0.14.5 | AutoFix draft-only | задокументировать AutoFix: draft PR, least privilege, human approval, audit trail | SCM permission model задокументирован |
+| 0.14.3 | SBOM + provenance | ✅ generate/sign SBOM есть (`sbom` + `sbom-verify` v0.33); осталось SLSA provenance + CI admission «digest only» | CI блокирует tag-only image refs |
+| 0.14.4 | Свои образы digest | ✅ 20.08 — helm digest-механизм (`values.digest` + deployment template); pin digest при релизе | production manifests digest-pinned при сборке |
+| 0.14.5 | AutoFix draft-only | ✅ 20.08 — draft-only + least-privilege + human approval + audit trail (GSC_EXCLUSIVE_FEATURES.md) | SCM permission model задокументирован |
 
 **Цель:** закрыть формальные P1/P2 аудита до выхода к инвесторам — supply-chain
 immutability + воспроизводимый benchmark как доказательная база для «enterprise-grade».

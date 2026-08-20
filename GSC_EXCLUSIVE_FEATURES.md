@@ -65,6 +65,12 @@ def generate_fix(finding_key, report_path, project_root):
 gsc pof batch scan.json --create-pr --max-fixes 3
 ```
 
+> ⚠️ **Draft-only by design.** Auto-fix PRs are opened as **drafts** with a
+> least-privilege token (contents:write on the single repo — no secrets, no
+> admin). A human must review and approve before merge; GSC never self-merges.
+> Every auto-fix writes an audit trail (finding_key → patch → evidence) so the
+> change is traceable end-to-end.
+
 ### Eligibility rules
 
 ```python
