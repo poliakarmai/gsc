@@ -1543,7 +1543,7 @@ def generate_seed_patterns(count: int) -> list[dict]:
     # OWASP Top 10 (2021)
     owasp = [
         ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
-        ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:key|secret|password|token)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
+        ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:(?:encryption|encrypt|aes|cipher|fernet|secret|api)[_ -]?key|password|token|secret)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
         ("Injection", "A03", 1, "CRITICAL", "SQL injection risk: f-string in query", "regex", r"""f['\"].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*(?:\*\s*FROM|=\s*[{\'\"$]|\b(?:WHERE|SET|INTO|VALUES|JOIN)\b)"""),
         ("Insecure Design", "A04", 3, "HIGH", "Missing rate limiting", "semantic", r"def (handler|endpoint|route).*:.*\n(?!.*rate)"),
         ("Security Misconfiguration", "A05", 2, "HIGH", "Debug mode enabled", "regex", r"DEBUG\s*=\s*True|debug\s*=\s*true"),
@@ -1567,7 +1567,9 @@ def generate_seed_patterns(count: int) -> list[dict]:
         (1, "MEDIUM", "Missing docstring", "regex", r"^def \w+\(.*\):\s*$\n\s+(?!\"\"\"|''')"),
         (1, "MEDIUM", "Bare except:", "regex", r"except\s*:"),
         (2, "HIGH",   "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
-        (2, "CRITICAL", "pickle.load() — unsafe deserialization", "regex", r"pickle\.(load|loads)\("),  # gsc:ignore — pattern definition
+        # pickle.load deserialization is covered by the GS037 detector (which has
+        # taint + docstring filtering). The bare DB pattern was a noisy duplicate.
+        # (2, "CRITICAL", "pickle.load() — unsafe deserialization", "regex", r"pickle\.(load|loads)\("),
         (2, "HIGH", "os.system() without sanitization", "regex", r"os\.system\(.*format\(|os\.system\(.*f['\"]"),
         (2, "MEDIUM", "Hardcoded IP address", "regex", r"(?:host|server|ip|address|endpoint|url)\s*[:=]\s*['\"]?(?!127\.)(\d{1,3}\.){3}\d{1,3}['\"]?"),
         (2, "HIGH", "API key in git history", "semantic", r"(ghp_|sk-|xai-|eyJ).{10,}"),
