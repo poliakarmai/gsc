@@ -50,6 +50,7 @@ from . import gs037_python as _gs037
 from . import gs038_go as _gs038
 from . import gs039_ruby as _gs039
 from . import gs040_pii_disclosure as _gs040
+from . import gs041_crypto_secrets as _gs041
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -297,6 +298,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs040.detect,
         description=_gs040.description,
         noise_tier=getattr(_gs040, "NOISE_TIER", "normal"),
+    ),
+    # 🆕 GS041: crypto secrets — EVM private keys, BIP39 mnemonics, WIF, exchange API keys
+    DetectorEntry(
+        rule_id=_gs041.RULE_ID,
+        echelon=_gs041.ECHELON,
+        detect_fn=_gs041.detect,
+        description=_gs041.description,
+        noise_tier=getattr(_gs041, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(
