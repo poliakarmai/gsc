@@ -166,21 +166,26 @@ class GscCollector:
                 "MEDIUM"
             )
 
-            # Extract patterns
-            patterns = self._extract_cve_patterns(desc_en, cve_id)
-
-            for pat in patterns:
-                self._save_pattern(
-                    title=f"{cve_id}: {pat['title'][:80]}",
-                    category=pat["category"],
-                    severity=severity,
-                    pattern=pat.get("pattern", ""),
-                    language=pat.get("language", "python"),
-                    detector=pat.get("detector", ""),
-                    source="nvd",
-                    source_url=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
-                    snippet=desc_en[:300],
-                )
+            # Save the CVE as an INFORMATIONAL reference (active=0), NOT as a
+            # generic code-detection pattern. A CVE describes a bug in a SPECIFIC
+            # product; it cannot be turned into a generic regex applicable to
+            # arbitrary code. Generic patterns are already covered by the proper
+            # GS0XX detectors (GS004 command injection, GS005 SQLi, GS001 creds…).
+            # Previously this produced misleading titles like
+            # "CVE-2026-56413: Command injection" that polluted scans and fell
+            # through to GS000-LEGACY (benchmark 21.08.2026).
+            self._save_pattern(
+                title=f"{cve_id}: {desc_en[:150]}",
+                category="cve-reference",
+                severity=severity,
+                pattern=f"nvd-reference/{cve_id}",
+                language="python",
+                detector="",
+                source="nvd",
+                source_url=f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+                snippet=desc_en[:300],
+                active=False,
+            )
 
             self.state["processed_cves"].append(cve_id)
             time.sleep(0.1)  # Rate limit
@@ -281,7 +286,8 @@ class GscCollector:
 
     def _save_pattern(self, title: str, category: str, severity: str,
                       pattern: str, language: str, detector: str,
-                      source: str, source_url: str, snippet: str = ""):
+                      source: str, source_url: str, snippet: str = "",
+                      active: bool = True):
         """Save pattern + finding to GSC DB."""
         if not pattern:
             return
@@ -301,8 +307,9 @@ class GscCollector:
                     """INSERT INTO patterns
                        (title, search_pattern, pattern_type, category, language,
                         active, noise_tier, pattern_hash, project, echelon)
-                       VALUES (?, ?, 'regex', ?, ?, 1, ?, ?, '*', 1)""",
-                    (title[:200], pattern, severity, language, noise, pattern_hash)
+                       VALUES (?, ?, 'regex', ?, ?, ?, ?, ?, '*', 1)""",
+                    (title[:200], pattern, severity, language,
+                     1 if active else 0, noise, pattern_hash)
                 )
                 pattern_id = self.db.execute("SELECT last_insert_rowid()").fetchone()[0]
                 self.patterns_added += 1
