@@ -51,6 +51,7 @@
 | [DUE_DILIGENCE_v2.md](DUE_DILIGENCE_v2.md) | Due-diligence-контракт |
 | [LEGAL_AUDIT.md](LEGAL_AUDIT.md) | Юридический аудит |
 | [LICENSE_AUDIT.md](LICENSE_AUDIT.md) | Аудит лицензий зависимостей (нет GPL) |
+| [GITLEAKS_AUDIT.md](GITLEAKS_AUDIT.md) | Аудит истории на секреты (0 утечек) |
 | [AUTHORSHIP.md](AUTHORSHIP.md) | Доказательства авторства (chain-of-title) |
 | [DPA_template.md](DPA_template.md) | DPA-шаблон |
 
