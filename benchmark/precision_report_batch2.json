@@ -1,0 +1,283 @@
+{
+  "batch": 2,
+  "scanned_at": "2026-08-21T11:31:26.301009+00:00",
+  "projects": [
+    {
+      "name": "node-fetch",
+      "lang": "javascript",
+      "recall": false,
+      "files": 25,
+      "loc": 7249,
+      "mb": 0.5,
+      "stars": 8857,
+      "batch": 2,
+      "total": 24,
+      "critical": 0,
+      "high": 3,
+      "elapsed": 11.2
+    },
+    {
+      "name": "mux",
+      "lang": "go",
+      "recall": false,
+      "files": 17,
+      "loc": 7545,
+      "mb": 0.3,
+      "stars": 21839,
+      "batch": 2,
+      "total": 105,
+      "critical": 0,
+      "high": 97,
+      "elapsed": 10.0
+    },
+    {
+      "name": "koa",
+      "lang": "javascript",
+      "recall": false,
+      "files": 82,
+      "loc": 7884,
+      "mb": 0.9,
+      "stars": 35688,
+      "batch": 2,
+      "total": 4,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 12.2
+    },
+    {
+      "name": "sqlx",
+      "lang": "go",
+      "recall": false,
+      "files": 16,
+      "loc": 8098,
+      "mb": 0.3,
+      "stars": 17724,
+      "batch": 2,
+      "total": 142,
+      "critical": 1,
+      "high": 90,
+      "elapsed": 10.7
+    },
+    {
+      "name": "logrus",
+      "lang": "go",
+      "recall": false,
+      "files": 53,
+      "loc": 8944,
+      "mb": 0.5,
+      "stars": 25749,
+      "batch": 2,
+      "total": 118,
+      "critical": 0,
+      "high": 86,
+      "elapsed": 6.1
+    },
+    {
+      "name": "bottle",
+      "lang": "python",
+      "recall": false,
+      "files": 30,
+      "loc": 9192,
+      "mb": 3.4,
+      "stars": 8775,
+      "batch": 2,
+      "total": 28,
+      "critical": 0,
+      "high": 17,
+      "elapsed": 13.3
+    },
+    {
+      "name": "wire",
+      "lang": "go",
+      "recall": false,
+      "files": 207,
+      "loc": 10640,
+      "mb": 2.5,
+      "stars": 14408,
+      "batch": 2,
+      "total": 352,
+      "critical": 0,
+      "high": 116,
+      "elapsed": 16.4
+    },
+    {
+      "name": "chi",
+      "lang": "go",
+      "recall": false,
+      "files": 78,
+      "loc": 11939,
+      "mb": 0.7,
+      "stars": 22706,
+      "batch": 2,
+      "total": 159,
+      "critical": 0,
+      "high": 138,
+      "elapsed": 7.6
+    },
+    {
+      "name": "requests",
+      "lang": "python",
+      "recall": false,
+      "files": 37,
+      "loc": 12032,
+      "mb": 4.7,
+      "stars": 54245,
+      "batch": 2,
+      "total": 8,
+      "critical": 0,
+      "high": 1,
+      "elapsed": 9.0
+    },
+    {
+      "name": "DVWA",
+      "lang": "php",
+      "recall": true,
+      "files": 169,
+      "loc": 12940,
+      "mb": 2.6,
+      "stars": 13521,
+      "batch": 2,
+      "total": 168,
+      "critical": 39,
+      "high": 74,
+      "elapsed": 16.1
+    }
+  ],
+  "per_rule": {
+    "GS000-LEGACY": {
+      "HIGH": 512,
+      "MEDIUM": 125,
+      "LOW": 22
+    },
+    "GS003": {
+      "LOW": 110
+    },
+    "GS002": {
+      "HIGH": 1
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS022": {
+      "INFO": 10,
+      "MEDIUM": 1,
+      "CRITICAL": 11
+    },
+    "?": {
+      "INFO": 64
+    },
+    "GS038-sql_injection_fmt": {
+      "CRITICAL": 1
+    },
+    "GS040-pii_email": {
+      "LOW": 40
+    },
+    "GS025-eval_usage": {
+      "HIGH": 18
+    },
+    "GS029": {
+      "HIGH": 2,
+      "MEDIUM": 3,
+      "CRITICAL": 8
+    },
+    "GS010": {
+      "MEDIUM": 2
+    },
+    "GS037": {
+      "MEDIUM": 2
+    },
+    "GS020": {
+      "MEDIUM": 1,
+      "HIGH": 16
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 2
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 7
+    },
+    "GS037-high_risk": {
+      "INFO": 1
+    },
+    "GS008": {
+      "HIGH": 2
+    },
+    "GS004": {
+      "HIGH": 1
+    },
+    "GS012": {
+      "LOW": 1
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 9
+    },
+    "GS038-path_traversal": {
+      "HIGH": 6
+    },
+    "GS038-tls_skip_verify": {
+      "HIGH": 1
+    },
+    "GS038-pprof_exposed": {
+      "MEDIUM": 2
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 1
+    },
+    "GS001": {
+      "CRITICAL": 10
+    },
+    "GS035-session_fixation": {
+      "MEDIUM": 3
+    },
+    "GS035-cookie_no_httponly": {
+      "LOW": 7
+    },
+    "GS035-weak_hash_password": {
+      "HIGH": 17
+    },
+    "GS035-weak_hash": {
+      "LOW": 18
+    },
+    "GS035-error_reporting_prod": {
+      "MEDIUM": 2
+    },
+    "GS035-hardcoded_password": {
+      "CRITICAL": 3
+    },
+    "GS035-open_redirect": {
+      "HIGH": 3
+    },
+    "GS040-debug_token": {
+      "LOW": 2
+    },
+    "GS031": {
+      "MEDIUM": 1
+    },
+    "GS005": {
+      "CRITICAL": 7
+    },
+    "GS007": {
+      "INFO": 15,
+      "HIGH": 22
+    },
+    "GS021": {
+      "MEDIUM": 2
+    },
+    "GS025-permissive_cors": {
+      "HIGH": 2
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 1
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 1
+    }
+  },
+  "recall_hits": {
+    "DVWA": {
+      "critical": 39,
+      "high": 74,
+      "total": 168
+    }
+  }
+}

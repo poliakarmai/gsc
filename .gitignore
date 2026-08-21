@@ -40,3 +40,6 @@ gsc-vscode/*.vsix
 .coverage
 *.bak
 *.bak-*
+
+# Benchmark clones (2.8GB, not for git)
+benchmark/real_world_100/

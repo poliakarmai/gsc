@@ -1,0 +1,319 @@
+{
+  "batch": 7,
+  "scanned_at": "2026-08-21T11:48:11.670315+00:00",
+  "projects": [
+    {
+      "name": "vue",
+      "lang": "javascript",
+      "recall": false,
+      "files": 426,
+      "loc": 74864,
+      "mb": 4.1,
+      "stars": 210353,
+      "batch": 7,
+      "total": 729,
+      "critical": 12,
+      "high": 631,
+      "elapsed": 24.1
+    },
+    {
+      "name": "django-ca",
+      "lang": "python",
+      "recall": true,
+      "files": 423,
+      "loc": 75830,
+      "mb": 8.0,
+      "stars": 158,
+      "batch": 7,
+      "total": 549,
+      "critical": 4,
+      "high": 68,
+      "elapsed": 46.5
+    },
+    {
+      "name": "fastify",
+      "lang": "javascript",
+      "recall": false,
+      "files": 295,
+      "loc": 77178,
+      "mb": 3.8,
+      "stars": 37022,
+      "batch": 7,
+      "total": 63,
+      "critical": 0,
+      "high": 38,
+      "elapsed": 16.8
+    },
+    {
+      "name": "pgx",
+      "lang": "go",
+      "recall": false,
+      "files": 306,
+      "loc": 81810,
+      "mb": 3.4,
+      "stars": 14159,
+      "batch": 7,
+      "total": 743,
+      "critical": 66,
+      "high": 595,
+      "elapsed": 26.3
+    },
+    {
+      "name": "setuptools",
+      "lang": "python",
+      "recall": false,
+      "files": 333,
+      "loc": 81941,
+      "mb": 6.2,
+      "stars": 2852,
+      "batch": 7,
+      "total": 164,
+      "critical": 2,
+      "high": 105,
+      "elapsed": 48.9
+    },
+    {
+      "name": "gunicorn",
+      "lang": "python",
+      "recall": false,
+      "files": 437,
+      "loc": 83463,
+      "mb": 5.9,
+      "stars": 10654,
+      "batch": 7,
+      "total": 96,
+      "critical": 2,
+      "high": 16,
+      "elapsed": 33.0
+    },
+    {
+      "name": "scrapy",
+      "lang": "python",
+      "recall": false,
+      "files": 481,
+      "loc": 87506,
+      "mb": 6.7,
+      "stars": 63980,
+      "batch": 7,
+      "total": 43,
+      "critical": 1,
+      "high": 16,
+      "elapsed": 36.9
+    },
+    {
+      "name": "aiohttp",
+      "lang": "python",
+      "recall": false,
+      "files": 164,
+      "loc": 97597,
+      "mb": 6.3,
+      "stars": 16527,
+      "batch": 7,
+      "total": 39,
+      "critical": 0,
+      "high": 10,
+      "elapsed": 32.1
+    },
+    {
+      "name": "nuxt",
+      "lang": "javascript",
+      "recall": false,
+      "files": 886,
+      "loc": 98693,
+      "mb": 13.8,
+      "stars": 60773,
+      "batch": 7,
+      "total": 771,
+      "critical": 8,
+      "high": 555,
+      "elapsed": 66.1
+    },
+    {
+      "name": "celery",
+      "lang": "python",
+      "recall": false,
+      "files": 419,
+      "loc": 102075,
+      "mb": 8.4,
+      "stars": 28803,
+      "batch": 7,
+      "total": 151,
+      "critical": 3,
+      "high": 36,
+      "elapsed": 52.6
+    }
+  ],
+  "per_rule": {
+    "GS000-LEGACY": {
+      "HIGH": 1612,
+      "MEDIUM": 208,
+      "LOW": 115,
+      "CRITICAL": 8
+    },
+    "GS003": {
+      "LOW": 130
+    },
+    "GS020": {
+      "HIGH": 46,
+      "LOW": 4,
+      "MEDIUM": 3
+    },
+    "GS034-token_collector": {
+      "HIGH": 63
+    },
+    "GS008": {
+      "CRITICAL": 17,
+      "LOW": 3,
+      "HIGH": 9
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS012": {
+      "LOW": 46
+    },
+    "GS017": {
+      "CRITICAL": 5
+    },
+    "GS025-eval_usage": {
+      "HIGH": 90
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 76
+    },
+    "GS029": {
+      "HIGH": 10,
+      "MEDIUM": 24,
+      "CRITICAL": 1
+    },
+    "GS014": {
+      "MEDIUM": 3
+    },
+    "GS015": {
+      "INFO": 11
+    },
+    "GS037-hardcoded_password": {
+      "HIGH": 3
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 73
+    },
+    "GS040-private_ip_config": {
+      "LOW": 4
+    },
+    "GS031": {
+      "MEDIUM": 12
+    },
+    "?": {
+      "LOW": 20,
+      "INFO": 68,
+      "HIGH": 2,
+      "MEDIUM": 4
+    },
+    "GS002": {
+      "HIGH": 2
+    },
+    "GS004": {
+      "HIGH": 24
+    },
+    "GS007": {
+      "INFO": 377,
+      "HIGH": 5
+    },
+    "GS011": {
+      "HIGH": 1
+    },
+    "GS021": {
+      "MEDIUM": 1
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 7
+    },
+    "GS031-DOCKER-LINT-BINDS": {
+      "LOW": 2
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 32
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 30
+    },
+    "GS001": {
+      "CRITICAL": 7
+    },
+    "GS038-sql_injection_fmt": {
+      "CRITICAL": 7
+    },
+    "GS038-hardcoded_password": {
+      "CRITICAL": 47
+    },
+    "GS038-tls_skip_verify": {
+      "HIGH": 18
+    },
+    "GS038-weak_crypto_md5": {
+      "HIGH": 2
+    },
+    "GS005": {
+      "CRITICAL": 3
+    },
+    "GS032-fake_tool_call_execute": {
+      "HIGH": 19
+    },
+    "GS032-fake_tool_call_file": {
+      "MEDIUM": 1
+    },
+    "GS037-high_risk": {
+      "INFO": 4
+    },
+    "GS040-pii_email": {
+      "LOW": 19
+    },
+    "GS010": {
+      "MEDIUM": 1
+    },
+    "GS037": {
+      "MEDIUM": 11
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 6
+    },
+    "GS019": {
+      "HIGH": 1
+    },
+    "GS022": {
+      "INFO": 26,
+      "MEDIUM": 2
+    },
+    "GS040-suspicious_comment": {
+      "MEDIUM": 2
+    },
+    "GS025-wildcard_bind": {
+      "MEDIUM": 1
+    },
+    "GS036-redos": {
+      "LOW": 3
+    },
+    "YAML-SSTI001": {
+      "CRITICAL": 2
+    },
+    "GS037-debug_true": {
+      "MEDIUM": 2
+    },
+    "GS025-debug_mode": {
+      "HIGH": 1
+    },
+    "YAML-ECB85AD8": {
+      "MEDIUM": 1
+    },
+    "GS031-DOCKER-LINT": {
+      "CRITICAL": 1
+    }
+  },
+  "recall_hits": {
+    "django-ca": {
+      "critical": 4,
+      "high": 68,
+      "total": 549
+    }
+  }
+}

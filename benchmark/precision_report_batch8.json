@@ -1,0 +1,373 @@
+{
+  "batch": 8,
+  "scanned_at": "2026-08-21T12:06:28.907279+00:00",
+  "projects": [
+    {
+      "name": "puppeteer",
+      "lang": "javascript",
+      "recall": false,
+      "files": 486,
+      "loc": 102922,
+      "mb": 17.6,
+      "stars": 95479,
+      "batch": 8,
+      "total": 780,
+      "critical": 111,
+      "high": 494,
+      "elapsed": 59.6
+    },
+    {
+      "name": "juice-shop",
+      "lang": "javascript",
+      "recall": true,
+      "files": 649,
+      "loc": 103183,
+      "mb": 31.3,
+      "stars": 13702,
+      "batch": 8,
+      "total": 1760,
+      "critical": 100,
+      "high": 1122,
+      "elapsed": 93.3
+    },
+    {
+      "name": "vite",
+      "lang": "javascript",
+      "recall": false,
+      "files": 1551,
+      "loc": 103525,
+      "mb": 29.3,
+      "stars": 82441,
+      "batch": 8,
+      "total": 1020,
+      "critical": 15,
+      "high": 549,
+      "elapsed": 95.6
+    },
+    {
+      "name": "hypothesis",
+      "lang": "python",
+      "recall": false,
+      "files": 463,
+      "loc": 106845,
+      "mb": 15.1,
+      "stars": 8905,
+      "batch": 8,
+      "total": 77,
+      "critical": 1,
+      "high": 35,
+      "elapsed": 47.7
+    },
+    {
+      "name": "playwright-python",
+      "lang": "python",
+      "recall": false,
+      "files": 256,
+      "loc": 107634,
+      "mb": 6.1,
+      "stars": 14928,
+      "batch": 8,
+      "total": 62,
+      "critical": 4,
+      "high": 6,
+      "elapsed": 48.9
+    },
+    {
+      "name": "pytest",
+      "lang": "python",
+      "recall": false,
+      "files": 270,
+      "loc": 112743,
+      "mb": 9.1,
+      "stars": 14435,
+      "batch": 8,
+      "total": 98,
+      "critical": 3,
+      "high": 68,
+      "elapsed": 50.8
+    },
+    {
+      "name": "gradio",
+      "lang": "python",
+      "recall": false,
+      "files": 774,
+      "loc": 117040,
+      "mb": 282.8,
+      "stars": 43396,
+      "batch": 8,
+      "total": 1164,
+      "critical": 25,
+      "high": 680,
+      "elapsed": 163.1
+    },
+    {
+      "name": "ruff",
+      "lang": "python",
+      "recall": false,
+      "files": 2969,
+      "loc": 125909,
+      "mb": 116.6,
+      "stars": 49273,
+      "batch": 8,
+      "total": 4792,
+      "critical": 271,
+      "high": 2063,
+      "elapsed": 404.3
+    },
+    {
+      "name": "nestjs",
+      "lang": "javascript",
+      "recall": false,
+      "files": 1828,
+      "loc": 131574,
+      "mb": 15.1,
+      "stars": 76415,
+      "batch": 8,
+      "total": 2257,
+      "critical": 13,
+      "high": 2120,
+      "elapsed": 89.0
+    },
+    {
+      "name": "black",
+      "lang": "python",
+      "recall": false,
+      "files": 345,
+      "loc": 133659,
+      "mb": 7.3,
+      "stars": 41815,
+      "batch": 8,
+      "total": 87,
+      "critical": 0,
+      "high": 27,
+      "elapsed": 44.8
+    }
+  ],
+  "per_rule": {
+    "GS000-LEGACY": {
+      "HIGH": 5957,
+      "MEDIUM": 885,
+      "CRITICAL": 179,
+      "LOW": 321
+    },
+    "GS001": {
+      "CRITICAL": 95
+    },
+    "GS003": {
+      "LOW": 582
+    },
+    "GS020": {
+      "HIGH": 99,
+      "CRITICAL": 8,
+      "MEDIUM": 5,
+      "LOW": 1
+    },
+    "GS034-postinstall_script": {
+      "HIGH": 2
+    },
+    "GS034-token_collector": {
+      "HIGH": 232
+    },
+    "GS036-redos": {
+      "LOW": 4
+    },
+    "GS036-hardcoded_api_key": {
+      "CRITICAL": 1
+    },
+    "GS036-dangerously_set_html": {
+      "MEDIUM": 3
+    },
+    "GS040-suspicious_comment": {
+      "MEDIUM": 21
+    },
+    "GS008": {
+      "CRITICAL": 110,
+      "LOW": 22,
+      "HIGH": 41
+    },
+    "GS031": {
+      "MEDIUM": 10
+    },
+    "GS002": {
+      "HIGH": 32
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS014": {
+      "MEDIUM": 21,
+      "LOW": 16
+    },
+    "GS021": {
+      "INFO": 16,
+      "HIGH": 1
+    },
+    "GS022": {
+      "INFO": 19,
+      "MEDIUM": 8
+    },
+    "GS025-eval_usage": {
+      "HIGH": 165
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 344
+    },
+    "?": {
+      "INFO": 1758
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 14
+    },
+    "GS032-system_prompt_override": {
+      "HIGH": 1
+    },
+    "GS032-exfil_env_send": {
+      "CRITICAL": 16
+    },
+    "GS036-nosql_injection_where": {
+      "HIGH": 7
+    },
+    "GS036-insecure_deserialization": {
+      "HIGH": 6
+    },
+    "GS036-path_traversal": {
+      "HIGH": 1
+    },
+    "GS040-pii_email": {
+      "LOW": 227
+    },
+    "GS040-private_ip_config": {
+      "LOW": 2
+    },
+    "GS029": {
+      "CRITICAL": 23,
+      "HIGH": 79,
+      "MEDIUM": 52
+    },
+    "GS005": {
+      "CRITICAL": 71
+    },
+    "GS007": {
+      "INFO": 32,
+      "HIGH": 12
+    },
+    "GS011": {
+      "LOW": 1,
+      "HIGH": 1
+    },
+    "GS012": {
+      "LOW": 25,
+      "HIGH": 4
+    },
+    "GS017": {
+      "HIGH": 3,
+      "CRITICAL": 3
+    },
+    "GS041": {
+      "CRITICAL": 1
+    },
+    "GS042": {
+      "HIGH": 7
+    },
+    "GS043": {
+      "HIGH": 5
+    },
+    "GS024": {
+      "CRITICAL": 1
+    },
+    "GS031-TF-SG-OPEN": {
+      "HIGH": 25
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 11
+    },
+    "GS034-typo_squatting": {
+      "LOW": 1
+    },
+    "GS034-env_dump_all": {
+      "CRITICAL": 1
+    },
+    "GS034-file_exfiltrator": {
+      "CRITICAL": 1
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 42
+    },
+    "GS004": {
+      "HIGH": 17,
+      "MEDIUM": 1
+    },
+    "GS037": {
+      "MEDIUM": 33,
+      "CRITICAL": 20
+    },
+    "GS015": {
+      "INFO": 36
+    },
+    "GS032-fake_tool_call_execute": {
+      "HIGH": 6
+    },
+    "GS016": {
+      "MEDIUM": 2
+    },
+    "GS019": {
+      "CRITICAL": 1,
+      "HIGH": 1
+    },
+    "GS010": {
+      "MEDIUM": 178
+    },
+    "GS032-markdown_image_exfil": {
+      "LOW": 3
+    },
+    "GS032-markdown_link_injection": {
+      "HIGH": 6
+    },
+    "GS037-high_risk": {
+      "INFO": 1
+    },
+    "GS037-debug_true": {
+      "MEDIUM": 4
+    },
+    "GS037-hardcoded_api_key": {
+      "HIGH": 7
+    },
+    "GS025-wildcard_bind": {
+      "MEDIUM": 3
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 56
+    },
+    "YAML-SSTI001": {
+      "CRITICAL": 11
+    },
+    "GS032-fake_tool_call_file": {
+      "MEDIUM": 59
+    },
+    "GS037-command_injection_shell_true": {
+      "MEDIUM": 1
+    },
+    "GS025-debug_mode": {
+      "HIGH": 1
+    },
+    "GS025-permissive_cors": {
+      "HIGH": 1
+    },
+    "YAML-ECB85AD8": {
+      "MEDIUM": 2
+    },
+    "GS031-DOCKER-LINT": {
+      "CRITICAL": 1
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 3
+    }
+  },
+  "recall_hits": {
+    "juice-shop": {
+      "critical": 100,
+      "high": 1122,
+      "total": 1760
+    }
+  }
+}

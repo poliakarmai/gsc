@@ -1,0 +1,249 @@
+{
+  "batch": 4,
+  "scanned_at": "2026-08-21T11:35:27.293789+00:00",
+  "projects": [
+    {
+      "name": "starlette",
+      "lang": "python",
+      "recall": false,
+      "files": 71,
+      "loc": 19275,
+      "mb": 4.1,
+      "stars": 12553,
+      "batch": 4,
+      "total": 16,
+      "critical": 2,
+      "high": 4,
+      "elapsed": 11.0
+    },
+    {
+      "name": "dayjs",
+      "lang": "javascript",
+      "recall": false,
+      "files": 323,
+      "loc": 19757,
+      "mb": 3.7,
+      "stars": 48664,
+      "batch": 4,
+      "total": 43,
+      "critical": 0,
+      "high": 5,
+      "elapsed": 14.9
+    },
+    {
+      "name": "loguru",
+      "lang": "python",
+      "recall": false,
+      "files": 171,
+      "loc": 20129,
+      "mb": 2.5,
+      "stars": 24074,
+      "batch": 4,
+      "total": 5,
+      "critical": 0,
+      "high": 2,
+      "elapsed": 12.1
+    },
+    {
+      "name": "commander.js",
+      "lang": "javascript",
+      "recall": false,
+      "files": 171,
+      "loc": 20642,
+      "mb": 1.6,
+      "stars": 28364,
+      "batch": 4,
+      "total": 21,
+      "critical": 1,
+      "high": 15,
+      "elapsed": 8.6
+    },
+    {
+      "name": "boto3",
+      "lang": "python",
+      "recall": false,
+      "files": 104,
+      "loc": 21061,
+      "mb": 12.7,
+      "stars": 9872,
+      "batch": 4,
+      "total": 25,
+      "critical": 0,
+      "high": 24,
+      "elapsed": 28.2
+    },
+    {
+      "name": "zerolog",
+      "lang": "go",
+      "recall": false,
+      "files": 81,
+      "loc": 21455,
+      "mb": 1.0,
+      "stars": 12493,
+      "batch": 4,
+      "total": 357,
+      "critical": 2,
+      "high": 282,
+      "elapsed": 10.0
+    },
+    {
+      "name": "express",
+      "lang": "javascript",
+      "recall": false,
+      "files": 141,
+      "loc": 21478,
+      "mb": 1.5,
+      "stars": 69385,
+      "batch": 4,
+      "total": 8,
+      "critical": 0,
+      "high": 4,
+      "elapsed": 9.7
+    },
+    {
+      "name": "yargs",
+      "lang": "javascript",
+      "recall": false,
+      "files": 101,
+      "loc": 22528,
+      "mb": 1.8,
+      "stars": 11513,
+      "batch": 4,
+      "total": 91,
+      "critical": 0,
+      "high": 49,
+      "elapsed": 9.1
+    },
+    {
+      "name": "jinja",
+      "lang": "python",
+      "recall": false,
+      "files": 60,
+      "loc": 22875,
+      "mb": 1.4,
+      "stars": 11744,
+      "batch": 4,
+      "total": 24,
+      "critical": 0,
+      "high": 20,
+      "elapsed": 13.0
+    },
+    {
+      "name": "golang-migrate",
+      "lang": "go",
+      "recall": false,
+      "files": 142,
+      "loc": 23146,
+      "mb": 2.6,
+      "stars": 18840,
+      "batch": 4,
+      "total": 301,
+      "critical": 27,
+      "high": 183,
+      "elapsed": 18.3
+    }
+  ],
+  "per_rule": {
+    "GS014": {
+      "MEDIUM": 1
+    },
+    "GS029": {
+      "MEDIUM": 1,
+      "CRITICAL": 2,
+      "HIGH": 3
+    },
+    "GS015": {
+      "INFO": 1
+    },
+    "GS037-hardcoded_password": {
+      "HIGH": 1
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 11
+    },
+    "GS040-pii_email": {
+      "LOW": 2
+    },
+    "GS005": {
+      "CRITICAL": 1
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS022": {
+      "INFO": 6,
+      "MEDIUM": 1
+    },
+    "GS000-LEGACY": {
+      "HIGH": 478,
+      "MEDIUM": 111
+    },
+    "GS025-eval_usage": {
+      "HIGH": 66
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 7
+    },
+    "?": {
+      "INFO": 74
+    },
+    "GS037": {
+      "MEDIUM": 3
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 3
+    },
+    "GS003": {
+      "LOW": 48
+    },
+    "GS034-token_collector": {
+      "HIGH": 9
+    },
+    "GS034-typo_squatting": {
+      "LOW": 1
+    },
+    "GS036-command_injection_exec": {
+      "CRITICAL": 1
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 4
+    },
+    "GS038-command_injection_exec": {
+      "CRITICAL": 2
+    },
+    "GS038-unsafe_pointer": {
+      "MEDIUM": 2
+    },
+    "GS020": {
+      "HIGH": 1
+    },
+    "GS002": {
+      "HIGH": 1
+    },
+    "GS008": {
+      "HIGH": 2
+    },
+    "GS004": {
+      "HIGH": 2
+    },
+    "GS012": {
+      "LOW": 2
+    },
+    "GS038-hardcoded_password": {
+      "CRITICAL": 18
+    },
+    "GS038-sql_injection_fmt": {
+      "CRITICAL": 6
+    },
+    "GS017": {
+      "CRITICAL": 2
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 4
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 4
+    }
+  },
+  "recall_hits": {}
+}

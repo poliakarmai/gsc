@@ -1,0 +1,281 @@
+{
+  "batch": 3,
+  "scanned_at": "2026-08-21T11:33:12.309625+00:00",
+  "projects": [
+    {
+      "name": "superagent",
+      "lang": "javascript",
+      "recall": false,
+      "files": 74,
+      "loc": 13759,
+      "mb": 3.8,
+      "stars": 16641,
+      "batch": 3,
+      "total": 12,
+      "critical": 1,
+      "high": 3,
+      "elapsed": 7.6
+    },
+    {
+      "name": "uvicorn",
+      "lang": "python",
+      "recall": false,
+      "files": 80,
+      "loc": 14660,
+      "mb": 2.1,
+      "stars": 10918,
+      "batch": 3,
+      "total": 8,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 10.3
+    },
+    {
+      "name": "cheerio",
+      "lang": "javascript",
+      "recall": false,
+      "files": 51,
+      "loc": 14769,
+      "mb": 1.8,
+      "stars": 30458,
+      "batch": 3,
+      "total": 38,
+      "critical": 1,
+      "high": 6,
+      "elapsed": 9.2
+    },
+    {
+      "name": "marshmallow",
+      "lang": "python",
+      "recall": false,
+      "files": 38,
+      "loc": 15715,
+      "mb": 1.4,
+      "stars": 7242,
+      "batch": 3,
+      "total": 1,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 8.6
+    },
+    {
+      "name": "cobra",
+      "lang": "go",
+      "recall": false,
+      "files": 36,
+      "loc": 16765,
+      "mb": 0.9,
+      "stars": 44479,
+      "batch": 3,
+      "total": 144,
+      "critical": 0,
+      "high": 136,
+      "elapsed": 8.5
+    },
+    {
+      "name": "httpx",
+      "lang": "python",
+      "recall": false,
+      "files": 60,
+      "loc": 17753,
+      "mb": 3.5,
+      "stars": 15428,
+      "batch": 3,
+      "total": 9,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 10.3
+    },
+    {
+      "name": "flask",
+      "lang": "python",
+      "recall": false,
+      "files": 83,
+      "loc": 18345,
+      "mb": 2.6,
+      "stars": 72140,
+      "batch": 3,
+      "total": 47,
+      "critical": 2,
+      "high": 21,
+      "elapsed": 14.0
+    },
+    {
+      "name": "dvws-node",
+      "lang": "javascript",
+      "recall": true,
+      "files": 34,
+      "loc": 18509,
+      "mb": 1.5,
+      "stars": 515,
+      "batch": 3,
+      "total": 210,
+      "critical": 16,
+      "high": 123,
+      "elapsed": 12.7
+    },
+    {
+      "name": "httpie",
+      "lang": "python",
+      "recall": false,
+      "files": 133,
+      "loc": 19002,
+      "mb": 2.9,
+      "stars": 38437,
+      "batch": 3,
+      "total": 17,
+      "critical": 0,
+      "high": 4,
+      "elapsed": 14.4
+    },
+    {
+      "name": "python-dateutil",
+      "lang": "python",
+      "recall": false,
+      "files": 38,
+      "loc": 19009,
+      "mb": 1.2,
+      "stars": 2632,
+      "batch": 3,
+      "total": 8,
+      "critical": 0,
+      "high": 3,
+      "elapsed": 10.3
+    }
+  ],
+  "per_rule": {
+    "GS034-typo_squatting": {
+      "LOW": 4
+    },
+    "GS034-token_collector": {
+      "HIGH": 41
+    },
+    "GS040-pii_email": {
+      "LOW": 6
+    },
+    "GS029": {
+      "CRITICAL": 5,
+      "MEDIUM": 9
+    },
+    "GS002": {
+      "HIGH": 2
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS022": {
+      "INFO": 9,
+      "MEDIUM": 2
+    },
+    "GS000-LEGACY": {
+      "MEDIUM": 16,
+      "HIGH": 141
+    },
+    "GS015": {
+      "INFO": 20
+    },
+    "GS025-wildcard_bind": {
+      "MEDIUM": 1
+    },
+    "GS001": {
+      "CRITICAL": 8
+    },
+    "GS003": {
+      "LOW": 26
+    },
+    "GS020": {
+      "LOW": 20,
+      "CRITICAL": 1,
+      "MEDIUM": 2,
+      "HIGH": 6
+    },
+    "?": {
+      "INFO": 24
+    },
+    "GS038-ssti_template": {
+      "HIGH": 2
+    },
+    "GS010": {
+      "MEDIUM": 2
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 14
+    },
+    "GS008": {
+      "HIGH": 2
+    },
+    "GS004": {
+      "HIGH": 1
+    },
+    "GS007": {
+      "HIGH": 2,
+      "INFO": 3
+    },
+    "GS011": {
+      "HIGH": 1
+    },
+    "GS019": {
+      "CRITICAL": 1
+    },
+    "GS025-eval_usage": {
+      "HIGH": 39
+    },
+    "GS025-debug_mode": {
+      "HIGH": 1
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 39
+    },
+    "YAML-ECB85AD8": {
+      "MEDIUM": 1
+    },
+    "GS005": {
+      "CRITICAL": 4
+    },
+    "GS036-command_injection_exec": {
+      "CRITICAL": 1
+    },
+    "GS036-nosql_injection_where": {
+      "HIGH": 2
+    },
+    "GS036-insecure_deserialization": {
+      "HIGH": 1
+    },
+    "GS036-redos": {
+      "LOW": 1
+    },
+    "GS031": {
+      "MEDIUM": 6
+    },
+    "GS012": {
+      "LOW": 8
+    },
+    "GS013": {
+      "HIGH": 1,
+      "MEDIUM": 1
+    },
+    "GS014": {
+      "LOW": 1,
+      "MEDIUM": 1
+    },
+    "GS017": {
+      "HIGH": 1
+    },
+    "GS031-DOCKER-ADD-URL": {
+      "LOW": 1
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 2
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 2
+    }
+  },
+  "recall_hits": {
+    "dvws-node": {
+      "critical": 16,
+      "high": 123,
+      "total": 210
+    }
+  }
+}

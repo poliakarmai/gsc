@@ -1,0 +1,351 @@
+{
+  "batch": 9,
+  "scanned_at": "2026-08-21T13:02:40.980932+00:00",
+  "projects": [
+    {
+      "name": "fiber",
+      "lang": "go",
+      "recall": false,
+      "files": 299,
+      "loc": 151632,
+      "mb": 6.6,
+      "stars": 40070,
+      "batch": 9,
+      "total": 1399,
+      "critical": 9,
+      "high": 1170,
+      "elapsed": 91.1
+    },
+    {
+      "name": "svelte",
+      "lang": "javascript",
+      "recall": false,
+      "files": 3475,
+      "loc": 157987,
+      "mb": 53.1,
+      "stars": 87981,
+      "batch": 9,
+      "total": 282,
+      "critical": 0,
+      "high": 157,
+      "elapsed": 408.5
+    },
+    {
+      "name": "prettier",
+      "lang": "javascript",
+      "recall": false,
+      "files": 5753,
+      "loc": 160630,
+      "mb": 67.9,
+      "stars": 52207,
+      "batch": 9,
+      "total": 116,
+      "critical": 4,
+      "high": 56,
+      "elapsed": 315.2
+    },
+    {
+      "name": "moment",
+      "lang": "javascript",
+      "recall": false,
+      "files": 637,
+      "loc": 172261,
+      "mb": 8.9,
+      "stars": 47914,
+      "batch": 9,
+      "total": 497,
+      "critical": 3,
+      "high": 132,
+      "elapsed": 55.0
+    },
+    {
+      "name": "pydantic",
+      "lang": "python",
+      "recall": false,
+      "files": 435,
+      "loc": 173083,
+      "mb": 12.8,
+      "stars": 28581,
+      "batch": 9,
+      "total": 673,
+      "critical": 24,
+      "high": 272,
+      "elapsed": 65.1
+    },
+    {
+      "name": "pip",
+      "lang": "python",
+      "recall": false,
+      "files": 655,
+      "loc": 189743,
+      "mb": 18.2,
+      "stars": 10268,
+      "batch": 9,
+      "total": 106,
+      "critical": 3,
+      "high": 47,
+      "elapsed": 88.7
+    },
+    {
+      "name": "jest",
+      "lang": "javascript",
+      "recall": false,
+      "files": 2195,
+      "loc": 190079,
+      "mb": 49.3,
+      "stars": 45470,
+      "batch": 9,
+      "total": 861,
+      "critical": 14,
+      "high": 529,
+      "elapsed": 121.9
+    },
+    {
+      "name": "etcd",
+      "lang": "go",
+      "recall": false,
+      "files": 1102,
+      "loc": 220903,
+      "mb": 18.8,
+      "stars": 52144,
+      "batch": 9,
+      "total": 2316,
+      "critical": 44,
+      "high": 1348,
+      "elapsed": 78.6
+    },
+    {
+      "name": "aws-cli",
+      "lang": "python",
+      "recall": false,
+      "files": 953,
+      "loc": 244019,
+      "mb": 185.0,
+      "stars": 17204,
+      "batch": 9,
+      "total": 266,
+      "critical": 46,
+      "high": 84,
+      "elapsed": 630.7
+    },
+    {
+      "name": "matplotlib",
+      "lang": "python",
+      "recall": false,
+      "files": 910,
+      "loc": 280014,
+      "mb": 68.3,
+      "stars": 23101,
+      "batch": 9,
+      "total": 402,
+      "critical": 22,
+      "high": 70,
+      "elapsed": 206.6
+    }
+  ],
+  "per_rule": {
+    "GS010": {
+      "MEDIUM": 5
+    },
+    "GS000-LEGACY": {
+      "HIGH": 3185,
+      "MEDIUM": 386,
+      "CRITICAL": 29,
+      "LOW": 81
+    },
+    "GS038-unsafe_pointer": {
+      "MEDIUM": 14
+    },
+    "GS038-tls_skip_verify": {
+      "HIGH": 11
+    },
+    "GS038-ssti_template": {
+      "HIGH": 22
+    },
+    "GS038-path_traversal": {
+      "HIGH": 5
+    },
+    "GS038-hardcoded_password": {
+      "CRITICAL": 23
+    },
+    "GS038-pprof_exposed": {
+      "MEDIUM": 2
+    },
+    "GS040-pii_email": {
+      "LOW": 266
+    },
+    "GS040-suspicious_comment": {
+      "MEDIUM": 8
+    },
+    "GS029": {
+      "CRITICAL": 2,
+      "HIGH": 110,
+      "MEDIUM": 53
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS021": {
+      "CRITICAL": 7
+    },
+    "GS022": {
+      "INFO": 29,
+      "MEDIUM": 1
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 125
+    },
+    "?": {
+      "INFO": 1270,
+      "HIGH": 1,
+      "MEDIUM": 2,
+      "LOW": 7
+    },
+    "GS003": {
+      "LOW": 620
+    },
+    "GS020": {
+      "HIGH": 26,
+      "MEDIUM": 1,
+      "LOW": 2
+    },
+    "GS034-token_collector": {
+      "HIGH": 129
+    },
+    "GS036-redos": {
+      "LOW": 3
+    },
+    "GS002": {
+      "HIGH": 2
+    },
+    "GS017": {
+      "LOW": 1
+    },
+    "GS025-eval_usage": {
+      "HIGH": 110
+    },
+    "GS001": {
+      "CRITICAL": 76
+    },
+    "GS032-exfil_env_send": {
+      "CRITICAL": 1
+    },
+    "GS036-hardcoded_api_key": {
+      "CRITICAL": 2
+    },
+    "GS007": {
+      "INFO": 17,
+      "HIGH": 3
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 20
+    },
+    "YAML-SSTI001": {
+      "CRITICAL": 1
+    },
+    "GS005": {
+      "CRITICAL": 8,
+      "MEDIUM": 3
+    },
+    "GS037": {
+      "MEDIUM": 4,
+      "CRITICAL": 2
+    },
+    "GS008": {
+      "LOW": 1,
+      "HIGH": 7,
+      "CRITICAL": 9
+    },
+    "GS015": {
+      "INFO": 5
+    },
+    "GS032-fake_tool_call_execute": {
+      "HIGH": 9
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 2
+    },
+    "GS014": {
+      "MEDIUM": 7
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 66
+    },
+    "GS037-hardcoded_password": {
+      "HIGH": 3
+    },
+    "GS037-high_risk": {
+      "INFO": 2
+    },
+    "GS004": {
+      "HIGH": 6
+    },
+    "GS012": {
+      "LOW": 39,
+      "HIGH": 3
+    },
+    "GS034-typo_squatting": {
+      "LOW": 7
+    },
+    "GS034-file_exfiltrator": {
+      "CRITICAL": 2
+    },
+    "GS036-command_injection_exec": {
+      "CRITICAL": 1
+    },
+    "GS036-insecure_deserialization": {
+      "HIGH": 2
+    },
+    "GS038-weak_crypto_sha1": {
+      "MEDIUM": 4
+    },
+    "GS038-command_injection_bash": {
+      "HIGH": 1
+    },
+    "GS031": {
+      "MEDIUM": 1
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 5
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 5
+    },
+    "GS031-K8S-NO-LIMITS": {
+      "LOW": 5
+    },
+    "GS031-K8S-NO-LIVENESS": {
+      "LOW": 4
+    },
+    "GS031-K8S-NO-READINESS": {
+      "LOW": 4
+    },
+    "GS037-hardcoded_api_key": {
+      "HIGH": 4
+    },
+    "GS037-yaml_unsafe_load": {
+      "HIGH": 2
+    },
+    "GS037-command_injection_shell_true": {
+      "MEDIUM": 1
+    },
+    "GS040-private_ip_config": {
+      "LOW": 4
+    },
+    "GS011": {
+      "HIGH": 5
+    },
+    "GS019": {
+      "CRITICAL": 5,
+      "HIGH": 6,
+      "MEDIUM": 4
+    },
+    "GS037-yaml_full_load": {
+      "CRITICAL": 1
+    },
+    "YAML-ECB85AD8": {
+      "MEDIUM": 1
+    }
+  },
+  "recall_hits": {}
+}

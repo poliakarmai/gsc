@@ -1,0 +1,254 @@
+{
+  "batch": 5,
+  "scanned_at": "2026-08-21T11:37:50.106278+00:00",
+  "projects": [
+    {
+      "name": "chai",
+      "lang": "javascript",
+      "recall": false,
+      "files": 57,
+      "loc": 24034,
+      "mb": 1.3,
+      "stars": 8267,
+      "batch": 5,
+      "total": 11,
+      "critical": 0,
+      "high": 9,
+      "elapsed": 10.1
+    },
+    {
+      "name": "gin",
+      "lang": "go",
+      "recall": false,
+      "files": 99,
+      "loc": 24099,
+      "mb": 1.2,
+      "stars": 89092,
+      "batch": 5,
+      "total": 218,
+      "critical": 0,
+      "high": 189,
+      "elapsed": 10.5
+    },
+    {
+      "name": "zap",
+      "lang": "go",
+      "recall": false,
+      "files": 143,
+      "loc": 24208,
+      "mb": 1.4,
+      "stars": 24634,
+      "batch": 5,
+      "total": 243,
+      "critical": 0,
+      "high": 191,
+      "elapsed": 10.8
+    },
+    {
+      "name": "pendulum",
+      "lang": "python",
+      "recall": false,
+      "files": 221,
+      "loc": 25586,
+      "mb": 1.9,
+      "stars": 6672,
+      "batch": 5,
+      "total": 13,
+      "critical": 0,
+      "high": 2,
+      "elapsed": 16.5
+    },
+    {
+      "name": "urfave-cli",
+      "lang": "go",
+      "recall": false,
+      "files": 67,
+      "loc": 25614,
+      "mb": 12.5,
+      "stars": 24196,
+      "batch": 5,
+      "total": 320,
+      "critical": 1,
+      "high": 255,
+      "elapsed": 10.0
+    },
+    {
+      "name": "click",
+      "lang": "python",
+      "recall": false,
+      "files": 79,
+      "loc": 28581,
+      "mb": 2.1,
+      "stars": 17628,
+      "batch": 5,
+      "total": 6,
+      "critical": 0,
+      "high": 4,
+      "elapsed": 13.1
+    },
+    {
+      "name": "testify",
+      "lang": "go",
+      "recall": false,
+      "files": 62,
+      "loc": 29694,
+      "mb": 1.2,
+      "stars": 26173,
+      "batch": 5,
+      "total": 257,
+      "critical": 0,
+      "high": 228,
+      "elapsed": 11.0
+    },
+    {
+      "name": "cyberbro",
+      "lang": "python",
+      "recall": true,
+      "files": 97,
+      "loc": 30886,
+      "mb": 2.4,
+      "stars": 683,
+      "batch": 5,
+      "total": 87,
+      "critical": 0,
+      "high": 7,
+      "elapsed": 15.1
+    },
+    {
+      "name": "urllib3",
+      "lang": "python",
+      "recall": false,
+      "files": 81,
+      "loc": 33958,
+      "mb": 2.4,
+      "stars": 4051,
+      "batch": 5,
+      "total": 64,
+      "critical": 0,
+      "high": 16,
+      "elapsed": 14.8
+    },
+    {
+      "name": "typer",
+      "lang": "python",
+      "recall": false,
+      "files": 635,
+      "loc": 35621,
+      "mb": 4.5,
+      "stars": 19913,
+      "batch": 5,
+      "total": 23,
+      "critical": 1,
+      "high": 8,
+      "elapsed": 30.9
+    }
+  ],
+  "per_rule": {
+    "GS003": {
+      "LOW": 65
+    },
+    "GS007": {
+      "HIGH": 2
+    },
+    "GS009": {
+      "supply-chain": 10
+    },
+    "GS025-eval_usage": {
+      "HIGH": 1
+    },
+    "YAML-36ACF0AD": {
+      "HIGH": 12
+    },
+    "GS000-LEGACY": {
+      "HIGH": 803,
+      "MEDIUM": 55,
+      "LOW": 4
+    },
+    "GS038-ssti_template": {
+      "HIGH": 42
+    },
+    "GS038-ssrf_http_get": {
+      "HIGH": 1
+    },
+    "GS038-tls_skip_verify": {
+      "HIGH": 4
+    },
+    "GS029": {
+      "HIGH": 19,
+      "MEDIUM": 4,
+      "CRITICAL": 1
+    },
+    "?": {
+      "INFO": 92
+    },
+    "GS040-suspicious_comment": {
+      "MEDIUM": 1
+    },
+    "GS037-path_traversal_join": {
+      "HIGH": 14
+    },
+    "GS038-unsafe_pointer": {
+      "MEDIUM": 8
+    },
+    "GS015": {
+      "INFO": 63
+    },
+    "GS020": {
+      "HIGH": 5
+    },
+    "GS036-redos": {
+      "LOW": 1
+    },
+    "GS031": {
+      "MEDIUM": 3,
+      "CRITICAL": 1
+    },
+    "GS002": {
+      "HIGH": 2
+    },
+    "GS011": {
+      "LOW": 1
+    },
+    "GS022": {
+      "MEDIUM": 8,
+      "INFO": 8
+    },
+    "GS031-DOCKER-ROOT": {
+      "HIGH": 1
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 2
+    },
+    "GS037-high_risk": {
+      "INFO": 1
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 2
+    },
+    "GS040-pii_email": {
+      "LOW": 1
+    },
+    "GS005": {
+      "MEDIUM": 1
+    },
+    "GS014": {
+      "LOW": 1
+    },
+    "GS019": {
+      "HIGH": 1
+    },
+    "GS031-DOCKER-LATEST": {
+      "MEDIUM": 1
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 1
+    }
+  },
+  "recall_hits": {
+    "cyberbro": {
+      "critical": 0,
+      "high": 7,
+      "total": 87
+    }
+  }
+}
