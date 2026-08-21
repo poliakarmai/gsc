@@ -51,6 +51,7 @@ from . import gs038_go as _gs038
 from . import gs039_ruby as _gs039
 from . import gs040_pii_disclosure as _gs040
 from . import gs041_crypto_secrets as _gs041
+from . import gs044_trading_bots as _gs044
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -306,6 +307,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs041.detect,
         description=_gs041.description,
         noise_tier=getattr(_gs041, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS044: trading-bot audit — replay-prone signing, unvalidated orders, races, unauth endpoints
+    DetectorEntry(
+        rule_id=_gs044.RULE_ID,
+        echelon=_gs044.ECHELON,
+        detect_fn=_gs044.detect,
+        description=_gs044.description,
+        noise_tier=getattr(_gs044, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(

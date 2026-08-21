@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 21.08.2026** | Ядро v1.4.0, 43 детектора (GS041 crypto-secrets ✅) | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13** | **Web3/Crypto 🟡 — GS041 ✅, 4 фичи в работе**
+> **Статус на 21.08.2026** | Ядро v1.4.0, 44 детектора (GS041 crypto-secrets ✅, GS044 trading-bots ✅) | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13** | **Web3/Crypto 🟡 — GS041 ✅, GS044 ✅, 3 фичи в работе**
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -25,7 +25,7 @@
 | Security Debt Ledger (фин. слой) | 📝 спроектирован | 0.10.1–0.10.4 — риск в деньгах |
 | Agentic self-healing (итеративный) | 📝 спроектирован | 0.11.1–0.11.4 — patch→test→retry |
 | Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
-| **Web3/Crypto (Solidity SAST, crypto-secrets, web3 SCA, bots, honeypot)** | 🟡 **GS041 crypto-secrets ✅** | GS042 Solidity, GS043 honeypot, GS044 trading-bots, web3 SCA (план: vault `gsc-web3-crypto-features-plan.md`) |
+| **Web3/Crypto (Solidity SAST, crypto-secrets, web3 SCA, bots, honeypot)** | 🟡 **GS041 crypto-secrets ✅, GS044 trading-bots ✅** | GS042 Solidity, GS043 honeypot, web3 SCA (план: vault `gsc-web3-crypto-features-plan.md`) |
 
 ---
 
@@ -46,6 +46,8 @@
 **Итог (v1.4.0, 19.08):** 42 детектора, 426 тестов (75 файлов), calibration 13/13, schema 33, 154 модуля (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
 
 **Web3/Crypto (21.08):** GS041 crypto-secrets ✅ — EVM private keys, BIP39 mnemonics (checksum-validated), Bitcoin WIF (base58check), exchange API keys (Binance/Coinbase/OKX/Kraken/Bybit), Hardhat/Foundry privateKey. FP-защита: dev-ключи Hardhat/Anvil/Ganache, all-zero, случайные фразы без checksum. 20 тестов, full regression 483 passed. Wordlist: `gsc_core/gsc_detectors/data/bip39_english.txt`.
+
+**GS044 trading-bots ✅ (21.08):** 4 правила — replay-подпись (nonce из timestamp / hardcoded nonce / recvWindow=0), непроверенные параметры ордера из `input()`/argv/HTTP, check-then-act race без лока, незащищённый trading-endpoint. FP-защита: лексическая code-mask (комментарии/строки/docstring), фильтр definition-vs-вызов, требование `(` (инвокация, не import), trading-context gate. 16 тестов, full regression 497 passed. Smoke на `~/bybit-ws` (1520 файлов) → 0 FP после фиксов.
 
 ### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
 
