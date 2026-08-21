@@ -124,33 +124,92 @@ MANIFEST_PARSERS = {
 }
 
 
+# Directories never descended into (mirrors _SKIP_DIRS in gsc_supply_chain_chains.py
+# so SCA reports GSC's OWN dependency posture, not fixture noise).
+_SKIP_DIRS = {".git", ".venv", "venv", "node_modules", "__pycache__",
+              "vendor", "tests", "test", "dist", "build", "OWASPBenchmark",
+              "HuixiangDou", "benchmark", "calibration", "example_projects",
+              "gsc-vscode", "corpus", "FastAPI-ML"}
+
+
+# ── Solidity compiler version (solc) detection ──────────────────────────────
+_SOLIDITY_PRAGMA_RE = re.compile(r"pragma\s+solidity\s+([^;]+);", re.IGNORECASE)
+_FOUNDRY_SOLC_RE = re.compile(r"(?i)^\s*solc(?:_version)?\s*=\s*[\"']?([0-9][0-9A-Za-z.\-]*)")
+_JS_SOLC_VERSION_RE = re.compile(r"(?i)\bversion\s*:\s*[\"']([0-9][0-9A-Za-z.\-]*)[\"']")
+
+# config files that pin a concrete solc version
+_SOLC_PIN_FILES = {"foundry.toml", "hardhat.config.js", "hardhat.config.ts",
+                   "truffle-config.js", "truffle.js"}
+
+
+def _collect_solc_packages(root: Path) -> List[Package]:
+    """Return deduped solc Package entries (ecosystem='Solidity').
+
+    Scans .sol ``pragma solidity`` directives and concrete solc pins in
+    foundry.toml / hardhat.config.js / truffle-config.js. One entry per
+    distinct detected version.
+    """
+    seen: dict[str, tuple[str, int, str]] = {}  # version -> (manifest, line, raw)
+
+    for fp in root.rglob("*.sol"):
+        if any(p in _SKIP_DIRS for p in fp.parts):
+            continue
+        try:
+            content = fp.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            continue
+        for line_no, line in enumerate(content.splitlines(), 1):
+            m = _SOLIDITY_PRAGMA_RE.search(line)
+            if not m:
+                continue
+            ver = extract_version(m.group(1))
+            if ver and ver not in seen:
+                seen[ver] = (str(fp), line_no, line.strip())
+
+    for fname in _SOLC_PIN_FILES:
+        for fp in root.rglob(fname):
+            if any(p in _SKIP_DIRS for p in fp.parts):
+                continue
+            try:
+                content = fp.read_text(encoding="utf-8", errors="ignore")
+            except OSError:
+                continue
+            rx = _FOUNDRY_SOLC_RE if fp.name == "foundry.toml" else _JS_SOLC_VERSION_RE
+            for line_no, line in enumerate(content.splitlines(), 1):
+                m = rx.search(line)
+                if not m:
+                    continue
+                ver = extract_version(m.group(1))
+                if ver and ver not in seen:
+                    seen[ver] = (str(fp), line_no, line.strip())
+
+    return [Package(name="solc", version=v, ecosystem="Solidity",
+                    manifest=mf, line=ln, raw=raw)
+            for v, (mf, ln, raw) in seen.items()]
+
+
 def parse_repo_manifests(root) -> List[Package]:
-    """Collect all packages from all manifests in repo."""
+    """Collect all packages from all manifests in repo (incl. solc versions)."""
     root = Path(root)
     packages = []
-    skip_dirs = {".git", ".venv", "venv", "node_modules", "__pycache__",
-                 "vendor", "tests", "test", "dist",
-                 # never descend into vendored deps / benchmarks / other checkouts —
-                 # mirrors _SKIP_DIRS in gsc_supply_chain_chains.py so SCA reports
-                 # GSC's OWN dependency posture, not fixture noise.
-                 "build", "OWASPBenchmark", "HuixiangDou",
-                 "benchmark", "calibration", "example_projects", "gsc-vscode",
-                 "corpus", "FastAPI-ML"}
     for manifest_name, parser in MANIFEST_PARSERS.items():
         for manifest in root.rglob(manifest_name):
-            if any(p in skip_dirs for p in manifest.parts):
+            if any(p in _SKIP_DIRS for p in manifest.parts):
                 continue
             try:
                 content = manifest.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
             packages.extend(parser(str(manifest), content))
+    packages.extend(_collect_solc_packages(root))
     return packages
 
 
 # ── OSV client with cache ──────────────────────────────────
 def query_osv(packages: List[Package], db=None) -> dict:
-    """Query OSV.dev batch. Returns {(ecosystem, name, version): [vulns]}."""
+    """Query OSV.dev batch + manual web3/solc feed. Returns {(eco,name,ver): [vulns]}."""
+    from gsc_core.gsc_web3_feed import manual_vulns, solc_vulns
+
     results: dict = {}
     to_query: List[Tuple[Package, tuple]] = []
 
@@ -158,6 +217,12 @@ def query_osv(packages: List[Package], db=None) -> dict:
         if not p.version:
             continue
         key = (p.ecosystem, p.name, p.version)
+        if p.ecosystem == "Solidity":
+            # solc is not an OSV ecosystem — manual known-bugs feed only
+            vulns = solc_vulns(p.version)
+            if vulns:
+                results[key] = vulns
+            continue
         cached = _cache_get(db, key) if db else None
         if cached is not None:
             results[key] = cached
@@ -183,6 +248,17 @@ def query_osv(packages: List[Package], db=None) -> dict:
             results[key] = vulns
             if db:
                 _cache_put(db, key, vulns)
+
+    # augment with manual web3 CVE feed (offline fallback — only fills gaps OSV missed)
+    for p in packages:
+        if not p.version or p.ecosystem == "Solidity":
+            continue
+        key = (p.ecosystem, p.name, p.version)
+        existing_ids = {v.get("id") for v in results.get(key, [])}
+        extra = [v for v in manual_vulns(p.ecosystem, p.name, p.version)
+                 if v["id"] not in existing_ids]
+        if extra:
+            results[key] = results.get(key, []) + extra
 
     return results
 
@@ -312,10 +388,14 @@ def sca_findings(packages: List[Package], osv_results: dict,
             }
             if not reachable:
                 meta["original_severity"] = original_severity
+            if p.ecosystem == "Solidity":
+                title = f"Vulnerable Solidity compiler {p.version}: {vuln.get('summary', vuln_id)}"
+            else:
+                title = f"Vulnerable dependency {p.name}@{p.version}: {vuln.get('summary', vuln_id)}"
             findings.append({
                 "finding_key": finding_key,
                 "rule_id": f"GS030-{vuln_id}",
-                "title": f"Vulnerable dependency {p.name}@{p.version}: {vuln.get('summary', vuln_id)}",
+                "title": title,
                 "severity": severity,
                 "confidence": 0.90,
                 "file_path": p.manifest,
