@@ -50,6 +50,7 @@
 | [compliance.md](compliance.md) | Комплаенс-маппинг (CWE/OWASP/PCI) |
 | [DUE_DILIGENCE_v2.md](DUE_DILIGENCE_v2.md) | Due-diligence-контракт |
 | [LEGAL_AUDIT.md](LEGAL_AUDIT.md) | Юридический аудит |
+| [AUTHORSHIP.md](AUTHORSHIP.md) | Доказательства авторства (chain-of-title) |
 | [DPA_template.md](DPA_template.md) | DPA-шаблон |
 
 ## 🏢 Enterprise / SaaS
