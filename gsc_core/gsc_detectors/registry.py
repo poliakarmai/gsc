@@ -51,6 +51,8 @@ from . import gs038_go as _gs038
 from . import gs039_ruby as _gs039
 from . import gs040_pii_disclosure as _gs040
 from . import gs041_crypto_secrets as _gs041
+from . import gs042_solidity as _gs042
+from . import gs043_honeypot as _gs043
 from . import gs044_trading_bots as _gs044
 
 
@@ -307,6 +309,22 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs041.detect,
         description=_gs041.description,
         noise_tier=getattr(_gs041, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS042: Solidity SAST — reentrancy, tx.origin, delegatecall, selfdestruct, unchecked, oracle
+    DetectorEntry(
+        rule_id=_gs042.RULE_ID,
+        echelon=_gs042.ECHELON,
+        detect_fn=_gs042.detect,
+        description=_gs042.description,
+        noise_tier=getattr(_gs042, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS043: honeypot / rug-pull — trading switch, blacklist, unrestricted mint, fee setter
+    DetectorEntry(
+        rule_id=_gs043.RULE_ID,
+        echelon=_gs043.ECHELON,
+        detect_fn=_gs043.detect,
+        description=_gs043.description,
+        noise_tier=getattr(_gs043, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 GS044: trading-bot audit — replay-prone signing, unvalidated orders, races, unauth endpoints
     DetectorEntry(
