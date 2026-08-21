@@ -53,7 +53,7 @@ detect → prove → fix → verify → heal → predict → learn.
 Слой 4: ОРКЕСТРАЦИЯ   — gsc_orchestrator.py (единый пайплайн)
 Слой 3: ЭКСКЛЮЗИВЫ    — PoF, Self-Healing, Archaeology, Forecast, NL Policy
 Слой 2: ПОВЕРХНОСТЬ   — SCA, Secrets, Compliance, IaC, EPSS, Federated, Benchmark, SBOM
-Слой 1: ЯДРО          — 42 детектора, PoC, Chains, Mutations, Invariants, Blocking
+Слой 1: ЯДРО          — 46 детекторов, PoC, Chains, Mutations, Invariants, Blocking
 ФУНДАМЕНТ:            — SQLite, REST API, finding_key
 ```
 
@@ -65,13 +65,13 @@ detect → prove → fix → verify → heal → predict → learn.
 
 | Метрика | Значение | Проверено |
 |---------|----------|:---:|
-| Python-тесты | 426 (75 файлов) | `pytest -q` |
+| Python-тесты | 546 (84 файла) | `pytest -q` |
 | Enterprise | 10/10 | `tests/` |
 | VSCode | tsc 0 errors, npm test 7/7 | `gsc-vscode/` |
 | Calibration | 13/13 | `calibration run` |
 | Schema | 33 | DB verify |
-| Детекторы | 42 (38 registry + 4 движка) | registry |
-| Модулей | 154 | `gsc_meta.py` |
+| Детекторы | 46 (42 registry + 4 движка) | registry |
+| Модулей | 159 | `gsc_meta.py` |
 
 ## 5. Calibration gaps (v1.1.0)
 
