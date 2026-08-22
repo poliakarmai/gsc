@@ -155,6 +155,21 @@ YAML-парсер уже есть (`gsc_yaml_rules.py`, `gsc_iac.py`) — не �
 
 ⚠️ reconFTW остальное (subdomain/port/nuclei/OSINT email) — off-scope для Git-сканера.
 
+## 🟡 Фаза 10 — Proof-of-Fix усиление (dependency PoF + adversarial re-attack)
+
+**Источник:** конкурентный разбор Proof-of-Fix аналогов (VeriPatch, Shinobi Security, Nullify,
+ai-appsec, AEGIS, Strix, Keygraph) — 22.08.2026. Скилл `gsc-competitive-intel`, раздел 10.
+**Проблема:** у GSC замкнутый цикл Detect→Prove→Fix→Verify→Heal (эксклюзив), но `verify_fix`
+верифицирует только SAST-фиксы (`finding_key`) и replay'ит старый эксплойт. Два пробела:
+
+| Фича | Статус |
+|------|--------|
+| Dependency-level PoF (VeriPatch): переустановка зависимости → перескан (CVE исчез) → тесты в sandbox | ⬜ |
+| Post-fix adversarial re-attack (Shinobi): мутировать/генерировать новые payload'ы, не только replay старого | ⬜ |
+
+⚠️ Оба детерминированные (без LLM). `mutation_tracker` расширить с паттернов на PoC-payload'ы;
+dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-ветку (не только SAST finding_key).
+
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
 **Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
@@ -195,7 +210,7 @@ signup→stats/findings/scans/dashboard 200.
 
 | Фича | Конкуренты |
 |------|-----------|
-| **Proof-of-Fix** — авто-проверка фикса | Никто |
+| **Proof-of-Fix** — авто-проверка фикса (замкнутый цикл) | VeriPatch/Nullify/Shinobi (отдельные звенья) |
 | **Federated Self-Learning** — деактивация FP между тенантами | Никто |
 | **Security Archaeology** — trace через git history | Никто |
 | **Cross-repo Secrets** — отслеживание между репо | Никто |
