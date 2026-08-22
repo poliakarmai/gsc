@@ -31,17 +31,24 @@ def _dl(ecosystem: str, name: str) -> str:
 
 def _uid() -> str: return str(uuid.uuid4())
 
-def generate_spdx(packages: List, tool_version: str = "0.35", doc_name: str = "gsc-sbom") -> dict:
+def generate_spdx(packages: List, tool_version: str = "0.35", doc_name: str = "gsc-sbom",
+                  licenses: Optional[Dict] = None) -> dict:
     from gsc_sbom import make_purl
     pkgs, rels, seen = [], [], set()
     for p in packages:
         sid = _spdx_id(f"{p.name}-{p.version or 'none'}")
         if sid in seen: continue
         seen.add(sid)
-        pkgs.append({"SPDXID": sid, "name": p.name, "versionInfo": p.version or "",
-                     "downloadLocation": _dl(p.ecosystem, p.name), "filesAnalyzed": False,
-                     "externalRefs": [{"referenceCategory":"PACKAGE-MANAGER","referenceType":"purl",
-                                        "referenceLocator": make_purl(p.ecosystem, p.name, p.version)}]})
+        pkg = {"SPDXID": sid, "name": p.name, "versionInfo": p.version or "",
+               "downloadLocation": _dl(p.ecosystem, p.name), "filesAnalyzed": False,
+               "externalRefs": [{"referenceCategory":"PACKAGE-MANAGER","referenceType":"purl",
+                                  "referenceLocator": make_purl(p.ecosystem, p.name, p.version)}]}
+        if licenses:
+            lic = licenses.get(f"{p.ecosystem}:{p.name.lower()}")
+            if lic:
+                pkg["licenseConcluded"] = lic
+                pkg["licenseDeclared"] = lic
+        pkgs.append(pkg)
         rels.append({"spdxElementId":"SPDXRef-DOCUMENT","relationshipType":"DESCRIBES","relatedSpdxElement":sid})
     return {"spdxVersion":"SPDX-2.3","dataLicense":"CC0-1.0","SPDXID":"SPDXRef-DOCUMENT",
             "name": doc_name, "documentNamespace": f"https://spdx.org/spdxdocs/gsc-{_uid()}",

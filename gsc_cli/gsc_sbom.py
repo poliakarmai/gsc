@@ -38,7 +38,7 @@ def component_id(purl: str) -> str:
     return hashlib.sha256(purl.encode()).hexdigest()[:16]
 
 
-def generate_sbom(packages: List, tool_version: str = "0.33") -> dict:
+def generate_sbom(packages: List, tool_version: str = "0.33", licenses: Optional[Dict] = None) -> dict:
     """CycloneDX 1.5 SBOM from Package list (gsc_sca.Package)."""
     components = []
     seen = set()
@@ -47,10 +47,15 @@ def generate_sbom(packages: List, tool_version: str = "0.33") -> dict:
         if purl in seen:
             continue
         seen.add(purl)
-        components.append({
+        comp = {
             "type": "library", "bom-ref": component_id(purl),
             "name": p.name, "version": p.version or "", "purl": purl,
-        })
+        }
+        if licenses:
+            lic = licenses.get(f"{p.ecosystem}:{p.name.lower()}")
+            if lic:
+                comp["licenses"] = [{"license": {"id": lic}}]
+        components.append(comp)
     return {
         "bomFormat": "CycloneDX", "specVersion": "1.5", "version": 1,
         "serialNumber": f"urn:uuid:{uuid.uuid4()}",

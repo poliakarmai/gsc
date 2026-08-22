@@ -199,6 +199,23 @@ def _lookup(pkg: Package) -> Optional[str]:
     return None
 
 
+def build_license_map(packages: List[Package]) -> Dict[str, str]:
+    """Return {"ecosystem:name": spdx_id} for packages with a known license.
+
+    Used by SBOM/SPDX generators to enrich components with ``licenseConcluded`` /
+    ``licenses`` fields.
+    """
+    result: Dict[str, str] = {}
+    for pkg in packages:
+        key = f"{pkg.ecosystem}:{pkg.name.lower()}"
+        if key in result:
+            continue
+        spdx = normalize_license(_lookup(pkg) or "")
+        if spdx:
+            result[key] = spdx
+    return result
+
+
 # ── Findings ───────────────────────────────────────────────────────
 
 _SEVERITY = {
@@ -272,6 +289,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description="GSC SCA License Compliance")
     p.add_argument("--repo", default=".", help="Repository root")
     p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--gate", action="store_true", help="Exit 1 if forbidden licenses found (PR-gate)")
     args = p.parse_args()
 
     packages = parse_repo_manifests(args.repo)
@@ -298,6 +316,9 @@ def main() -> None:
     print(f"Policy gate: {'BLOCKED 🚫' if not policy['allowed'] else 'PASS ✅'}")
     if args.json:
         print(json.dumps(findings, indent=2, ensure_ascii=False))
+    if args.gate and not policy["allowed"]:
+        import sys
+        sys.exit(1)
 
 
 if __name__ == "__main__":
