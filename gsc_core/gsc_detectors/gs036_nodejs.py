@@ -84,7 +84,7 @@ NODE_RULES: list[tuple[str, str, str, float]] = [
 
     # --- React XSS ---
     ("dangerously_set_html",
-     r'dangerouslySetInnerHTML\s*=\s*\{',
+     r'dangerouslySetInnerHTML\s*=\s*\{\s*\{\s*__html\s*:\s*(?!\s*[\'"`])',
      "MEDIUM", 0.60),
 
     # --- Hardcoded Secrets ---
