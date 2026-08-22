@@ -217,6 +217,86 @@ def collect_repo_context(repo_path: str, quick: bool = False) -> dict:
     return context
 
 
+# ── DREAD (детерминированный risk-скоринг 0-50, оси по 0-10) ──
+
+DREAD_AXES = ("Damage", "Reproducibility", "Exploitability", "Affected Users", "Discoverability")
+_RISK_DAMAGE = {"CRITICAL": 10, "HIGH": 7, "MEDIUM": 4, "LOW": 2}
+_EXPLOIT_SCORE = {
+    "sql": 9, "rce": 9, "command": 9, "injection": 8, "ssti": 9, "deserial": 9,
+    "upload": 8, "idor": 8, "auth": 9, "ssrf": 8, "xss": 7, "csrf": 6,
+    "redirect": 5, "traversal": 8, "info": 4, "disclos": 4, "log": 4, "dos": 6,
+}
+
+
+def dread_score(threat: dict) -> dict:
+    """Детерминированный DREAD-скоринг угрозы/attack-surface.
+
+    Не требует LLM: эвристики по risk + cwe_hint + surface-тексту.
+    """
+    risk = threat.get("risk", "MEDIUM")
+    surface = " ".join([
+        str(threat.get("surface", "")), str(threat.get("threat", "")),
+        str(threat.get("attack_vector", "")), " ".join(threat.get("cwe_hint", [])),
+    ]).lower()
+
+    damage = _RISK_DAMAGE.get(risk, 4)
+    reproducible = 7 if any(t in surface for t in
+                            ("sql", "injection", "rce", "traversal", "ssti", "deserial")) else 5
+    exploitability = 5
+    for term, score in _EXPLOIT_SCORE.items():
+        if term in surface:
+            exploitability = max(exploitability, score)
+    affected = 10 if any(t in surface for t in
+                         ("auth", "idor", "privilege", "account", "bypass")) else 6
+    if any(t in surface for t in ("info", "disclos", "log")):
+        affected = min(affected, 7)
+    discoverability = 8  # публичные классы уязвимостей
+
+    total = damage + reproducible + exploitability + affected + discoverability
+    level = ("CRITICAL" if total >= 40 else "HIGH" if total >= 30
+             else "MEDIUM" if total >= 20 else "LOW")
+    return {"damage": damage, "reproducibility": reproducible,
+            "exploitability": exploitability, "affected_users": affected,
+            "discoverability": discoverability, "total": total, "level": level}
+
+
+def apply_dread(model: dict) -> dict:
+    """Обогащает все threat-списки модели DREAD-скорингом (in-place)."""
+    for key in ("attack_surfaces", "trust_boundaries", "top_threats"):
+        for t in model.get(key, []):
+            if isinstance(t, dict):
+                t["dread"] = dread_score(t)
+    return model
+
+
+# ── PASTA (Process for Attack Simulation & Threat Analysis) — 7 стадий ──
+
+PASTA_STAGES = [
+    ("1. Define objectives", "бизнес/security-цели и что защищаем"),
+    ("2. Define technical scope", "компоненты, зависимости, trust boundaries"),
+    ("3. Application decomposition", "entry points, активы, потоки данных"),
+    ("4. Threat analysis", "STRIDE-угрозы по каждой границе"),
+    ("5. Vulnerability analysis", "угрозы → уязвимости (CWE)"),
+    ("6. Attack modeling", "attack trees / векторы → PoC"),
+    ("7. Risk & impact analysis", "DREAD-скоринг + приоритизация"),
+]
+
+
+def pasta_stages(context: dict, model: dict) -> list[dict]:
+    """Сопоставляет 7 стадий PASTA с собранным контекстом (детерминированный skeleton)."""
+    evidence = {
+        0: model.get("summary", ""),
+        1: f"stack={model.get('stack', {}).get('framework', '?')} / deps={list(context.get('configs', {}).keys())}",
+        2: f"{context.get('route_count', 0)} routes, {len(context.get('auth_files', []))} auth files",
+        3: f"{len(model.get('trust_boundaries', []))} trust boundaries",
+        4: f"{len(model.get('attack_surfaces', model.get('top_threats', [])))} surfaces (CWE-подсказки)",
+        5: "PoC → gsc_poc_deterministic / gsc_proofoffix",
+        6: "DREAD-скоринг (apply_dread)",
+    }
+    return [{"stage": s, "purpose": p, "evidence": evidence.get(i, "")}
+            for i, (s, p) in enumerate(PASTA_STAGES)]
+
+
 def call_llm(prompt: str, api_key: str, model: str = "deepseek-chat") -> dict:
     """Send to DeepSeek, get structured JSON back."""
     payload = {
@@ -403,6 +483,8 @@ def main():
         sys.exit(1)
     
     # Phase 3: Save
+    apply_dread(result)
+    result.setdefault("pasta_stages", pasta_stages(context, result))
     json_path, md_path = save_threat_model(result, repo_path, args.output)
     print(f"\n✅ Threat model saved:")
     print(f"   📄 {json_path}")

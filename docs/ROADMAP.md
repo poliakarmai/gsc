@@ -89,7 +89,9 @@
 SBOM/SPDX обогащены license (`generate_sbom`/`generate_spdx` + `licenses=`),
 PR-gate через `--gate` (exit 1 при forbidden). Тесты (10 passed).
 
-⚠️ Вторично: threat modeling сейчас только STRIDE (`gsc_threat_model.py`) — добавить DREAD/PASTA/attack trees.
+✅ DREAD/PASTA добавлены (22.08.2026): детерминированный DREAD-скоринг (0-50) +
+7 стадий PASTA в `gsc_threat_model.py` (`dread_score`/`apply_dread`/`pasta_stages`).
+Осталось: attack trees (Фаза 6 атаки).
 
 ## 🟢 Фаза 6 — Dashboard с трендами
 
