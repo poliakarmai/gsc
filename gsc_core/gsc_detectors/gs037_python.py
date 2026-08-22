@@ -30,7 +30,7 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
      r'(?i)pickle\.(?:loads?|load)\s*\(\s*(?:request\.(?:data|form|args|json)|input\b)',
      "CRITICAL", 0.98),
     ("pickle_load_any",
-     r'(?i)pickle\.(?:loads?|load)\s*\(', "HIGH", 0.70),
+     r'(?i)pickle\.(?:loads?|load)\s*\(\s*(?!open\s*\(|["\'])', "HIGH", 0.70),
 
     # --- eval/exec ---
     ("eval_user_input",
@@ -61,7 +61,7 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
 
     # --- YAML Deserialization ---
     ("yaml_unsafe_load",
-     r'(?i)yaml\.load\s*\(\s*(?!.*Loader\s*=\s*(?:yaml\.)?(?:Safe|Base)Loader)',
+     r'(?i)yaml\.load\s*\(\s*(?!.*Loader\s*=\s*(?:yaml\.)?(?:Safe|Base|Full)Loader)(?!.*,\s*[A-Za-z_]\w*\s*\))',
      "HIGH", 0.80),
     ("yaml_full_load",
      r'(?i)yaml\.(?:full_load|unsafe_load|load_all)\s*\(',
