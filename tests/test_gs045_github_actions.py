@@ -40,3 +40,42 @@ def test_hardcoded_env_secret():
         "    steps:\n      - run: echo hi\n"
     )
     assert any(f["rule_id"] == "GS045-hardcoded_env_secret" for f in fs)
+
+
+def test_env_secrets_ref_not_flagged():
+    # ${{ secrets.* }} is safe — must not be flagged as hardcoded
+    fs = _detect(
+        "name: CI\non: push\npermissions: read-all\njobs:\n  b:\n"
+        "    runs-on: ubuntu-latest\n    env:\n      API_KEY: ${{ secrets.API_KEY }}\n"
+        "    steps:\n      - run: echo hi\n"
+    )
+    assert not any(f["rule_id"] == "GS045-hardcoded_env_secret" for f in fs)
+
+
+def test_env_unquoted_secret_flagged():
+    fs = _detect(
+        "name: CI\non: push\npermissions: read-all\njobs:\n  b:\n"
+        "    runs-on: ubuntu-latest\n    env:\n      API_KEY: sk_live_1234567890\n"
+        "    steps:\n      - run: echo hi\n"
+    )
+    assert any(f["rule_id"] == "GS045-hardcoded_env_secret" for f in fs)
+
+
+def test_workflow_run_bare_checkout_not_flagged():
+    # bare checkout of own default branch is safe — not the untrusted head
+    fs = _detect(
+        "name: Deploy\non:\n  workflow_run:\n    workflows: [CI]\njobs:\n  deploy:\n"
+        "    permissions: read-all\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - uses: actions/checkout@v4\n"
+    )
+    assert not any(f["rule_id"] == "GS045-workflow_run_untrusted_checkout" for f in fs)
+
+
+def test_workflow_run_head_ref_flagged():
+    fs = _detect(
+        "name: Deploy\non:\n  workflow_run:\n    workflows: [CI]\njobs:\n  deploy:\n"
+        "    permissions: read-all\n    runs-on: ubuntu-latest\n"
+        "    steps:\n      - uses: actions/checkout@v4\n        with:\n"
+        "          ref: ${{ github.event.workflow_run.head_sha }}\n"
+    )
+    assert any(f["rule_id"] == "GS045-workflow_run_untrusted_checkout" for f in fs)

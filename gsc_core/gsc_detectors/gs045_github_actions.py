@@ -17,25 +17,28 @@ from typing import Any
 # ── PATTERNS ──────────────────────────────────────────────────────────
 
 GHA_PATTERNS: list[tuple[str, str, str, float]] = [
-    # pull_request_target + checkout of attacker-controlled fork head → RCE
+    # pull_request_target + checkout of attacker-controlled fork head → RCE.
+    # Widened window (multi-job workflows), head_ref/head_sha aliases, quoted ref.
     ("pr_target_checkout_head",
-     r'pull_request_target[\s\S]{0,500}?ref:\s*\${{?\s*github\.event\.pull_request\.head\.(?:sha|ref)',
+     r'pull_request_target[\s\S]{0,1500}?ref:\s*["\']?\s*\${{?\s*github\.(?:head_ref|head_sha|event\.pull_request\.head\.(?:sha|ref))',
      "CRITICAL", 0.92),
 
-    # workflow_run + checkout (trigger can come from a fork; runs on default
-    # branch with repo secrets — must pin ref, never run untrusted code)
+    # workflow_run + checkout of the *untrusted trigger* (head) → RCE. Only the
+    # dangerous ref matters — a bare checkout of one's own default branch is safe.
     ("workflow_run_untrusted_checkout",
-     r'workflow_run[\s\S]{0,500}?actions/checkout@',
+     r'workflow_run[\s\S]{0,1500}?actions/checkout@[\s\S]{0,200}?ref:\s*["\']?\s*\${{?\s*github\.event\.workflow_run\.head_',
      "HIGH", 0.75),
 
-    # hardcoded secret in env (literal value, not ${{ secrets.* }})
+    # hardcoded secret in env — literal value, NOT a ${{ secrets.* }}/${{ env.* }}
+    # reference; accepts quoted and unquoted scalars and compound key names.
     ("hardcoded_env_secret",
-     r'(?i)^\s{2,}(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret)\s*:\s*["\'][^"\']{8,}["\']\s*$',
+     r'(?i)^\s{2,}(?:aws_access_key_id|aws_secret_access_key|db_password|github_token|private_key|password|passwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret)\s*:\s*(?!\s*["\']?\s*\$)\s*["\']?[^"\'\n\r$]{8,}["\']?\s*$',
      "HIGH", 0.80),
 ]
 
 WORKFLOW_RE = re.compile(r'\.github/workflows/.*\.ya?ml$', re.IGNORECASE)
-PERMISSIONS_RE = re.compile(r'^\s*permissions\s*:', re.MULTILINE)
+# Workflow-level only: `permissions:` must sit at column 0 (job-level blocks are indented).
+PERMISSIONS_RE = re.compile(r'^permissions\s*:', re.MULTILINE)
 
 
 def _finding(rule_id: str, severity: str, title: str, file_path: str,
