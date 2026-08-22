@@ -14,7 +14,7 @@ detector = RegexDetector(
     rule_id=RULE_ID,
     name="no-eval-exec",
     patterns=patterns,
-    severity="HIGH",   # exec() without user-input check → not CRITICAL
+    severity="LOW",    # bare eval()/exec() without taint — duplicated by GS036/GS037 taint-guard
     confidence=0.6,    # pattern-only, no taint analysis
     languages=('python', 'javascript'),
 )
