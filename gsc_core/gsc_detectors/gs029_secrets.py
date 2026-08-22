@@ -117,12 +117,12 @@ class GS029SecretsDetector:
     def _live_verify(self, finding: Dict, value: str) -> None:
         """Фаза 8: live-проверка секрета (опционально, off by default как DAST).
 
-        dead → deboost confidence ×0.3 + metadata. Значение не сохраняется и не
-        логируется. Ленивый import — verifier живёт в gsc_cli (сеть), core не
-        зависит от cli статически.
+        dead → deboost confidence ×DEAD_DEBOOST + severity→INFO + metadata.
+        Значение не сохраняется и не логируется. Ленивый import — verifier живёт
+        в gsc_cli (сеть), core не зависит от cli статически.
         """
         try:
-            from gsc_secrets_verifier import verify_secret
+            from gsc_secrets_verifier import verify_secret, DEAD_DEBOOST
         except Exception:
             return
         try:
@@ -130,7 +130,9 @@ class GS029SecretsDetector:
         except Exception:
             return
         if r.get("status") == "dead":
-            finding["confidence"] = round(finding.get("confidence", 0.85) * 0.3, 2)
+            finding["confidence"] = round(finding.get("confidence", 0.85) * DEAD_DEBOOST, 2)
+            # dead → не CRITICAL/HIGH: не загрязнять precision-метрику
+            finding["severity"] = "INFO"
             finding["metadata"]["secrets"]["status"] = "dead"
             finding["metadata"]["secrets"]["provider"] = r.get("provider")
             finding["detail"] += " [dead — live-verified]"

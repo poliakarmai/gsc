@@ -13,6 +13,7 @@ def test_gs029_live_verify_dead(monkeypatch):
     fs = _detector().detect("app.py", 'API_KEY = "ghp_dead_token_123"\n', verify_live=True)
     assert len(fs) == 1
     assert fs[0]["confidence"] <= 0.3
+    assert fs[0]["severity"] == "INFO"  # dead → не CRITICAL/HIGH
     assert fs[0]["metadata"]["secrets"]["status"] == "dead"
     assert fs[0]["metadata"]["secrets"]["provider"] == "github"
 

@@ -2,17 +2,18 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Алексей Поляков
 # Licensed under Apache License 2.0 — see LICENSE
-"""GSC Secrets Verifier v1.0 — live-проверка секретов одним безопасным запросом.
+"""GSC Secrets Verifier v1.1 — live-проверка секретов одним безопасным запросом.
 
 Фаза 8. TruffleHog-идея: один запрос к API провайдера → 200 = live (TP),
-401/403 = dead (FP). Убивает шум тестовых/мёртвых/placeholder-секретов —
-основной источник низкой precision CRITICAL (~8–12%).
+401 = dead (FP). Убивает шум тестовых/мёртвых/placeholder-секретов.
 
 Redaction: значение секрета НЕ логируется и НЕ сохраняется — только fingerprint.
-Кэш: sha256(provider:value) → status, чтобы не дёргать API повторно на ре-скане.
+Кэш: только `dead` (стабильный негатив), bounded. `live`/`unknown`/`error` не кэшируем
+(транзиентные — не должны залипать).
 
-Провайдеры: GitHub / Slack / Stripe (один запрос, без подписи). AWS/DB — TODO
-(требуют SigV4 / network-connect к хосту).
+Безопасность (verdict судьи 22.08): bypass proxy (bearer не должен утекать через
+корпоративный TLS-инспектирующий прокси) + disable redirects (Authorization не
+форвардится по редиректу) + нормализация значения до fingerprint.
 """
 
 from __future__ import annotations
@@ -21,18 +22,31 @@ import hashlib
 import json
 import re
 import ssl
-from urllib.request import Request, urlopen
+from urllib.request import (Request, build_opener, ProxyHandler,
+                            HTTPRedirectHandler)
 from urllib.error import HTTPError, URLError
 
 TIMEOUT = 10
+DEAD_DEBOOST = 0.3
+_CACHE_MAX = 1000
 _CACHE: dict[str, dict] = {}
+
+
+class _NoRedirect(HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None  # не редиректить → Authorization не утекает на чужой хост
+
+
+_OPENER = build_opener(ProxyHandler({}), _NoRedirect())
 
 
 def detect_provider(secret: str) -> str:
     s = (secret or "").strip().strip("'\"")
-    if s.startswith(("ghp_", "github_pat_", "gho_", "ghs_", "ghr_")):
+    # только токены, которые реально проверимы одним запросом; ghs_/ghr_/xoxa-/
+    # xoxr-/xapp- → unknown (нужен другой endpoint, не user-token)
+    if s.startswith(("ghp_", "github_pat_", "gho_")):
         return "github"
-    if s.startswith(("xoxb-", "xoxp-", "xoxa-", "xoxr-")):
+    if s.startswith(("xoxb-", "xoxp-")):
         return "slack"
     if s.startswith(("sk_live_", "sk_test_", "rk_live_", "rk_test_")):
         return "stripe"
@@ -46,7 +60,7 @@ def detect_provider(secret: str) -> str:
 def _http(method: str, url: str, headers: dict):
     req = Request(url, method=method, headers=headers)
     try:
-        with urlopen(req, timeout=TIMEOUT) as r:
+        with _OPENER.open(req, timeout=TIMEOUT) as r:
             return r.status, r.read().decode(errors="replace")[:2000]
     except HTTPError as e:
         return e.code, e.read().decode(errors="replace")[:2000]
@@ -55,14 +69,17 @@ def _http(method: str, url: str, headers: dict):
 
 
 def verify_github(token: str) -> str:
+    # fine-grained PAT / OAuth → Bearer; classic PAT → token (иначе false 401)
+    scheme = "Bearer" if token.startswith(("github_pat_", "gho_")) else "token"
     st, _ = _http("GET", "https://api.github.com/user",
-                  {"Authorization": f"token {token}",
-                   "Accept": "application/vnd.github+json"})
+                  {"Authorization": f"{scheme} {token}",
+                   "Accept": "application/vnd.github+json",
+                   "User-Agent": "gsc-secrets-verifier"})
     if st == 200:
         return "live"
-    if st in (401, 403):
+    if st == 401:
         return "dead"
-    return "unknown"
+    return "unknown"  # 403 = rate-limit / SAML-SSO → не доказывает dead
 
 
 def verify_stripe(key: str) -> str:
@@ -75,6 +92,9 @@ def verify_stripe(key: str) -> str:
     return "unknown"  # 403 = restricted key → не доказывает dead
 
 
+_SLACK_DEAD = ("invalid_auth", "token_revoked", "token_expired", "not_authed")
+
+
 def verify_slack(token: str) -> str:
     st, body = _http("POST", "https://slack.com/api/auth.test",
                      {"Authorization": f"Bearer {token}",
@@ -83,7 +103,9 @@ def verify_slack(token: str) -> str:
         return "live"
     if st == 401:
         return "dead"
-    if st == 200 and body and ('"ok":false' in body or "invalid_auth" in body):
+    # whitelist dead-only ошибок; missing_scope/ratelimited/account_inactive —
+    # токен жив, проба неуместна → unknown (иначе false dead)
+    if st == 200 and body and any(e in body for e in _SLACK_DEAD):
         return "dead"
     return "unknown"
 
@@ -95,15 +117,19 @@ PROVIDER_VERIFIERS = {
 }
 
 
+def _normalize(value: str) -> str:
+    return (value or "").strip().strip("'\"").strip()
+
+
 def _fingerprint(provider: str, value: str) -> str:
-    return hashlib.sha256(f"{provider}:{value}".encode()).hexdigest()[:32]
+    # нормализуем ДО хэша — quoted/unquoted формы дают один fingerprint
+    return hashlib.sha256(f"{provider}:{_normalize(value)}".encode()).hexdigest()[:32]
 
 
 def verify_secret(secret: str, provider: str = None) -> dict:
     """Проверить секрет. Возвращает {provider, status, fingerprint, cached}.
 
-    status ∈ {live, dead, unknown, error}. Значение секрета не сохраняется и не
-    логируется — только fingerprint.
+    status ∈ {live, dead, unknown, error}. Значение не сохраняется/логируется.
     """
     provider = provider or detect_provider(secret)
     fp = _fingerprint(provider, secret)
@@ -115,19 +141,21 @@ def verify_secret(secret: str, provider: str = None) -> dict:
                   "reason": "no verifier", "fingerprint": fp}
     else:
         try:
-            status = fn(secret.strip().strip("'\""))
+            status = fn(_normalize(secret))
         except Exception:
             status = "error"
         result = {"provider": provider, "status": status, "fingerprint": fp}
-    _CACHE[fp] = result
+    # кэшируем только стабильный dead; live/unknown/error — транзиентные
+    if result["status"] == "dead" and len(_CACHE) < _CACHE_MAX:
+        _CACHE[fp] = result
     return result
 
 
 def deboost_dead(findings: list, verify_fn=verify_secret) -> int:
-    """Пометить dead-секреты как FP (deboost confidence) — TruffleHog-стиль.
+    """Пометить dead-секреты (deboost confidence + severity→INFO) — TruffleHog-стиль.
 
-    finding должен нести значение секрета в поле `value`/`secret_value` (этап
-    детекта, в памяти — значение не персистится). Возвращает число deboosted.
+    finding несёт значение в `value`/`secret_value` (этап детекта, в памяти).
+    Возвращает число deboosted.
     """
     deboosted = 0
     for f in findings:
@@ -138,7 +166,9 @@ def deboost_dead(findings: list, verify_fn=verify_secret) -> int:
         if r["status"] == "dead":
             f["metadata"] = {**f.get("metadata", {}),
                              "secret_status": "dead", "secret_provider": r["provider"]}
-            f["confidence"] = round(f.get("confidence", 0.8) * 0.3, 2)
+            f["confidence"] = round(f.get("confidence", 0.8) * DEAD_DEBOOST, 2)
+            if f.get("severity") in ("CRITICAL", "HIGH", "MEDIUM"):
+                f["severity"] = "INFO"
             deboosted += 1
     return deboosted
 
@@ -153,7 +183,5 @@ if __name__ == "__main__":
     if "--provider" in sys.argv:
         provider = sys.argv[sys.argv.index("--provider") + 1]
     result = verify_secret(secret, provider)
-    # никогда не выводить значение — только статус и fingerprint
-    result.pop("fingerprint", None) if result.get("status") == "unknown" else None
     print(json.dumps({k: v for k, v in result.items() if k != "fingerprint"},
                      indent=2, ensure_ascii=False))
