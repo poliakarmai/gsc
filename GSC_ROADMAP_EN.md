@@ -67,6 +67,15 @@ Supply-chain immutability + reproducible benchmark as the evidence base.
 - ✅ 0.14.4 digest-pinned images
 - ✅ 0.14.5 AutoFix draft-only
 
+### Phase 11 — Enterprise Security Hardening 🔜
+Close the P0/P1 areas of the independent DD audit (2026-08-23) before the enterprise pilot.
+
+- ✅ DD-01 authlib.jose → PyJWT (SSO), DD-02 claims 42→47, DD-04 .env.example (544c063)
+- ⏳ Cloud API dynamic audit (auth bypass / injection / path traversal) — gsc_cloud/* + server.py
+- ⏳ Tenant isolation: SQL schema tenant_id in PK/FK + RLS (PostgreSQL S1) — DD-05
+- ⏳ Sandbox hardening: gsc_pof_sandbox.py setrlimit → container / network-disabled
+- ⏳ CI hardening: upper bounds in deps + 0 skipped in CI
+
 ---
 
 ## Cross-cutting tracks

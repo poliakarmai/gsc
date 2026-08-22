@@ -67,6 +67,15 @@ Supply-chain immutability + воспроизводимый benchmark как до
 - ✅ 0.14.4 свои образы digest-pin
 - ✅ 0.14.5 AutoFix draft-only
 
+### Фаза 11 — Enterprise Security Hardening 🔜
+Закрыть P0/P1-области независимого DD-аудита (2026-08-23) перед enterprise-пилотом.
+
+- ✅ DD-01 authlib.jose → PyJWT (SSO), DD-02 claims 42→47, DD-04 .env.example (544c063)
+- ⏳ Cloud API динамический аудит (auth bypass / injection / path traversal) — gsc_cloud/* + server.py
+- ⏳ Tenant isolation: SQL-схема tenant_id в PK/FK + RLS (PostgreSQL S1) — DD-05
+- ⏳ Sandbox hardening: gsc_pof_sandbox.py setrlimit → контейнер / network-disabled
+- ⏳ CI hardening: upper bounds в зависимостях + 0 skipped в CI
+
 ---
 
 ## Сквозные направления
