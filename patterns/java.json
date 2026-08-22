@@ -1,6 +1,6 @@
 [
   {"echelon": 1, "category": "HIGH", "title": "Java: Empty catch block", "pattern_type": "regex", "search_pattern": "catch\\s*\\([^)]+\\)\\s*\\{\\s*\\}", "description": "Swallowed exception without logging — hides errors"},
-  {"echelon": 1, "category": "MEDIUM", "title": "Java: System.out.println", "pattern_type": "regex", "search_pattern": "System\\.out\\.println", "description": "Use SLF4J/Log4j instead of stdout"},
+  {"echelon": 1, "category": "LOW", "title": "Java: System.out.println", "pattern_type": "regex", "search_pattern": "System\\.out\\.println", "description": "Use SLF4J/Log4j instead of stdout"},
   {"echelon": 1, "category": "LOW", "title": "Java: printStackTrace()", "pattern_type": "regex", "search_pattern": "\\.printStackTrace\\(\\)", "description": "Use logger.error(msg, e) instead"},
   {"echelon": 2, "category": "CRITICAL", "title": "Java: SQL injection (Statement)", "pattern_type": "regex", "search_pattern": "Statement\\.execute\\(|createStatement\\(\\)", "description": "Use PreparedStatement to prevent SQL injection"},
   {"echelon": 2, "category": "HIGH", "title": "Java: Hardcoded password", "pattern_type": "regex", "search_pattern": "(password|secret|token)\\s*=\\s*\"[^\"]{4,}\"", "description": "Hardcoded credential in source"},

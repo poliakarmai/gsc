@@ -1,6 +1,6 @@
 [
   {"echelon": 1, "category": "LOW", "title": "Go: Unhandled error", "pattern_type": "regex", "search_pattern": "\\w+, \\w+\\s*:=\\s*[^(]*$", "description": "Variable assignment ignoring error return value"},
-  {"echelon": 1, "category": "MEDIUM", "title": "Go: println in production", "pattern_type": "regex", "search_pattern": "fmt\\.Println\\(|log\\.Println\\(", "description": "Use structured logging instead of println"},
+  {"echelon": 1, "category": "LOW", "title": "Go: println in production", "pattern_type": "regex", "search_pattern": "fmt\\.Println\\(|log\\.Println\\(", "description": "Use structured logging instead of println"},
   {"echelon": 1, "category": "LOW", "title": "Go: panic in library code", "pattern_type": "regex", "search_pattern": "\\bpanic\\(", "description": "panic should only be used in init/main, return errors instead"},
   {"echelon": 2, "category": "CRITICAL", "title": "Go: crypto/md5 or crypto/sha1", "pattern_type": "regex", "search_pattern": "(md5|sha1)\\.(New|Sum)", "description": "Weak hash algorithm — use sha256 or bcrypt"},
   {"echelon": 2, "category": "HIGH", "title": "Go: Hardcoded secret", "pattern_type": "regex", "search_pattern": "(password|secret|token|key)\\s*[:=]\\s*\"[^\"]{4,}\"", "description": "Hardcoded credential in source"},
