@@ -46,3 +46,28 @@
 | P1 | Severity downgrade CRITICAL→HIGH | GS037-*, GS025-* |
 | P1 | Контекстный sanitizer check | GS020 (XSS escape) |
 | P2 | Пересмотр confidence | GS021, GS003 |
+
+## 🔬 FP по benchmark 100 проектов (21.08.2026)
+
+> 64 831 находка, 4 302 CRITICAL. После фильтрации шума (GS008 eval = 58% CRIT, GS000-LEGACY 26k)
+> реальных кандидатов на PR — **ноль**: всё by-design сериализация, vendor-код или FP детектора.
+
+### 2 новых FP-паттерна (для фикса детекторов)
+
+| Detector | FP-паттерн | Пример | Фикс |
+|----------|-----------|--------|------|
+| GS037-yaml_unsafe_load | не распознаёт `yaml.load(..., SafeLoader)` | aws-cli `yamlhelper.py:99` (`SafeLoaderWrapper`), `ordered_yaml.py:47` (`SafeOrderedLoader`) | negation-guard: `yaml.load(x, SafeLoader*)` = безопасно |
+| GS037-pickle_load_any | флагует by-design pickle (сериализация/кэш/ML) | celery `utils/serialization.py`, django `cache/backends/*`, scrapy `httpcache.py`, sklearn, streamlit | контекстный guard: pickle для доверенных данных (кеш/модели/сериализация) ≠ user input |
+
+### Почему это by-design, а не уязвимость
+
+- **pickle** опасен только при недоверенном input. celery/django-cache/scrapy/sklearn/streamlit
+  сериализуют доверенные объекты (задачи, кеш, ML-модели) — документированное поведение.
+- **yaml SafeLoader** (`yaml.load(x, SafeLoader)`) не выполняет произвольный код — FP детектора.
+
+### Действия
+
+| Приоритет | Действие |
+|-----------|----------|
+| P1 | Negation-guard для GS037-yaml_unsafe_load: распознавать `SafeLoader`/`SafeOrderedLoader` |
+| P1 | Контекстный guard для GS037-pickle_load_any: исключать by-design паттерны (cache/сериализация/ML), либо downgrade |
