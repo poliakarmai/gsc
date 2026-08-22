@@ -114,6 +114,12 @@ federated_deactivated, federated_log, epss_cache, schema_version... (33 табл
 04:00 MSK: scan → LLM revalidate → auto-deactivate (<30% TP at ≥10 verdicts)
 04:00 MSK: federated submit (DP-noised) + fetch (global weights)
 
+**Ground-Truth Trainer (0 LLM, бесплатно):** `python3 scripts/gsc_ground_truth_train.py`
+— считает per-detector precision на calibration-сете (9 clean + 4 vuln) из findings БД:
+`fp_clean >= 20 AND tp_vuln == 0` → FP-генератор. `--apply` деактивирует registry-паттерны
+(active=0 + fp_log). Движковые (`GS037-*`) — правка severity/regex в `gsc_core/gsc_detectors/gs037_python.py`.
+Детерминированная замена LLM-revalidate (источник вердикта — размеченный ground-truth, не платный LLM).
+
 ## Ключевые инварианты
 
 1. finding_key = sha256(rule+file+snippet)[:12] — стабилен
