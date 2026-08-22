@@ -1,6 +1,6 @@
 {
   "batch": 8,
-  "scanned_at": "2026-08-21T12:06:28.907279+00:00",
+  "scanned_at": "2026-08-22T11:44:42.516260+00:00",
   "projects": [
     {
       "name": "puppeteer",
@@ -11,9 +11,9 @@
       "mb": 17.6,
       "stars": 95479,
       "batch": 8,
-      "total": 780,
-      "critical": 111,
-      "high": 494,
+      "total": 680,
+      "critical": 11,
+      "high": 178,
       "elapsed": 59.6
     },
     {
@@ -25,10 +25,10 @@
       "mb": 31.3,
       "stars": 13702,
       "batch": 8,
-      "total": 1760,
-      "critical": 100,
-      "high": 1122,
-      "elapsed": 93.3
+      "total": 1756,
+      "critical": 96,
+      "high": 195,
+      "elapsed": 94.3
     },
     {
       "name": "vite",
@@ -39,10 +39,10 @@
       "mb": 29.3,
       "stars": 82441,
       "batch": 8,
-      "total": 1020,
-      "critical": 15,
-      "high": 549,
-      "elapsed": 95.6
+      "total": 1008,
+      "critical": 3,
+      "high": 287,
+      "elapsed": 92.7
     },
     {
       "name": "hypothesis",
@@ -53,10 +53,10 @@
       "mb": 15.1,
       "stars": 8905,
       "batch": 8,
-      "total": 77,
-      "critical": 1,
-      "high": 35,
-      "elapsed": 47.7
+      "total": 65,
+      "critical": 0,
+      "high": 28,
+      "elapsed": 44.9
     },
     {
       "name": "playwright-python",
@@ -67,10 +67,10 @@
       "mb": 6.1,
       "stars": 14928,
       "batch": 8,
-      "total": 62,
-      "critical": 4,
-      "high": 6,
-      "elapsed": 48.9
+      "total": 57,
+      "critical": 0,
+      "high": 5,
+      "elapsed": 45.9
     },
     {
       "name": "pytest",
@@ -81,10 +81,10 @@
       "mb": 9.1,
       "stars": 14435,
       "batch": 8,
-      "total": 98,
-      "critical": 3,
-      "high": 68,
-      "elapsed": 50.8
+      "total": 78,
+      "critical": 1,
+      "high": 53,
+      "elapsed": 47.6
     },
     {
       "name": "gradio",
@@ -95,10 +95,10 @@
       "mb": 282.8,
       "stars": 43396,
       "batch": 8,
-      "total": 1164,
-      "critical": 25,
-      "high": 680,
-      "elapsed": 163.1
+      "total": 1117,
+      "critical": 24,
+      "high": 232,
+      "elapsed": 154.2
     },
     {
       "name": "ruff",
@@ -109,10 +109,10 @@
       "mb": 116.6,
       "stars": 49273,
       "batch": 8,
-      "total": 4792,
-      "critical": 271,
-      "high": 2063,
-      "elapsed": 404.3
+      "total": 4510,
+      "critical": 111,
+      "high": 186,
+      "elapsed": 373.0
     },
     {
       "name": "nestjs",
@@ -125,8 +125,8 @@
       "batch": 8,
       "total": 2257,
       "critical": 13,
-      "high": 2120,
-      "elapsed": 89.0
+      "high": 72,
+      "elapsed": 80.6
     },
     {
       "name": "black",
@@ -137,18 +137,19 @@
       "mb": 7.3,
       "stars": 41815,
       "batch": 8,
-      "total": 87,
+      "total": 75,
       "critical": 0,
-      "high": 27,
-      "elapsed": 44.8
+      "high": 18,
+      "elapsed": 39.1
     }
   ],
   "per_rule": {
     "GS000-LEGACY": {
-      "HIGH": 5957,
-      "MEDIUM": 885,
-      "CRITICAL": 179,
-      "LOW": 321
+      "INFO": 6734,
+      "MEDIUM": 273,
+      "HIGH": 130,
+      "LOW": 2,
+      "CRITICAL": 9
     },
     "GS001": {
       "CRITICAL": 95
@@ -157,8 +158,8 @@
       "LOW": 582
     },
     "GS020": {
-      "HIGH": 99,
       "CRITICAL": 8,
+      "HIGH": 99,
       "MEDIUM": 5,
       "LOW": 1
     },
@@ -180,11 +181,6 @@
     "GS040-suspicious_comment": {
       "MEDIUM": 21
     },
-    "GS008": {
-      "CRITICAL": 110,
-      "LOW": 22,
-      "HIGH": 41
-    },
     "GS031": {
       "MEDIUM": 10
     },
@@ -195,7 +191,7 @@
       "supply-chain": 10
     },
     "GS014": {
-      "MEDIUM": 21,
+      "MEDIUM": 4,
       "LOW": 16
     },
     "GS021": {
@@ -241,11 +237,10 @@
     },
     "GS029": {
       "CRITICAL": 23,
-      "HIGH": 79,
-      "MEDIUM": 52
+      "HIGH": 79
     },
     "GS005": {
-      "CRITICAL": 71
+      "CRITICAL": 67
     },
     "GS007": {
       "INFO": 32,
@@ -290,16 +285,12 @@
     "GS034-file_exfiltrator": {
       "CRITICAL": 1
     },
-    "GS037-path_traversal_join": {
-      "HIGH": 42
+    "GS008": {
+      "LOW": 22
     },
     "GS004": {
       "HIGH": 17,
       "MEDIUM": 1
-    },
-    "GS037": {
-      "MEDIUM": 33,
-      "CRITICAL": 20
     },
     "GS015": {
       "INFO": 36
@@ -323,9 +314,6 @@
     "GS032-markdown_link_injection": {
       "HIGH": 6
     },
-    "GS037-high_risk": {
-      "INFO": 1
-    },
     "GS037-debug_true": {
       "MEDIUM": 4
     },
@@ -340,6 +328,9 @@
     },
     "YAML-SSTI001": {
       "CRITICAL": 11
+    },
+    "GS037": {
+      "CRITICAL": 20
     },
     "GS032-fake_tool_call_file": {
       "MEDIUM": 59
@@ -365,9 +356,9 @@
   },
   "recall_hits": {
     "juice-shop": {
-      "critical": 100,
-      "high": 1122,
-      "total": 1760
+      "critical": 96,
+      "high": 195,
+      "total": 1756
     }
   }
 }

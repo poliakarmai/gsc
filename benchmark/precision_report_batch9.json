@@ -1,6 +1,6 @@
 {
   "batch": 9,
-  "scanned_at": "2026-08-21T13:02:40.980932+00:00",
+  "scanned_at": "2026-08-22T12:10:17.472621+00:00",
   "projects": [
     {
       "name": "fiber",
@@ -13,8 +13,8 @@
       "batch": 9,
       "total": 1399,
       "critical": 9,
-      "high": 1170,
-      "elapsed": 91.1
+      "high": 112,
+      "elapsed": 39.9
     },
     {
       "name": "svelte",
@@ -27,8 +27,8 @@
       "batch": 9,
       "total": 282,
       "critical": 0,
-      "high": 157,
-      "elapsed": 408.5
+      "high": 45,
+      "elapsed": 197.4
     },
     {
       "name": "prettier",
@@ -41,8 +41,8 @@
       "batch": 9,
       "total": 116,
       "critical": 4,
-      "high": 56,
-      "elapsed": 315.2
+      "high": 42,
+      "elapsed": 206.8
     },
     {
       "name": "moment",
@@ -53,10 +53,10 @@
       "mb": 8.9,
       "stars": 47914,
       "batch": 9,
-      "total": 497,
-      "critical": 3,
-      "high": 132,
-      "elapsed": 55.0
+      "total": 496,
+      "critical": 2,
+      "high": 90,
+      "elapsed": 51.5
     },
     {
       "name": "pydantic",
@@ -67,10 +67,10 @@
       "mb": 12.8,
       "stars": 28581,
       "batch": 9,
-      "total": 673,
-      "critical": 24,
-      "high": 272,
-      "elapsed": 65.1
+      "total": 648,
+      "critical": 4,
+      "high": 64,
+      "elapsed": 64.8
     },
     {
       "name": "pip",
@@ -81,10 +81,10 @@
       "mb": 18.2,
       "stars": 10268,
       "batch": 9,
-      "total": 106,
-      "critical": 3,
-      "high": 47,
-      "elapsed": 88.7
+      "total": 62,
+      "critical": 1,
+      "high": 10,
+      "elapsed": 81.6
     },
     {
       "name": "jest",
@@ -95,10 +95,10 @@
       "mb": 49.3,
       "stars": 45470,
       "batch": 9,
-      "total": 861,
-      "critical": 14,
-      "high": 529,
-      "elapsed": 121.9
+      "total": 853,
+      "critical": 6,
+      "high": 148,
+      "elapsed": 110.0
     },
     {
       "name": "etcd",
@@ -109,10 +109,10 @@
       "mb": 18.8,
       "stars": 52144,
       "batch": 9,
-      "total": 2316,
-      "critical": 44,
-      "high": 1348,
-      "elapsed": 78.6
+      "total": 2315,
+      "critical": 43,
+      "high": 40,
+      "elapsed": 78.2
     },
     {
       "name": "aws-cli",
@@ -123,10 +123,10 @@
       "mb": 185.0,
       "stars": 17204,
       "batch": 9,
-      "total": 266,
-      "critical": 46,
-      "high": 84,
-      "elapsed": 630.7
+      "total": 185,
+      "critical": 45,
+      "high": 52,
+      "elapsed": 546.6
     },
     {
       "name": "matplotlib",
@@ -137,10 +137,10 @@
       "mb": 68.3,
       "stars": 23101,
       "batch": 9,
-      "total": 402,
+      "total": 382,
       "critical": 22,
-      "high": 70,
-      "elapsed": 206.6
+      "high": 59,
+      "elapsed": 158.0
     }
   ],
   "per_rule": {
@@ -148,10 +148,11 @@
       "MEDIUM": 5
     },
     "GS000-LEGACY": {
-      "HIGH": 3185,
-      "MEDIUM": 386,
-      "CRITICAL": 29,
-      "LOW": 81
+      "INFO": 3517,
+      "MEDIUM": 71,
+      "CRITICAL": 5,
+      "HIGH": 57,
+      "LOW": 1
     },
     "GS038-unsafe_pointer": {
       "MEDIUM": 14
@@ -179,8 +180,7 @@
     },
     "GS029": {
       "CRITICAL": 2,
-      "HIGH": 110,
-      "MEDIUM": 53
+      "HIGH": 110
     },
     "GS009": {
       "supply-chain": 10
@@ -244,17 +244,11 @@
       "CRITICAL": 1
     },
     "GS005": {
-      "CRITICAL": 8,
+      "CRITICAL": 7,
       "MEDIUM": 3
     },
-    "GS037": {
-      "MEDIUM": 4,
-      "CRITICAL": 2
-    },
     "GS008": {
-      "LOW": 1,
-      "HIGH": 7,
-      "CRITICAL": 9
+      "LOW": 1
     },
     "GS015": {
       "INFO": 5
@@ -265,17 +259,8 @@
     "GS037-pickle_load_any": {
       "HIGH": 2
     },
-    "GS014": {
-      "MEDIUM": 7
-    },
-    "GS037-path_traversal_join": {
-      "HIGH": 66
-    },
     "GS037-hardcoded_password": {
       "HIGH": 3
-    },
-    "GS037-high_risk": {
-      "INFO": 2
     },
     "GS004": {
       "HIGH": 6
@@ -289,6 +274,9 @@
     },
     "GS034-file_exfiltrator": {
       "CRITICAL": 2
+    },
+    "GS036-eval_user_input": {
+      "CRITICAL": 1
     },
     "GS036-command_injection_exec": {
       "CRITICAL": 1
@@ -320,11 +308,11 @@
     "GS031-K8S-NO-READINESS": {
       "LOW": 4
     },
+    "GS037": {
+      "CRITICAL": 2
+    },
     "GS037-hardcoded_api_key": {
       "HIGH": 4
-    },
-    "GS037-yaml_unsafe_load": {
-      "HIGH": 2
     },
     "GS037-command_injection_shell_true": {
       "MEDIUM": 1

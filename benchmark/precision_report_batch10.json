@@ -1,6 +1,6 @@
 {
   "batch": 10,
-  "scanned_at": "2026-08-21T14:05:29.716689+00:00",
+  "scanned_at": "2026-08-22T13:06:50.476516+00:00",
   "projects": [
     {
       "name": "rollup",
@@ -11,10 +11,10 @@
       "mb": 78.6,
       "stars": 26305,
       "batch": 10,
-      "total": 289,
-      "critical": 3,
-      "high": 252,
-      "elapsed": 391.1
+      "total": 287,
+      "critical": 1,
+      "high": 154,
+      "elapsed": 273.2
     },
     {
       "name": "grpc-go",
@@ -27,8 +27,8 @@
       "batch": 10,
       "total": 2887,
       "critical": 14,
-      "high": 2152,
-      "elapsed": 118.1
+      "high": 59,
+      "elapsed": 102.6
     },
     {
       "name": "streamlit",
@@ -39,10 +39,10 @@
       "mb": 164.5,
       "stars": 45578,
       "batch": 10,
-      "total": 1440,
+      "total": 557,
       "critical": 8,
-      "high": 334,
-      "elapsed": 261.1
+      "high": 292,
+      "elapsed": 219.5
     },
     {
       "name": "scikit-learn",
@@ -53,10 +53,10 @@
       "mb": 28.2,
       "stars": 66988,
       "batch": 10,
-      "total": 331,
+      "total": 312,
       "critical": 1,
-      "high": 33,
-      "elapsed": 196.7
+      "high": 26,
+      "elapsed": 166.2
     },
     {
       "name": "webpack",
@@ -69,8 +69,8 @@
       "batch": 10,
       "total": 775,
       "critical": 8,
-      "high": 709,
-      "elapsed": 524.8
+      "high": 529,
+      "elapsed": 412.4
     },
     {
       "name": "django",
@@ -81,10 +81,10 @@
       "mb": 73.5,
       "stars": 88621,
       "batch": 10,
-      "total": 1377,
+      "total": 1310,
       "critical": 343,
-      "high": 228,
-      "elapsed": 376.6
+      "high": 163,
+      "elapsed": 367.6
     },
     {
       "name": "eslint",
@@ -95,10 +95,10 @@
       "mb": 30.0,
       "stars": 27467,
       "batch": 10,
-      "total": 180,
-      "critical": 3,
-      "high": 132,
-      "elapsed": 111.2
+      "total": 178,
+      "critical": 1,
+      "high": 120,
+      "elapsed": 96.1
     },
     {
       "name": "sqlalchemy",
@@ -109,10 +109,10 @@
       "mb": 27.7,
       "stars": 12096,
       "batch": 10,
-      "total": 350,
+      "total": 336,
       "critical": 30,
-      "high": 91,
-      "elapsed": 166.2
+      "high": 77,
+      "elapsed": 146.1
     },
     {
       "name": "consul",
@@ -123,10 +123,10 @@
       "mb": 89.2,
       "stars": 30033,
       "batch": 10,
-      "total": 7065,
-      "critical": 108,
-      "high": 6270,
-      "elapsed": 379.0
+      "total": 7061,
+      "critical": 103,
+      "high": 271,
+      "elapsed": 401.8
     },
     {
       "name": "next.js",
@@ -137,18 +137,18 @@
       "mb": 310.7,
       "stars": 141887,
       "batch": 10,
-      "total": 21364,
-      "critical": 2810,
-      "high": 9832,
-      "elapsed": 1243.1
+      "total": 18719,
+      "critical": 165,
+      "high": 5778,
+      "elapsed": 1206.9
     }
   ],
   "per_rule": {
     "GS000-LEGACY": {
-      "HIGH": 12765,
-      "MEDIUM": 1288,
-      "CRITICAL": 285,
-      "LOW": 2521
+      "INFO": 16113,
+      "MEDIUM": 148,
+      "HIGH": 313,
+      "CRITICAL": 4
     },
     "GS003": {
       "LOW": 1583
@@ -164,10 +164,6 @@
     },
     "GS034-typo_squatting": {
       "LOW": 11
-    },
-    "GS008": {
-      "CRITICAL": 2372,
-      "HIGH": 39
     },
     "GS009": {
       "supply-chain": 10
@@ -208,7 +204,7 @@
     "GS029": {
       "CRITICAL": 13,
       "HIGH": 213,
-      "MEDIUM": 890
+      "MEDIUM": 31
     },
     "GS005": {
       "CRITICAL": 114,
@@ -229,14 +225,6 @@
     "GS010": {
       "MEDIUM": 37
     },
-    "GS037": {
-      "MEDIUM": 8,
-      "CRITICAL": 1
-    },
-    "GS014": {
-      "MEDIUM": 2,
-      "LOW": 1
-    },
     "GS001": {
       "CRITICAL": 396
     },
@@ -255,9 +243,6 @@
     "GS037-hardcoded_password": {
       "HIGH": 8
     },
-    "GS037-path_traversal_join": {
-      "HIGH": 73
-    },
     "GS037-pickle_load_any": {
       "HIGH": 19
     },
@@ -269,7 +254,7 @@
     },
     "GS031": {
       "MEDIUM": 23,
-      "CRITICAL": 1
+      "LOW": 1
     },
     "GS004": {
       "HIGH": 34
@@ -327,8 +312,8 @@
     "YAML-SSTI001": {
       "CRITICAL": 3
     },
-    "GS037-high_risk": {
-      "INFO": 2
+    "GS037": {
+      "CRITICAL": 1
     },
     "GS037-debug_true": {
       "MEDIUM": 4
@@ -386,6 +371,9 @@
     },
     "GS040-pii_in_log": {
       "MEDIUM": 4
+    },
+    "GS014": {
+      "LOW": 1
     },
     "GS025-hardcoded_secret": {
       "CRITICAL": 1

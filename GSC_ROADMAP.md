@@ -1,377 +1,122 @@
-# GSC ROADMAP — что сделано и что предстоит
+# GSC Roadmap
 
-> **Статус на 21.08.2026** | Ядро v1.4.0, 46 детектора (GS041 crypto-secrets ✅, GS042 Solidity SAST ✅, GS043 honeypot ✅, GS044 trading-bots ✅) | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~5–10% → GS008 починен (CRIT 4302→~1794 на 100 проектах), следующий GS000-LEGACY → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13** | **Web3/Crypto ✅ — все 5 фич готовы**
-
-Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
-
----
-
-## 1. Сводный обзор
-
-| Трек | Статус | Что осталось |
-|---|---|---|
-| Ядро сканера (v0.11→v1.3) | ✅ готово (42 детектора) | ничего |
-| Безопасность (аудит 28 + AppSec DD-01..DD-10) | ✅ 28/28 + 10/10 закрыто (13.08 + 15.08) | PostgreSQL для multi-tenant (DD-09) |
-| Pre-фильтр файлов (скорость скана) | ✅ `6071d5d` (15.08) | ничего |
-| Packages split (core/cli/cloud) | ✅ 0.5.1–0.5.5 все запушены (`78222dc`,`e821e62`,`b29af60`,`b1cb6c6`) | ничего |
-| Production rollout Phase 0–5 | ✅ завершён | наблюдение |
-| Юридическая защита | 🟡 частично (BSL + SPDX + CLA + авторство ✅, trademark ❌) | trademark (1 нед) |
-| SaaS Cloud (S1–S4) | 📝 спроектирован | PostgreSQL + RLS (S1) + реализация (~4 мес) |
-| Enterprise hybrid agent | 📝 спроектирован | реализация (2–3 нед) |
-| VSCode extension | ✅ v0.32 + Open VSX опубликован | GitHub Releases (Marketplace РФ ❌) |
-| Киллер-фичи | 🟡 #2 supply-chain + #3 exploit-refinement ✅ | #1 runtime validator Phase 1+2 ✅ (in-process + strace) |
-| GSC Bot (виральность чужих PR) | 📝 спроектирован (`docs/GSC_BOT.md`) | реализация 0.8.1–0.8.5 (~2 нед, до S1) |
-| Языки JS/TS/Go (top-5 детекторов) | 📝 спроектирован | 0.9.1–0.9.5 — снять потолок роста |
-| Security Debt Ledger (фин. слой) | 📝 спроектирован | 0.10.1–0.10.4 — риск в деньгах |
-| Agentic self-healing (итеративный) | 📝 спроектирован | 0.11.1–0.11.4 — patch→test→retry |
-| Продажа / пилоты | 🔜 | one-pager, покупатели, пилоты |
-| **Web3/Crypto (Solidity SAST, crypto-secrets, web3 SCA, bots, honeypot)** | ✅ **все 5 фич готовы** (GS041, GS042, GS043, GS044, web3 SCA) | ничего |
+> **v1.4.0** · 47 детекторов (43 registry + 4 engines) · schema 33 · 165 модулей · 610 тестов
+> **Приоритет №1: Precision** — снижение FP до уровня, пригодного для пилотов (Фаза 8).
 
 ---
 
-## 2. Что СДЕЛАНО
+## Фазы
 
-### 2.1. Ядро GSC (✅ production)
+### Фаза 1 — Packages split ✅
+Физическое разделение монолита на `gsc_core` / `gsc_cli` / `gsc_cloud` с shim-совместимостью.
 
-| Версия | Результат | Доказательство |
-|---|---|---|
-| v0.11–v0.16 | MVP → finding_key, feedback, REST API | 8/8 тестов |
-| v0.17 | PoC Auto-Generation + GS025 AI-provenance | redaction gate |
-| v0.18 | Exploit Chain Composer + chains feedback | schema 18 |
-| v0.19 | Temporal Mutation Tracker + auto-resolve | backfill 400K, schema 19 |
-| v0.20 | Security Invariant Engine + GS028 | safe-mode |
-| v0.21 | AST taint, cross-file chains, hard calibration | 17/17 |
-| v0.22–v0.26 | Rollout Phase 1–5: dry-run → warn → feedback → blocking CRITICAL → blocking standard | overrides, bypass, shadow |
+- ✅ 0.5.1 движок + детекторы → `gsc_core/`
+- ✅ 0.5.2 CLI + сканеры → `gsc_cli/`
+- ✅ 0.5.3 SaaS → `gsc_cloud/`
+- ✅ 0.5.4 collector + тесты
+- ✅ 0.5.5 shim + cleanup (272+ тестов зелёные)
 
-**Итог (v1.4.0, 19.08):** 42 детектора, 426 тестов (75 файлов), calibration 13/13, schema 33, 154 модуля (packages split 0.5.1–0.5.3), self-learning + MTTFV SLA + attack-path graph + fix-quality + PoC watermarking + perf + pre-commit.
+### Фаза 2 — Runtime Validator (IAST) 🟡
+Proof-of-Fix верификация по факту runtime-эксплуатации, а не по stdout-маркеру.
 
-**Web3/Crypto (21.08):** GS041 crypto-secrets ✅ — EVM private keys, BIP39 mnemonics (checksum-validated), Bitcoin WIF (base58check), exchange API keys (Binance/Coinbase/OKX/Kraken/Bybit), Hardhat/Foundry privateKey. FP-защита: dev-ключи Hardhat/Anvil/Ganache, all-zero, случайные фразы без checksum. 20 тестов, full regression 483 passed. Wordlist: `gsc_core/gsc_detectors/data/bip39_english.txt`.
+- ✅ Phase 1 — in-process monkeypatch (`open`/`subprocess`/`socket`) → JSONL
+- ✅ Phase 2 — strace-валидация (`openat`/`connect`/`execve`)
+- ⏳ Phase 3 — Falco/Tetragon-агент (enterprise on-prem, >10 тенантов) — отложено
 
-**GS044 trading-bots ✅ (21.08):** 4 правила — replay-подпись (nonce из timestamp / hardcoded nonce / recvWindow=0), непроверенные параметры ордера из `input()`/argv/HTTP, check-then-act race без лока, незащищённый trading-endpoint. FP-защита: лексическая code-mask (комментарии/строки/docstring), фильтр definition-vs-вызов, требование `(` (инвокация, не import), trading-context gate. 16 тестов, full regression 497 passed. Smoke на `~/bybit-ws` (1520 файлов) → 0 FP после фиксов.
+### Фаза 3 — Sale-Readiness 🟡
+Готовность к due-diligence покупателя.
 
-**Web3 SCA ✅ (21.08):** расширение движка SCA под криптовалюты. 1) **solc-детекция** — парсит `pragma solidity` из `.sol`, `foundry.toml` (`solc=`/`solc_version=`), `hardhat.config.js`/`truffle-config.js` (`version:`); экосистема `Solidity`, семерка known-bugs из официального `ethereum/solidity docs/bugs.json` + правило `<0.8.0` unchecked-arithmetic (SWC-101). 2) **ручной CVE-фид** `gsc_core/gsc_web3_feed.py` — 8 verified OpenZeppelin CVE (сорс: OSV.dev) как offline-fallback с dedup против живого OSV. 18 тестов, full regression 515 passed. Judge (Nemotron) поймал баг сравнения версий разной длины → исправлен паддингом до 4 компонент (semver).
+- ✅ pytest collectible, README evidence-backed, MCP server (read-only)
+- ⏳ design partners + paid pilots (бизнес)
+- ⏳ IP: waivers, chain-of-title (юр.)
+- ❌ benchmark vs Semgrep/CodeQL/Bandit
+- ❌ enterprise hardening (sandbox threat model, egress, LLM retention)
 
-**GS042 Solidity SAST ✅ (21.08):** 7 правил с SWC-маппингом — reentrancy (SWC-107), tx.origin (SWC-115), delegatecall (SWC-112), selfdestruct без access control (SWC-106), unchecked arithmetic (SWC-101), unchecked `.send()` (SWC-104), прямой DEX-оракул getReserves/getAmountsOut/slot0 (CWE-841). Solidity-aware code-mask (комментарии `//` `/* */` + строки). 13 тестов.
+### Фаза 4 — GSC Bot 📝
+GitHub App для виральной верификации чужих PR (`@gsc scan` → badge + check-run). Спроектирован (`docs/GSC_BOT.md`), ~2 недели.
 
-**GS043 honeypot/rug-pull ✅ (21.08):** 4 эвристики presence-based (dedup по файлу) — trading-toggle (honeypot), blacklist, unrestricted mint (guard-проверка), fee/tax setter. Переиспользует `solidity_code_mask` из GS042. 9 тестов.
+### Фаза 5 — Языки JS/TS/Go 📝
+Снять потолок роста (сейчас Python-first, на Java/JS/Go 0–слабый TPR). Фокус top-5 детекторов, ~2–3 недели.
 
-Итого Web3/Crypto: **+4 детектора (GS041–GS044) + web3 SCA**, 46 детекторов, full regression 542 passed.
+### Фаза 6 — Security Debt Ledger 📝
+Перевод тех. риска в деньги: severity + EPSS → annualized loss. Язык бюджета для CISO. ~1–2 недели.
 
-### 2.1a. Безопасность (✅ 15.08) — укрупнённый итог
+### Фаза 7 — Agentic Self-Healing 📝
+patch → test → retry до success (поверх существующего `gsc_selfhealing.py`). ~2 недели.
 
-Два независимых аудита + сканер-оптимизация закрыты полностью.
+### Фаза 8 — Precision 🔄 (приоритет №1)
+Снижение FP. Цель: precision CRIT ≥50%, HIGH ≥40% до старта пилотов.
 
-| Аудит | Результат | Коммит |
-|---|---|---|
-| Внутренний аудит (28 замечаний) | 28/28 закрыто (8 коммитов) | 13.08 |
-| AppSec due-diligence (DD-01..DD-10) | 10/10 закрыто (2×P0, 4×P1, 4×P2) | `56c6d6f` (15.08) |
-| Pre-фильтр файлов (скорость скана) | не зависает на больших проектах | `6071d5d` (15.08) |
+- ✅ GS008 (голый eval) + data-quality (395K rule_id) + CVE→inactive + голые chmod/Rust-unsafe деактивированы
+- ✅ перезамер 100 проектов (22.08): CRIT 4302 → **1309**, recall 10/10, precision CRIT ~15% (было ~4–5%)
+- 🔄 следующий: GS001 (613 CRIT = 47%) — secrets-экстрактор, главный FP-кластер (django 343, next.js 165, ruff 111)
 
-**Ключевое из DD-аудита (закрыто):**
-- **DD-01/DD-02 (P0):** сгенерированный PoC больше не наследует `os.environ`
-  (env-whitelist вместо `{**os.environ}`) и выполняется в контейнере → rlimit
-  fallback, а не на хосте через bare `subprocess.run`.
-- **DD-03:** `_detect_fn` использует реальный registry, не заглушку из 4 правил.
-- **DD-09 (частично):** `scan_jobs` UPDATE scoped по `tenant_id`; сам PostgreSQL — см. Трек 1 (S1).
+### Фаза 9 — Traction / GTM ⚠️
+4★, 0 форков → 100+.
 
-**Вывод аудитора:** после P0-фиксов GSC готов к single-tenant/self-hosted пилоту.
-Multi-tenant SaaS требует PostgreSQL (→ Трек 1 S1).
+- ICP-фокус: mid-size SaaS с активным CI/CD
+- Ниша: security для LLM-generated code (GS025 AI-provenance — козырь)
+- Free/paid граница явно задокументирована
 
-### 2.2. Юридическая защита (🟡 6/7)
+### Фаза 10 — DD-аудит ✅
+Supply-chain immutability + воспроизводимый benchmark как доказательная база.
 
-| Задача | Статус | Дата |
-|---|---|---|
-| BSL 1.1 LICENSE + README-блок | ✅ сделано | 05.08.2026 |
-| SPDX-заголовки (93 файла) | ✅ сделано | 05.08.2026 |
-| CONTRIBUTING.md с CLA | ✅ сделано | 13.08.2026 |
-| Доказательства авторства (AUTHORSHIP.md) | ✅ сделано | 21.08.2026 |
-| Аудит лицензий зависимостей (LICENSE_AUDIT.md) | ✅ сделано | 21.08.2026 |
-| Аудит истории на секреты (GITLEAKS_AUDIT.md) | ✅ сделано | 21.08.2026 |
-| Trademark | ❌ не сделано | — |
-
-### 2.3. Документация и дизайн (✅ готово)
-
-| Артефакт | Содержание |
-|---|---|
-| PROJECT.md | полная документация ядра |
-| GSC_APPLY_PLAN.md | 31 коммит v0.17→v0.26, откаты, бэкапы |
-| GSC_ROADMAP.md | этот файл |
-| GSC_SAAS_ROADMAP.md | стратегия SaaS, тарифы, архитектура |
-| План S1 | 9 коммитов: Docker, PgBackend, queue, API v2, metering |
-| План S2 | 8 коммитов: GitHub App, порт подсистем в PG |
-| План S3 | 7 коммитов: dashboard, OAuth, Stripe |
-| План S4 | 9 коммитов: audit log, SSO, DPA, SOC 2, Marketplace, Cloud 1.0 |
-| План Enterprise agent | 8 блоков: runner, activation, ingest, air-gap |
-| План VSCode v0.32 | 8 блоков: diagnostics, CodeLens, chains, SARIF |
-
-### 2.4. Инфраструктура (✅)
-
-| Компонент | Статус |
-|---|---|
-| Docker Compose (Cloud 1.0) | ✅ закоммичен |
-| Kubernetes-манифесты | ✅ закоммичены |
-| FastAPI-роутеры | ✅ закоммичены |
-| Все SQL-схемы | ✅ закоммичены |
-| Dashboard (Next.js scaffold) | ✅ закоммичен |
+- ✅ 0.14.1 sandbox escape CI (Docker + fail-closed gate)
+- ✅ 0.14.2 benchmark 100 проектов (pinned revisions)
+- ✅ 0.14.3 SBOM + provenance
+- ✅ 0.14.4 свои образы digest-pin
+- ✅ 0.14.5 AutoFix draft-only
 
 ---
 
-## 3. Что НАДО СДЕЛАТЬ
+## Сквозные направления
 
-### Трек 0. Юридический фундамент — доделать (1 день)
+### Юридический фундамент 🟡
+BSL → Apache 2.0 + Commercial ✅, SPDX ✅, CLA ✅, gitleaks ✅, аудит лицензий ✅, доказательства авторства ✅. **Trademark ⏳** (1 нед).
 
-| # | Задача | Статус |
-|---|---|---|
-| 0.1 | BSL 1.1 + README-блок + SPDX | ✅ |
-| 0.2 | CONTRIBUTING.md с CLA | ✅ сделано (13.08) |
-| 0.3 | Прогнать историю на секреты (gitleaks) | ✅ `docs/GITLEAKS_AUDIT.md` (21.08) |
-| 0.4 | Аудит лицензий зависимостей (нет GPL) | ✅ `docs/LICENSE_AUDIT.md` (21.08) |
-| 0.5 | Trademark на название/логотип | ❌ 1 нед (заявка) |
-| 0.6 | Зафиксировать доказательства авторства | ✅ `docs/AUTHORSHIP.md` (21.08) |
-| 0.7 | **Пересмотр лицензии**: BSL → Apache 2.0 + Commercial dual | ✅ сделано (13.08: `LICENSE` + `COMMERCIAL.md` + README) |
+### SaaS Cloud (S1–S4) 📝
+Спроектирован (~16–20 нед): S1 PostgreSQL+RLS → S2 GitHub App → S3 Dashboard+Stripe → S4 SOC2+Marketplace. До S1 позиционируется как single-tenant/self-hosted.
 
-### Трек 0.5. Packages split — физический рефакторинг (3–5 дней)
+### Enterprise hybrid agent 📝
+Runner + activation + air-gap. 2–3 недели (после S1).
 
-> Аудит A-01. Логический уровень уже закрыт в `e06c355` (deps + extras + artifacts).
-> Здесь — физический перенос в `gsc_core/` `gsc_cli/` `gsc_cloud/` с shim-совместимостью.
+### VSCode extension ✅
+Open VSX опубликован. GitHub Releases (VSCode Marketplace недоступен из РФ).
 
-**Цель:** убрать конкурирующие runtime-слои (gsc.py, gsc_external.py, server.py, cloud/, enterprise/ в одном checkout) и дать чистый seam для S1 PgBackend.
-
-| # | Порция | Содержание | Проверка |
-|---|---|---|---|
-| 0.5.1 | `gsc_core/` | ✅ `78222dc`: движок + детекторы (db, blocking, detectors/, invariant_engine, compliance, sca, epss, federated, ast_dataflow, iac, secrets_core, yaml_rules) + shim (module-aliasing), 272 passed | `tests/test_schema_integrity.py` + `tests/test_corpus.py` зелёные |
-| 0.5.2 | `gsc_cli/` | ✅ `e821e62`: CLI+сканеры (51 модуль + main.py) — orchestrator, external, github_adapter, poc_*, chain/exploit, proofoffix, selfhealing, archaeology, forecast, nlpolicy, nuclei, dast, sbom, spdx, revalidate, runtime_validator + `scripts/`; entry `gsc = "gsc_cli.main:main"` | `gsc scan` + `gsc external-scan` smoke |
-| 0.5.3 | `gsc_cloud/` | ✅ `b29af60`: SaaS (39 модулей) — api, api_v2, auth, billing, tenancy, sso, worker(s), scan_queue, marketplace, federated_server, mcp_server, pr_commands + `server.py` shim | TestClient smoke (signup/stats/findings) |
-| 0.5.4 | dev/collector | ✅ `b1cb6c6`: `gsc_collector/` → `gsc_core/gsc_collector/` (Scrapy-пакет + runner + scrapy.cfg); `enterprise/tests/test_enterprise.py` → `tests/`; `include-package-data=false` + MANIFEST `prune` | wheel без dev-артефактов (grep чист) |
-| 0.5.5 | shim + cleanup | ✅ `b1cb6c6`: cron/scripts мигрированы на `gsc_core`/`gsc_cli`/`gsc_cloud` (21 импорт); shim остаются re-export; `build/lib` удалён | `compileall` OK + 272 passed/5 skipped + reconcile ALL MATCH |
-
-**Инварианты:** каждый шаг — зелёные тесты перед/после; shim-слой живёт до миграции всех cron-скриптов; `build/lib` (вторичная копия) удаляется в 0.5.5.
-
-**Зависимость:** выполняется ДО S1 (PgBackend требует чистого core/cloud разделения).
-
-### Трек 0.6. Runtime Validator — IAST-lite (из экспертизы #1)
-
-> Proof-of-Fix верификация по факту runtime-эксплуатации, не по stdout-маркеру.
-> Решение принято (13.08): phased **D → B → F**, без eBPF `--privileged` (откатывает F-05).
-
-| # | Порция | Содержание | Проверка |
-|---|---|---|---|
-| 0.6.1 | Phase 1 (in-process) | ✅ `gsc_runtime_validator.py`: monkeypatch `open`/`subprocess.Popen`/`socket.connect` в `sitecustomize.py` (hook через PYTHONPATH), лог факта вызова в JSONL | coverage 93%, 8 тестов |
-| 0.6.2 | Phase 2 (strace) | ✅ `strace_validate()` в `gsc_runtime_validator.py`: `strace -f -e trace=openat,connect,execve` + парсинг + фильтр | фильтр по workdir, 6 тестов |
-| 0.6.3 | Phase 3 (Falco/Tetragon) | отдельный privileged-агент в K8s, только enterprise on-prem (>10 тенантов) | изоляция от GSC core |
-
-**Готово к этому треку:** Phase 0 замер + fmt-dispatch фикс + HTTP-server runner (`gsc_pof_sandbox`) + **Phase 3 multi-module runner** (entrypoint-детект + symlink-проекта).
-
-### Трек 0.7. Sale-Readiness (из sell-side аудита, 13.08)
-
-> Готовность к due-diligence покупателя. Блокеры P0→P1 из `GSC_SALE_ANALYSIS.pdf`.
-
-| # | Задача | Статус |
-|---|---|---|
-| 0.7.1 | pytest collectible (sys.exit guard + rename custom runner) | ✅ 105 passed / 4 skipped |
-| 0.7.2 | README overclaims «*Nobody*» → evidence-backed таблица | ✅ |
-| 0.7.3 | MCP server (scan/findings/explain/fix/verify tools) | ✅ read-only (scan_repo/list_findings/verify_finding) |
-| 0.7.4 | Traction: 5 design partners, 2 paid pilots | ⏳ бизнес |
-| 0.7.5 | IP: assignment, contributor waivers, SPDX, clean chain-of-title | ⏳ юрид. |
-| 0.7.6 | Benchmark: 100–150 fixtures + сравнение Semgrep/CodeQL/Bandit | ❌ новый трек |
-| 0.7.7 | Enterprise hardening: sandbox threat model, egress policy, LLM no-LLM/retention | ❌ P1 |
-| 0.7.8 | Repo hygiene: build artifacts, `.next`, `.repowise`, stable/experimental split | 🟡 частично |
-
-**Позиционирование:** «verified remediation engine» (PoC → patch → re-verify), **не** «SAST-конкурент Snyk».
-Оценка sell-side: $100–500K tech / $50–150K acqui-hire сейчас; $1–3M после 3–6 мес доказательств (benchmark, pilots).
-
-### Трек 0.8. GSC Bot — виральная верификация чужих PR (спроектирован, ~2 недели)
-
-> GitHub App `gsc-bot` приходит на ЧУЖОЙ PR по вызову `@gsc`/`/gsc` и оставляет плашку GSC
-> (badge + отчёт + label `gsc-verified` + check-run). Каждый такой PR = бесплатная реклама.
-> **Полная спека:** `docs/GSC_BOT.md`. Активирует no-op `co_author_trailer()` из `gsc_signature.py`.
-
-| # | Фаза | Содержание | Проверка |
-|---|---|---|---|
-| 0.8.1 | App scaffold | манифест, webhook endpoint, HMAC-верификация, installation token | неверный HMAC → 401 |
-| 0.8.2 | `/gsc scan` | diff-скан → комментарий `🔍 Scanned by GSC` + badge + отчёт (adapter+signature) | `@gsc scan` → комментарий < 30 сек |
-| 0.8.3 | `/gsc verify` | PoF по изменениям → label `gsc-verified` (только verified) + check-run | label только при verified |
-| 0.8.4 | co-author | `Co-authored-by: gsc-bot[bot]` (закрывает no-op trailer) | трейлер линкуется |
-| 0.8.5 | авто-детект | AI-сигнатура в PR body → предложение `@gsc scan` | PR от Claude/Codex → предложение |
-
-**Безопасность (non-negotiable):** HMAC webhook, installation token short-lived, permissions
-least-privilege (`contents: read`, `pull-requests/issues/checks: write`, БЕЗ `contents: write`),
-fork-код — static + sandbox (не исполняется с привилегиями), private key — age-шифрование.
-
-**Связь с S2:** 0.8 — минимальный **standalone** App (SQLite, self-hosted), можно ДО S1.
-S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
-
-### Трек 0.9. Языковая поддержка JS/TS/Go (спроектирован, ~2–3 недели)
-
-> Снять потолок роста: GSC сейчас Python-first, на Java/JS/Go детекторы дают 0–слабый TPR
-> (замерено: GS004/GS020 0% TPR на OWASP Java). Фокус — top-5 детекторов, НЕ все 41.
-
-| # | Фаза | Содержание | Проверка |
-|---|---|---|---|
-| 0.9.1 | Инвентаризация | какие из GS005/GS029/GS020/GS004/GS022 language-specific, какие Python-only | карта детектор×язык |
-| 0.9.2 | GS029 + GS005 → JS/TS | secrets (language-agnostic) + SQLi (паттерны схожи) | benchmark TPR>0 на JS/TS |
-| 0.9.3 | GS020 + GS022 → JS/TS | DOM XSS (React/DOM sinks) + open redirect | benchmark TPR>0 |
-| 0.9.4 | GS004 + Go | нативные Go-паттерны (`net/http`, `database/sql`) | benchmark TPR>0 |
-| 0.9.5 | Calibration | синтетический benchmark (`ghsa_benchmark`) на JS/TS/Go, замер TPR/FPR | FPR на Python НЕ вырос |
-
-### Трек 0.10. Security Debt Ledger — финансовый слой (спроектирован, ~1–2 недели)
-
-> Перевести технический риск в деньги (annualized loss) для CISO/CIO — язык бюджета.
-> Сырьё уже есть: EPSS (exploitability) + compliance mapping (CWE/OWASP/PCI) + SCA (OSV.dev).
-
-| # | Фаза | Содержание | Проверка |
-|---|---|---|---|
-| 0.10.1 | Формула | severity + EPSS → annualized loss (impact × likelihood × EPSS) | число $ на finding |
-| 0.10.2 | CVSS/insurance | CVSS-вектор + cyber-insurance скоринг (CWE → страховая категория) | маппинг CWE→$ |
-| 0.10.3 | Отчёт | «Security Debt» в CLI/отчёте: суммарный $ по проекту, топ по деньгам | `gsc debt --repo .` |
-| 0.10.4 | Тренд | debt во времени (снижение после фиксов) | график до/после |
-
-### Трек 0.11. Agentic Self-Healing — итеративный (спроектирован, ~2 недели)
-
-> Эволюция self-healing (НЕ новая фича): агент не только генерит патч, но гоняет CI/test
-> до успеха. Поверх существующего `gsc_selfhealing.py` (patch + PoF + sandbox уже есть).
-
-| # | Фаза | Содержание | Проверка |
-|---|---|---|---|
-| 0.11.1 | CI-гейт | после patch — прогон тестов (pytest/unit) перед PoF | патч проходит тесты |
-| 0.11.2 | Итерация | patch→test→retry при fail (до N попыток) | авто-retry до успеха |
-| 0.11.3 | Trail | фиксация попыток в evidence (какой патч прошёл) | audit trail попыток |
-| 0.11.4 | Лимиты | MAX_RETRY + budget + rollback | нет бесконечного цикла |
-
-### Трек 0.12. Precision — от шума к доверию (из экспертного анализа 18.08)
-
-> Первый замер `benchmark/PRECISION_REPORT.md`: **2 695 находок** на 10 проектах,
-> **precision CRITICAL ~8–12%** (129 CRITICAL, 244 HIGH). Это главный технический барьер
-> перед пилотами и инвесторами: «42 детектора» звучит мощно, но ~9 из 10 CRITICAL — FP.
-
-| # | Порция | Содержание | Проверка |
-|---|---|---|---|
-| 0.12.1 | Baseline | PRECISION_REPORT.md как эталон (10 проектов, 2695 находок) | цифры заморожены |
-| 0.12.2 | Precision-hunt | ✅ 21.08 — 100-проектный benchmark выявил топ FP: **GS008 голый eval (2508 CRIT, 58% всего CRIT-шума)** + фейковые CVE (NVD-коллектор). GS008 починен (`ba4c2d0`): голевые `\beval\(` паттерны в БД+сиде убраны, оставлен уточнённый `eval/exec with user input`. CVE-фид → inactive refs (`3059552`). CRIT 4302 → ~1794. Добито 22.08: движок `multi_lang.py` голый eval/Function CRITICAL→HIGH (`GS036-eval_dynamic`), Java deser `GS008`→`GS046` (коллизия rule_id), taint-guard `eval_user_input` расширен (new Function, location.hash, cookies, fs, Koa). | CRITICAL ~25%, следующий шаг GS000-LEGACY |
-| 0.12.3 | Data-quality | ✅ 22.08 — 395 933 null `rule_id` атрибутированы по источнику: quality-noise → `GS000-LEGACY` (394 803), AI (echelon=3) → `GS999-AI` (64 625), collector → `COLLECTED` (65). Продьюсеры починены: `_cron_collect.py` INSERT `rule_id`, `gsc_deep_reducer.py` → `GS999-AI`, `main.py` INSERT fallback `GS999-unknown` | 0 null rule_id |
-| 0.12.4 | Self-learning пруф | метрика TP до/после ночного revalidate (federated, DP) | график TP-тренда (инвестору) |
-
-**Цель:** precision CRITICAL ≥ 50%, HIGH ≥ 40% до старта пилотов (S2). Без этого любой
-pitch про «self-learning» разобьётся вопросом «какой % фич реально работает в production».
-
-### Трек 0.13. Traction / GTM (из экспертного анализа 18.08)
-
-> Экспертный разбор: реальный дифференциатор — **Proof-of-Fix** (уже есть). Главные gap'ы —
-> **traction (4★, 0 форков)** и **распыление ICP**. Ниша: AI-generated code (Semgrep/Snyk
-> заточены под human-written code, у LLM-кода другие паттерны уязвимостей).
-
-| # | Порция | Содержание | Проверка |
-|---|---|---|---|
-| 0.13.1 | ICP-фокус | 1 ICP: mid-size SaaS с активным CI/CD (FinTech/Gov — только после Series A) | ICP в one-pager |
-| 0.13.2 | GitHub traction | 4★ → 100+: README+демо, HALL_OF_FAME, GSC Bot (Трек 0.8) как виральность, HN/Product Hunt | звёзды/форки растут |
-| 0.13.3 | Ниша AI-code | позиционирование «security для LLM-generated code» (GS025 AI-provenance — козырь) | pitch + статья/блог |
-| 0.13.4 | Free/paid граница | явно: что бесплатно (self-hosted OSS), что платно (Cloud/Enterprise) — до выхода к инвестору | таблица в one-pager |
-| 0.13.5 | GHAS-митигация | CodeQL бесплатен для public → позиционировать «verified remediation + AI-code», НЕ «бесплатный SAST» | pitch не пересекается с GHAS |
-
-### Трек 0.14. DD-аудит 19.08 (Manus AI) — закрытие остатков
-
-> Независимая техническая/коммерческая экспертиза (срез `0d4a9fe`). Закрыто за сессию
-> 20.08: P1-01 digest-pin (postgres/redis/python/node), P1-02 calibration commit (13/13),
-> P2-01 scan-mode test contract, P2-02 canonical test command. Осталось:
-
-| # | Порция | Содержание | Проверка |
-|---|---|---|---|
-| 0.14.1 | Sandbox escape CI | ✅ 22.08 — escape-suite (network/write/host-read) проходит в реальном Docker (ci.yml собирает `gsc-sandbox:latest`; 606 passed / 5 skipped на 3×Python, escape-тесты не скипаются) + `GSC_FORCE_RLIMIT=1` CI-гейт покрывает fail-closed (GSC-001) | `verified=true` только после isolated before/after |
-| 0.14.2 | Внешний benchmark | ✅ 21.08 — 100 проектов (90 clean + 10 vuln), pinned revisions, батчами по 10 от мелких (LOC+звёзды). recall 8/10, 64 831 находок, per-rule FP-карта. `benchmark/PRECISION_REPORT_100.md` + `precision_report_ALL_100.json` | опубликовано (`43af63a`) |
-| 0.14.3 | SBOM + provenance | ✅ generate/sign SBOM есть (`sbom` + `sbom-verify` v0.33); осталось SLSA provenance + CI admission «digest only» | CI блокирует tag-only image refs |
-| 0.14.4 | Свои образы digest | ✅ 20.08 — helm digest-механизм (`values.digest` + deployment template); pin digest при релизе | production manifests digest-pinned при сборке |
-| 0.14.5 | AutoFix draft-only | ✅ 20.08 — draft-only + least-privilege + human approval + audit trail (GSC_EXCLUSIVE_FEATURES.md) | SCM permission model задокументирован |
-
-**Цель:** закрыть формальные P1/P2 аудита до выхода к инвесторам — supply-chain
-immutability + воспроизводимый benchmark как доказательная база для «enterprise-grade».
-
-### Трек 1. SaaS Cloud 1.0 (≈ 16–20 недель)
-
-| Этап | Содержание | Оценка |
-|---|---|---|
-| S1 | Docker-образ, PgBackend + RLS, tenants/api_keys, Redis queue + worker, /api/v2, metering | 3–4 нед |
-| S2 | GitHub App (install/webhooks), порт chains/mutations/overrides в PG, /gsc через webhook | 3 нед |
-| S3 | Dashboard (Next.js), GitHub OAuth, Stripe checkout + webhook, квоты/402 | 4–5 нед |
-| S4 | Audit log + hash chain, SSO OIDC, retention/deletion, SOC 2 Type I→II + ISO27001 prep, Marketplace, GA-гейт | 6–8 нед |
-
-> **DD-09 (AppSec-аудит, 15.08):** PostgreSQL + RLS в S1 — не просто «масштаб», а
-> обязательное условие **tenant isolation** для multi-tenant SaaS. SQLite-часть
-> (`scan_jobs` UPDATE по `tenant_id`) уже закрыта; полный переезд на PG — в S1.
-> До S1 GSC позиционируется как single-tenant/self-hosted.
-
-### Трек 2. Enterprise hybrid agent (2–3 недели)
-
-Runner + activation key + ingest API + кэш/offline + air-gap экспорт. Запускать после S1.
-
-### Трек 3. VSCode extension (Open VSX ✅, VSCode Marketplace ❌ РФ)
-
-Scaffold есть (gsc-vscode, v0.32). **Опубликовано в Open VSX** (13.08): `poliakarmai.gsc-security v1.0.0`
-(`open-vsx.org/extension/poliakarmai/gsc-security`) — VSCodium/Gitpod/Theia/CodeSpaces.
-VSCode Marketplace (Azure DevOps) недоступен из РФ — заменён на Open VSX + GitHub Releases.
-
-### Трек 4. Бизнес и продажа (параллельно)
-
-| # | Задача | Когда |
-|---|---|---|
-| 4.1 | One-pager/тизер | неделя 1 |
-| 4.2 | Демо-сценарий: цепочка атак + PoC за 15 мин | неделя 1–2 |
-| 4.3 | Список 20–30 покупателей + шаблон письма | неделя 2 |
-| 4.4 | Пилоты: 3–5 команд | после S2 |
-| 4.5 | Конверсия пилотов в Team/Business | после S3 |
-| 4.6 | Листинги: GitHub Marketplace, Product Hunt, VSCode Marketplace | после S4 |
-| 4.7 | Интеграции: GitHub Advanced Security + GitLab Ultimate (native, не только PR Adapter) | после S3 |
-| 4.8 | Решение по лицензии: Apache 2.0 + Commercial dual (множитель цены, см. Трек 0.7) | немедленно |
+### Бизнес / продажи 🔜
+one-pager → пилоты (после S2) → платежи (после S3).
 
 ---
 
-## 4. Зависимости
+## Что уже готово (сжато)
 
-```
-Трек 0 (CLA + trademark, 1 день)
-   │
-   └──► Трек 0.5 (packages split, 3–5 дней) ──► Трек 1 S1 ──► S2 ──► S3 ──► S4 ──► Cloud 1.0 GA
-                 │         │         │       │
-                 ├──► Трек 2 (agent) ─┘
-                 │
-                 └──► Трек 3 (VSCode, параллельно)
-```
-
-Трек 4 (бизнес) параллельно всему: one-pager → пилоты (после S2) → платежи (после S3).
+- **Ядро v0.11 → v1.4.0:** PoC Auto-Generation, Exploit Chain Composer, Temporal Mutation Tracker, Invariant Engine, calibration 13/13, self-learning, MTTFV SLA, attack-graph, fix-quality, PoC watermarking, pre-commit.
+- **Web3/Crypto:** GS041–GS044 + web3 SCA (Solidity SAST, crypto-secrets, honeypot, trading-bots).
+- **Безопасность:** внутренний аудит 28/28 + AppSec DD-01..10 ✅, pre-фильтр файлов ✅.
+- **Инфраструктура:** Docker Compose, k8s-манифесты, FastAPI-роутеры, SQL-схемы, dashboard scaffold.
 
 ---
 
-## 5. Рекомендуемый план
+## Рекомендуемый план
 
 | Период | Фокус | Результат |
 |---|---|---|
-| Авг 2026 | Трек 0 (CLA, gitleaks, аудит) + **Трек 0.5 packages split** + CONTRIBUTING.md + one-pager | Юридически чистый репо + чистые core/cli/cloud |
-| Авг–Сен 2026 | S1 + S2 + VSCode | GitHub App, 3–5 пилотов |
+| Авг–Сен 2026 | Фаза 8 (Precision) + S1/S2 + VSCode | GitHub App, 3–5 пилотов |
 | Окт–Дек 2026 | S3 + первые платежи | Private beta Cloud |
 | Янв–Мар 2027 | S4 + Enterprise agent | Cloud 1.0 GA |
-| Апр–Июн 2027 | Marketplace-листинги, рост / продажа | Traction → решение |
+| Апр–Июн 2027 | Marketplace-листинги, рост | Traction → решение |
+
+**Критический путь:** Precision (Фаза 8) → S1 → S2 → пилоты → S3 → платежи ≈ 3 месяца до первых денег.
 
 ---
 
-## 6. Критический путь к выручке
-
-```
-CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3 (4 нед) → платежи
-```
-≈ 3 месяца до первых денег.
-
----
-
-## 7. Риски
+## Риски
 
 | Риск | Митигация |
 |---|---|
-| Соло-пропускная способность | Жёсткая последовательность S1→S4 |
+| Соло-пропускная способность | Жёсткая последовательность фаз |
+| Precision CRIT ~5–10% | Фаза 8 в работе (GS008/GS000-LEGACY закрываются) |
+| GHAS (CodeQL бесплатен для public) | Ниша AI-code + verified remediation, не «бесплатный SAST» |
+| Конкуренты (Semgrep/Snyk) | Ниша self-learning + PoC, PLG free-tier |
 | LLM-расходы при росте | Глобальный кэш по fingerprint, regex-first |
 | Стоимость SOC 2 | Отложить до Enterprise-спроса |
-| Конкуренты (Semgrep/Snyk) | Ниша self-learning + PoC, PLG free-tier |
-| GHAS (CodeQL бесплатен для public) — экзистенциальный в OSS | Ниша AI-code + verified remediation, НЕ «бесплатный SAST» (Трек 0.13.5) |
-| Precision CRITICAL ~5–10% (FP-шум; GS008 починен −58%) | GS000-LEGACY data-quality + полный перегон benchmark (Трек 0.12.3) |
-
----
-
-*Обновлено: 18.08.2026*

@@ -1,6 +1,6 @@
 {
   "batch": 4,
-  "scanned_at": "2026-08-21T11:35:27.293789+00:00",
+  "scanned_at": "2026-08-22T11:13:21.611058+00:00",
   "projects": [
     {
       "name": "starlette",
@@ -11,10 +11,10 @@
       "mb": 4.1,
       "stars": 12553,
       "batch": 4,
-      "total": 16,
+      "total": 11,
       "critical": 2,
-      "high": 4,
-      "elapsed": 11.0
+      "high": 1,
+      "elapsed": 10.3
     },
     {
       "name": "dayjs",
@@ -27,8 +27,8 @@
       "batch": 4,
       "total": 43,
       "critical": 0,
-      "high": 5,
-      "elapsed": 14.9
+      "high": 2,
+      "elapsed": 16.7
     },
     {
       "name": "loguru",
@@ -39,10 +39,10 @@
       "mb": 2.5,
       "stars": 24074,
       "batch": 4,
-      "total": 5,
+      "total": 3,
       "critical": 0,
       "high": 2,
-      "elapsed": 12.1
+      "elapsed": 13.7
     },
     {
       "name": "commander.js",
@@ -55,8 +55,8 @@
       "batch": 4,
       "total": 21,
       "critical": 1,
-      "high": 15,
-      "elapsed": 8.6
+      "high": 9,
+      "elapsed": 9.6
     },
     {
       "name": "boto3",
@@ -67,10 +67,10 @@
       "mb": 12.7,
       "stars": 9872,
       "batch": 4,
-      "total": 25,
+      "total": 24,
       "critical": 0,
-      "high": 24,
-      "elapsed": 28.2
+      "high": 23,
+      "elapsed": 25.0
     },
     {
       "name": "zerolog",
@@ -83,8 +83,8 @@
       "batch": 4,
       "total": 357,
       "critical": 2,
-      "high": 282,
-      "elapsed": 10.0
+      "high": 0,
+      "elapsed": 8.9
     },
     {
       "name": "express",
@@ -98,7 +98,7 @@
       "total": 8,
       "critical": 0,
       "high": 4,
-      "elapsed": 9.7
+      "elapsed": 9.4
     },
     {
       "name": "yargs",
@@ -111,8 +111,8 @@
       "batch": 4,
       "total": 91,
       "critical": 0,
-      "high": 49,
-      "elapsed": 9.1
+      "high": 2,
+      "elapsed": 8.9
     },
     {
       "name": "jinja",
@@ -123,10 +123,10 @@
       "mb": 1.4,
       "stars": 11744,
       "batch": 4,
-      "total": 24,
+      "total": 14,
       "critical": 0,
-      "high": 20,
-      "elapsed": 13.0
+      "high": 11,
+      "elapsed": 12.3
     },
     {
       "name": "golang-migrate",
@@ -139,30 +139,23 @@
       "batch": 4,
       "total": 301,
       "critical": 27,
-      "high": 183,
-      "elapsed": 18.3
+      "high": 64,
+      "elapsed": 17.5
     }
   ],
   "per_rule": {
-    "GS014": {
-      "MEDIUM": 1
-    },
-    "GS029": {
-      "MEDIUM": 1,
-      "CRITICAL": 2,
-      "HIGH": 3
-    },
     "GS015": {
       "INFO": 1
     },
     "GS037-hardcoded_password": {
       "HIGH": 1
     },
-    "GS037-path_traversal_join": {
-      "HIGH": 11
-    },
     "GS040-pii_email": {
       "LOW": 2
+    },
+    "GS029": {
+      "CRITICAL": 2,
+      "HIGH": 3
     },
     "GS005": {
       "CRITICAL": 1
@@ -175,8 +168,9 @@
       "MEDIUM": 1
     },
     "GS000-LEGACY": {
-      "HIGH": 478,
-      "MEDIUM": 111
+      "LOW": 564,
+      "HIGH": 21,
+      "MEDIUM": 4
     },
     "GS025-eval_usage": {
       "HIGH": 66
@@ -186,9 +180,6 @@
     },
     "?": {
       "INFO": 74
-    },
-    "GS037": {
-      "MEDIUM": 3
     },
     "GS037-pickle_load_any": {
       "HIGH": 3
@@ -219,9 +210,6 @@
     },
     "GS002": {
       "HIGH": 1
-    },
-    "GS008": {
-      "HIGH": 2
     },
     "GS004": {
       "HIGH": 2

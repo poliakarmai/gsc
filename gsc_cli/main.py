@@ -617,6 +617,9 @@ def check_source_driven(project: str, path: Path) -> list[dict]:
             import hashlib
             finding_key = hashlib.sha256(f"{rule_id}{fpath}{snippet}".encode()).hexdigest()[:12]
             category = p.get("category", "MEDIUM")
+            # code-quality patterns (noise_tier='quality') are not security vulns
+            if p.get("noise_tier") == "quality":
+                category = "INFO"
             # Downgrade CVE findings in security-rule files (patterns looking for vulns)
             if "CVE-" in p.get("title", "") and _is_security_rule_file(fpath):
                 category = "LOW"
@@ -655,6 +658,8 @@ def check_security(project: str, path: Path) -> list[dict]:
                 import hashlib
                 finding_key = hashlib.sha256(f"{rule_id}{fpath}{snippet}".encode()).hexdigest()[:12]
                 category = p.get("category", "MEDIUM")
+                if p.get("noise_tier") == "quality":
+                    category = "INFO"
                 if "CVE-" in p.get("title", "") and _is_security_rule_file(fpath):
                     category = "LOW"
                 findings.append({

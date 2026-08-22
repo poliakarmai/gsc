@@ -1,6 +1,6 @@
 {
   "batch": 3,
-  "scanned_at": "2026-08-21T11:33:12.309625+00:00",
+  "scanned_at": "2026-08-22T11:11:09.196047+00:00",
   "projects": [
     {
       "name": "superagent",
@@ -14,7 +14,7 @@
       "total": 12,
       "critical": 1,
       "high": 3,
-      "elapsed": 7.6
+      "elapsed": 9.2
     },
     {
       "name": "uvicorn",
@@ -28,7 +28,7 @@
       "total": 8,
       "critical": 0,
       "high": 0,
-      "elapsed": 10.3
+      "elapsed": 11.4
     },
     {
       "name": "cheerio",
@@ -41,8 +41,8 @@
       "batch": 3,
       "total": 38,
       "critical": 1,
-      "high": 6,
-      "elapsed": 9.2
+      "high": 3,
+      "elapsed": 13.9
     },
     {
       "name": "marshmallow",
@@ -56,7 +56,7 @@
       "total": 1,
       "critical": 0,
       "high": 0,
-      "elapsed": 8.6
+      "elapsed": 9.2
     },
     {
       "name": "cobra",
@@ -69,8 +69,8 @@
       "batch": 3,
       "total": 144,
       "critical": 0,
-      "high": 136,
-      "elapsed": 8.5
+      "high": 2,
+      "elapsed": 8.9
     },
     {
       "name": "httpx",
@@ -81,10 +81,10 @@
       "mb": 3.5,
       "stars": 15428,
       "batch": 3,
-      "total": 9,
+      "total": 8,
       "critical": 0,
       "high": 0,
-      "elapsed": 10.3
+      "elapsed": 10.2
     },
     {
       "name": "flask",
@@ -95,10 +95,10 @@
       "mb": 2.6,
       "stars": 72140,
       "batch": 3,
-      "total": 47,
+      "total": 29,
       "critical": 2,
-      "high": 21,
-      "elapsed": 14.0
+      "high": 9,
+      "elapsed": 14.1
     },
     {
       "name": "dvws-node",
@@ -112,7 +112,7 @@
       "total": 210,
       "critical": 16,
       "high": 123,
-      "elapsed": 12.7
+      "elapsed": 13.9
     },
     {
       "name": "httpie",
@@ -123,10 +123,10 @@
       "mb": 2.9,
       "stars": 38437,
       "batch": 3,
-      "total": 17,
+      "total": 14,
       "critical": 0,
-      "high": 4,
-      "elapsed": 14.4
+      "high": 2,
+      "elapsed": 15.5
     },
     {
       "name": "python-dateutil",
@@ -137,9 +137,9 @@
       "mb": 1.2,
       "stars": 2632,
       "batch": 3,
-      "total": 8,
+      "total": 3,
       "critical": 0,
-      "high": 3,
+      "high": 0,
       "elapsed": 10.3
     }
   ],
@@ -154,8 +154,7 @@
       "LOW": 6
     },
     "GS029": {
-      "CRITICAL": 5,
-      "MEDIUM": 9
+      "CRITICAL": 5
     },
     "GS002": {
       "HIGH": 2
@@ -168,8 +167,9 @@
       "MEDIUM": 2
     },
     "GS000-LEGACY": {
-      "MEDIUM": 16,
-      "HIGH": 141
+      "MEDIUM": 2,
+      "LOW": 151,
+      "HIGH": 3
     },
     "GS015": {
       "INFO": 20
@@ -186,8 +186,8 @@
     "GS020": {
       "LOW": 20,
       "CRITICAL": 1,
-      "MEDIUM": 2,
-      "HIGH": 6
+      "HIGH": 6,
+      "MEDIUM": 2
     },
     "?": {
       "INFO": 24
@@ -197,12 +197,6 @@
     },
     "GS010": {
       "MEDIUM": 2
-    },
-    "GS037-path_traversal_join": {
-      "HIGH": 14
-    },
-    "GS008": {
-      "HIGH": 2
     },
     "GS004": {
       "HIGH": 1
@@ -255,8 +249,7 @@
       "MEDIUM": 1
     },
     "GS014": {
-      "LOW": 1,
-      "MEDIUM": 1
+      "LOW": 1
     },
     "GS017": {
       "HIGH": 1

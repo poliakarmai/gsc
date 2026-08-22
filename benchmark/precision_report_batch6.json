@@ -1,6 +1,6 @@
 {
   "batch": 6,
-  "scanned_at": "2026-08-21T11:41:48.085111+00:00",
+  "scanned_at": "2026-08-22T11:19:55.501094+00:00",
   "projects": [
     {
       "name": "axios",
@@ -13,8 +13,8 @@
       "batch": 6,
       "total": 87,
       "critical": 0,
-      "high": 72,
-      "elapsed": 17.2
+      "high": 18,
+      "elapsed": 20.4
     },
     {
       "name": "echo",
@@ -27,8 +27,8 @@
       "batch": 6,
       "total": 522,
       "critical": 0,
-      "high": 459,
-      "elapsed": 13.2
+      "high": 19,
+      "elapsed": 17.2
     },
     {
       "name": "gorm",
@@ -41,8 +41,8 @@
       "batch": 6,
       "total": 512,
       "critical": 2,
-      "high": 449,
-      "elapsed": 12.1
+      "high": 19,
+      "elapsed": 12.9
     },
     {
       "name": "got",
@@ -55,8 +55,8 @@
       "batch": 6,
       "total": 389,
       "critical": 18,
-      "high": 313,
-      "elapsed": 13.0
+      "high": 113,
+      "elapsed": 14.1
     },
     {
       "name": "mocha",
@@ -70,7 +70,7 @@
       "total": 58,
       "critical": 0,
       "high": 26,
-      "elapsed": 19.3
+      "elapsed": 18.7
     },
     {
       "name": "tornado",
@@ -81,10 +81,10 @@
       "mb": 3.1,
       "stars": 22180,
       "batch": 6,
-      "total": 88,
+      "total": 66,
       "critical": 4,
-      "high": 38,
-      "elapsed": 25.2
+      "high": 23,
+      "elapsed": 24.5
     },
     {
       "name": "lodash",
@@ -98,7 +98,7 @@
       "total": 101,
       "critical": 0,
       "high": 37,
-      "elapsed": 21.7
+      "elapsed": 21.8
     },
     {
       "name": "rich",
@@ -109,10 +109,10 @@
       "mb": 20.0,
       "stars": 57101,
       "batch": 6,
-      "total": 29,
+      "total": 28,
       "critical": 0,
-      "high": 4,
-      "elapsed": 36.8
+      "high": 3,
+      "elapsed": 34.0
     },
     {
       "name": "falcon",
@@ -123,10 +123,10 @@
       "mb": 5.4,
       "stars": 9794,
       "batch": 6,
-      "total": 30,
+      "total": 26,
       "critical": 0,
-      "high": 14,
-      "elapsed": 30.2
+      "high": 10,
+      "elapsed": 29.3
     },
     {
       "name": "pyramid",
@@ -137,18 +137,18 @@
       "mb": 10.7,
       "stars": 4091,
       "batch": 6,
-      "total": 36,
+      "total": 22,
       "critical": 4,
-      "high": 10,
-      "elapsed": 49.2
+      "high": 9,
+      "elapsed": 51.4
     }
   ],
   "per_rule": {
     "GS000-LEGACY": {
-      "HIGH": 1130,
-      "MEDIUM": 36,
+      "LOW": 1159,
+      "MEDIUM": 8,
       "CRITICAL": 3,
-      "LOW": 7
+      "HIGH": 6
     },
     "GS003": {
       "LOW": 86
@@ -192,15 +192,14 @@
     },
     "GS029": {
       "HIGH": 14,
-      "CRITICAL": 19,
-      "MEDIUM": 13
+      "CRITICAL": 19
     },
     "GS007": {
       "HIGH": 4,
       "INFO": 29
     },
     "GS014": {
-      "MEDIUM": 7
+      "MEDIUM": 1
     },
     "?": {
       "INFO": 85
@@ -226,17 +225,13 @@
       "MEDIUM": 10
     },
     "GS008": {
-      "LOW": 5,
-      "HIGH": 5
+      "LOW": 5
     },
     "GS015": {
       "INFO": 9
     },
     "GS037-hardcoded_password": {
       "HIGH": 5
-    },
-    "GS037-path_traversal_join": {
-      "HIGH": 16
     },
     "GS037-debug_true": {
       "MEDIUM": 4
@@ -263,9 +258,6 @@
       "HIGH": 1
     },
     "YAML-ECB85AD8": {
-      "MEDIUM": 1
-    },
-    "GS037": {
       "MEDIUM": 1
     },
     "GS037-pickle_load_any": {

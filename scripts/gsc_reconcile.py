@@ -25,6 +25,7 @@ def main() -> int:
     standalone = meta["detectors_standalone"]
     schema = meta["schema"]
     version = meta["version"]
+    modules = meta["modules"]
 
     issues: list[str] = []
 
@@ -41,6 +42,16 @@ def main() -> int:
     # Schema version
     if f"Schema:** {schema}" not in ag and f"schema {schema}" not in ag.lower():
         issues.append(f"AGENTS.md: schema {schema} not found")
+
+    # Module count (was a blind spot — reconcile only checked version/detectors/schema)
+    for name, text in (("AGENTS.md", ag), ("README.md", readme)):
+        if (f"{modules} модул" not in text and f"{modules} modules" not in text.lower()
+                and f"Modules:** {modules}" not in text):
+            issues.append(f"{name}: modules {modules} not found")
+
+    # Test-file count (informational — exact test count is pytest --collect-only)
+    test_files = len(list((GSC / "tests").glob("test_*.py")))
+    print(f"  test files (tests/test_*.py): {test_files} — exact count via `pytest --collect-only -q | tail -1`")
 
     print("=" * 60)
     print("GSC RECONCILIATION")

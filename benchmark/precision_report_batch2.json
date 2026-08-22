@@ -1,6 +1,6 @@
 {
   "batch": 2,
-  "scanned_at": "2026-08-21T11:31:26.301009+00:00",
+  "scanned_at": "2026-08-22T11:09:12.480366+00:00",
   "projects": [
     {
       "name": "node-fetch",
@@ -13,8 +13,8 @@
       "batch": 2,
       "total": 24,
       "critical": 0,
-      "high": 3,
-      "elapsed": 11.2
+      "high": 1,
+      "elapsed": 5.4
     },
     {
       "name": "mux",
@@ -27,8 +27,8 @@
       "batch": 2,
       "total": 105,
       "critical": 0,
-      "high": 97,
-      "elapsed": 10.0
+      "high": 0,
+      "elapsed": 5.0
     },
     {
       "name": "koa",
@@ -42,7 +42,7 @@
       "total": 4,
       "critical": 0,
       "high": 0,
-      "elapsed": 12.2
+      "elapsed": 6.2
     },
     {
       "name": "sqlx",
@@ -55,8 +55,8 @@
       "batch": 2,
       "total": 142,
       "critical": 1,
-      "high": 90,
-      "elapsed": 10.7
+      "high": 9,
+      "elapsed": 5.2
     },
     {
       "name": "logrus",
@@ -69,8 +69,8 @@
       "batch": 2,
       "total": 118,
       "critical": 0,
-      "high": 86,
-      "elapsed": 6.1
+      "high": 2,
+      "elapsed": 5.7
     },
     {
       "name": "bottle",
@@ -81,10 +81,10 @@
       "mb": 3.4,
       "stars": 8775,
       "batch": 2,
-      "total": 28,
+      "total": 13,
       "critical": 0,
-      "high": 17,
-      "elapsed": 13.3
+      "high": 8,
+      "elapsed": 15.0
     },
     {
       "name": "wire",
@@ -97,8 +97,8 @@
       "batch": 2,
       "total": 352,
       "critical": 0,
-      "high": 116,
-      "elapsed": 16.4
+      "high": 6,
+      "elapsed": 21.2
     },
     {
       "name": "chi",
@@ -111,8 +111,8 @@
       "batch": 2,
       "total": 159,
       "critical": 0,
-      "high": 138,
-      "elapsed": 7.6
+      "high": 1,
+      "elapsed": 8.2
     },
     {
       "name": "requests",
@@ -126,7 +126,7 @@
       "total": 8,
       "critical": 0,
       "high": 1,
-      "elapsed": 9.0
+      "elapsed": 9.8
     },
     {
       "name": "DVWA",
@@ -140,14 +140,14 @@
       "total": 168,
       "critical": 39,
       "high": 74,
-      "elapsed": 16.1
+      "elapsed": 14.7
     }
   ],
   "per_rule": {
     "GS000-LEGACY": {
-      "HIGH": 512,
-      "MEDIUM": 125,
-      "LOW": 22
+      "LOW": 656,
+      "MEDIUM": 2,
+      "HIGH": 1
     },
     "GS003": {
       "LOW": 110
@@ -177,13 +177,9 @@
     },
     "GS029": {
       "HIGH": 2,
-      "MEDIUM": 3,
       "CRITICAL": 8
     },
     "GS010": {
-      "MEDIUM": 2
-    },
-    "GS037": {
       "MEDIUM": 2
     },
     "GS020": {
@@ -191,15 +187,6 @@
       "HIGH": 16
     },
     "GS037-pickle_load_any": {
-      "HIGH": 2
-    },
-    "GS037-path_traversal_join": {
-      "HIGH": 7
-    },
-    "GS037-high_risk": {
-      "INFO": 1
-    },
-    "GS008": {
       "HIGH": 2
     },
     "GS004": {
