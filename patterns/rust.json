@@ -1,5 +1,5 @@
 [
-  {"echelon": 1, "category": "HIGH", "title": "Rust: unwrap() in non-test code", "pattern_type": "regex", "search_pattern": "\\.unwrap\\(\\)(?!.*#\\[test\\])", "description": "unwrap() panics on None — use ? operator or proper error handling"},
+  {"echelon": 1, "category": "LOW", "title": "Rust: unwrap() in non-test code", "pattern_type": "regex", "search_pattern": "\\.unwrap\\(\\)(?!.*#\\[test\\])", "description": "unwrap() panics on None — use ? operator or proper error handling"},
   {"echelon": 1, "category": "MEDIUM", "title": "Rust: expect() without message", "pattern_type": "regex", "search_pattern": "\\.expect\\(\"\"\\)", "description": "Empty expect message — add descriptive error context"},
   {"echelon": 1, "category": "LOW", "title": "Rust: println! in library", "pattern_type": "regex", "search_pattern": "println!\\(", "description": "Use log/tracing macros instead of println"},
   {"echelon": 2, "category": "CRITICAL", "title": "Rust: unsafe block", "pattern_type": "regex", "search_pattern": "\\bunsafe\\s*\\{", "description": "Unsafe block bypasses Rust safety guarantees — document why"},

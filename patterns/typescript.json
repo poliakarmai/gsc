@@ -1,5 +1,5 @@
 [
-  {"echelon": 1, "category": "HIGH", "title": "TS: any type escape hatch", "pattern_type": "regex", "search_pattern": ":\\s*any\\b|as\\s+any\\b", "description": "TypeScript any bypasses type checking — use unknown or proper type"},
+  {"echelon": 1, "category": "LOW", "title": "TS: any type escape hatch", "pattern_type": "regex", "search_pattern": ":\\s*any\\b|as\\s+any\\b", "description": "TypeScript any bypasses type checking — use unknown or proper type"},
   {"echelon": 1, "category": "MEDIUM", "title": "TS: console.log in production", "pattern_type": "regex", "search_pattern": "console\\.(log|warn|debug)\\(", "description": "Use structured logger instead of console"},
   {"echelon": 1, "category": "LOW", "title": "TS: ts-ignore comment", "pattern_type": "regex", "search_pattern": "@ts-ignore", "description": "@ts-ignore suppresses type errors — fix the type instead"},
   {"echelon": 2, "category": "HIGH", "title": "TS: eval() usage", "pattern_type": "regex", "search_pattern": "\\beval\\(", "description": "eval() without user-input check — pattern-only, no taint (not CRITICAL); real RCE caught by eval/exec-with-user-input rules"},
