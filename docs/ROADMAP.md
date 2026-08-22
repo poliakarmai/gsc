@@ -78,10 +78,15 @@
 
 | Фича | Статус |
 |------|--------|
-| `gsc_sca_license.py` — детект лицензий из manifest (requirements/pyproject/package.json/go.mod) | ⬜ |
-| Классификация: permissive (MIT/Apache/BSD) vs copyleft (GPL/LGPL/AGPL) vs proprietary | ⬜ |
-| Policy-движок: approved/forbidden lists → flag/block copyleft в коммерческом коде | ⬜ |
-| Интеграция с SBOM (SPDX уже есть) + PR-gate | ⬜ |
+| `gsc_sca_license.py` — детект лицензий из manifest (requirements/pyproject/package.json/go.mod) | ✅ |
+| Классификация: permissive (MIT/Apache/BSD) vs copyleft (GPL/LGPL/AGPL) vs proprietary | ✅ |
+| Policy-движок: approved/forbidden lists → flag/block copyleft в коммерческом коде | ✅ |
+| Интеграция с SBOM (SPDX уже есть) + PR-gate | ⬜ следующий шаг |
+
+✅ Реализовано (22.08.2026): `gsc_core/gsc_sca_license.py` — SPDX-классификация
+(permissive / weak-copyleft / copyleft / proprietary), license lookup PyPI/npm
+(без API-ключа), policy-gate `evaluate_policy()`, CLI `gsc sca-license`.
+Тесты `tests/test_sca_license.py` (8 passed). SBOM/PR-gate интеграция — отдельно.
 
 ⚠️ Вторично: threat modeling сейчас только STRIDE (`gsc_threat_model.py`) — добавить DREAD/PASTA/attack trees.
 

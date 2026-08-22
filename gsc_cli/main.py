@@ -2464,6 +2464,14 @@ def main():
         [sys.executable, str(_GSC_ROOT / 'gsc_sca.py'),
          '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else [])))
 
+    # gsc sca-license (Ф5.5: SPDX license compliance)
+    p_scalic = sub.add_parser('sca-license', help='Scan dependency licenses (SPDX compliance)')
+    p_scalic.add_argument('--repo', default='.')
+    p_scalic.add_argument('--json', action='store_true')
+    p_scalic.set_defaults(func=lambda a: subprocess.run(
+        [sys.executable, str(_GSC_ROOT / 'gsc_sca_license.py'),
+         '--repo', a.repo] + (['--json'] if getattr(a,'json',False) else [])))
+
     # gsc federated (v0.30: cross-tenant learning)
     p_fed = sub.add_parser('federated', help='Federated self-learning')
     p_fed.add_argument('action', choices=['status','submit','fetch','weights'])
