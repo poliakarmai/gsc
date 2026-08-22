@@ -1,6 +1,6 @@
 # GSC ROADMAP — что сделано и что предстоит
 
-> **Статус на 21.08.2026** | Ядро v1.4.0, 46 детектора (GS041 crypto-secrets ✅, GS042 Solidity SAST ✅, GS043 honeypot ✅, GS044 trading-bots ✅) | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~8–12% ⚠️ → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13** | **Web3/Crypto ✅ — все 5 фич готовы**
+> **Статус на 21.08.2026** | Ядро v1.4.0, 46 детектора (GS041 crypto-secrets ✅, GS042 Solidity SAST ✅, GS043 honeypot ✅, GS044 trading-bots ✅) | Безопасность: аудит 28/28 ✅ + AppSec DD-01..DD-10 ✅ + pre-фильтр ✅ | Cloud: спроектирован (S1–S4), PostgreSQL ⏳ | VSCode: Open VSX ✅ | Фичи: attack-graph + fix-quality + MTTFV SLA + watermark + perf-бенчмарк + pre-commit ✅, runtime validator #1 Phase 1+2 ✅ (in-process + strace) | **Precision CRITICAL ~5–10% → GS008 починен (CRIT 4302→~1794 на 100 проектах), следующий GS000-LEGACY → Трек 0.12** | **Traction 4★ ⚠️ → Трек 0.13** | **Web3/Crypto ✅ — все 5 фич готовы**
 
 Сводная дорожная карта по всем трекам: ядро, безопасность, rollout, SaaS, Enterprise, VSCode, бизнес.
 
@@ -247,8 +247,8 @@ S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
 | 0.12.1 | Baseline | PRECISION_REPORT.md как эталон (10 проектов, 2695 находок) | цифры заморожены |
-| 0.12.2 | Precision-hunt | срез FP из БД по `rule_id×category`, фикс топ-генераторов FP (GS001 extractor уже починен) | CRITICAL 8–12% → ≥30% |
-| 0.12.3 | Data-quality | пустые/заголовочные `rule_id` → `GS000-LEGACY`, де-контаминация категорий | 0 мусорных rule_id |
+| 0.12.2 | Precision-hunt | ✅ 21.08 — 100-проектный benchmark выявил топ FP: **GS008 голый eval (2508 CRIT, 58% всего CRIT-шума)** + фейковые CVE (NVD-коллектор). GS008 починен (`ba4c2d0`): голевые `\beval\(` паттерны в БД+сиде убраны, оставлен уточнённый `eval/exec with user input`. CVE-фид → inactive refs (`3059552`). CRIT 4302 → ~1794. | CRITICAL ~25%, следующий шаг GS000-LEGACY |
+| 0.12.3 | Data-quality | ⏳ СЛЕДУЮЩИЙ — пустые/заголовочные `rule_id` → `GS000-LEGACY` (сейчас 505 CRIT + 26 678 HIGH по 100 проектам, топ после GS008), де-контаминация категорий | 0 мусорных rule_id |
 | 0.12.4 | Self-learning пруф | метрика TP до/после ночного revalidate (federated, DP) | график TP-тренда (инвестору) |
 
 **Цель:** precision CRITICAL ≥ 50%, HIGH ≥ 40% до старта пилотов (S2). Без этого любой
@@ -277,7 +277,7 @@ pitch про «self-learning» разобьётся вопросом «како�
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
 | 0.14.1 | Sandbox escape CI | запустить escape-suite (network/write/host-read) в реальном Docker/Podman runner — сейчас 5 тестов скипаются без runtime | `verified=true` только после isolated before/after |
-| 0.14.2 | Внешний benchmark | ≥100 проектов, pinned revisions, blind labels, per-rule precision/recall/F1 | методология + raw результаты опубликованы |
+| 0.14.2 | Внешний benchmark | ✅ 21.08 — 100 проектов (90 clean + 10 vuln), pinned revisions, батчами по 10 от мелких (LOC+звёзды). recall 8/10, 64 831 находок, per-rule FP-карта. `benchmark/PRECISION_REPORT_100.md` + `precision_report_ALL_100.json` | опубликовано (`43af63a`) |
 | 0.14.3 | SBOM + provenance | ✅ generate/sign SBOM есть (`sbom` + `sbom-verify` v0.33); осталось SLSA provenance + CI admission «digest only» | CI блокирует tag-only image refs |
 | 0.14.4 | Свои образы digest | ✅ 20.08 — helm digest-механизм (`values.digest` + deployment template); pin digest при релизе | production manifests digest-pinned при сборке |
 | 0.14.5 | AutoFix draft-only | ✅ 20.08 — draft-only + least-privilege + human approval + audit trail (GSC_EXCLUSIVE_FEATURES.md) | SCM permission model задокументирован |
@@ -370,7 +370,7 @@ CLA (1 день) → S1 (3–4 нед) → S2 (3 нед) → пилоты → S3
 | Стоимость SOC 2 | Отложить до Enterprise-спроса |
 | Конкуренты (Semgrep/Snyk) | Ниша self-learning + PoC, PLG free-tier |
 | GHAS (CodeQL бесплатен для public) — экзистенциальный в OSS | Ниша AI-code + verified remediation, НЕ «бесплатный SAST» (Трек 0.13.5) |
-| Precision CRITICAL 8–12% (FP-шум) | Precision-hunt + data-quality до пилотов (Трек 0.12) |
+| Precision CRITICAL ~5–10% (FP-шум; GS008 починен −58%) | GS000-LEGACY data-quality + полный перегон benchmark (Трек 0.12.3) |
 
 ---
 
