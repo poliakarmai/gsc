@@ -27,13 +27,18 @@ def entropy(s: str) -> float:
 def fingerprint_secret(value: str) -> str:
     return hashlib.sha256(value.strip().strip("'\"'").encode()).hexdigest()[:32]
 
-def extract_secrets(content: str, file_path: str) -> List[Dict]:
+def extract_secrets(content: str, file_path: str, include_value: bool = False) -> List[Dict]:
+    """Извлечь секреты. При include_value=True добавляет 'value' в память
+    (для live-verify Фазы 8) — значение НЕ персистится, только fingerprint."""
     found = []
     for pattern, stype, cap_idx, min_ent in PATTERNS:
         for m in pattern.finditer(content):
             value = m.group(cap_idx) if cap_idx else m.group(0)
             if min_ent > 0 and entropy(value) < min_ent: continue
-            found.append({"secret_type": stype, "file_path": file_path,
-                          "line_number": content[:m.start()].count("\n")+1,
-                          "fingerprint": fingerprint_secret(value)})
+            item = {"secret_type": stype, "file_path": file_path,
+                    "line_number": content[:m.start()].count("\n")+1,
+                    "fingerprint": fingerprint_secret(value)}
+            if include_value:
+                item["value"] = value
+            found.append(item)
     return found

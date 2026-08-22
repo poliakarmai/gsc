@@ -126,10 +126,16 @@ TruffleHog убивает этот шум проверкой: один запр�
 
 | Фича | Статус |
 |------|--------|
-| `gsc_secrets_verifier.py` — движок live-проверки | ⬜ |
-| Проверка провайдеров (GitHub/AWS/Slack/Stripe/Postgres) | ⬜ |
-| По ответу 200/401/403 → `status: verified\|dead` → авто-FP/deboost | ⬜ |
-| Кэш результатов (не дёргать API повторно на ре-скане) | ⬜ |
+| `gsc_secrets_verifier.py` — движок live-проверки | ✅ |
+| Проверка провайдеров (GitHub/AWS/Slack/Stripe/Postgres) | 🟡 GitHub/Slack/Stripe ✅, AWS/DB TODO |
+| По ответу 200/401/403 → `status: verified\|dead` → авто-FP/deboost | ✅ `deboost_dead` |
+| Кэш результатов (не дёргать API повторно на ре-скане) | ✅ |
+
+✅ Реализовано (22.08.2026): `gsc_cli/gsc_secrets_verifier.py` — `detect_provider` (по
+префиксу: ghp_/xoxb-/sk_live_/AKIA/…), `verify_secret` (GitHub `GET /user`, Slack
+`auth.test`, Stripe `GET /account`; 200=live, 401/403=dead), кэш по fingerprint,
+`deboost_dead` (dead → confidence ×0.3 + metadata). Redaction: значение не логируется,
+только fingerprint. Тесты 6 passed. TODO: AWS (SigV4) + DB (connect-test) + пайплайн-интеграция.
 | Entropy + redaction (только fingerprint, без значения) | ✅ `gsc_secrets_core.py` + GS029 |
 | Cross-repo корреляция (сильнее TruffleHog) | ✅ `gsc_crossrepo_secrets.py` |
 
