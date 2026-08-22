@@ -67,6 +67,8 @@ class FixEvidence:
     dast_verified: Optional[bool] = None
     dast_output: str = ""
     dast_exit: Optional[int] = None
+    # Фаза 10.2: число мутаций, прошедших adversarial re-attack (superficial fix).
+    adversarial_mutations: int = 0
     # GSC-003: audit-visible DAST/deep-verify status — never silently skipped.
     dast_skipped: bool = False
     dast_skip_reason: str = ""
@@ -129,6 +131,38 @@ class FixSandbox:
 
 class PatchApplyError(Exception):
     pass
+
+
+def _adversarial_recheck(finding: dict, poc_code: str, sandbox_dir: str, fmt: str) -> int:
+    """Фаза 10.2 (Shinobi): мутировать base-payload и перезапустить PoC.
+
+    Поверхностный фикс (фильтр одной строки) заблокирует исходный payload, но
+    пропустит обфускацию той же атаки. Возвращает число мутаций, которые всё ещё
+    эксплуатируют — >0 означает «залатали симптом, не причину».
+    """
+    try:
+        from gsc_poc_deterministic import DETERMINISTIC_RULES
+        from gsc_poc_mutator import mutate
+    except Exception:
+        return 0
+    rule_id = finding.get("rule_id", "")
+    base_payload = kind = None
+    for prefix, (k, payload, _marker, _f) in DETERMINISTIC_RULES.items():
+        if rule_id.startswith(prefix):
+            base_payload, kind = payload, k
+            break
+    if not base_payload or base_payload not in poc_code:
+        return 0  # payload не в PoC литералом (LLM-сгенерированный) — пропуск
+    n = 0
+    for variant in mutate(base_payload, kind):
+        mutated_poc = poc_code.replace(base_payload, variant, 1)
+        try:
+            res = _run_poc_sandboxed(mutated_poc, sandbox_dir, fmt=fmt)
+        except Exception:
+            continue
+        if res.get("exploited"):
+            n += 1
+    return n
 
 
 # ── PoC execution with marker contract (C1) + isolation (H1) ──
@@ -438,6 +472,14 @@ class ProofOfFix:
                 post = _run_poc_sandboxed(poc_code, sb.dir.name, fmt=poc_fmt,
                                           target_code=patched)
                 exploited_after = post["exploited"]
+
+                # Фаза 10.2: adversarial re-attack — если оригинальный PoC заблокирован,
+                # прогоняем мутированные payload'ы той же атаки.
+                if ev.exploited_before and exploited_after is False:
+                    adv = _adversarial_recheck(finding, poc_code, sb.dir.name, poc_fmt)
+                    if adv > 0:
+                        exploited_after = True
+                        ev.adversarial_mutations = adv
 
                 level = self._classify(
                     ev.exploited_before, exploited_after,
