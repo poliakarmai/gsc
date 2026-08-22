@@ -174,7 +174,7 @@ Proof-of-Fix превращает SAST из «детектора» в «маши
 
 ---
 
-**GSC** — открытая самообучающаяся AppSec-платформа (Python, 42 детектора, полный
+**GSC** — открытая самообучающаяся AppSec-платформа (Python, 47 детекторов, полный
 цикл `detect → prove → fix → verify → heal → predict`).
 
 - Код: https://github.com/poliakarmai/gsc

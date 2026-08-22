@@ -31,7 +31,7 @@
     "rule_id": "GS005",
     "echelon": 2,
     "noise_tier": "normal",
-    "description": "GS005: SQL/NoSQL injection — 78 patterns, 9 languages, per-pattern precision tracking (v2.0)",
+    "description": "GS005: SQL/NoSQL injection — 75 patterns, 9 languages, per-pattern precision tracking (v2.0)",
     "covered_by_fixture": true
   },
   {
@@ -221,6 +221,41 @@
     "echelon": 1,
     "noise_tier": "normal",
     "description": "GS040: PII & Information Disclosure — hardcoded emails, secrets in comments, debug tokens, private IPs in config",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS041",
+    "echelon": 2,
+    "noise_tier": "sensitive",
+    "description": "Crypto secrets — EVM private keys, BIP39 mnemonics, WIF, exchange API keys",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS042",
+    "echelon": 2,
+    "noise_tier": "sensitive",
+    "description": "Solidity SAST — reentrancy, tx.origin, delegatecall, selfdestruct, unchecked arithmetic, unchecked call return, oracle manipulation",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS043",
+    "echelon": 2,
+    "noise_tier": "sensitive",
+    "description": "Honeypot / rug-pull — trading switch, blacklist, unrestricted mint, owner-controlled fee",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS044",
+    "echelon": 2,
+    "noise_tier": "sensitive",
+    "description": "Trading bot security — replay-prone signing, unvalidated orders, check-then-act races, unauthenticated trading endpoints",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS045",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE",
     "covered_by_fixture": true
   },
   {

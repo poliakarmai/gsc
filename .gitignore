@@ -1,7 +1,10 @@
 __pycache__/
 *.pyc
 *.pyo
+.pytest_cache/
+.mypy_cache/
 node_modules/
+.next/
 *.egg-info/
 .vsix
 .DS_Store
@@ -20,6 +23,7 @@ dist/
 graphify-out/
 # Generated precision brief — recreated by scripts/gsc_gen_detector_brief.py
 docs/GSC_DETECTOR_PRECISION_BRIEF.md
+docs/GSC_DETECTOR_PRECISION_BRIEF.pdf
 venv/
 .venv/
 OWASPBenchmark/

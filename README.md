@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 46 (42 registry + 4 engines) · **Schema:** v33 · **Modules:** 159
+**Version:** v1.4.0 · **Detectors:** 47 (43 registry + 4 engines) · **Schema:** v33 · **Modules:** 165
 <!-- GSC-META-END -->
 
 

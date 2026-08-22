@@ -232,7 +232,7 @@ signup→stats/findings/scans/dashboard 200.
 | **Security Archaeology** — trace через git history | Никто |
 | **Cross-repo Secrets** — отслеживание между репо | Никто |
 | **Attack Chain Composer** — связывание уязвимостей в цепочки | Никто |
-| **42 детектора** (SAST+SCA+Secrets+IaC+SBOM) | Больше Semgrep Community |
+| **47 детекторов** (SAST+SCA+Secrets+IaC+SBOM) | Больше Semgrep Community |
 
 ---
 

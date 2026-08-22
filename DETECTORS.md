@@ -2,7 +2,7 @@
 
 Сгенерировано из registry — `scripts/gsc_detector_matrix.py`. SSOT по числам: `gsc_meta.py`.
 
-Всего registry-детекторов: **38** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 42).
+Всего registry-детекторов: **43** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 47).
 
 | Rule ID | Echelon | Noise | Fixture | Description |
 |---------|---------|-------|---------|-------------|
@@ -10,7 +10,7 @@
 | GS002 | 2 | normal | ✅ | World-readable sensitive files (keys, certs, env files) |
 | GS003 | 1 | normal | ✅ | Debug / diagnostic statements left in production code |
 | GS004 | 2 | normal | ✅ | Dangerous subprocess/shell usage (command injection, shell=True, os.system, eval) |
-| GS005 | 2 | normal | ✅ | GS005: SQL/NoSQL injection — 78 patterns, 9 languages, per-pattern precision tracking (v2.0) |
+| GS005 | 2 | normal | ✅ | GS005: SQL/NoSQL injection — 75 patterns, 9 languages, per-pattern precision tracking (v2.0) |
 | GS007 | 2 | normal | ✅ | Broken Access Control — IDOR, sequential ID enumeration, cross-tenant access, admin panel exposure, unprotected file downloads, unauthorized ticket operations |
 | GS008 | 1 | normal | ✅ | Dead code: constants and feature flags declared but never used |
 | GS009 | 2 | normal | ✅ | Supply chain scanner: detects packages, editor extensions, MCP configs, and developer-tool metadata across package ecosystems (npm, PyPI, Go, Ruby, Composer, Homebrew, MCP, editor-extension, browser-extension, agent-skill). Powered by Perplexity Bumblebee. |
@@ -38,6 +38,11 @@
 | GS038 | 1 | sensitive | ⬜ | GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto |
 | GS039 | 1 | sensitive | ✅ | GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal |
 | GS040 | 1 | normal | ✅ | GS040: PII & Information Disclosure — hardcoded emails, secrets in comments, debug tokens, private IPs in config |
+| GS041 | 2 | sensitive | ✅ | Crypto secrets — EVM private keys, BIP39 mnemonics, WIF, exchange API keys |
+| GS042 | 2 | sensitive | ✅ | Solidity SAST — reentrancy, tx.origin, delegatecall, selfdestruct, unchecked arithmetic, unchecked call return, oracle manipulation |
+| GS043 | 2 | sensitive | ✅ | Honeypot / rug-pull — trading switch, blacklist, unrestricted mint, owner-controlled fee |
+| GS044 | 2 | sensitive | ✅ | Trading bot security — replay-prone signing, unvalidated orders, check-then-act races, unauthenticated trading endpoints |
+| GS045 | 1 | sensitive | ✅ | GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE |
 | GS024 | 2 | precise | ✅ | LLM-based SQL injection (pilot — replaces 87 regex patterns) |
 | YAML-36ACF0AD | 2 | custom | ⬜ | Use of eval() or exec() with dynamic input can lead to code injection |
 | YAML-ECB85AD8 | 2 | custom | ⬜ | DEBUG=True in production Django/Flask config |

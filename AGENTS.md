@@ -7,7 +7,7 @@
 
 ## Что это
 
-GSC — самообучающаяся AppSec-платформа: 46 детекторов (42 registry + 4 движка: Secrets/SCA/IaC/Invariants),
+GSC — самообучающаяся AppSec-платформа: 47 детекторов (43 registry + 4 движка: Secrets/SCA/IaC/Invariants),
 SQLite, полный цикл `detect → prove → fix → verify → heal → predict`.
 
 **Эксклюзивы:** PoC Auto-Generation, Proof-of-Fix, Self-Healing CI, Security Archaeology,
@@ -22,7 +22,7 @@ Predictive Forecasting, Federated Learning.
 gsc/
 ├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
 ├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
-├── gsc_meta.py                   ← SSOT: 159 модулей, 46 детекторов, schema 33
+├── gsc_meta.py                   ← SSOT: 165 модулей, 47 детекторов, schema 33
 ├── gsc_core/                     ← движок (13): db, blocking, detectors/, invariant_engine,
 │                                   compliance, sca, epss, federated, ast_dataflow, iac,
 │                                   secrets_core, yaml_rules

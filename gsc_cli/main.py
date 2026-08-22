@@ -1548,7 +1548,12 @@ def generate_seed_patterns(count: int) -> list[dict]:
 
     # OWASP Top 10 (2021)
     owasp = [
-        ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
+        # chmod world-readable (bare `chmod.*[0-7][4-7][4-7]` matched every
+        # `chmod 644/755`, incl. ordinary code) is a noisy duplicate — covered
+        # precisely by GS002 (real file perms via os.stat) + GS016 (suid/priv-esc
+        # with provision-skip). Deactivated 22.08 (DB id 24): ~277 CRIT FP on
+        # clean projects.
+        # ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
         ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:(?:encryption|encrypt|aes|cipher|fernet|secret|api)[_ -]?key|password|token|secret)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
         # SQL injection is covered by GS005 (75 taint-aware patterns + sanitizer
         # downgrade-to-MEDIUM). Bare f-string SQL without taint was a noisy
