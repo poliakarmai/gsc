@@ -39,7 +39,7 @@ NODE_RULES: list[tuple[str, str, str, float]] = [
 
     # --- eval() injection ---
     ("eval_user_input",
-     r'eval\s*\(\s*(?:req\.(?:body|query|params|headers)|process\.argv)',
+     r'(?:eval|new\s+Function)\s*\(\s*(?:req\.(?:body|query|params|headers|cookies)|request\.(?:body|query|params)|ctx\.request\.(?:body|query)|process\.argv|location\.(?:hash|search)|document\.cookie|URLSearchParams|localStorage\.\w+|window\.name|postMessage|fs\.(?:readFile|readFileSync))',
      "CRITICAL", 0.98),
 
     # --- Command Injection ---

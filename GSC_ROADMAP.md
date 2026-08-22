@@ -247,7 +247,7 @@ S2 затем поглощает 0.8 (multi-tenant GitHub App поверх PG).
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
 | 0.12.1 | Baseline | PRECISION_REPORT.md как эталон (10 проектов, 2695 находок) | цифры заморожены |
-| 0.12.2 | Precision-hunt | ✅ 21.08 — 100-проектный benchmark выявил топ FP: **GS008 голый eval (2508 CRIT, 58% всего CRIT-шума)** + фейковые CVE (NVD-коллектор). GS008 починен (`ba4c2d0`): голевые `\beval\(` паттерны в БД+сиде убраны, оставлен уточнённый `eval/exec with user input`. CVE-фид → inactive refs (`3059552`). CRIT 4302 → ~1794. | CRITICAL ~25%, следующий шаг GS000-LEGACY |
+| 0.12.2 | Precision-hunt | ✅ 21.08 — 100-проектный benchmark выявил топ FP: **GS008 голый eval (2508 CRIT, 58% всего CRIT-шума)** + фейковые CVE (NVD-коллектор). GS008 починен (`ba4c2d0`): голевые `\beval\(` паттерны в БД+сиде убраны, оставлен уточнённый `eval/exec with user input`. CVE-фид → inactive refs (`3059552`). CRIT 4302 → ~1794. Добито 22.08: движок `multi_lang.py` голый eval/Function CRITICAL→HIGH (`GS036-eval_dynamic`), Java deser `GS008`→`GS046` (коллизия rule_id), taint-guard `eval_user_input` расширен (new Function, location.hash, cookies, fs, Koa). | CRITICAL ~25%, следующий шаг GS000-LEGACY |
 | 0.12.3 | Data-quality | ⏳ СЛЕДУЮЩИЙ — пустые/заголовочные `rule_id` → `GS000-LEGACY` (сейчас 505 CRIT + 26 678 HIGH по 100 проектам, топ после GS008), де-контаминация категорий | 0 мусорных rule_id |
 | 0.12.4 | Self-learning пруф | метрика TP до/после ночного revalidate (federated, DP) | график TP-тренда (инвестору) |
 

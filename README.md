@@ -88,7 +88,7 @@ Honest product boundaries (details — `docs/KNOWN_LIMITATIONS.md`):
 | GSC does NOT | What that means |
 |--------------|-----------------|
 | Replace manual pentesting | Automation covers only what detectors + PoC can see |
-| Guarantee 100% precision | CRITICAL precision ~8–12% on real projects; run your own measurement |
+| Guarantee 100% precision | CRITICAL precision ~4–5% on 100 real projects (Замер 3); run your own measurement |
 | Run PoF without isolation | No container runtime → `NOT verified`, never a false «verified» |
 | Fully verify JS/TS PoFs | Python-first; JS/TS PoC is on the roadmap |
 | Multi-writer store on SQLite | Production requires PostgreSQL (`GSC_DATABASE_URL`) |

@@ -41,7 +41,7 @@ TS_PATTERNS = {
          "GS001", "HIGH", "Hardcoded secret assigned to env in TS"),
     ],
     "injection": [
-        (r'eval\(|new Function\(', "GS017", "CRITICAL", "Dynamic code execution in TS"),
+        (r'eval\(|new Function\(', "GS036-eval_dynamic", "HIGH", "Dynamic code execution in TS"),
         (r'document\.write\(|innerHTML\s*=|dangerouslySetInnerHTML',
          "GS020", "CRITICAL", "XSS via innerHTML/dangerouslySetInnerHTML"),
         (r'child_process\.exec\(|\.execSync\(', "GS004", "CRITICAL", "Command injection in Node.js"),
@@ -85,7 +85,7 @@ JAVA_PATTERNS = {
     ],
     "deser": [
         (r'ObjectInputStream|readObject\(\)|readUnshared\(\)',
-         "GS008", "CRITICAL", "Unsafe deserialization in Java"),
+         "GS046", "CRITICAL", "Unsafe deserialization in Java"),
     ],
     "config": [
         (r'\.disable\(\)|\.all\(\)|\.anonymous\(\)', "GS019", "HIGH", "Permissive security config in Java"),

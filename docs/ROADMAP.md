@@ -121,7 +121,7 @@ PR-gate через `--gate` (exit 1 при forbidden). Тесты (10 passed).
 
 **Источник:** разбор TruffleHog (884 детектора, `Verify()` логинит в API → live/rotated/dead).
 **Проблема:** GS001/GS029 находят тестовые/мёртвые секреты (`AKIA00...0000`, placeholder-токены)
-и тащат их как CRITICAL. Precision CRITICAL ~8-12% — основной шум именно тут.
+и тащат их как CRITICAL. Precision CRITICAL ~4–5% (Замер 3, 100 проектов) — часть шума тут, часть в голом eval (починен multi_lang.py + `ba4c2d0`).
 TruffleHog убивает этот шум проверкой: один запрос к API провайдера → 200 = live (TP), 401/403 = dead (FP).
 
 | Фича | Статус |

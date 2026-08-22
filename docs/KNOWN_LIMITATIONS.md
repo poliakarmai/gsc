@@ -12,10 +12,12 @@
 
 ## Точность (precision)
 
-- Первый замер на 10 реальных проектах: **CRITICAL precision ~8–12%** (до фикса
-  GS001 extractor). Основной шум — GS001 на extractor/конфигах и тестовые секреты.
+- Замер на 100 реальных проектах (21.08): **CRITICAL precision ~4–5%** (4 302 CRIT,
+  48/90 чистых дают ложный CRIT). Основной шум — голый eval/Function в бандлерах
+  (TS/JS) и пустые rule_id (GS000-LEGACY). eval-шум починен (multi_lang.py HIGH +
+  `ba4c2d0` сид); перезамер pending.
 - Цифры точности зависят от ваших проектов. Проводите собственный замер
-  (`benchmark/PRECISION_REPORT.md`), не полагайтесь на общие проценты.
+  (`benchmark/PRECISION_REPORT_100.md`), не полагайтесь на общие проценты.
 
 ## Верификация Proof-of-Fix
 

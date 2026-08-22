@@ -17,7 +17,7 @@
 
 - **42 детектора** (38 registry + 4 движка: Secrets/SCA/IaC/Invariants)
 - **Schema v33** · SAST + DAST + SCA + IaC + SBOM + Supply-Chain
-- **Precision CRITICAL ~8–12%** (замер на 10 реальных проектах, честный disclosure)
+- **Precision CRITICAL ~4–5%** (Замер 3 — 100 реальных проектов, честный disclosure; после фиксов eval — перезамер pending)
 
 ## Use cases
 

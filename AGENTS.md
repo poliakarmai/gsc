@@ -55,13 +55,12 @@ DB: `~/.hermes/state/gsc_audit.db` (SQLite, WAL, schema 33)
 
 ## Precision (август 2026)
 
-Первый замер на 10 реальных проектах (160–132K ⭐):
-- **2 695 находок** (129 CRITICAL, 244 HIGH)
-- **Precision CRITICAL: ~8–12%** (до фикса GS001 extractor)
-- Основной шум: GS001 на extractor/конфигах, тестовые секреты
-- Подробнее: `benchmark/PRECISION_REPORT.md`
-- Живая сводка: `python3 scripts/gsc_metrics_dashboard.py` (Precision/FP-rate/TP-rate
-  по детекторам из feedback + fp_log; `--json` для машинной обработки)
+Три замера на реальных проектах:
+- **Замер 1** (11.08, 10 проектов 160–132K⭐): precision CRIT ~8–12% → ~20–25% (GS001 extractor −41, YAML exec −11).
+- **Замер 2** (20.08, 10 проектов ≤200⭐): CRITICAL 54 → 1, recall 4/4.
+- **Замер 3** (21.08, **100 проектов**): 64 831 находка, 4 302 CRITICAL, recall 8/10. Precision CRIT ~4–5% (48/90 чистых дают ложный CRIT). Главный шум — голый eval/Function в бандлерах (TS/JS). Починен: `ba4c2d0` (БД+сид) + multi_lang.py CRITICAL→HIGH (`GS036-eval_dynamic`), Java deser `GS008`→`GS046`, taint-guard `eval_user_input` расширен. Перезамер — после чистки rule_id-нулей (GS000-LEGACY).
+- Подробнее: `benchmark/PRECISION_REPORT.md`, `benchmark/PRECISION_REPORT_100.md`
+- Живая сводка: `python3 scripts/gsc_metrics_dashboard.py` (Precision/FP-rate/TP-rate по детекторам из feedback + fp_log; `--json`)
 
 ## Быстрый старт
 

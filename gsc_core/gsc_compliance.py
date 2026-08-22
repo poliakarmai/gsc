@@ -55,6 +55,10 @@ COMPLIANCE_MAP: Dict[str, Dict[str, str]] = {
     "GS023": {"cwe": "CWE-367", "owasp": "A04:2021-InsecureDesign",   "pci": "6.5.10"},
     # PII / information disclosure
     "GS040": {"cwe": "CWE-359", "owasp": "A01:2021-BrokenAccess",     "pci": "6.5.4"},
+    # Code injection (eval / new Function)
+    "GS036": {"cwe": "CWE-95",  "owasp": "A03:2021-Injection",        "pci": "6.5.1"},
+    # Unsafe deserialization
+    "GS046": {"cwe": "CWE-502", "owasp": "A08:2021-SoftwareDataIntegrityFailures", "pci": "6.5.1"},
 }
 
 
