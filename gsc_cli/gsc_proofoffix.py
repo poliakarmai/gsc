@@ -74,6 +74,8 @@ class FixEvidence:
     dast_skip_reason: str = ""
     deep_verify_error: str = ""
     error: str = ""
+    # Evidence Passport (audit Killer feature B): signed, self-contained proof.
+    passport: Optional[dict] = None
 
     def to_dict(self):
         d = asdict(self)
@@ -570,6 +572,31 @@ class ProofOfFix:
             except Exception as e:
                 ev.deep_verify_error = str(e)[:200]
                 ev.reasoning += f" | deep_sandbox: {str(e)[:60]}"
+
+        # Evidence Passport (audit Killer feature B). Emit UNCONDITIONALLY — a signed
+        # record that a fix *failed* is itself audit evidence. Verdict derives from the
+        # final ev.verified + both-runs isolation + image digest (after DAST/deep-verify).
+        from gsc_cli.gsc_evidence_passport import make_passport, verdict_from_isolation
+        iso = ev.isolation_before or ev.isolation_after or ""
+        digest = os.environ.get("GSC_IMAGE_DIGEST")
+        verdict = verdict_from_isolation(iso, digest)
+        # Never claim "verified" unless the fix actually held (ev.verified + level).
+        if not (ev.verified and ev.level == "verified") and verdict == "verified":
+            verdict = "structural"
+        signing_key = None
+        if os.environ.get("GSC_EVIDENCE_KEY"):
+            signing_key = os.environ["GSC_EVIDENCE_KEY"].encode()
+        ev.passport = make_passport(
+            finding_key=ev.finding_key,
+            verdict=verdict,
+            before={"exploited": ev.exploited_before, "isolation": ev.isolation_before},
+            after={"exploited": ev.exploited_after, "isolation": ev.isolation_after},
+            scanner_sha=os.environ.get("GSC_SCANNER_SHA", ""),
+            image_digest=digest,
+            signing_key=signing_key,
+            repo=os.environ.get("GSC_REPO", ""),
+            commit=os.environ.get("GSC_COMMIT", ""),
+        )
 
         return ev
 
