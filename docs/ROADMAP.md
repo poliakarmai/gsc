@@ -135,7 +135,9 @@ TruffleHog убивает этот шум проверкой: один запр�
 префиксу: ghp_/xoxb-/sk_live_/AKIA/…), `verify_secret` (GitHub `GET /user`, Slack
 `auth.test`, Stripe `GET /account`; 200=live, 401/403=dead), кэш по fingerprint,
 `deboost_dead` (dead → confidence ×0.3 + metadata). Redaction: значение не логируется,
-только fingerprint. Тесты 6 passed. TODO: AWS (SigV4) + DB (connect-test) + пайплайн-интеграция.
+только fingerprint. Тесты 6 passed. Пайплайн-интеграция: `GS029.detect(verify_live=...)` +
+env-флаг `GSC_VERIFY_SECRETS=1` (off by default, как DAST) → dead → confidence ×0.3.
+TODO: AWS (SigV4) + DB (connect-test).
 | Entropy + redaction (только fingerprint, без значения) | ✅ `gsc_secrets_core.py` + GS029 |
 | Cross-repo корреляция (сильнее TruffleHog) | ✅ `gsc_crossrepo_secrets.py` |
 

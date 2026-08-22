@@ -11,7 +11,7 @@ No value is stored or displayed — only fact of detection.
 
 from __future__ import annotations
 
-import math, re
+import math, os, re
 from typing import Dict, List
 
 SECRET_PATTERNS = [
@@ -74,7 +74,12 @@ class GS029SecretsDetector:
     name = "Secrets Detection"
     requires_llm = False
 
-    def detect(self, file_path: str, content: str, language: str = "auto") -> List[Dict]:
+    def detect(self, file_path: str, content: str, language: str = "auto",
+               verify_live=None) -> List[Dict]:
+        # Фаза 8: live-verify выключается по умолчанию (как DAST), включается
+        # флагом env GSC_VERIFY_SECRETS=1 или явным verify_live=True.
+        if verify_live is None:
+            verify_live = os.environ.get("GSC_VERIFY_SECRETS") == "1"
         if EXCLUDE_PATH_RE.search(file_path):
             return []
         fname = file_path.rsplit("/", 1)[-1] if "/" in file_path else file_path
@@ -83,8 +88,8 @@ class GS029SecretsDetector:
         findings = []
         for pattern, secret_type, capture_idx, severity in SECRET_PATTERNS:
             for m in re.finditer(pattern, content):
+                value = m.group(capture_idx) if capture_idx is not None else m.group(0)
                 if capture_idx is not None:
-                    value = m.group(capture_idx)
                     if _shannon_entropy(value) < MIN_ENTROPY:
                         continue
                     if PLACEHOLDER_VALUE_RE.match(value):
@@ -94,7 +99,7 @@ class GS029SecretsDetector:
                 if secret_type == "db_url" and DB_URL_LOOPBACK_RE.match(m.group(0)):
                     continue
                 line_no = content[:m.start()].count("\n") + 1
-                findings.append({
+                finding = {
                     "rule_id": f"GS029-{secret_type}",
                     "title": f"Potential {secret_type} exposed",
                     "severity": severity,
@@ -103,5 +108,29 @@ class GS029SecretsDetector:
                     "line_number": line_no,
                     "detail": f"<redacted:{secret_type}> at line {line_no}",
                     "metadata": {"secrets": {"type": secret_type}},
-                })
+                }
+                if verify_live:
+                    self._live_verify(finding, value)
+                findings.append(finding)
         return findings
+
+    def _live_verify(self, finding: Dict, value: str) -> None:
+        """Фаза 8: live-проверка секрета (опционально, off by default как DAST).
+
+        dead → deboost confidence ×0.3 + metadata. Значение не сохраняется и не
+        логируется. Ленивый import — verifier живёт в gsc_cli (сеть), core не
+        зависит от cli статически.
+        """
+        try:
+            from gsc_secrets_verifier import verify_secret
+        except Exception:
+            return
+        try:
+            r = verify_secret(value)
+        except Exception:
+            return
+        if r.get("status") == "dead":
+            finding["confidence"] = round(finding.get("confidence", 0.85) * 0.3, 2)
+            finding["metadata"]["secrets"]["status"] = "dead"
+            finding["metadata"]["secrets"]["provider"] = r.get("provider")
+            finding["detail"] += " [dead — live-verified]"
