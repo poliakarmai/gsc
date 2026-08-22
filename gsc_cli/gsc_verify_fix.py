@@ -194,6 +194,60 @@ def run_dast(repo_path: str, finding_key: str) -> tuple[StageOutcome, list[dict]
         return StageOutcome.NOT_RUN, []
 
 
+# ── Stage 4: Dependency PoF (Фаза 10.1 / VeriPatch) ──────────────────
+
+def verify_dependency_fix(package_name: str, repo_path: str,
+                          run_tests_flag: bool = True) -> VerifyReport:
+    """Dependency-level Proof-of-Fix.
+
+    После бампа версии зависимости: пересканировать OSV.dev и убедиться, что CVE
+    исчез, затем прогнать тесты. Закрывает разрыв «verify_fix умеет только SAST
+    finding_key, но не SCA-пакет» (конкурент VeriPatch).
+    """
+    from gsc_sca import parse_repo_manifests, query_osv
+
+    report = VerifyReport(result=VerifyResult.ERROR, finding_key=package_name,
+                          evidence="sca")
+    try:
+        packages = parse_repo_manifests(repo_path)
+    except Exception as e:
+        report.error_message = f"manifest parse failed: {e}"
+        return report
+
+    target = next((p for p in packages if p.name.lower() == package_name.lower()), None)
+    if target is None:
+        report.error_message = f"package '{package_name}' not found in manifests"
+        return report
+
+    key = (target.ecosystem, target.name, target.version)
+    vulns = query_osv([target]).get(key, [])
+    if vulns:
+        report.result = VerifyResult.FAILED_RESOLVE
+        report.rescan_findings = vulns
+        report.error_message = (f"{target.name}@{target.version} still has "
+                                f"{len(vulns)} known vuln(s) — bump not applied")
+        return report
+
+    # CVE gone → run tests (positive signal required for PR, same as SAST path)
+    if run_tests_flag:
+        outcome, output = run_tests(repo_path)
+        report.tests_outcome = outcome
+        report.test_output = output
+        if outcome == StageOutcome.FAILED:
+            report.result = VerifyResult.FAILED_TESTS
+            report.error_message = "dependency bump broke tests"
+            return report
+        if outcome == StageOutcome.NOT_RUN:
+            report.tests_skipped = True
+
+    tests_positive = report.tests_outcome == StageOutcome.PASSED
+    report.ready_for_pr, pr_reason = _ready_for_pr(tests_positive, False)
+    if pr_reason:
+        report.error_message = pr_reason
+    report.result = VerifyResult.PASSED
+    return report
+
+
 # ── Main Verifier ────────────────────────────────────────────────────
 
 def verify_fix(

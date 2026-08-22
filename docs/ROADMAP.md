@@ -166,8 +166,14 @@ ai-appsec, AEGIS, Strix, Keygraph) — 22.08.2026. Скилл `gsc-competitive-i
 
 | Фича | Статус |
 |------|--------|
-| Dependency-level PoF (VeriPatch): переустановка зависимости → перескан (CVE исчез) → тесты в sandbox | ⬜ |
-| Post-fix adversarial re-attack (Shinobi): мутировать/генерировать новые payload'ы, не только replay старого | ⬜ |
+| Dependency-level PoF (VeriPatch): переустановка зависимости → перескан (CVE исчез) → тесты в sandbox | ✅ |
+| Post-fix adversarial re-attack (Shinobi): мутировать/генерировать новые payload'ы, не только replay старого | ✅ |
+
+✅ Реализовано (22.08.2026): `gsc_poc_mutator.py` (детерминированные мутации payload'ов:
+url/double-encode, html-entities, case-swap, whitespace/`/**/`, альтернативные payload'ы) +
+интеграция в `gsc_proofoffix.py` (`_adversarial_recheck` — если мутация проходит после фикса →
+`exploited_after=True`, фикс поверхностный). Dependency-PoF: `gsc_verify_fix.verify_dependency_fix()`
+(перескан OSV.dev → CVE исчез → тесты).
 
 ⚠️ Оба детерминированные (без LLM). `mutation_tracker` расширить с паттернов на PoC-payload'ы;
 dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-ветку (не только SAST finding_key).
