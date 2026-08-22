@@ -17,8 +17,9 @@ import secrets
 import time
 
 import requests
+import jwt
+from jwt import InvalidTokenError, PyJWKClient
 from authlib.integrations.requests_client import OAuth2Session
-from authlib.jose import jwt as jose_jwt
 
 from gsc_cloud import audit
 from gsc_cloud.session import COOKIE_OPTS, issue as issue_session
@@ -103,13 +104,23 @@ def complete_sso(db, tenant_id: int, code: str, state: str,
 
 def _verify_id_token(disc: dict, id_token: str, client_id: str,
                      expected_nonce: str) -> dict:
-    jwks = requests.get(disc["jwks_uri"], timeout=10).json()
-    claims = jose_jwt.decode(id_token, key=jwks)
-    claims.validate()                     # exp, iat, iss через authlib
-    if claims.get("aud") != client_id:
+    jwks_client = PyJWKClient(disc["jwks_uri"])
+    signing_key = jwks_client.get_signing_key_from_jwt(id_token)
+    alg = signing_key.algorithm or "RS256"
+    try:
+        claims = jwt.decode(
+            id_token, signing_key.key,
+            algorithms=[alg],
+            options={"verify_aud": False},  # aud проверяем ниже (может быть списком)
+        )
+    except InvalidTokenError as e:
+        raise SSOError(f"id_token verification failed: {e}")
+    aud = claims.get("aud")
+    aud_ok = client_id in (aud if isinstance(aud, list) else [aud])
+    if not aud_ok:
         raise SSOError("audience mismatch")
     if claims.get("iss") != disc["issuer"]:
         raise SSOError("issuer mismatch")
     if claims.get("nonce") != expected_nonce:
         raise SSOError("nonce mismatch")
-    return dict(claims)
+    return claims

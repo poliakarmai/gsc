@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gsc-security"
 version = "1.4.0"
-description = "Git Security Checker — AI-powered SAST with 42 detectors, auto-PoC, and self-learning"
+description = "Git Security Checker — AI-powered SAST with 47 detectors, auto-PoC, and self-learning"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 requires-python = ">=3.10"
