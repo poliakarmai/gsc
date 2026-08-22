@@ -28,8 +28,13 @@ def handle_pull_request(payload: dict) -> dict:
                                        repo_payload)
 
     base_repo = repo_payload["full_name"]
-    head_repo = (pr.get("head") or {}).get("repo", {}).get("full_name", "")
+    head_info = (pr.get("head") or {}).get("repo", {})
+    head_repo = head_info.get("full_name", "")
+    head_clone_url = head_info.get("clone_url", "")
     is_fork = head_repo != base_repo
+    # Fork PR: clone the *fork* head repo (its commit is not reachable in the
+    # base repo), otherwise checkout head_sha fails (audit latent fork bug).
+    clone_url = head_clone_url if (is_fork and head_clone_url) else repo_payload["clone_url"]
 
     db = control_plane(tenant_id)
     # Debounce: более ранние QUEUED-сканы этого PR помечаем superseded
@@ -61,11 +66,13 @@ def handle_pull_request(payload: dict) -> dict:
     queue.enqueue({
         "scan_id": scan_id, "tenant_id": tenant_id,
         "installation_id": installation_id,
-        "repo": {"clone_url": repo_payload["clone_url"],
+        "repo": {"clone_url": clone_url,
+                 "base_clone_url": repo_payload["clone_url"],
                  "full_name": base_repo, "gh_repo_id": repo_payload["id"]},
         "pr": {"number": pr["number"],
                "head_sha": pr["head"]["sha"],
                "base_ref": pr["base"]["ref"],
+               "base_sha": pr["base"].get("sha", ""),
                "is_fork": is_fork},
         "profile": "pr-gate",
     })

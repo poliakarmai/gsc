@@ -151,32 +151,23 @@ def _enforce_loopback(host: str) -> None:
     )
 
 
-ALLOWED_GIT_HOSTS = {
-    h.strip().lower() for h in os.environ.get(
-        "GSC_ALLOWED_GIT_HOSTS", "github.com,gitlab.com,bitbucket.org"
-    ).split(",") if h.strip()
-}
+from gsc_cloud.target_policy import validate_target as _policy_validate
 
 
 def _validate_target(target: str) -> None:
-    """Reject SSRF-prone git targets (audit S-09, parity with server.py).
+    """Reject SSRF-prone git targets (audit S-09/GSC-01, SSOT parity).
 
     Local paths (no scheme) are allowed — this legacy API is a self-hosted,
-    single-tenant local wrapper. Anything with a scheme must be https:// to a
-    known public host; file://, ssh://, git://, credentials-in-URL and
-    private/link-local hosts are rejected up front so an arbitrary target
-    can't be used as an SSRF/egress primitive.
+    single-tenant local wrapper. Anything with a scheme delegates to the shared
+    gsc_cloud.target_policy.validate_target (https-only + allowlist + no creds).
     """
     parsed = urlparse(target)
     if not parsed.scheme:
         return  # local path — self-hosted scan, operator-controlled
-    if parsed.scheme != "https":
-        raise HTTPException(400, "Only https:// git targets (or local paths) are allowed")
-    host = (parsed.hostname or "").lower()
-    if not host or host not in ALLOWED_GIT_HOSTS:
-        raise HTTPException(400, "Target host is not in the allowlist")
-    if parsed.username or parsed.password:
-        raise HTTPException(400, "Credentials in the target URL are not allowed")
+    try:
+        _policy_validate(target)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 # ── Helpers ───────────────────────────────────────────────
 

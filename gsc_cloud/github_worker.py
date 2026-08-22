@@ -21,7 +21,8 @@ from gsc_cloud.publish import publish_pr_result
 from gsc_cloud.target_policy import validate_target
 
 
-def clone_repo(clone_url: str, head_sha: str, tmp: str) -> str:
+def clone_repo(clone_url: str, head_sha: str, tmp: str,
+               base_clone_url: str | None = None, base_sha: str | None = None) -> str:
     validate_target(clone_url)   # GSC-01 defense-in-depth (file://, ssh://, ext:: guard)
     src = os.path.join(tmp, "src")
     # Токен в $HOME/.netrc (chmod 600), НЕ в argv — не виден в ps
@@ -37,6 +38,12 @@ def clone_repo(clone_url: str, head_sha: str, tmp: str) -> str:
     subprocess.run(["git", "clone", "--quiet", "--depth", "100",
                     clone_url, src], env=env, check=True,
                    capture_output=True)
+    # Fork PR: fetch the base repo commit so the diff base is the true upstream
+    # state, not the fork's (possibly stale/absent) copy of origin/base_ref.
+    if base_clone_url and base_sha:
+        subprocess.run(["git", "-C", src, "fetch", "--quiet", "--depth", "1",
+                        base_clone_url, base_sha], env=env, check=True,
+                       capture_output=True)
     subprocess.run(["git", "-C", src, "checkout", "--quiet", head_sha],
                    env=env, check=True, capture_output=True)
     return src
@@ -44,10 +51,12 @@ def clone_repo(clone_url: str, head_sha: str, tmp: str) -> str:
 
 def run_scan(job: dict, src: str, tmp: str) -> dict:
     report_path = os.path.join(tmp, "report.json")
+    pr = job["pr"]
+    base_ref = pr.get("base_sha") if pr.get("is_fork") else f"origin/{pr['base_ref']}"
     cmd = ["gsc", "external-scan", src,
            "--profile", job["profile"],
            "--mode", "diff",
-           "--base", f"origin/{job['pr']['base_ref']}",
+           "--base", base_ref,
            "--head", "HEAD",
            "-o", report_path]
     if job["pr"]["is_fork"]:
@@ -71,7 +80,9 @@ def process_github_job(job: dict) -> None:
     try:
         with tempfile.TemporaryDirectory(prefix="gsc_gh_") as tmp:
             src = clone_repo(job["repo"]["clone_url"],
-                             job["pr"]["head_sha"], tmp)
+                             job["pr"]["head_sha"], tmp,
+                             base_clone_url=job["repo"].get("base_clone_url"),
+                             base_sha=job["pr"].get("base_sha"))
             report = run_scan(job, src, tmp)
             ingest_with_history(job, report)
             publish_pr_result(job, report,
