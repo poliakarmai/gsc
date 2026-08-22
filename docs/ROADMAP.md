@@ -23,6 +23,19 @@
 | Авто-триаж: regex → LLM → confidence score | ⬜ |
 | Батч-ревалидация старых находок | ⬜ |
 | Fallback на regex-only при отсутствии API ключа | ✅ уже есть |
+| Cross-model voting — второй вердикт другой моделью (Qwen/Gemini) для CRITICAL/HIGH, расхождение → demote | ⬜ |
+| Receipt-контракт — rejudge по полному `file:line` + taint-пути (`gsc_ast_dataflow.py`), вердикт без цитаты = INCOMPLETE/demote | ⬜ |
+| Self-verification (Best-of-N той же модели) — дешевле cross-model voting, доказано +7-9% точности | ⬜ |
+| Fine-grained criteria rejudge — source-to-sink / reachability / exploitability вместо одного вердикта | ⬜ |
+| Flash-verifier — rejudge на deepseek-v4-flash (дёшево) | ⬜ |
+| Logprob-based confidence вместо regex `_extract_confidence` | ⬜ |
+| LLM-first-pass auditor — LLM читает весь репо → semantic findings (до regex), опциональный `--with-llm-first-pass` | ⬜ |
+| Multi-model panel + judge — 3 ревьюера в изоляции + судья (follow-up) для CRITICAL/HIGH | ⬜ |
+
+> Источник усиления: разбор NeuroSploit (agentic pentest, MIT) — grounding «no claim without a receipt» + cross-model validation. Не конкурент-сканер, но 2 механики бьют по галлюцинациям single-model rejudge (`gsc_rejudge.py` видит только `snippet[:100]`).
+> Уточнение (LLM-as-a-Verifier, pip `llm-verifier`): self-verification Best-of-N той же моделью (Pass@1 79→88%) может быть выгоднее cross-model voting; fine-grained criteria + flash-verifier + logprob-калибровка заменяют грубый бинарный rejudge.
+> LLM-first-pass (Claude-style «аудит за 30 сек»): GSC использует LLM только как верификатор/threat-model, не как генератор findings первого эшелона — добавить опциональный whole-repo LLM-проход, комплементарно regex (semantic depth vs deterministic recall).
+> Rejudge (syabro): panel+judge (3 ревьюера + судья) замыкает лестницу точности Фазы 2 — self-verification (1 модель) < cross-model voting (2) < panel+judge (4). ⚠️ автор честно: «no measured advantage over one strong model», дорого, только CRITICAL/HIGH.
 
 ## 🟡 Фаза 3 — Semgrep-совместимые правила
 
@@ -57,6 +70,21 @@
 | dos-достижимости: «CVE в библиотеке, но ты не используешь уязвимую функцию» | ✅ not-reachable → downgrade severity (CRITICAL→HIGH→…) |
 | Поддержка JS/TS (npm) | 🟢 потом |
 
+## 🟡 Фаза 5.5 — SCA License Compliance
+
+**Источник:** книга «Implementing DevSecOps Practices» (Packt, Vandana Verma Sehgal — Snyk) — Ch 13.
+**Проблема:** GSC SCA ловит только уязвимости (OSV.dev), но не лицензии зависимостей. Клиенты в первую
+очередь боятся GPL/copyleft-заражения. Snyk/Black Duck/FOSSA продают license detection как core-фичу SCA.
+
+| Фича | Статус |
+|------|--------|
+| `gsc_sca_license.py` — детект лицензий из manifest (requirements/pyproject/package.json/go.mod) | ⬜ |
+| Классификация: permissive (MIT/Apache/BSD) vs copyleft (GPL/LGPL/AGPL) vs proprietary | ⬜ |
+| Policy-движок: approved/forbidden lists → flag/block copyleft в коммерческом коде | ⬜ |
+| Интеграция с SBOM (SPDX уже есть) + PR-gate | ⬜ |
+
+⚠️ Вторично: threat modeling сейчас только STRIDE (`gsc_threat_model.py`) — добавить DREAD/PASTA/attack trees.
+
 ## 🟢 Фаза 6 — Dashboard с трендами
 
 | Фича | Статус |
@@ -80,6 +108,41 @@
 | ML-модель на git history | ✅ `RiskForecaster` (past density + churn + authors + size + age + clustering) |
 | Heatmap: «эти 3 файла — кандидаты на CVE» | ✅ `forecast heatmap` (score + level + epss + top_cves) |
 | Интеграция с EPSS (exploitability) | ✅ `exploitability_boost` (reachable CVE × EPSS → буст риска) |
+
+## 🔴 Фаза 8 — Secret Verification (live-проверка ключей)
+
+**Источник:** разбор TruffleHog (884 детектора, `Verify()` логинит в API → live/rotated/dead).
+**Проблема:** GS001/GS029 находят тестовые/мёртвые секреты (`AKIA00...0000`, placeholder-токены)
+и тащат их как CRITICAL. Precision CRITICAL ~8-12% — основной шум именно тут.
+TruffleHog убивает этот шум проверкой: один запрос к API провайдера → 200 = live (TP), 401/403 = dead (FP).
+
+| Фича | Статус |
+|------|--------|
+| `gsc_secrets_verifier.py` — движок live-проверки | ⬜ |
+| Проверка провайдеров (GitHub/AWS/Slack/Stripe/Postgres) | ⬜ |
+| По ответу 200/401/403 → `status: verified\|dead` → авто-FP/deboost | ⬜ |
+| Кэш результатов (не дёргать API повторно на ре-скане) | ⬜ |
+| Entropy + redaction (только fingerprint, без значения) | ✅ `gsc_secrets_core.py` + GS029 |
+| Cross-repo корреляция (сильнее TruffleHog) | ✅ `gsc_crossrepo_secrets.py` |
+
+⚠️ **Лицензия:** TruffleHog AGPL-3.0 — движок/код не брать, только идею + список провайдеров/паттернов.
+⚠️ **Scope:** Discovery-источники (S3/Slack/Jira/docker) и Analysis (deep enum) — off-scope, потом.
+
+## 🔴 Фаза 9 — GitHub Actions CI/CD Audit
+
+**Источник:** разбор reconFTW (доменный recon, MIT) — единственное пересечение с GSC: gato (аудит `.github/workflows/*.yml`).
+**Проблема:** GSC не покрывает CI/CD-уязвимости GitHub Actions. GS034 (supply chain) смотрит зависимости, не пайплайны.
+YAML-парсер уже есть (`gsc_yaml_rules.py`, `gsc_iac.py`) — не хватает детектора под Actions-специфику.
+
+| Фича | Статус |
+|------|--------|
+| GS045 — детектор `.github/workflows/*.yml`: `pull_request_target` + checkout untrusted | ⬜ |
+| Self-hosted runner на PR (RCE через fork) | ⬜ |
+| Secrets в `env:` / exfiltration | ⬜ |
+| Отсутствие `permissions:` (least-privilege) | ⬜ |
+| `workflow_run` без защиты / OIDC misconfig | ⬜ |
+
+⚠️ reconFTW остальное (subdomain/port/nuclei/OSINT email) — off-scope для Git-сканера.
 
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
