@@ -1572,7 +1572,12 @@ def generate_seed_patterns(count: int) -> list[dict]:
         (1, "HIGH", "Unused import", "regex", r"^import \w+\s*$.*(?!.*\b\w+\b)"),
         (1, "MEDIUM", "Missing docstring", "regex", r"^def \w+\(.*\):\s*$\n\s+(?!\"\"\"|''')"),
         (1, "MEDIUM", "Bare except:", "regex", r"except\s*:"),
-        (2, "HIGH",   "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
+        # eval/exec is covered by the GS004 detector (dynamic-input only) and the
+        # refined "Python: eval/exec with user input" DB pattern. The bare
+        # eval()/exec() regex was a noisy duplicate: matched every eval()/exec(),
+        # produced massive FP on clean projects, and mapped to GS008 via
+        # _derive_rule_id (benchmark 21.08.2026 — 2 508 CRIT, mostly next.js).
+        # (2, "HIGH",   "eval() or exec() usage", "regex", r"\beval\(|\bexec\("),
         # pickle.load deserialization is covered by the GS037 detector (which has
         # taint + docstring filtering). The bare DB pattern was a noisy duplicate.
         # (2, "CRITICAL", "pickle.load() — unsafe deserialization", "regex", r"pickle\.(load|loads)\("),
