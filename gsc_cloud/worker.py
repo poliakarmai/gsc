@@ -15,20 +15,12 @@ import os
 import subprocess
 import tempfile
 import time
-from urllib.parse import urlparse
-
 from gsc_cloud.gsc_db_backend import PgBackend
 from gsc_cloud import store          # CRUD по scans/findings/usage
 from gsc_cloud.scan_queue import ScanQueue
+from gsc_cloud.target_policy import validate_target
 
-ALLOWED_HOSTS = {"github.com"}
 SCAN_TIMEOUT_SEC = 900
-
-
-def validate_target(target: str) -> None:
-    u = urlparse(target)
-    if u.scheme != "https" or u.hostname not in ALLOWED_HOSTS:
-        raise ValueError(f"target not allowed: {target!r}")
 
 
 def run_scanner(job: dict) -> dict:
@@ -86,8 +78,8 @@ def main() -> None:
         scan_id, tenant_id = job["scan_id"], job["tenant_id"]
         db = PgBackend(dsn, tenant_id)
         try:
-            store.set_scan_status(db, scan_id, "running")
             validate_target(job["target"])
+            store.set_scan_status(db, scan_id, "running")
             t0 = time.time()
             report = run_scanner(job)
             report.setdefault("usage", {})["duration_sec"] = time.time() - t0

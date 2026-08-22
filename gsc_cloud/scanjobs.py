@@ -52,6 +52,12 @@ def handle_pull_request(payload: dict) -> dict:
         "SELECT currval(pg_get_serial_sequence('scans','id')) AS id")["id"]
     db.commit()
 
+    from gsc_cloud.target_policy import validate_target
+    try:
+        validate_target(repo_payload["clone_url"])
+    except ValueError as exc:
+        return {"ok": False, "error": str(exc)}
+
     queue.enqueue({
         "scan_id": scan_id, "tenant_id": tenant_id,
         "installation_id": installation_id,

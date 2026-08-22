@@ -418,30 +418,21 @@ def _normalize_finding(f: dict) -> dict:
     }
 
 
-ALLOWED_GIT_HOSTS = {
-    h.strip().lower() for h in os.environ.get(
-        "GSC_ALLOWED_GIT_HOSTS", "github.com,gitlab.com,bitbucket.org"
-    ).split(",") if h.strip()
-}
+from gsc_cloud.target_policy import allowed_hosts, validate_target as _policy_validate
+
+ALLOWED_GIT_HOSTS = allowed_hosts()  # SSOT: gsc_cloud.target_policy
 
 
 def _validate_target(target: str) -> None:
-    """Reject non-HTTPS, non-allowlisted, or SSRF-prone git targets (audit S-09).
+    """Reject non-HTTPS, non-allowlisted, or SSRF-prone git targets (audit S-09/GSC-01).
 
-    Only https:// to a known public host is accepted; credentials-in-URL,
-    file://, ssh://, git:// and private/link-local hosts are rejected up front
-    so an arbitrary target can't be used as an SSRF/egress primitive.
+    Policy lives in gsc_cloud.target_policy.validate_target (shared with every worker);
+    this is the HTTP-layer wrapper that maps ValueError → HTTPException(400).
     """
-    parsed = urlparse(target)
-    if parsed.scheme != "https":
-        raise HTTPException(400, "Only https:// git targets are allowed")
-    host = (parsed.hostname or "").lower()
-    if not host or host not in ALLOWED_GIT_HOSTS:
-        raise HTTPException(400, "Target host is not in the allowlist")
-    if parsed.username or parsed.password:
-        raise HTTPException(400, "Credentials in the target URL are not allowed")
-    if not parsed.path or parsed.path == "/":
-        raise HTTPException(400, "Repository path is required")
+    try:
+        _policy_validate(target)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
 
 # ═══════════════════════════════════════════════════════════
 # Health

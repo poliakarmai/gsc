@@ -55,6 +55,11 @@ class VerdictRequest(BaseModel):
 def create_scan(req: ScanRequest, tenant_id: int = Depends(tenant_ctx)):
     if req.profile not in VALID_PROFILES:
         raise HTTPException(400, "unknown profile")
+    from gsc_cloud.target_policy import validate_target as _validate_target
+    try:
+        _validate_target(req.target)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
     db = store.control_plane(tenant_id)
     if not store.check_quota(db, tenant_id):
         raise HTTPException(402, "monthly scan quota exceeded")

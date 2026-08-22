@@ -18,9 +18,11 @@ import tempfile
 from gsc_cloud.github_auth import get_installation_token, gh_headers
 from gsc_cloud.mutations_cloud import ingest_with_history
 from gsc_cloud.publish import publish_pr_result
+from gsc_cloud.target_policy import validate_target
 
 
 def clone_repo(clone_url: str, head_sha: str, tmp: str) -> str:
+    validate_target(clone_url)   # GSC-01 defense-in-depth (file://, ssh://, ext:: guard)
     src = os.path.join(tmp, "src")
     # Токен в $HOME/.netrc (chmod 600), НЕ в argv — не виден в ps
     netrc = os.path.join(tmp, ".netrc")

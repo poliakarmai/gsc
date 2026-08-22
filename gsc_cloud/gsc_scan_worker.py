@@ -27,6 +27,7 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from gsc_cloud.gsc_db_backend import PgBackend, SqliteBackend  # noqa: E402
+from gsc_cloud.target_policy import validate_target  # noqa: E402
 
 SCAN_TIMEOUT_SEC = 300
 
@@ -65,6 +66,14 @@ def process_scan_job(scan_id: str) -> int:
             print(f"[worker] scan {scan_id} not found", flush=True)
             return 2
         tid, target, profile = job["tenant_id"], job["target"], job["profile"]
+
+        # GSC-01: shared target policy (SSRF/allowlist guard) before any network I/O
+        try:
+            validate_target(target)
+        except ValueError as e:
+            db.execute("UPDATE scan_jobs SET status='failed' WHERE id=?", (scan_id,))
+            print(f"[worker] scan {scan_id} rejected: {e}", flush=True)
+            return 2
 
         db.execute("UPDATE scan_jobs SET status='running' WHERE id=?", (scan_id,))
         findings: list = []
