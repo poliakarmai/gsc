@@ -91,7 +91,7 @@ class AgentRunner:
                 print(f"[agent] scan failed: {repo_path.name}: "
                       f"{proc.stderr[-300:]}", flush=True)
                 return None
-            with open(report_path, encoding="utf-8") as f:
+            with open(os.path.join(report_path, "scan.json"), encoding="utf-8") as f:
                 return json.load(f)
 
     def _ingest(self, agent_id: str, repo_name: str, report: dict):

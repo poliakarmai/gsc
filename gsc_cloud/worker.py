@@ -40,7 +40,8 @@ def run_scanner(job: dict) -> dict:
         # 0 = pass, 1 = blocking (нормальный исход), 2 = error
         if proc.returncode not in (0, 1):
             raise RuntimeError(proc.stderr[-500:] or "scanner failed")
-        with open(report_path, encoding="utf-8") as f:
+        # `-o <path>` is a *directory* in gsc_external (writes <path>/scan.json)
+        with open(os.path.join(report_path, "scan.json"), encoding="utf-8") as f:
             return json.load(f)
 
 
@@ -64,7 +65,7 @@ def ingest(db: PgBackend, scan_id: int, report: dict) -> None:
                llm_calls=?, duration_sec=?, finished_at=now()
         WHERE id=? AND tenant_id=?
     """, (len(findings), blocking, usage.get("llm_calls", 0),
-          report.get("duration_sec"), scan_id, db.tenant_id))
+          usage.get("duration_sec"), scan_id, db.tenant_id))
 
 
 def main() -> None:
@@ -82,7 +83,9 @@ def main() -> None:
             store.set_scan_status(db, scan_id, "running")
             t0 = time.time()
             report = run_scanner(job)
-            report.setdefault("usage", {})["duration_sec"] = time.time() - t0
+            usage = report.setdefault("usage", {})
+            usage["duration_sec"] = time.time() - t0
+            usage["llm_calls"] = report.get("llm_calls", 0)  # ScanResult top-level → usage
             ingest(db, scan_id, report)
             store.meter(db, tenant_id, report)
             db.commit()

@@ -70,7 +70,8 @@ def run_scan(job: dict, src: str, tmp: str) -> dict:
                           capture_output=True, text=True)
     if proc.returncode not in (0, 1):   # 1 = blocking — нормальный исход
         raise RuntimeError(proc.stderr[-500:] or "scanner failed")
-    with open(report_path, encoding="utf-8") as f:
+    # `-o <path>` is a *directory* in gsc_external (writes <path>/scan.json)
+    with open(os.path.join(report_path, "scan.json"), encoding="utf-8") as f:
         return json.load(f)
 
 

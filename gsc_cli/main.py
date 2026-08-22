@@ -2908,7 +2908,7 @@ def main():
                 if val: ext_args.extend([f"--{opt.replace('_','-')}", str(val)])
         if hasattr(args, "fail_on_blocking") and args.fail_on_blocking:
             ext_args.append("--fail-on-blocking")
-        subprocess.run(ext_args)
+        sys.exit(subprocess.run(ext_args).returncode)
 
     elif args.command in ("github", "github-scan"):
         subprocess.run([sys.executable, str(_GSC_ROOT / "gsc_github_adapter.py"),
