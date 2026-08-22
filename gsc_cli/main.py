@@ -1088,7 +1088,7 @@ def save_findings(project: str, findings: list[dict], quiet: bool = False):
                    VALUES (?,?,?,?,?,?,?,?,'open',datetime('now'),?,?,?)""",
                 (run_id, project, f.get("echelon", 1), f.get("category", "MEDIUM"),
                  f["title"], f.get("file_path", ""), f.get("line_number", 0),
-                 f.get("detail", ""), f.get("rule_id"), f.get("pattern_title"), fk)
+                 f.get("detail", ""), f.get("rule_id") or "GS999-unknown", f.get("pattern_title"), fk)
             )
 
         total = conn.execute("SELECT COUNT(*) FROM findings WHERE run_id = ?", (run_id,)).fetchone()[0]

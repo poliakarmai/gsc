@@ -263,16 +263,17 @@ def save_to_db(findings: list, project: str, run_id: str):
             'remediation': f.get('remediation', ''),
             'source': 'deep-reducer-ai',
         })
-        # AI findings carry no rule_id/pattern_title → rule=None (matches get_finding)
-        fk = compute_finding_key(None, f.get('file_path', ''), detail_json)
+        # AI findings → explicit sentinel rule_id (distinct from GS000-LEGACY, not NULL)
+        ai_rule_id = "GS999-AI"
+        fk = compute_finding_key(ai_rule_id, f.get('file_path', ''), detail_json)
         
         db.execute("""
             INSERT OR IGNORE INTO findings 
             (project, category, title, file_path, line_number, detail,
              pattern_id, echelon, status, created_at, run_id,
-             revalidation_verdict, confidence_score, finding_key)
+             revalidation_verdict, confidence_score, rule_id, finding_key)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, ?,
-                    ?, ?, ?)
+                    ?, ?, ?, ?)
         """, (
             project,
             f.get('severity', 'MEDIUM'),
@@ -286,6 +287,7 @@ def save_to_db(findings: list, project: str, run_id: str):
             run_id,
             None,  # Not revalidated yet
             f.get('confidence', 50),
+            ai_rule_id,
             fk,
         ))
     db.commit()

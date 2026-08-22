@@ -59,11 +59,13 @@ def save_pattern_and_finding(db, title, category, severity, pattern_str, languag
 
     try:
         from gsc_core.gsc_db import compute_finding_key
+        rule_id = detector or "COLLECTED"
         db.execute(
-            """INSERT INTO findings (project, echelon, category, title, file_path, detail, pattern_id, noise_tier, finding_key)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO findings (project, echelon, category, title, file_path, detail, pattern_id, noise_tier, rule_id, finding_key)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             ("gsc-collector", 1, severity, title[:200], source_url, (snippet or "")[:500], pattern_id, "normal",
-             compute_finding_key(None, source_url, (snippet or "")[:500])),
+             rule_id,
+             compute_finding_key(rule_id, source_url, (snippet or "")[:500])),
         )
         return 1, 1  # 1 pattern, 1 finding
     except Exception as e:
