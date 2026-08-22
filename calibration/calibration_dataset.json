@@ -169,6 +169,38 @@
       "fp": 13,
       "expected_vulns": [],
       "commit": "8988c23704fc373c9206cca53ec57dd8ad7f44a5"
+    },
+    {
+      "name": "govwa",
+      "category": "vulnerable",
+      "url": "https://github.com/0c34/govwa.git",
+      "total": 113,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 113,
+      "fp": 0,
+      "expected_vulns": [
+        "sql_injection",
+        "xss",
+        "command_injection"
+      ],
+      "commit": "HEAD"
+    },
+    {
+      "name": "railsgoat",
+      "category": "vulnerable",
+      "url": "https://github.com/OWASP/railsgoat.git",
+      "total": 154,
+      "confirmed": 0,
+      "likely": 0,
+      "uncertain": 154,
+      "fp": 0,
+      "expected_vulns": [
+        "sql_injection",
+        "mass_assignment",
+        "xss"
+      ],
+      "commit": "HEAD"
     }
   ]
 }

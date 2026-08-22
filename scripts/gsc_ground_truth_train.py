@@ -52,7 +52,7 @@ LANG_BY_PREFIX = {
 
 # Языки, у которых в benchmark recall-сете есть заведомо уязвимые проекты.
 # Только для них tp_vuln==0 является информативным сигналом FP.
-COVERED_LANGS = {"python", "javascript", "php"}
+COVERED_LANGS = {"python", "javascript", "php", "go", "ruby"}
 
 
 def rule_lang(rule_id: str) -> str:

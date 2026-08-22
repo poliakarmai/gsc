@@ -36,8 +36,8 @@ GO_RULES: list[tuple[str, str, str, float]] = [
 
     # --- SQL Injection ---
     ("sql_injection_fmt",
-     r'(?i)fmt\.Sprintf\s*\(\s*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*[\'"]',
-     "CRITICAL", 0.90),
+     r'(?i)fmt\.Sprintf\s*\(\s*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']',
+     "HIGH", 0.70),
     ("sql_injection_concat",
      r'(?i)(?:db\.Query|db\.Exec|db\.QueryRow)\s*\(\s*["\'].*%[svq].*[\'"]',
      "CRITICAL", 0.85),
@@ -52,8 +52,8 @@ GO_RULES: list[tuple[str, str, str, float]] = [
 
     # --- Hardcoded Secrets ---
     ("hardcoded_password",
-     r'(?i)(?:password|passwd|pass|pwd|secret)\s*[:=]\s*["\'][^"\']{3,}["\']',
-     "CRITICAL", 0.85),
+     r'(?i)(?:password|passwd|pwd|secret)\s*[:=]\s*["\'][^"\']{8,}["\']',
+     "HIGH", 0.70),
     ("hardcoded_api_key",
      r'(?i)(?:ApiKey|API_KEY|apiKey|api_key|SecretKey|SECRET_KEY)\s*=\s*["\'][A-Za-z0-9_-]{16,}["\']',
      "CRITICAL", 0.90),
@@ -65,13 +65,13 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     ("weak_crypto_md5",
      r'(?i)(?:md5\.New|md5\.Sum|crypto/md5)', "HIGH", 0.70),
     ("weak_crypto_sha1",
-     r'(?i)(?:sha1\.New|sha1\.Sum|crypto/sha1)', "MEDIUM", 0.55),
+     r'(?i)(?:sha1\.New|sha1\.Sum|crypto/sha1)', "LOW", 0.40),
     ("weak_crypto_des",
      r'(?i)crypto/des', "MEDIUM", 0.50),
 
     # --- TLS ---
     ("tls_skip_verify",
-     r'InsecureSkipVerify\s*:\s*true', "HIGH", 0.80),
+     r'InsecureSkipVerify\s*:\s*true', "LOW", 0.40),
 
     # --- SSRF ---
     ("ssrf_http_get",
@@ -84,7 +84,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     # --- Path Traversal ---
     ("path_traversal",
      r'(?i)(?:os\.Open|ioutil\.ReadFile|os\.ReadFile)\s*\([^)]*filepath\.Join',
-     "HIGH", 0.75),
+     "LOW", 0.40),
 
     # --- Debug ---
     ("pprof_exposed",
@@ -93,7 +93,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     # --- Unsafe ---
     ("unsafe_pointer",
      r'unsafe\.Pointer\s*\(',
-     "MEDIUM", 0.50),
+     "LOW", 0.40),
 
     # --- GORM injection risk ---
     ("gorm_raw_sql",
