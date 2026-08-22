@@ -137,7 +137,8 @@ TruffleHog убивает этот шум проверкой: один запр�
 `deboost_dead` (dead → confidence ×0.3 + metadata). Redaction: значение не логируется,
 только fingerprint. Тесты 6 passed. Пайплайн-интеграция: `GS029.detect(verify_live=...)` +
 env-флаг `GSC_VERIFY_SECRETS=1` (off by default, как DAST) → dead → confidence ×0.3.
-TODO: AWS (SigV4) + DB (connect-test).
+Хвосты добиты: rate-limiter+budget (100ms/200 запросов), `is_test_key` (sk_test_/rk_test_/ASIA → INFO),
+pass provider из secret_type. AWS (SigV4) + DB (connect-test) — осознанно не делаем (SSRF/сложность).
 | Entropy + redaction (только fingerprint, без значения) | ✅ `gsc_secrets_core.py` + GS029 |
 | Cross-repo корреляция (сильнее TruffleHog) | ✅ `gsc_crossrepo_secrets.py` |
 

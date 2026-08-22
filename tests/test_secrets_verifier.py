@@ -15,6 +15,14 @@ def test_detect_provider():
     assert SV.detect_provider("xoxa-123") == "unknown"
 
 
+def test_is_test_key():
+    assert SV.is_test_key("sk_test_abc")
+    assert SV.is_test_key("rk_test_abc")
+    assert SV.is_test_key("ASIA123")
+    assert not SV.is_test_key("sk_live_abc")
+    assert not SV.is_test_key("ghp_abc")
+
+
 def test_verify_github_live(monkeypatch):
     monkeypatch.setattr(SV, "_http", lambda m, u, h: (200, "{}"))
     SV._CACHE.clear()

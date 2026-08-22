@@ -117,16 +117,23 @@ class GS029SecretsDetector:
     def _live_verify(self, finding: Dict, value: str) -> None:
         """Фаза 8: live-проверка секрета (опционально, off by default как DAST).
 
-        dead → deboost confidence ×DEAD_DEBOOST + severity→INFO + metadata.
-        Значение не сохраняется и не логируется. Ленивый import — verifier живёт
-        в gsc_cli (сеть), core не зависит от cli статически.
+        dead/test → severity→INFO + deboost. Значение не сохраняется/логируется.
+        Ленивый import — verifier живёт в gsc_cli (сеть), core не зависит статически.
         """
         try:
-            from gsc_secrets_verifier import verify_secret, DEAD_DEBOOST
+            from gsc_secrets_verifier import verify_secret, DEAD_DEBOOST, is_test_key
         except Exception:
             return
         try:
-            r = verify_secret(value)
+            # тестовые/временные ключи (sk_test_/rk_test_/ASIA) — не боевые секреты
+            if is_test_key(value):
+                finding["severity"] = "INFO"
+                finding["metadata"]["secrets"]["status"] = "test"
+                return
+            # передаём provider из secret_type — не переклассифицировать по value
+            stype = finding.get("metadata", {}).get("secrets", {}).get("type", "")
+            provider = {"aws_access_key": "aws", "db_url": "db"}.get(stype)
+            r = verify_secret(value, provider=provider)
         except Exception:
             return
         if r.get("status") == "dead":
