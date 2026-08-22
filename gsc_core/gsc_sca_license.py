@@ -46,10 +46,13 @@ _STRONG_COPYLEFT = {
     "SSPL-1.0", "OSL-3.0", "CPAL-1.0",
 }
 
-_PROPRIETARY = {"Proprietary", "Commercial", "UNLICENSED", "All-Rights-Reserved"}
+_PROPRIETARY = {"Proprietary", "Commercial", "UNLICENSED", "All-Rights-Reserved",
+                "BUSL-1.1", "Elastic-2.0", "ELv2", "Commons-Clause", "JSON",
+                "Fair-Source-1.0", "NOASSERTION", "CC-BY-NC-4.0", "CC-BY-NC-3.0", "CC-BY-NC-2.0"}
 
-# SPDX-expression prefix → category (handles "MIT AND GPL-3.0", "GPL-3.0 OR MIT")
-_CATEGORY_PRIORITY = ["copyleft", "weak-copyleft", "proprietary", "permissive"]
+# Worst-case precedence for SPDX expressions ("GPL-3.0 OR MIT" → copyleft).
+# 'unknown' ranks above 'permissive' so unrecognized terms fail closed.
+_CATEGORY_PRIORITY = ["copyleft", "proprietary", "weak-copyleft", "unknown", "permissive"]
 
 
 def _classify_single(spdx: str) -> str:
@@ -70,16 +73,21 @@ def classify(license_str: Optional[str]) -> str:
 
     Returns one of: copyleft | weak-copyleft | proprietary | permissive | unknown.
     """
-    if not license_str:
-        return "unknown"
-    raw = license_str.strip()
+    if not license_str or not license_str.strip():
+        return "proprietary"
+    raw = license_str.strip().replace("(", " ").replace(")", " ")
     cats = set()
-    for part in re.split(r"\s+(?:AND|OR|WITH)\s+", raw):
+    for part in re.split(r"\s+(?:AND|OR|WITH)\s+|[,/]", raw):
+        part = part.strip()
+        if not part:
+            continue
         spdx = normalize_license(part)
         if spdx:
             cats.add(_classify_single(spdx))
+        else:
+            cats.add("unknown")  # fail closed — don't drop unrecognized terms
     if not cats:
-        return "unknown"
+        return "proprietary"
     for prio in _CATEGORY_PRIORITY:
         if prio in cats:
             return prio
@@ -131,6 +139,11 @@ def normalize_license(license_str: str) -> str:
     raw = (license_str or "").strip()
     if not raw:
         return ""
+    # "GPL-3.0+" → "GPL-3.0-or-later"
+    raw = re.sub(r"\+$", "-or-later", raw)
+    # LicenseRef-* / "SEE LICENSE IN ..." → proprietary (custom terms)
+    if raw.upper().startswith("LICENSEREF-") or "SEE LICENSE" in raw.upper() or raw.upper() == "NOASSERTION":
+        return "NOASSERTION"
     # already an SPDX id
     if raw in _STRONG_COPYLEFT or raw in _WEAK_COPYLEFT or raw in _PERMISSIVE or raw in _PROPRIETARY:
         return raw
@@ -222,7 +235,7 @@ _SEVERITY = {
     "copyleft": "HIGH",
     "proprietary": "HIGH",
     "weak-copyleft": "MEDIUM",
-    "unknown": "LOW",
+    "unknown": "MEDIUM",
     "permissive": None,  # not reported
 }
 
@@ -270,7 +283,7 @@ def scan_licenses(root, packages: Optional[List[Package]] = None) -> List[dict]:
 
 # ── Policy ─────────────────────────────────────────────────────────
 
-DEFAULT_FORBIDDEN = {"copyleft", "proprietary"}
+DEFAULT_FORBIDDEN = {"copyleft", "proprietary", "unknown"}
 DEFAULT_APPROVED = {"permissive", "weak-copyleft"}
 
 

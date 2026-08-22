@@ -24,8 +24,20 @@ def test_classify_weak_copyleft():
 
 def test_classify_proprietary_and_unknown():
     assert L.classify("Proprietary") == "proprietary"
-    assert L.classify("") == "unknown"
+    assert L.classify("") == "proprietary"  # empty = all rights reserved (fail-closed)
     assert L.classify("SomeWeirdLicense-v99") == "unknown"
+
+
+def test_classify_fail_closed():
+    # unrecognized terms must NOT vanish → never misclassified permissive
+    assert L.classify("MIT OR LicenseRef-Proprietary") == "proprietary"
+    # parentheses must not drop a copyleft term
+    assert L.classify("(GPL-2.0 OR MIT)") == "copyleft"
+    # "+" suffix and comma/slash dual-licensing
+    assert L.classify("GPL-3.0+") == "copyleft"
+    assert L.classify("MIT, GPL-3.0") == "copyleft"
+    # BUSL-1.1 (source-available, not permissive)
+    assert L.classify("BUSL-1.1") == "proprietary"
 
 
 def test_normalize():
