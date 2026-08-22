@@ -276,7 +276,7 @@ pitch про «self-learning» разобьётся вопросом «како�
 
 | # | Порция | Содержание | Проверка |
 |---|---|---|---|
-| 0.14.1 | Sandbox escape CI | запустить escape-suite (network/write/host-read) в реальном Docker/Podman runner — сейчас 5 тестов скипаются без runtime | `verified=true` только после isolated before/after |
+| 0.14.1 | Sandbox escape CI | ✅ 22.08 — escape-suite (network/write/host-read) проходит в реальном Docker (ci.yml собирает `gsc-sandbox:latest`; 606 passed / 5 skipped на 3×Python, escape-тесты не скипаются) + `GSC_FORCE_RLIMIT=1` CI-гейт покрывает fail-closed (GSC-001) | `verified=true` только после isolated before/after |
 | 0.14.2 | Внешний benchmark | ✅ 21.08 — 100 проектов (90 clean + 10 vuln), pinned revisions, батчами по 10 от мелких (LOC+звёзды). recall 8/10, 64 831 находок, per-rule FP-карта. `benchmark/PRECISION_REPORT_100.md` + `precision_report_ALL_100.json` | опубликовано (`43af63a`) |
 | 0.14.3 | SBOM + provenance | ✅ generate/sign SBOM есть (`sbom` + `sbom-verify` v0.33); осталось SLSA provenance + CI admission «digest only» | CI блокирует tag-only image refs |
 | 0.14.4 | Свои образы digest | ✅ 20.08 — helm digest-механизм (`values.digest` + deployment template); pin digest при релизе | production manifests digest-pinned при сборке |

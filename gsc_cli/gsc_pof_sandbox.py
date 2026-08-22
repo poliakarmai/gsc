@@ -166,6 +166,12 @@ def _isolation_backend() -> str:
     container daemon on every PoC would add ~100ms per execution.
     """
     global _backend_cache
+    if os.environ.get("GSC_FORCE_RLIMIT"):
+        # Test/CI hook: force the degraded rlimit path even when a container
+        # runtime is present, so the fail-closed gate (GSC-001) is exercised
+        # in CI (where docker is always available).
+        _backend_cache = "rlimit"
+        return "rlimit"
     if _backend_cache is not None:
         return _backend_cache
     for exe in ("docker", "podman"):

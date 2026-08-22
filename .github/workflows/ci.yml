@@ -37,6 +37,11 @@ jobs:
           python3 -m pytest tests/ -q -rs \
             --cov=gsc_pof_sandbox --cov-report=term-missing \
             --cov-fail-under=58
+      - name: Sandbox fail-closed gate (rlimit, GSC-001)
+        run: |
+          GSC_FORCE_RLIMIT=1 python3 -m pytest \
+            tests/test_sandbox_isolation.py::test_verify_fix_fail_closed_without_container \
+            -v
 
   sca:
     name: SCA gate (reachable MEDIUM+)
