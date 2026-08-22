@@ -48,8 +48,11 @@ def has_finding(findings, keyword, category=None):
 # ── pytest-compatible test functions ──────────────────────────────────────
 
 def test_sql_injection():
+    # Bare f-string SQL without a taint source → HIGH (potential, not confirmed
+    # SQLi). Confirmed SQLi (execute/text with user input) is caught by GS005
+    # taint-aware patterns as CRITICAL. OWASP A03 seed downgraded 21.08.2026.
     findings = scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n')
-    assert has_finding(findings, "sql", "CRITICAL"), f"SQL injection not detected ({len(findings)} findings)"
+    assert has_finding(findings, "sql", "HIGH"), f"SQL injection not detected ({len(findings)} findings)"
 
 def test_hardcoded_secret():
     findings = scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')
@@ -97,7 +100,7 @@ def run_corpus():
     print("=" * 50)
 
     tests = [
-        ("SQL injection", lambda: has_finding(scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n'), "sql", "CRITICAL")),
+        ("SQL injection", lambda: has_finding(scan_file('query = f"SELECT * FROM users WHERE id={uid}"\n'), "sql", "HIGH")),
         ("Hardcoded secret", lambda: len(scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')) > 0),
         ("Unsafe pickle", lambda: has_finding(scan_file("import pickle\ndef load(x): return pickle.loads(x)\n"), "pickle", "HIGH")),
         ("Bare except", lambda: has_finding(scan_file("try:\n    risky()\nexcept:\n    pass\n"), "bare except", "MEDIUM")),

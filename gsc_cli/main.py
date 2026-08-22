@@ -1550,7 +1550,12 @@ def generate_seed_patterns(count: int) -> list[dict]:
     owasp = [
         ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
         ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:(?:encryption|encrypt|aes|cipher|fernet|secret|api)[_ -]?key|password|token|secret)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
-        ("Injection", "A03", 1, "CRITICAL", "SQL injection risk: f-string in query", "regex", r"""f['\"].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*(?:\*\s*FROM|=\s*[{\'\"$]|\b(?:WHERE|SET|INTO|VALUES|JOIN)\b)"""),
+        # SQL injection is covered by GS005 (75 taint-aware patterns + sanitizer
+        # downgrade-to-MEDIUM). Bare f-string SQL without taint was a noisy
+        # duplicate — mapped to GS005 via _derive_rule_id, ~200 CRIT FP on clean
+        # projects (benchmark 21.08.2026). Downgraded CRITICAL→HIGH: no user-input
+        # check = not confirmed SQLi.
+        ("Injection", "A03", 1, "HIGH", "SQL injection risk: f-string in query", "regex", r"""f['\"].*\b(?:SELECT|INSERT|UPDATE|DELETE)\b.*(?:\*\s*FROM|=\s*[{\'\"$]|\b(?:WHERE|SET|INTO|VALUES|JOIN)\b)"""),
         ("Insecure Design", "A04", 3, "HIGH", "Missing rate limiting", "semantic", r"def (handler|endpoint|route).*:.*\n(?!.*rate)"),
         ("Security Misconfiguration", "A05", 2, "HIGH", "Debug mode enabled", "regex", r"DEBUG\s*=\s*True|debug\s*=\s*true"),
         ("Vulnerable Components", "A06", 2, "MEDIUM", "Outdated dependency pattern", "regex", r"(requirements\.txt|pyproject\.toml|package\.json)"),
