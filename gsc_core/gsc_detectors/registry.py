@@ -54,6 +54,7 @@ from . import gs041_crypto_secrets as _gs041
 from . import gs042_solidity as _gs042
 from . import gs043_honeypot as _gs043
 from . import gs044_trading_bots as _gs044
+from . import gs045_github_actions as _gs045
 
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
@@ -333,6 +334,14 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs044.detect,
         description=_gs044.description,
         noise_tier=getattr(_gs044, "NOISE_TIER", "sensitive"),
+    ),
+    # 🆕 GS045: GitHub Actions CI/CD security — permissions, env secrets, PR-target RCE
+    DetectorEntry(
+        rule_id=_gs045.RULE_ID,
+        echelon=_gs045.ECHELON,
+        detect_fn=_gs045.detect,
+        description=_gs045.description,
+        noise_tier=getattr(_gs045, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(

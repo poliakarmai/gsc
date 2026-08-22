@@ -136,11 +136,16 @@ YAML-парсер уже есть (`gsc_yaml_rules.py`, `gsc_iac.py`) — не �
 
 | Фича | Статус |
 |------|--------|
-| GS045 — детектор `.github/workflows/*.yml`: `pull_request_target` + checkout untrusted | ⬜ |
-| Self-hosted runner на PR (RCE через fork) | ⬜ |
-| Secrets в `env:` / exfiltration | ⬜ |
-| Отсутствие `permissions:` (least-privilege) | ⬜ |
-| `workflow_run` без защиты / OIDC misconfig | ⬜ |
+| GS045 — детектор `.github/workflows/*.yml`: `pull_request_target` + checkout untrusted | ✅ |
+| Self-hosted runner на PR (RCE через fork) | ✅ GS033 |
+| Secrets в `env:` / exfiltration | ✅ GS045 |
+| Отсутствие `permissions:` (least-privilege) | ✅ GS045 |
+| `workflow_run` без защиты / OIDC misconfig | ✅ GS045 |
+
+✅ Реализовано (22.08.2026): `gsc_core/gsc_detectors/gs045_github_actions.py` — 4 правила:
+`missing_permissions`, `hardcoded_env_secret`, `pr_target_checkout_head` (CRITICAL),
+`workflow_run_untrusted_checkout`. Self-hosted runner уже покрыт GS033. Тесты
+`tests/test_gs045_github_actions.py` (4 passed), registry 43 детектора.
 
 ⚠️ reconFTW остальное (subdomain/port/nuclei/OSINT email) — off-scope для Git-сканера.
 
