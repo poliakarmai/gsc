@@ -531,7 +531,9 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
                    "--max-columns", "300", search_pattern, str(path),
                    "-g", "!**/migrations/**", "-g", "!*provision*",
                    "-g", "!*migrate_database*", "-g", "!*install.sh",
-                   "-g", "!*deploy.sh", "-g", "!*setup.sh", "-g", "!*bootstrap*"]
+                   "-g", "!*deploy.sh", "-g", "!*setup.sh", "-g", "!*bootstrap*",
+                   "-g", "!*.po", "-g", "!*.mo", "-g", "!*.snap",
+                   "-g", "!*.output", "-g", "!*.csv", "-g", "!*.min.js"]
         if file_types:
             rg_args.insert(2, "-t"); rg_args.insert(3, file_types)
         if exclude_md:
@@ -563,7 +565,8 @@ def _pattern_search(search_pattern: str, path: Path, file_types: str | None = No
                               ".xlsx", ".ppt", ".pptx", ".db", ".sqlite",
                               ".sqlite3", ".model", ".onnx", ".pt", ".pth",
                               ".bin", ".so", ".dll", ".dylib", ".exe", ".wasm",
-                              ".lock", ".map", ".min.js", ".min.css"}
+                              ".lock", ".map", ".min.js", ".min.css",
+                              ".po", ".mo", ".snap", ".output", ".csv"}
         for fp in path.rglob("*"):
             if not fp.is_file():
                 continue
