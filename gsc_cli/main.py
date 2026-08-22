@@ -779,7 +779,13 @@ def check_adversarial(project: str, path: Path) -> list[dict]:
                     # code-quality patterns (noise_tier='quality') are not security vulns
                     if p.get("noise_tier") == "quality":
                         cat = "INFO"
+                    rule_id = _derive_rule_id(p)
+                    snippet = parts[2][:200] if len(parts) > 2 else ""
+                    import hashlib
+                    finding_key = hashlib.sha256(f"{rule_id}{parts[0]}{snippet}".encode()).hexdigest()[:12]
                     findings.append({
+                        "finding_key": finding_key,
+                        "rule_id": rule_id,
                         "category": cat,
                         "echelon": 3,
                         "title": p["title"],
