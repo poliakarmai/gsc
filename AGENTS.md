@@ -45,7 +45,7 @@ gsc/
 ├── calibration/                  ← 13 проектов (9 clean + 4 vuln)
 ├── scripts/                      ← dry-run, feedback, audit, metrics, reconcile
 ├── cloud/                        ← deploy-артефакты (Dockerfile, k8s-манифесты)
-├── tests/                        ← 546 тестов (84 файла)
+├── tests/                        ← 673 теста (98 файлов)
 ├── .pre-commit-hooks.yaml        ← pre-commit hook (gsc-scan)
 ├── .pre-commit-config.yaml       ← self-check pre-commit
 └── PROJECT.md AGENTS.md README.md

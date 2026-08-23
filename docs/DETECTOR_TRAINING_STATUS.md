@@ -33,7 +33,7 @@ severity-шкалу не менять; детектор целиком не от
 | GS002 world-readable | убраны *.conf/*.config/authorized_keys/known_hosts, credentials*/secrets* → data-файлы, id_rsa точное имя, skip vectors/dummyserver/demo | smoke 6/6 | `6820e32` |
 | GS004 subprocess | static shell=True/os.popen (константа) → downgrade HIGH→MEDIUM | smoke 9/9 | `5f6cc14` |
 | GS017 weak passwords | `_is_weak_value`: длинные mixed-case → не weak, KEY/mixed-case gates, path-exclusion | pytest + regression | `6691959` |
-| GS002 world-readable (config) | config/data-файлы (.yaml/.yml/.json/.log) → не sensitive, сужен список суффиксов | regression + reconcile | `см. ниже` |
+| GS002 world-readable (config) | config/data-файлы (.yaml/.yml/.json/.log) → не sensitive, сужен список суффиксов | regression + reconcile | `e50afca` |
 
 ---
 
