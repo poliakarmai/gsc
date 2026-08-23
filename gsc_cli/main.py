@@ -2471,7 +2471,11 @@ def main():
     # gsc export-taxii (push STIX 2.1 bundle to a TAXII collection)
     tax = sub.add_parser('export-taxii', help='Push GSC findings to a TAXII 2.1 collection')
     tax.add_argument('report', help='GSC scan report JSON')
-    tax.add_argument('--collection-url', required=True, help='TAXII collection objects endpoint')
+    tax_target = tax.add_mutually_exclusive_group(required=True)
+    tax_target.add_argument('--collection-url', help='TAXII collection objects endpoint')
+    tax_target.add_argument('--discover', metavar='DISCOVERY_URL', help='TAXII Discovery endpoint (auto-resolve collection)')
+    tax.add_argument('--api-root', help='With --discover: API root id/URL to pick')
+    tax.add_argument('--collection', help='With --discover: collection id/URL to pick')
     tax.add_argument('--username', help='HTTP Basic auth username')
     tax.add_argument('--password', help='HTTP Basic auth password')
     tax.add_argument('--api-key', help='Bearer token / API key')
@@ -2479,6 +2483,16 @@ def main():
     tax.add_argument('--max', type=int, default=None)
     tax.add_argument('--dry-run', action='store_true', help='Build + save, do not push')
     tax.add_argument('--output', '-o', help='Also save the bundle JSON')
+
+    # gsc taxii-ingest (pull STIX objects from a TAXII collection)
+    ing = sub.add_parser('taxii-ingest', help='Pull STIX 2.1 objects from a TAXII collection into GSC findings')
+    ing.add_argument('collection_url', help='TAXII collection objects endpoint (GET .../objects/)')
+    ing.add_argument('--username', help='HTTP Basic auth username')
+    ing.add_argument('--password', help='HTTP Basic auth password')
+    ing.add_argument('--api-key', help='Bearer token / API key')
+    ing.add_argument('--match', help='Comma list of STIX types to fetch')
+    ing.add_argument('--limit', type=int, default=None, help='Max objects to fetch')
+    ing.add_argument('--output', '-o', default='gsc-taxii-findings.json')
 
     # gsc import-nuclei / scan-dast / list-nuclei (Wave 2: SAST+DAST)
     imp_nuc = sub.add_parser('import-nuclei', help='Import nuclei YAML templates')
@@ -2858,15 +2872,25 @@ def main():
             stx_args.extend(["--severity", args.severity])
         if getattr(args, 'max', None):
             stx_args.extend(["--max", str(args.max)])
-        subprocess.run(stx_args)
+        sys.exit(subprocess.run(stx_args).returncode)
 
     elif args.command == "export-taxii":
-        tax_args = [sys.executable, str(_GSC_ROOT / "gsc_taxii_export.py"), args.report,
-                    "--collection-url", args.collection_url]
-        for flag, attr in (("--username", "username"), ("--password", "password"),
-                           ("--api-key", "api_key")):
+        if getattr(args, 'discover', None):
+            tax_args = [sys.executable, str(_GSC_ROOT / "gsc_taxii_export.py"), args.report,
+                        "--discover", args.discover]
+            if getattr(args, 'api_root', None):
+                tax_args.extend(["--api-root", args.api_root])
+            if getattr(args, 'collection', None):
+                tax_args.extend(["--collection", args.collection])
+        else:
+            tax_args = [sys.executable, str(_GSC_ROOT / "gsc_taxii_export.py"), args.report,
+                        "--collection-url", args.collection_url]
+        env = dict(os.environ)
+        for env_name, attr in (("GSC_TAXII_USERNAME", "username"),
+                               ("GSC_TAXII_PASSWORD", "password"),
+                               ("GSC_TAXII_API_KEY", "api_key")):
             if getattr(args, attr, None):
-                tax_args.extend([flag, getattr(args, attr)])
+                env[env_name] = getattr(args, attr)
         if getattr(args, 'severity', None):
             tax_args.extend(["--severity", args.severity])
         if getattr(args, 'max', None):
@@ -2875,7 +2899,23 @@ def main():
             tax_args.append("--dry-run")
         if getattr(args, 'output', None):
             tax_args.extend(["--output", args.output])
-        subprocess.run(tax_args)
+        sys.exit(subprocess.run(tax_args, env=env).returncode)
+
+    elif args.command == "taxii-ingest":
+        ing_args = [sys.executable, str(_GSC_ROOT / "gsc_taxii_ingest.py"), args.collection_url]
+        env = dict(os.environ)
+        for env_name, attr in (("GSC_TAXII_USERNAME", "username"),
+                               ("GSC_TAXII_PASSWORD", "password"),
+                               ("GSC_TAXII_API_KEY", "api_key")):
+            if getattr(args, attr, None):
+                env[env_name] = getattr(args, attr)
+        if getattr(args, 'match', None):
+            ing_args.extend(["--match", args.match])
+        if getattr(args, 'limit', None):
+            ing_args.extend(["--limit", str(args.limit)])
+        if getattr(args, 'output', None) and args.output != 'gsc-taxii-findings.json':
+            ing_args.extend(["--output", args.output])
+        sys.exit(subprocess.run(ing_args, env=env).returncode)
 
     elif args.command == "import-nuclei":
         subprocess.run([sys.executable, str(_GSC_ROOT / "gsc_nuclei_import.py"),

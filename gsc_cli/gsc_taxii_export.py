@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import base64
 import json
+import os
 import sys
 import urllib.error
 import urllib.request
@@ -50,6 +51,76 @@ def _load_findings(report_path: str, severity: Optional[str], max_items: Optiona
     return findings
 
 
+def _auth_header(username, password, api_key):
+    if username is not None:
+        token = base64.b64encode(f"{username}:{password or ''}".encode()).decode()
+        return f"Basic {token}"
+    if api_key:
+        return f"Bearer {api_key}"
+    return None
+
+
+def _get_json(url: str, username, password, api_key, timeout: int = 30) -> Dict:
+    req = urllib.request.Request(url, method="GET")
+    req.add_header("Accept", TAXII_MEDIA_TYPE)
+    auth = _auth_header(username, password, api_key)
+    if auth:
+        req.add_header("Authorization", auth)
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = resp.read().decode("utf-8", "replace")
+    except urllib.error.HTTPError as e:
+        detail = e.read().decode("utf-8", "replace")
+        raise RuntimeError(f"TAXII GET failed (HTTP {e.code}): {detail[:300]}")
+    except (urllib.error.URLError, TimeoutError) as e:
+        raise RuntimeError(f"connection error: {getattr(e, 'reason', e)}")
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        raise RuntimeError("TAXII response is not valid JSON")
+    if not isinstance(data, dict):
+        raise RuntimeError("TAXII response is not a JSON object")
+    return data
+
+
+def _pick(items: List[str], name: Optional[str], what: str) -> str:
+    """Pick a TAXII URL by exact match or by its last path segment (id)."""
+    if name:
+        name = name.rstrip("/")
+        for it in items:
+            if name in (it, it.rstrip("/"), it.rstrip("/").rsplit("/", 1)[-1]):
+                return it
+        raise RuntimeError(f"{what} '{name}' not found among {len(items)} options")
+    if not items:
+        raise RuntimeError(f"no {what}s available")
+    return items[0]
+
+
+def discover_collection_url(
+    discovery_url: str,
+    api_root: Optional[str] = None,
+    collection: Optional[str] = None,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    api_key: Optional[str] = None,
+    timeout: int = 30,
+) -> str:
+    """Resolve a TAXII 2.1 collection objects endpoint via Discovery + API Root."""
+    disc = _get_json(discovery_url, username, password, api_key, timeout)
+    roots = disc.get("api_roots")
+    if not isinstance(roots, list) or not roots:
+        raise RuntimeError("no api_roots in TAXII discovery response")
+    root_url = _pick(roots, api_root, "API root")
+
+    root = _get_json(root_url, username, password, api_key, timeout)
+    collections = root.get("collections")
+    if not isinstance(collections, list) or not collections:
+        raise RuntimeError("no collections in TAXII API root")
+    coll_url = _pick(collections, collection, "collection")
+
+    return coll_url.rstrip("/") + "/objects/"
+
+
 def push_bundle(
     bundle: Dict,
     collection_url: str,
@@ -63,11 +134,9 @@ def push_bundle(
     req = urllib.request.Request(collection_url, data=payload, method="POST")
     req.add_header("Content-Type", TAXII_MEDIA_TYPE)
     req.add_header("Accept", TAXII_MEDIA_TYPE)
-    if username is not None:
-        token = base64.b64encode(f"{username}:{password or ''}".encode()).decode()
-        req.add_header("Authorization", f"Basic {token}")
-    elif api_key:
-        req.add_header("Authorization", f"Bearer {api_key}")
+    auth = _auth_header(username, password, api_key)
+    if auth:
+        req.add_header("Authorization", auth)
 
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -76,8 +145,8 @@ def push_bundle(
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")
         return {"ok": False, "status_code": e.code, "detail": body[:500]}
-    except urllib.error.URLError as e:
-        return {"ok": False, "status_code": None, "detail": f"connection error: {e.reason}"}
+    except (urllib.error.URLError, TimeoutError) as e:
+        return {"ok": False, "status_code": None, "detail": f"connection error: {getattr(e, 'reason', e)}"}
 
     try:
         parsed = json.loads(body)
@@ -127,8 +196,12 @@ def export_taxii(
 def main() -> None:
     p = argparse.ArgumentParser(description="GSC TAXII Export — push STIX 2.1 bundle to a TAXII collection")
     p.add_argument("report", help="GSC scan report JSON")
-    p.add_argument("--collection-url", required=True,
-                   help="TAXII collection objects endpoint (POST .../objects/)")
+    target = p.add_mutually_exclusive_group(required=True)
+    target.add_argument("--collection-url", help="TAXII collection objects endpoint (POST .../objects/)")
+    target.add_argument("--discover", metavar="DISCOVERY_URL",
+                        help="TAXII Discovery endpoint (GET .../taxii2/); auto-resolve collection")
+    p.add_argument("--api-root", help="With --discover: API root id/URL to pick")
+    p.add_argument("--collection", help="With --discover: collection id/URL to pick")
     p.add_argument("--username", help="HTTP Basic auth username")
     p.add_argument("--password", help="HTTP Basic auth password")
     p.add_argument("--api-key", help="Bearer token / API key")
@@ -137,8 +210,25 @@ def main() -> None:
     p.add_argument("--dry-run", action="store_true", help="Build + save bundle, do not push")
     p.add_argument("--output", "-o", help="Also save the bundle JSON to this path")
     args = p.parse_args()
+
+    if not args.discover and (args.api_root or args.collection):
+        p.error("--api-root/--collection require --discover")
+
+    # Credentials may also come via env (avoids putting secrets in argv / cmdline)
+    username = args.username or os.environ.get("GSC_TAXII_USERNAME")
+    password = args.password or os.environ.get("GSC_TAXII_PASSWORD")
+    api_key = args.api_key or os.environ.get("GSC_TAXII_API_KEY")
+
+    collection_url = args.collection_url
+    if args.discover:
+        collection_url = discover_collection_url(
+            args.discover, args.api_root, args.collection,
+            username, password, api_key,
+        )
+        print(f"Discovered collection -> {collection_url}")
+
     sys.exit(export_taxii(
-        args.report, args.collection_url, args.username, args.password, args.api_key,
+        args.report, collection_url, username, password, api_key,
         args.severity, args.max, args.dry_run, args.output,
     ))
 

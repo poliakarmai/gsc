@@ -44,7 +44,7 @@ _UUID_NS = uuid.uuid5(uuid.NAMESPACE_URL, "gsc://poliakarmai/gsc")
 
 # Rules whose findings are threat *indicators* (leaked credentials / secrets),
 # not plain software vulnerabilities.
-INDICATOR_RULES = {"GS001", "GS029", "GS034"}
+INDICATOR_RULES = {"GS001", "GS029", "GS034", "GIOC"}  # GIOC = ingested external IOC
 
 
 # ── helpers ─────────────────────────────────────────────────
@@ -147,11 +147,20 @@ def _to_vulnerability(finding: Dict, key: str, ts: str) -> Dict:
 
 def _to_indicator(finding: Dict, key: str, ts: str) -> Dict:
     obj = _base("indicator", key, ts, finding)
-    path = finding.get("file_path", finding.get("file", "")) or ""
-    fname = Path(path).name if path else "unknown"
-    obj["pattern"] = f"[file:name = '{fname}']"
-    obj["pattern_type"] = "stix"
+    pattern = finding.get("stix_pattern") or ""
+    if pattern:
+        # ingested external IOC: preserve the original STIX pattern
+        obj["pattern"] = pattern
+        obj["pattern_type"] = "stix"
+    else:
+        path = finding.get("file_path", finding.get("file", "")) or ""
+        fname = Path(path).name if path else "unknown"
+        obj["pattern"] = f"[file:name = '{fname}']"
+        obj["pattern_type"] = "stix"
     obj["valid_from"] = ts
+    # preserve the source STIX id on round-trip (external IOC)
+    if finding.get("stix_id"):
+        obj["id"] = finding["stix_id"]
     return obj
 
 
