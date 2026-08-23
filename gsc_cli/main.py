@@ -925,7 +925,7 @@ def run_diff_scan(project: str, path: Path) -> list[dict]:
     # Check file permissions for changed files
     for fname in changed_files:
         fpath = path / fname
-        if fpath.exists() and fpath.suffix in ('.db', '.json', '.log', '.env', '.yaml', '.yml', '.key', '.pem'):
+        if fpath.exists() and fpath.suffix in ('.db', '.sqlite', '.env', '.key', '.pem', '.p12', '.pfx'):
             perms = oct(fpath.stat().st_mode)[-3:]
             if int(perms[-1]) >= 4:
                 findings.append({

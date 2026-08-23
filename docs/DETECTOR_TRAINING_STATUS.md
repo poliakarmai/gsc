@@ -32,6 +32,8 @@ severity-шкалу не менять; детектор целиком не от
 | GS020 XSS | static innerHTML/eval/setTimeout literal → FP, reflected без taint → downgrade, JSP recall, dangerouslySetInnerHTML static | smoke 10/10 | `1e9ecc7` |
 | GS002 world-readable | убраны *.conf/*.config/authorized_keys/known_hosts, credentials*/secrets* → data-файлы, id_rsa точное имя, skip vectors/dummyserver/demo | smoke 6/6 | `6820e32` |
 | GS004 subprocess | static shell=True/os.popen (константа) → downgrade HIGH→MEDIUM | smoke 9/9 | `5f6cc14` |
+| GS017 weak passwords | `_is_weak_value`: длинные mixed-case → не weak, KEY/mixed-case gates, path-exclusion | pytest + regression | `6691959` |
+| GS002 world-readable (config) | config/data-файлы (.yaml/.yml/.json/.log) → не sensitive, сужен список суффиксов | regression + reconcile | `см. ниже` |
 
 ---
 
@@ -39,10 +41,9 @@ severity-шкалу не менять; детектор целиком не от
 
 | Приоритет | Детектор | Файл | Шум (БД) | Зацепка |
 |---|---|---|---|---|
-| 1 | GS017 weak passwords | `gsc_core/gsc_detectors/gs017_*.py` | 824 HIGH | словарь слабых паролей → FP на тестовых/примерах |
-| 2 | GS018 payment abuse | `gsc_core/gsc_detectors/gs018_*.py` | 266 HIGH | price/amount манипуляции → FP на легитимных вычислениях |
-| 3 | GS014 credential exposure | `gsc_core/gsc_detectors/gs014_*.py` | 73 HIGH | логи/дебаг с кредами → FP |
-| 4 | GS001 (верификация) | `gsc_core/gsc_detectors/gs001_*.py` | 1561+1339 CRITICAL | проверить сабагентский фикс на реальном проекте, precision-замер до/после |
+| 1 | GS018 payment abuse | `gsc_core/gsc_detectors/gs018_*.py` | 266 HIGH | price/amount манипуляции → FP на легитимных вычислениях |
+| 2 | GS014 credential exposure | `gsc_core/gsc_detectors/gs014_*.py` | 73 HIGH | логи/дебаг с кредами → FP |
+| 3 | GS005 SQLi (верификация) | `gsc_core/gsc_detectors/gs005_*.py` | 4 258 CRITICAL | f-string/raw-concat SQLi → переснять после двухшаговых паттернов |
 
 > Числа — снимок БД на 2026-08-17, до фиксов GS002/GS004. Перед каждой сессией
 > переснимать: `sqlite3 ~/.hermes/state/gsc_audit.db "SELECT rule_id, category, COUNT(*) FROM findings WHERE category IN ('CRITICAL','HIGH') GROUP BY rule_id, category ORDER BY COUNT(*) DESC;"`.
