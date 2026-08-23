@@ -155,26 +155,9 @@ def _to_indicator(finding: Dict, key: str, ts: str) -> Dict:
     return obj
 
 
-# ── export ─────────────────────────────────────────────────
-def export_scan(
-    report_path: str,
-    output_path: str = "gsc-stix-bundle.json",
-    severity: Optional[str] = None,
-    max_items: Optional[int] = None,
-) -> int:
-    with open(report_path) as f:
-        report = json.load(f)
-    findings = report.get("findings", []) if isinstance(report, dict) else report
-
-    if severity:
-        wanted = {s.strip().lower() for s in severity.split(",") if s.strip()}
-        findings = [
-            f_ for f_ in findings
-            if str(f_.get("severity", f_.get("category", ""))).lower() in wanted
-        ]
-    if max_items:
-        findings = findings[:max_items]
-
+# ── bundle builder ─────────────────────────────────────────
+def build_bundle(findings: List[Dict]) -> Dict:
+    """Build a STIX 2.1 bundle from GSC findings (no I/O)."""
     ts = _timestamp()
     objects: List[Dict] = []
     refs: List[str] = []
@@ -211,17 +194,40 @@ def export_scan(
     # STIX 2.1: the bundle itself carries NO spec_version (it lives on each
     # object). A spec_version on the bundle would be misread as STIX 2.0 by
     # the official parser's version detection.
-    bundle = {
+    return {
         "type": "bundle",
         "id": _stix_id("bundle", f"gsc-{ts}"),
         "objects": objects,
     }
 
+
+# ── export ─────────────────────────────────────────────────
+def export_scan(
+    report_path: str,
+    output_path: str = "gsc-stix-bundle.json",
+    severity: Optional[str] = None,
+    max_items: Optional[int] = None,
+) -> int:
+    with open(report_path) as f:
+        report = json.load(f)
+    findings = report.get("findings", []) if isinstance(report, dict) else report
+
+    if severity:
+        wanted = {s.strip().lower() for s in severity.split(",") if s.strip()}
+        findings = [
+            f_ for f_ in findings
+            if str(f_.get("severity", f_.get("category", ""))).lower() in wanted
+        ]
+    if max_items:
+        findings = findings[:max_items]
+
+    bundle = build_bundle(findings)
+
     out = Path(output_path)
     out.write_text(json.dumps(bundle, indent=2, ensure_ascii=False), encoding="utf-8")
 
-    n_vuln = sum(1 for o in objects if o.get("type") == "vulnerability")
-    n_ind = sum(1 for o in objects if o.get("type") == "indicator")
+    n_vuln = sum(1 for o in bundle["objects"] if o.get("type") == "vulnerability")
+    n_ind = sum(1 for o in bundle["objects"] if o.get("type") == "indicator")
     print(f"STIX 2.1 bundle -> {out}")
     print(f"  objects: 1 report + {n_vuln} vulnerability + {n_ind} indicator")
     return 0

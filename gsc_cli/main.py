@@ -2468,6 +2468,18 @@ def main():
     stx.add_argument('--severity', '-s', help='Filter: critical,high,medium,low')
     stx.add_argument('--max', type=int, default=None)
 
+    # gsc export-taxii (push STIX 2.1 bundle to a TAXII collection)
+    tax = sub.add_parser('export-taxii', help='Push GSC findings to a TAXII 2.1 collection')
+    tax.add_argument('report', help='GSC scan report JSON')
+    tax.add_argument('--collection-url', required=True, help='TAXII collection objects endpoint')
+    tax.add_argument('--username', help='HTTP Basic auth username')
+    tax.add_argument('--password', help='HTTP Basic auth password')
+    tax.add_argument('--api-key', help='Bearer token / API key')
+    tax.add_argument('--severity', '-s', help='Filter: critical,high,medium,low')
+    tax.add_argument('--max', type=int, default=None)
+    tax.add_argument('--dry-run', action='store_true', help='Build + save, do not push')
+    tax.add_argument('--output', '-o', help='Also save the bundle JSON')
+
     # gsc import-nuclei / scan-dast / list-nuclei (Wave 2: SAST+DAST)
     imp_nuc = sub.add_parser('import-nuclei', help='Import nuclei YAML templates')
     imp_nuc.add_argument('directory', help='Path to nuclei-templates/')
@@ -2847,6 +2859,23 @@ def main():
         if getattr(args, 'max', None):
             stx_args.extend(["--max", str(args.max)])
         subprocess.run(stx_args)
+
+    elif args.command == "export-taxii":
+        tax_args = [sys.executable, str(_GSC_ROOT / "gsc_taxii_export.py"), args.report,
+                    "--collection-url", args.collection_url]
+        for flag, attr in (("--username", "username"), ("--password", "password"),
+                           ("--api-key", "api_key")):
+            if getattr(args, attr, None):
+                tax_args.extend([flag, getattr(args, attr)])
+        if getattr(args, 'severity', None):
+            tax_args.extend(["--severity", args.severity])
+        if getattr(args, 'max', None):
+            tax_args.extend(["--max", str(args.max)])
+        if getattr(args, 'dry_run', False):
+            tax_args.append("--dry-run")
+        if getattr(args, 'output', None):
+            tax_args.extend(["--output", args.output])
+        subprocess.run(tax_args)
 
     elif args.command == "import-nuclei":
         subprocess.run([sys.executable, str(_GSC_ROOT / "gsc_nuclei_import.py"),
