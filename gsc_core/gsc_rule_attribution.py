@@ -145,6 +145,9 @@ QUALITY_RULES: list[re.Pattern[str]] = [
     # DOIs as if they were IPs. Not secrets (GS029) and not code-quality per se;
     # bucket as quality so they stop polluting security metrics.
     re.compile(r"IP\s*адрес|IP\s*address|hardcoded\s+IP|IP[- ]whitelist", re.I),
+    # Hardcoded admin identifier / network CIDR — config smells, not secrets.
+    re.compile(r"admin[_\s]*(?:id|user)", re.I),
+    re.compile(r"\bcidr\b", re.I),
 ]
 
 

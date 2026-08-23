@@ -27,6 +27,14 @@ def test_cyrillic_hardcoded_ip_is_quality():
     assert attribute_rule_id("Hardcoded IP address") == LEGACY_SENTINEL
 
 
+def test_hardcoded_admin_id_and_cidr_are_quality():
+    # Hardcoded admin identifier and network CIDR are config smells, not secrets.
+    for title in ("Хардкод admin ID", "Хардкод ADMIN_ID в 5 файлах", "Terraform: Hardcoded CIDR"):
+        rid, tier = attribute(title)
+        assert rid == LEGACY_SENTINEL, title
+        assert tier == QUALITY_TIER, title
+
+
 def test_world_readable():
     assert attribute_rule_id("World-readable sensitive file") == "GS002"
 
