@@ -51,7 +51,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
 
     # --- Hardcoded Secrets ---
     ("hardcoded_password",
-     r'(?i)(?:password|passwd|pwd|secret)\s*[:=]\s*["\'][^"\']{8,}["\']', "LOW", 0.40),
+     r'(?i)(?:password|passwd|pwd|secret)\s*(?::=|=)\s*["\'][^"\']{8,}["\']', "LOW", 0.40),
     ("hardcoded_api_key",
      r'(?i)(?:ApiKey|API_KEY|apiKey|api_key|SecretKey|SECRET_KEY)\s*=\s*["\'][A-Za-z0-9_-]{16,}["\']',
      "CRITICAL", 0.90),
