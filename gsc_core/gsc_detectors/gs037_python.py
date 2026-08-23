@@ -81,8 +81,6 @@ PYTHON_RULES: list[tuple[str, str, str, float]] = [
     # --- Path Traversal ---
     ("path_traversal_open",
      r'(?i)(?:open|file)\s*\(\s*(?:os\.path\.join|f["\']).*(?:request\.|input)', "HIGH", 0.80),
-    ("path_traversal_join",
-     r'(?i)os\.path\.join\s*\([^)]*(?:request\.(?:args|form|json|data)|input\s*\(|sys\.argv)', "HIGH", 0.70),
     ("path_traversal_send_file",
      r'(?i)send_file\s*\(\s*[a-zA-Z_]\w*\s*\)', "HIGH", 0.65),
 
