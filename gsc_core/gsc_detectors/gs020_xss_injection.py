@@ -107,6 +107,14 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 line_no = content[:match.start()].count('\n') + 1
                 snippet = _extract_line(content, line_no)
 
+                # Multiline DOM-XSS assignment (`.innerHTML =\n"static"`) puts
+                # the RHS on the next line; fold it in so the static-string
+                # FP suppression below can see it.
+                if pattern in (r'\.innerHTML\s*=', r'\.outerHTML\s*=') and snippet.rstrip().endswith('='):
+                    _next = _extract_line(content, line_no + 1)
+                    if _next:
+                        snippet = snippet + '\n' + _next
+
                 if _is_false_positive(snippet, pattern):
                     continue
 
