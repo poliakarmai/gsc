@@ -28,6 +28,9 @@ venv/
 .venv/
 OWASPBenchmark/
 FastAPI-ML/
+
+# Re-scan runtime state (resumable benchmark)
+rescan_state.json
 HuixiangDou/
 VPN_oultine_engine-project/
 flaskdash/
