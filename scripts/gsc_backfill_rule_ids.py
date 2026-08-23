@@ -42,27 +42,16 @@ _GS_CODE_RE = re.compile(r"^GS\d{3}(?:-|$)")
 _YAML_ID_RE = re.compile(r"^YAML-[0-9A-F]{8}$")
 
 
-def derive_rule_id(title: str) -> str:
-    """Replica of gsc_cli.main._derive_rule_id — title → GS0XX (by source)."""
-    t = (title or "").lower()
-    if "sql" in t:
-        return "GS005"
-    if "xss" in t:
-        return "GS020"
-    if any(k in t for k in ("secret", "credential", "token", "encrypt",
-                            "exposed", "hardcoded")):
-        return "GS029"
-    if "disclos" in t:
-        return "GS014"
-    if "eval" in t:
-        return "GS008"
-    if "pickle" in t or "deserial" in t:
-        return "GS037"
-    if "except" in t:
-        return "GS010"
-    if "docker" in t or "container" in t:
-        return "GS031"
-    return "GS000-LEGACY"
+def derive_rule_id(title: str, category: str = "") -> str:
+    """Derive rule_id from title/category via gsc_core.gsc_rule_attribution.
+
+    Single source of truth (shared with gsc_cli.main._derive_rule_id and
+    scripts/gsc_remap_legacy.py). category enables legacy-category remapping
+    (redirect/ssrf/csrf/jwt/...).
+    """
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from gsc_core.gsc_rule_attribution import attribute_rule_id
+    return attribute_rule_id(title, category)
 
 
 def is_polluted(rule_id: str | None) -> bool:

@@ -475,23 +475,37 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
 
 
 def _derive_rule_id(pattern: dict) -> str:
-    """Derive rule_id for legacy pattern-based findings."""
-    title = (pattern.get("title") or "").lower()
-    if "sql" in title: return "GS005"
-    if "xss" in title: return "GS020"
-    if "secret" in title or "credential" in title or "token" in title or "encrypt" in title or "exposed" in title or "hardcoded" in title: return "GS029"
-    # information disclosure → GS014 (matches CVE_PATTERN_MAP detector='GS014')
-    if "disclos" in title: return "GS014"
-    if "eval" in title: return "GS008"
-    if "pickle" in title or "deserial" in title: return "GS037"
-    if "except" in title: return "GS010"
-    # NB: "assert" is a generic Python anti-pattern, NOT payment abuse — let it
-    # fall through to GS000-LEGACY rather than polluting GS018 (DETECTOR_BRIEF_GS018.md, Лид 1).
-    if "docker" in title or "container" in title: return "GS031"
-    # NB: "permission"/"world-readable"/"writable" (file-perm) and "cve" (SCA/CVE)
-    # are NOT AI-provenance — let them fall through to GS000-LEGACY rather than
-    # polluting GS025 (DETECTOR_BRIEF_GS025.md, Лид 1).
-    return "GS000-LEGACY"
+    """Derive rule_id for legacy pattern-based findings.
+
+    Delegates to gsc_core.gsc_rule_attribution (single source of truth for
+    title/category → GS0XX mapping). Falls back to the inline keyword map when
+    gsc_core is unavailable (graceful degradation on minimal CI runners).
+    """
+    title = pattern.get("title") or ""
+    category = pattern.get("category") or ""
+    try:
+        from gsc_core.gsc_rule_attribution import attribute_rule_id
+        return attribute_rule_id(title, category)
+    except ImportError:
+        t = title.lower()
+        if "sql" in t:
+            return "GS005"
+        if "xss" in t:
+            return "GS020"
+        if ("secret" in t or "credential" in t or "token" in t or "encrypt" in t
+                or "exposed" in t or "hardcoded" in t):
+            return "GS029"
+        if "disclos" in t:
+            return "GS014"
+        if "eval" in t or "exec" in t:
+            return "GS037"
+        if "pickle" in t or "deserial" in t:
+            return "GS037"
+        if "except" in t:
+            return "GS010"
+        if "docker" in t or "container" in t:
+            return "GS031"
+        return "GS000-LEGACY"
 
 def _perm_finding(file_path: str, title: str, detail: str) -> dict:
     import hashlib
