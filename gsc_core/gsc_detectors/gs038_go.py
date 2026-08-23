@@ -5,7 +5,7 @@ GS038 — Go Vulnerability Detector.
 
 Detects:
   - SSTI in html/template (user input in template)
-  - SQL injection (fmt.Sprintf in queries)
+  - SQL injection (string concatenation in queries)
   - Command injection (os/exec with user input)
   - Hardcoded secrets (API keys, passwords, JWT secrets)
   - Insecure crypto (MD5, SHA1, DES, weak RSA)
@@ -16,7 +16,6 @@ Detects:
   - Debug endpoints in production (pprof exposed)
   - TLS verification disabled (InsecureSkipVerify=true)
   - Hardcoded JWT secrets
-  - unsafe pointer usage
 """
 
 from __future__ import annotations
@@ -27,16 +26,11 @@ from typing import Any
 
 GO_RULES: list[tuple[str, str, str, float]] = [
     # --- SSTI ---
-    ("ssti_template",
-     r'(?i)(?:template\.Must|template\.New|tmpl\.Execute)\s*\(',
-     "HIGH", 0.60),
     ("ssti_html_template",
      r'(?i)html/template.*\.Execute\s*\([^)]*(?:r\.(?:FormValue|PostFormValue|URL\.Query))',
      "CRITICAL", 0.85),
 
     # --- SQL Injection ---
-    ("sql_injection_fmt",
-     r'(?i)fmt\.Sprintf\s*\(\s*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']', "LOW", 0.40),
     ("sql_injection_concat",
      r'(?i)(?:db\.Query|db\.Exec|db\.QueryRow)\s*\(\s*["\'].*%[svq].*[\'"]',
      "CRITICAL", 0.85),
@@ -87,11 +81,6 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     # --- Debug ---
     ("pprof_exposed",
      r'(?i)net/http/pprof', "MEDIUM", 0.55),
-
-    # --- Unsafe ---
-    ("unsafe_pointer",
-     r'unsafe\.Pointer\s*\(',
-     "INFO", 0.30),
 
     # --- GORM injection risk ---
     ("gorm_raw_sql",
@@ -157,7 +146,7 @@ class GS038GoDetector:
         if not content or EXCLUDE_PATH_RE.search(file_path):
             return findings
         ext = file_path[file_path.rfind('.'):].lower() if '.' in file_path else ''
-        if ext != '.go':
+        if ext != '.go' or file_path.endswith('_test.go'):
             return findings
         hits = 0
         for pattern_id, regex, severity, base_conf in GO_RULES:
@@ -186,7 +175,7 @@ def detect(ctx) -> list[dict]:
     findings = []
     files = ctx.files if ctx.files else list(ctx.path.rglob("*"))
     for fp in files:
-        if not fp.is_file() or fp.suffix != '.go': continue
+        if not fp.is_file() or fp.suffix != '.go' or fp.name.endswith('_test.go'): continue
         rel = str(fp.relative_to(ctx.path)) if ctx.path in fp.parents else str(fp)
         if EXCLUDE_PATH_RE.search(rel): continue
         try:
