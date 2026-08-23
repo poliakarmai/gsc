@@ -146,6 +146,15 @@ _RAW_PATTERNS: list[tuple[str, str, str, bool]] = [
     (r'read_sql_query\s*\(\s*f["\']', "Pandas read_sql_query with f-string", "python", False),
     (r'read_sql\s*\(\s*f["\']', "Pandas read_sql with f-string", "python", False),
 
+    # Two-step SQLi: query built by interpolation/concat in a SEPARATE statement
+    # from execute()/raw(). e.g. vuln-flask `str_query = "...%s..." % term`,
+    # pygoat `sql_query = "SELECT..." + name + ...` then `login.objects.raw(...)`.
+    # needs_ctx=True → require a taint source in nearby context (see detect()).
+    (r'["\'](?:SELECT|INSERT|UPDATE|DELETE).*%[sd]\b.*["\']\s*%',
+     "SQL %-formatting query building", "python", True),
+    (r'["\'](?:SELECT|INSERT|UPDATE|DELETE).*["\']\s*\+\s*(?!\s*["\'])',
+     "SQL string concat query building", "python", True),
+
     # ═══ JAVASCRIPT / TYPESCRIPT ═══════════════════════════════════════
 
     (r'\.(?:query|execute)\s*\(\s*`.*\$\{.*\}.*`', "Template literal SQL injection", "javascript", False),
@@ -352,6 +361,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     continue
                 if pid in _INTERPOLATION_REQUIRED and not _REAL_INTERPOLATION.search(line):
                     continue
+                if needs_context:
+                    _ctx = "\n".join(lines[max(0, line_no - 150):line_no + 1])
+                    if not _has_taint_source(_ctx):
+                        continue
 
                 key = (line_no, snippet)
                 if key not in locations:

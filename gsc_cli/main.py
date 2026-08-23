@@ -358,12 +358,19 @@ def _line_is_comment_or_docstring(lines: list[str], idx: int) -> bool:
         # Toggle docstring state
         if not in_docstring:
             if stripped.startswith('"""') or stripped.startswith("'''"):
-                in_docstring = True
-                doc_delim = '"""' if stripped.startswith('"""') else "'''"
-                # Single-line docstring
-                cnt = stripped.count(doc_delim)
-                if cnt >= 2 and stripped.endswith(doc_delim):
-                    in_docstring = False
+                delim = '"""' if stripped.startswith('"""') else "'''"
+                rest = stripped[len(delim):].lstrip()
+                # A closing triple-quote in an expression (e.g. `''' % request.url`)
+                # is not a docstring opener — skip so we don't swallow the code below.
+                if rest and rest[0] in '%+=)':
+                    pass
+                else:
+                    in_docstring = True
+                    doc_delim = delim
+                    # Single-line docstring
+                    cnt = stripped.count(doc_delim)
+                    if cnt >= 2 and stripped.endswith(doc_delim):
+                        in_docstring = False
         else:
             if doc_delim and doc_delim in stripped:
                 in_docstring = False

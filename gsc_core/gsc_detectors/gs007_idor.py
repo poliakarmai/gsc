@@ -34,6 +34,7 @@ _PATTERNS: list[tuple[str, str]] = [
     (r'\.objects\.get\s*\(\s*pk\s*=\s*request\.', "Django direct PK lookup without auth check"),
     (r'\.objects\.get\s*\(\s*id\s*=\s*request\.', "Django direct ID lookup without auth check"),
     (r'\.objects\.filter\s*\(\s*pk\s*=\s*request\.', "Django direct PK filter without auth check"),
+    (r'\.objects\.(?:get|filter)\s*\(\s*\w+\s*=\s*request\.(?:GET|POST|COOKIES|args|data|query_params)', "Django object lookup keyed on request input — verify ownership"),
 
     # FastAPI: path parameter used directly in DB without auth
     (r'@app\.\w+\(.*\{.*id.*\}.*\)\s*\n\s*def\s+\w+\(.*\):\s*\n\s*(?!.*current_user|.*Depends)', "FastAPI route without auth on ID param"),

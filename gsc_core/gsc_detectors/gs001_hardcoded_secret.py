@@ -30,7 +30,7 @@ _SECRET_PATTERNS: list[tuple[str, str]] = [
     (r'(?:access[_-]?key|ACCESS_KEY)\s*[:=]\s*["\'][A-Za-z0-9_\-]{10,}["\']', "Hardcoded access key"),
 
     # Secrets / tokens
-    (r'(?:secret|SECRET)\s*[:=]\s*["\'][A-Za-z0-9_\-]{12,}["\']', "Hardcoded secret"),
+    (r'(?:secret(?:[_-]?key)?|jwt[_-]?secret[_-]?key)["\']?\s*\]?\s*[:=]\s*["\'][A-Za-z0-9_\-]{12,}["\']', "Hardcoded secret"),
     (r'(?:token|TOKEN)\s*[:=]\s*["\'][A-Za-z0-9_\-]{16,}["\']', "Hardcoded token"),
     (r'(?:private[_-]?key|PRIVATE_KEY)\s*[:=]\s*["\'][A-Za-z0-9+/=]{32,}["\']', "Hardcoded private key"),
 
