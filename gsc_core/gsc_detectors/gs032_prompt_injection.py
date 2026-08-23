@@ -49,7 +49,7 @@ INJECTION_PATTERNS: list[tuple[str, str, str, float, str | None]] = [
      "HIGH", 0.70, None),
     ("fake_tool_call_file",
      r'(?i)(?:write_file|read_file|patch_file|append_file)\s*\(\s*["\']',
-     "MEDIUM", 0.60, None),
+     "LOW", 0.40, None),
     ("fake_tool_call_delegate",
      r'(?i)(?:delegate_task|spawn_agent|create_subagent)\s*\(\s*["\']',
      "HIGH", 0.70, None),

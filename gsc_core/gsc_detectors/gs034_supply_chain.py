@@ -104,7 +104,7 @@ JS_MALWARE_RULES: list[tuple[str, str, str, float]] = [
      "HIGH", 0.70),
     ("env_dump_all",
      r'(?i)(?:Object\.(?:entries|keys|values)|for\s*\(.*in)\s*\(?\s*process\.env',
-     "CRITICAL", 0.85),
+     "MEDIUM", 0.60),
     ("file_exfiltrator",
      r'(?i)readFile(?:Sync)?\s*\(.{0,100}(?:npmrc|gitconfig|credentials|'
      r'id_rsa|\.env|config\.json)',
