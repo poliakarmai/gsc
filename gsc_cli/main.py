@@ -2461,6 +2461,13 @@ def main():
     nuc.add_argument('--max', type=int, default=50)
     nuc.add_argument('--validate', action='store_true')
 
+    # gsc export-stix (STIX 2.1 threat-intel export)
+    stx = sub.add_parser('export-stix', help='Export GSC findings as STIX 2.1 bundle')
+    stx.add_argument('report', help='GSC scan report JSON')
+    stx.add_argument('--output', '-o', default='gsc-stix-bundle.json')
+    stx.add_argument('--severity', '-s', help='Filter: critical,high,medium,low')
+    stx.add_argument('--max', type=int, default=None)
+
     # gsc import-nuclei / scan-dast / list-nuclei (Wave 2: SAST+DAST)
     imp_nuc = sub.add_parser('import-nuclei', help='Import nuclei YAML templates')
     imp_nuc.add_argument('directory', help='Path to nuclei-templates/')
@@ -2830,6 +2837,16 @@ def main():
         if hasattr(args, 'validate') and args.validate:
             nuc_args.append("--validate")
         subprocess.run(nuc_args)
+
+    elif args.command == "export-stix":
+        stx_args = [sys.executable, str(_GSC_ROOT / "gsc_stix_export.py"), args.report]
+        if hasattr(args, 'output') and args.output != 'gsc-stix-bundle.json':
+            stx_args.extend(["--output", args.output])
+        if hasattr(args, 'severity') and args.severity:
+            stx_args.extend(["--severity", args.severity])
+        if getattr(args, 'max', None):
+            stx_args.extend(["--max", str(args.max)])
+        subprocess.run(stx_args)
 
     elif args.command == "import-nuclei":
         subprocess.run([sys.executable, str(_GSC_ROOT / "gsc_nuclei_import.py"),
