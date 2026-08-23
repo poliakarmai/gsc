@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 47 (43 registry + 4 engines) · **Schema:** v33 · **Modules:** 167
+**Version:** v1.4.0 · **Detectors:** 47 (43 registry + 4 engines) · **Schema:** v33 · **Modules:** 168
 <!-- GSC-META-END -->
 
 
@@ -174,6 +174,32 @@ gsc export-nuclei scan.json -o templates/
 gsc scan-dast https://staging.example.com --severity critical
 ```
 
+### 📤 Threat Intel Interop (STIX 2.1 / TAXII 2.1)
+Export findings as a **STIX 2.1 bundle** (report + vulnerability + indicator
+objects) consumable by MISP, OpenCTI, or any TAXII server — then push it straight
+to a TAXII 2.1 collection via the Add Objects endpoint.
+
+```bash
+# Export findings to a STIX 2.1 bundle (default: gsc-stix-bundle.json)
+gsc export-stix scan.json -o gsc-stix-bundle.json --severity critical,high --max 50
+
+# Push the bundle to a TAXII 2.1 collection (HTTP Basic auth)
+gsc export-taxii scan.json \
+    --collection-url https://taxii.example.com/collections/abc123/objects/ \
+    --username analyst --password "$TAXII_PASS"
+
+# Auto-resolve the collection via TAXII Discovery (no manual collection URL)
+gsc export-taxii scan.json --discover https://taxii.example.com/taxii2/ --api-key "$TAXII_API_KEY"
+
+# Dry-run: build + save the bundle, don't push (Bearer-token variant)
+gsc export-taxii scan.json --collection-url https://taxii.example.com/collections/abc123/objects/ \
+    --api-key "$TAXII_API_KEY" --dry-run -o bundle.json
+
+# Pull external STIX indicators/vulnerabilities into GSC findings (ingest)
+gsc taxii-ingest https://taxii.example.com/collections/abc123/objects/ \
+    --api-key "$TAXII_API_KEY" -o intel-findings.json
+```
+
 ### 🤖 MCP Server — your AI agent becomes a security scanner
 GSC speaks **Model Context Protocol** — Claude Code, Cursor, Cline, Windsurf and
 Copilot can run scans, read findings and verify exploits **inside their own
@@ -213,6 +239,7 @@ GSC SAST+DAST Hybrid Platform
 ├── Blocking Engine — auto-policy with community verdicts
 ├── GitHub Adapter — PR comments, checks, SARIF, /gsc commands
 ├── Nuclei Integration — DAST export/import/validate (v0.28)
+├── STIX/TAXII Export — threat-intel interop (MISP/OpenCTI)
 └── SQLite DB — schema 33, WAL, hashed-only secret fingerprinting
 ```
 
@@ -250,6 +277,10 @@ gsc sla --days 90 --by category
 # Export to nuclei for DAST validation
 gsc export-nuclei scan.json -o nuclei-templates/
 nuclei -t nuclei-templates/ -u https://staging.example.com
+
+# Export findings to STIX 2.1 (MISP/OpenCTI) or push to TAXII 2.1
+gsc export-stix scan.json -o gsc-stix-bundle.json --severity critical,high
+gsc export-taxii scan.json --collection-url https://taxii.example.com/collections/abc123/objects/ --api-key "$TAXII_API_KEY"
 ```
 
 **Profiles:** `developer-review` · `pr-gate` · `audit` · `candidate-review`

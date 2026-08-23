@@ -22,7 +22,7 @@ Predictive Forecasting, Federated Learning.
 gsc/
 ├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
 ├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
-├── gsc_meta.py                   ← SSOT: 167 модулей, 47 детекторов, schema 33
+├── gsc_meta.py                   ← SSOT: 168 модулей, 47 детекторов, schema 33
 ├── gsc_core/                     ← движок (13): db, blocking, detectors/, invariant_engine,
 │                                   compliance, sca, epss, federated, ast_dataflow, iac,
 │                                   secrets_core, yaml_rules
@@ -93,6 +93,17 @@ python3 gsc.py sla --days 90 --by category                           # MTTFV SLA
 python3 gsc.py archaeology trace <key> --repo .
 python3 gsc.py forecast heatmap --repo .
 python3 gsc.py policy add "no secrets in logs"
+
+# Threat Intel Interop (STIX 2.1 / TAXII 2.1)
+python3 gsc.py export-stix scan.json -o gsc-stix-bundle.json --severity critical,high --max 50
+python3 gsc.py export-taxii scan.json --collection-url https://taxii.example.com/collections/<id>/objects/ \
+    --username analyst --password "$TAXII_PASS"          # или --api-key "$TAXII_API_KEY"
+python3 gsc.py export-taxii scan.json --discover https://taxii.example.com/taxii2/ \
+    --api-key "$TAXII_API_KEY"                            # авто-резолв коллекции (Discovery)
+python3 gsc.py export-taxii scan.json --collection-url https://taxii.example.com/collections/<id>/objects/ \
+    --api-key "$TAXII_API_KEY" --dry-run -o bundle.json  # build+save, без push
+python3 gsc.py taxii-ingest https://taxii.example.com/collections/<id>/objects/ \
+    --api-key "$TAXII_API_KEY" -o intel-findings.json     # тянуть STIX-фиды в GSC
 ```
 
 ## DB Schema (v33)
