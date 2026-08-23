@@ -68,7 +68,7 @@ def detect(ctx) -> List[Finding]:
 
     try:
         # Run bumblebee on the project directory
-        scan_dir = ctx.project_root or os.getcwd()
+        scan_dir = str(ctx.path) if getattr(ctx, "path", None) else os.getcwd()
         cmd = [
             bumblebee, "scan",
             "--profile", "baseline",
