@@ -15,9 +15,16 @@ def test_sql_injection():
     assert attribute_rule_id("SQL injection risk: f-string in query") == "GS005"
 
 
-def test_cyrillic_hardcoded_ip():
-    # Legacy Cyrillic title — must still map to the secrets family.
-    assert attribute_rule_id("Хардкод IP адреса") == "GS029"
+def test_cyrillic_hardcoded_ip_is_quality():
+    # "Хардкод IP адреса" is a removed hardcoded-IP pattern, not a secret —
+    # attribute() must bucket it as quality, NOT GS029.
+    rid, tier = attribute("Хардкод IP адреса")
+    assert rid == LEGACY_SENTINEL
+    assert tier == QUALITY_TIER
+    # attribute_rule_id() must also NOT map hardcoded-IP to GS029
+    # (negative lookahead on the hardcoded/secrets keyword).
+    assert attribute_rule_id("Хардкод IP адреса") == LEGACY_SENTINEL
+    assert attribute_rule_id("Hardcoded IP address") == LEGACY_SENTINEL
 
 
 def test_world_readable():

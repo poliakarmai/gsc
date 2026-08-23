@@ -58,9 +58,10 @@ SECURITY_RULES: list[tuple[re.Pattern[str], str]] = [
     (re.compile(r"\bcsrf\b", re.I), "GS021"),
     # Secrets / hardcoded credentials (incl. legacy Cyrillic "Хардкод")
     (re.compile(
-        r"hardcoded|hard[- ]coded|хардкод|credential|secret|\bapi\s*key\b|"
-        r"access\s*key|personal\s+access\s+token|connection\s+string|"
-        r"database\s+url|encryption\s+key|session[/ ]?secret|jwt\s*secret|\btoken\b",
+        r"hardcoded(?!\s*ip\b)|hard[- ]coded(?!\s*ip\b)|хардкод(?!\s*ip\b)|"
+        r"credential|secret|\bapi\s*key\b|access\s*key|personal\s+access\s+token|"
+        r"connection\s+string|database\s+url|encryption\s+key|session[/ ]?secret|"
+        r"jwt\s*secret|\btoken\b",
         re.I), "GS029"),
     # PII / financial data exposure
     (re.compile(r"\biban\b|bank\s+account|\bpan\b|pci[- ]dss|\bpii\b|financial\s+data",
@@ -139,6 +140,11 @@ QUALITY_RULES: list[re.Pattern[str]] = [
     re.compile(r"logging\s+без\s+basicconfig", re.I),
     re.compile(r"dict\s+вместо\s+typeddict", re.I),
     re.compile(r"синхронный\s+код\s+в\s+async", re.I),
+    # Hardcoded-IP legacy patterns (patterns DB id=21/40, already active=0) —
+    # a removed regex that matched version strings, URLs, SVG viewBox coords and
+    # DOIs as if they were IPs. Not secrets (GS029) and not code-quality per se;
+    # bucket as quality so they stop polluting security metrics.
+    re.compile(r"IP\s*адрес|IP\s*address|hardcoded\s+IP|IP[- ]whitelist", re.I),
 ]
 
 
