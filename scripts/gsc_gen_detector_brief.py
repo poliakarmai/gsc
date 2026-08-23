@@ -19,6 +19,8 @@ DETECTORS = [
     "gs028_invariants", "gs029_secrets", "gs030_sca", "gs031_iac",
     "gs032_prompt_injection", "gs033_cicd", "gs034_supply_chain", "gs035_php",
     "gs036_nodejs", "gs037_python", "gs038_go", "gs039_ruby", "gs040_pii_disclosure",
+    "gs041_crypto_secrets", "gs042_solidity", "gs043_honeypot",
+    "gs044_trading_bots", "gs045_github_actions",
 ]
 
 YAML_RULES = ["ssti_injection", "reverse_shell", "no_print_secrets",
@@ -99,49 +101,38 @@ invent it.
 
 ## 1. Context — precision already measured
 
-Two benchmarks (2026-08-20), both `--ci` (regex-only).
+Three benchmarks on real projects (`--ci` regex-only). Latest: **Замер 3**
+(2026-08-21, 100 real GitHub projects — 90 clean + 10 known-vulnerable).
 
-**A. Fresh 10-project set (≤200⭐, 4 known-TP + 6 clean)** — measured before and
-after the precision pass of 20.08:
+| Metric | Value |
+|---|---|
+| Total findings | 64 831 |
+| CRITICAL | 4 302 |
+| HIGH | 37 246 |
+| Recall | 8/10 vulnerable caught |
+| Clean projects with CRIT (FP noise) | 48/90 |
+| Precision CRITICAL | ~4–5% |
 
-| Metric | Before fixes | After fixes |
+Top CRITICAL generators (FP-noise source):
+
+| Rule | CRIT | Diagnosis |
 |---|---|---|
-| Total findings | 1845 | 1786 |
-| CRITICAL (severity) | 54 | **1** |
-| HIGH | 346 | 342 |
-| Precision CRITICAL | ~2% (1 TP) | ~50% (1 TP / 2, n small) |
+| GS008 (eval/exec) | 2 508 | eval legit in bundlers/minifiers → **FIXED** (`ba4c2d0`) |
+| GS000-LEGACY | 505 | no-rule_id data-quality debt → **FIXED** (remap to quality) |
+| GS005 (SQLi) | 211 → now 4 258 | f-string/raw-concat → **OPEN, top priority** |
 
-Manual classification of all 54 CRITICAL found **53 FP / 1 TP** (a real Stripe
-key in `Baobab`). The FP causes — all now FIXED (see §5, do not re-propose):
+**Recall already closed (do NOT re-open):** hardcoded_secret 0/1→1/1,
+idor 0/1→1/1, sql_injection 1/3→3/3 (`eec5d42`); legacy attribution GS000-LEGACY
+remapped (IP/admin-ID/CIDR → quality, `dd6e6a3`).
 
-| # | FP cause | Example |
-|---|---|---|
-| 1 | SQL in DB migrations | Baobab `migrations/versions/*.py` `.format()` |
-| 2 | Test passwords | `password='abcd'` in `tests.py` |
-| 3 | `input()`/`getpass()` prompt as secret | dagster `getpass.getpass("Password: ")` |
-| 4 | `time.sleep()` as blind SQLi | cyberbro `sleep(` |
-| 5 | Internal dev hosts | `redis://cache:6379`, `sqlite:///…` |
-| 6 | hCaptcha test keys | piccolo `0x0000…` / `10000000-…` |
-| 7 | abstract/stub OTP send | piccolo `mfa/provider.py:40` `@abstractmethod send_code` |
-| 8 | enum role as credential | descope `ADMIN="admin"` in `class X(Enum)` |
-| 9 | tutorial/provision SUID | django-ca `provision.sh`, Baobab `migrate_database.sh` |
+**Your job:** hunt the remaining noise. Priority order from the live findings DB
+(`sqlite3 ~/.hermes/state/gsc_audit.db`, snapshot 2026-08-23):
 
-**B. Legacy 10-project set (large mature repos: youtube-dl, sanic, loguru,
-httpie, pendulum…)** — still has these **OPEN** FP classes. A regex-only fix is
-insufficient (they need AST/taint analysis or a DB-pattern row we can't trace):
-
-| # | FP cause | Example |
-|---|---|---|
-| 1 | Docstring example matched as code | loguru `_logger.py:1607` `>>> record = pickle.loads(pipe.read())` |
-| 2 | Parameterized query seen as SQLi | piccolo `crud/endpoints.py:491` `.raw(sql, f"%{search_term}%")` |
-| 3 | Fixed subprocess args as cmd-injection | youtube-dl `YoutubeDL.py:429` `['bidiv'] + width_args` |
-| 4 | JS `delete` operator as SQL keyword | youtube-dl `openload.py:86` `delete window._phantom` |
-| 5 | `os.system == 'nt'` comparison | httpie `man_pages.py:21` |
-| 6 | Bare word `key` as crypto secret | pendulum `formatter.py:351` `key = "translations.day_periods"` |
-
-**Your job:** hunt the **remaining** noise — the OPEN classes above plus any
-pattern not yet listed, across all detectors and all severity levels
-(CRITICAL / HIGH / MEDIUM / LOW / INFO).
+| Priority | Rule | Noise | Clue |
+|---|---|---|---|
+| 1 | GS005 SQLi | 4 258 CRITICAL | f-string (1813) + raw-concat (792) + CVE-55721 (786) |
+| 2 | GS018 payment | 266 HIGH | FLOAT_MONEY regex → FP on legit money math |
+| 3 | GS014 credential exposure | 73 HIGH | logs/debug with creds |
 
 **Critical rule:** a finding that is real code matching an insecure-API name
 (e.g. `pickle.loads`, `os.system`, `.execute(`) is **NOT** automatically a
@@ -227,7 +218,7 @@ CONSTRAINTS = """
 - GS037: docstring masking + aggregate `GS037-high_risk` demoted to INFO.
 - GS005: removed `execute with <collection>[idx]` unpacking; skip DB migrations; `SLEEP` no longer matches `time.sleep()`.
 - GS001: exclude `tests.py`/`testing.py`; `input()`/`getpass()` prompt is not a secret; removed `sqlite://`; internal dev hosts (localhost/cache/db, even `@user:pass`) → config.
-- GS019: abstractmethod lookbehind (`\b` not `\s*$`); stub body (`pass`/`...`/`raise NotImplementedError`); `contrib.auth|cycle_key` (Django login rotation); test/`e2e`/`__tests__`/example path exclude.
+- GS019: abstractmethod lookbehind (`\\b` not `\\s*$`); stub body (`pass`/`...`/`raise NotImplementedError`); `contrib.auth|cycle_key` (Django login rotation); test/`e2e`/`__tests__`/example path exclude.
 - GS025: vendor test-secret markers (`0x0000`, `ffff-ffff`, …).
 - GS016: skip provision/migrate/setup/install scripts.
 - GS017: test/`e2e` path exclude; enum-member role filter (`ADMIN="admin"` — UPPER lhs only).
@@ -235,6 +226,13 @@ CONSTRAINTS = """
 - `main.py` `_pattern_search`: migration/provision exclude for the DB-pattern layer.
 - DB seed `Hardcoded encryption key`: narrowed (bare `key` removed).
 - DB pattern `pickle.load()`: deactivated (duplicate of GS037).
+- GS001 (recall): `app.config['SECRET_KEY']` / `JWT_SECRET_KEY` covered; 0/1→1/1 (`eec5d42`).
+- GS005 (recall): two-step SQLi (%-formatting + concat query building) with taint window 150 lines; 1/3→3/3 (`eec5d42`).
+- GS007 (recall): `.objects.get/filter(key=request.GET/POST/COOKIES/...)`; 0/1→1/1 (`eec5d42`).
+- GS017: `_is_weak_value` — long mixed-case (≥13) → not weak; KEY/mixed-case gates (`6691959`).
+- GS002: config/data files (.yaml/.yml/.json/.log) → not sensitive, narrowed suffix list (`e50afca`).
+- `gsc_rule_attribution`: hardcoded IP/admin-ID/CIDR → quality, not GS029 (`dd6e6a3`).
+- `main.py` docstring filter: closing triple-quote in expression (`''' % request.url`) not a docstring opener (`eec5d42`).
 
 ---
 
@@ -293,7 +291,7 @@ Rank proposals by FP volume (biggest noise first). End with a summary table:
 
 ```bash
 cd ~/gsc
-# Full test suite (must stay green — 462 passed, 5 skipped)
+# Full test suite (must stay green — 668 passed, 6 skipped)
 python3 -m pytest -q
 
 # Clean projects (FP should drop)
