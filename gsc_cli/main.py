@@ -738,10 +738,17 @@ def check_security(project: str, path: Path) -> list[dict]:
                 if key not in svc_content:
                     if key + "=" in svc_content:
                         continue
+                    import hashlib as _hashlib
+                    _title = f"Systemd: {key}= not set"
+                    _rid = "GS000-LEGACY"
+                    _fk = _hashlib.sha256(
+                        f"{_rid}{svc_file}{_title}".encode()).hexdigest()[:12]
                     findings.append({
+                        "finding_key": _fk,
+                        "rule_id": _rid,
                         "category": category,
                         "echelon": 2,
-                        "title": f"Systemd: {key}= not set",
+                        "title": _title,
                         "file_path": str(svc_file),
                         "line_number": 0,
                         "detail": detail,
