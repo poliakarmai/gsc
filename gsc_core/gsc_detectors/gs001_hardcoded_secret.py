@@ -104,6 +104,48 @@ def _is_placeholder(value: str) -> bool:
     return any(p in value.lower() for p in placeholders)
 
 
+# Template/interpolation artifacts that the loose password regex can match but
+# are never literal secrets: HTML tags (<b>anything), SQL params (%(user)s),
+# shell/env refs ($pass), mustache/handlebars ({{ lookup }}). Live FP cluster
+# from clean repos (django `alter user %(user)s...`, pygoat `<b>anything`).
+_TEMPLATE_ARTIFACT_RE = re.compile(r'[<>]|\$\(|%\(')
+
+
+# Famous demo/example password VALUES (never real secrets in clean code).
+# Data-driven from the 100-project benchmark: ruff `s3cr3t`×301, sqlalchemy
+# `tiger`, fabric `jack`, plus canonical demo creds. Deliberately excludes
+# weak-but-real teaching creds (admin123, admin, root, guest, test) that the
+# vuln calibration set (vuln-flask `admin123`, pygoat) exercises as TP.
+_DEMO_PASSWORD_VALUES = frozenset({
+    "s3cr3t", "tiger", "hunter2", "letmein", "qwerty", "qwerty123",
+    "monkey", "dragon", "iloveyou", "abc123", "abcd", "password1",
+    "password123", "passw0rd", "p@ssw0rd", "iamusedfortesting",
+    "my-super-secret-password", "mysekretpa$$word", "test-pass-123",
+    "changeme", "changeit", "changethis", "jack", "default",
+    # Python parameter-kind markers caught by the loose `password[:=]"..."` regex
+    "kwonly", "posonly",
+    # Library/context markers, not passwords
+    "py-polars", "crates", "twisted@twistedmatrix.com",
+})
+
+
+def _is_template_artifact(matched: str) -> bool:
+    """True when the matched text is a template/interpolation fragment, not a
+    literal secret value."""
+    return bool(_TEMPLATE_ARTIFACT_RE.search(matched))
+
+
+def _extract_quoted_value(matched: str) -> str:
+    """Extract the string-literal value from a `key="value"` match."""
+    m = re.search(r'["\']([^"\']*)["\']', matched)
+    return m.group(1) if m else ""
+
+
+def _is_demo_password(matched: str) -> bool:
+    """True when the password value is a well-known demo/example credential."""
+    return _extract_quoted_value(matched).strip().lower() in _DEMO_PASSWORD_VALUES
+
+
 def _luhn_valid(number: str) -> bool:
     """Luhn checksum — mandatory on every real PAN (ISO/IEC 7812).
 
@@ -223,6 +265,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if "onnection" in label and _INTERNAL_CONN_HOSTS.search(matched):
                     continue
                 if _is_placeholder(matched):
+                    continue
+                # Template/interpolation artifacts (HTML tags, SQL params, env refs)
+                if _is_template_artifact(matched):
+                    continue
+                # Demo/example credential values (scoped to password/secret labels)
+                if _is_demo_password(matched) and ("assword" in label or "secret" in label):
                     continue
                 # IBAN validation: require valid country code + mod-97 checksum
                 if "IBAN" in label and not _is_valid_iban(matched):
