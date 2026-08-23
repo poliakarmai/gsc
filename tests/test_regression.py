@@ -112,7 +112,7 @@ run_case('GS001: vendor test credentials are placeholders', t13)
 
 def t14():
     from gsc_detectors import gs001_hardcoded_secret as g1
-    ctx = _ctx_with({"app.py": 'password = "my-super-secret-password"\n'})
+    ctx = _ctx_with({"app.py": 'password = "admin123"\n'})
     fs = g1.detect(ctx)
     assert fs, "Real hardcoded password not detected (TP regression)"
 run_case('GS001: real secrets still detected (TP guard)', t14)
