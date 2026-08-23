@@ -36,8 +36,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
 
     # --- SQL Injection ---
     ("sql_injection_fmt",
-     r'(?i)fmt\.Sprintf\s*\(\s*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']',
-     "HIGH", 0.70),
+     r'(?i)fmt\.Sprintf\s*\(\s*["\'].*(?:SELECT|INSERT|UPDATE|DELETE).*["\']', "LOW", 0.40),
     ("sql_injection_concat",
      r'(?i)(?:db\.Query|db\.Exec|db\.QueryRow)\s*\(\s*["\'].*%[svq].*[\'"]',
      "CRITICAL", 0.85),
@@ -52,8 +51,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
 
     # --- Hardcoded Secrets ---
     ("hardcoded_password",
-     r'(?i)(?:password|passwd|pwd|secret)\s*[:=]\s*["\'][^"\']{8,}["\']',
-     "HIGH", 0.70),
+     r'(?i)(?:password|passwd|pwd|secret)\s*[:=]\s*["\'][^"\']{8,}["\']', "LOW", 0.40),
     ("hardcoded_api_key",
      r'(?i)(?:ApiKey|API_KEY|apiKey|api_key|SecretKey|SECRET_KEY)\s*=\s*["\'][A-Za-z0-9_-]{16,}["\']',
      "CRITICAL", 0.90),
@@ -65,7 +63,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     ("weak_crypto_md5",
      r'(?i)(?:md5\.New|md5\.Sum|crypto/md5)', "HIGH", 0.70),
     ("weak_crypto_sha1",
-     r'(?i)(?:sha1\.New|sha1\.Sum|crypto/sha1)', "LOW", 0.40),
+     r'(?i)(?:sha1\.New|sha1\.Sum|crypto/sha1)', "INFO", 0.30),
     ("weak_crypto_des",
      r'(?i)crypto/des', "MEDIUM", 0.50),
 
@@ -84,7 +82,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     # --- Path Traversal ---
     ("path_traversal",
      r'(?i)(?:os\.Open|ioutil\.ReadFile|os\.ReadFile)\s*\([^)]*filepath\.Join',
-     "LOW", 0.40),
+     "INFO", 0.30),
 
     # --- Debug ---
     ("pprof_exposed",
@@ -93,7 +91,7 @@ GO_RULES: list[tuple[str, str, str, float]] = [
     # --- Unsafe ---
     ("unsafe_pointer",
      r'unsafe\.Pointer\s*\(',
-     "LOW", 0.40),
+     "INFO", 0.30),
 
     # --- GORM injection risk ---
     ("gorm_raw_sql",
@@ -130,6 +128,25 @@ def _snippet(content: str, line_no: int, window: int = 2) -> str:
     return "\n".join(lines[start:end])
 
 
+# Demo/example credential values (>=8 chars to pass the hardcoded_password
+# regex). Same FP class as GS001: library/test fixtures with `password="password"`,
+# `changeme`, etc. — never real secrets.
+_DEMO_PASSWORD_VALUES = frozenset({
+    "password", "passwd", "secret", "changeme", "changeit", "changethis",
+    "test1234", "testpass", "password1", "password123", "passw0rd",
+    "12345678", "123456789", "qwerty123", "letmein", "example", "default",
+    "dummy", "sample", "demo", "guest", "admin", "root", "foobar",
+})
+
+
+def _is_demo_password(matched: str) -> bool:
+    """True when a `password = "..."` match carries a demo/example value."""
+    m = re.search(r'["\']([^"\']*)["\']', matched)
+    if not m:
+        return False
+    return m.group(1).strip().lower() in _DEMO_PASSWORD_VALUES
+
+
 class GS038GoDetector:
     rule_id = "GS038"
     name = "Go Vulnerability Detection"
@@ -145,6 +162,9 @@ class GS038GoDetector:
         hits = 0
         for pattern_id, regex, severity, base_conf in GO_RULES:
             for match in re.finditer(regex, content, re.MULTILINE):
+                matched = match.group(0)
+                if pattern_id == "hardcoded_password" and _is_demo_password(matched):
+                    continue
                 line_no = content[:match.start()].count("\n") + 1
                 findings.append(_finding(f"GS038-{pattern_id}", severity,
                     f"Go security: {pattern_id}",
