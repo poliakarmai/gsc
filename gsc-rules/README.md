@@ -1,58 +1,58 @@
-# GSC Rule Registry — свой реестр YAML-правил
+# GSC Rule Registry — own YAML rule registry
 
-Декларативный pattern DSL: правила пишутся на YAML и компилируются в GSC-детекторы
-без написания Python-кода (`gsc_core/gsc_yaml_rules.py`).
+Declarative pattern DSL: rules are written in YAML and compiled into GSC detectors
+without writing Python code (`gsc_core/gsc_yaml_rules.py`).
 
-## Конвенция файлов
+## File convention
 
-- **Один файл = одно правило** (или группа связанных правил под одним `rules:`).
-- Имя файла = `<id>.yml` (например `no-unsafe-deserialization.yml`).
-- Идентификатор правила (`id`) — kebab-case, уникален в реестре.
+- **One file = one rule** (or a group of related rules under a single `rules:`).
+- File name = `<id>.yml` (e.g. `no-unsafe-deserialization.yml`).
+- Rule identifier (`id`) — kebab-case, unique within the registry.
 
-## Метаданные правила
+## Rule metadata
 
 ```yaml
 rules:
-  - id: no-unsafe-deserialization      # обязателен, kebab-case
-    severity: CRITICAL                  # CRITICAL|HIGH|MEDIUM|LOW (или ERROR/WARNING/INFO)
+  - id: no-unsafe-deserialization      # required, kebab-case
+    severity: CRITICAL                  # CRITICAL|HIGH|MEDIUM|LOW (or ERROR/WARNING/INFO)
     confidence: 0.85                    # 0.0–1.0
     languages: [python]                 # python|javascript|go|java|ruby|...
-    message: "Unsafe deserialization ..."  # обязателен — что и почему
-    patterns:                           # обязателен — хотя бы один
-      - regex: "pickle\\.loads\\("     # raw regex (GSC-стиль)
+    message: "Unsafe deserialization ..."  # required — what and why
+    patterns:                           # required — at least one
+      - regex: "pickle\\.loads\\("     # raw regex (GSC-style)
         title: "pickle.loads() — unsafe deserialization"
-      # или декларативный паттерн:
-      # - pattern: "pickle.loads($X)"   # → компилируется в regex
-    not-patterns:                       # negation guards (необязательно)
+      # or a declarative pattern:
+      # - pattern: "pickle.loads($X)"   # → compiled to regex
+    not-patterns:                       # negation guards (optional)
       - regex: "yaml\\.safe_load"
-    fix: "Use yaml.safe_load() or a allowlist"   # необязательно
-    references:                         # необязательно
+    fix: "Use yaml.safe_load() or an allowlist"   # optional
+    references:                         # optional
       - "https://cwe.mitre.org/data/definitions/502.html"
 ```
 
-## Форматы паттернов
+## Pattern formats
 
-| Ключ | Семантика |
+| Key | Semantics |
 |------|-----------|
-| `pattern: "eval($X)"` | декларативный — `$X`→метапеременная, `...`→ellipsis, компилируется в regex |
-| `pattern-regex: "..."` | raw regex, как есть |
-| `patterns: [{regex: ..., title: ...}]` | GSC-стиль: список regex + заголовок |
-| `pattern-either: [...]` | OR альтернатив |
-| `not-patterns` / `not` / `pattern-not` | negation guards — совпадение исключает находку |
+| `pattern: "eval($X)"` | declarative — `$X`→metavariable, `...`→ellipsis, compiled to regex |
+| `pattern-regex: "..."` | raw regex, as-is |
+| `patterns: [{regex: ..., title: ...}]` | GSC-style: list of regex + title |
+| `pattern-either: [...]` | OR of alternatives |
+| `not-patterns` / `not` / `pattern-not` | negation guards — a match suppresses the finding |
 
-## Команды
+## Commands
 
 ```bash
-gsc registry list                    # скомпилированные + исходные YAML
-gsc registry add <file.yml>          # скомпилировать и зарегистрировать (merge-safe)
-gsc registry update <path|git-url>   # импорт community-правил
+gsc registry list                    # compiled + source YAML rules
+gsc registry add <file.yml>          # compile and register (merge-safe)
+gsc registry update <path|git-url>   # import community rules
 ```
 
-Скомпилированные детекторы попадают в `gsc_core/gsc_detectors/yaml_rules/`
-и автоматически подключаются к реестру (`get_detectors()`) с `rule_id = YAML-<hash>`.
+Compiled detectors land in `gsc_core/gsc_detectors/yaml_rules/` and are
+automatically connected to the registry (`get_detectors()`) with `rule_id = YAML-<hash>`.
 
-## Приоритет при конфликте с встроенными детекторами
+## Priority vs built-in detectors
 
-Встроенные детекторы (`GS001`–`GS0xx`) имеют приоритет: не пишите YAML-правило,
-если уязвимость уже покрыта встроенным детектором (это породит дубли-находки).
-YAML-правила — для **новых** паттернов, которых нет в 47 детекторах.
+Built-in detectors (`GS001`–`GS0xx`) take priority: do not write a YAML rule if the
+vulnerability is already covered by a built-in detector (that would produce duplicate
+findings). YAML rules are for **new** patterns not covered by the 47 detectors.

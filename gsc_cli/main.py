@@ -2298,30 +2298,30 @@ def cmd_registry(args):
     from gsc_core.gsc_detectors import registry as _det_reg
 
     if args.reg_command == "list":
-        # 1) Скомпилированные детекторы
+        # 1) Compiled detectors
         compiled = sorted(YAML_RULES_DIR.glob("*.py")) if YAML_RULES_DIR.is_dir() else []
         compiled = [p for p in compiled if p.name != "__init__.py"]
         print(f"📦 Compiled YAML detectors ({len(compiled)}): {YAML_RULES_DIR}")
         for p in compiled:
-            # Вытащить name/severity без исполнения — по заголовку комментария
+            # Read name/severity without executing — from the header comment
             head = ""
             for line in p.read_text(encoding="utf-8").splitlines()[:6]:
                 if line.startswith("# Rule:"):
                     head = line.replace("# Rule:", "").strip()
             print(f"  • {p.stem:28s}  {head}")
         if not compiled:
-            print("   (пусто — скомпилируйте: gsc registry add <file.yml>)")
+            print("   (empty — compile with: gsc registry add <file.yml>)")
 
-        # 2) Исходные YAML-правила (свой реестр)
+        # 2) Source YAML rules (own registry)
         src_dir = _GSC_ROOT / "gsc-rules"
         yamls = sorted(src_dir.glob("*.yml")) + sorted(src_dir.glob("*.yaml")) if src_dir.is_dir() else []
         print(f"\n🗂  Source YAML rules ({len(yamls)}): {src_dir}")
         for y in yamls:
             print(f"  • {y.name}")
         if not yamls:
-            print("   (пусто — создайте gsc-rules/<id>.yml)")
+            print("   (empty — create gsc-rules/<id>.yml)")
 
-        # 3) Сколько YAML-детекторов подключено к реестру
+        # 3) How many YAML detectors are connected to the registry
         yaml_ids = [d.rule_id for d in _det_reg.get_detectors()
                     if d.rule_id.startswith("YAML-")]
         print(f"\n🔌 Connected to detector registry: {len(yaml_ids)} YAML rule(s)")

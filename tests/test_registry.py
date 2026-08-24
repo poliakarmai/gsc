@@ -1,11 +1,11 @@
-"""Tests for the GSC rule registry (Ф3 — свой реестр правил).
+"""Tests for the GSC rule registry (Phase 3 — own rule registry).
 
-Контракт:
-- compile_rules() компилирует исходные YAML-правила из gsc-rules/;
-- to_detector_code() генерирует исполняемый детектор с корректным импортом;
-- compile_and_write() merge-safe: не затирает уже существующие правила;
-- скомпилированные правила подключаются к detector registry (rule_id = YAML-*);
-- YAML_RULES_DIR — канонический путь, не зависит от CWD.
+Contract:
+- compile_rules() compiles source YAML rules from gsc-rules/;
+- to_detector_code() generates an executable detector with a correct import;
+- compile_and_write() is merge-safe: does not clobber already-existing rules;
+- compiled rules connect to the detector registry (rule_id = YAML-*);
+- YAML_RULES_DIR is the canonical path, CWD-independent.
 """
 import sys
 import tempfile
@@ -38,7 +38,7 @@ def test_yaml_rules_dir_is_absolute_and_canonical():
 def test_compile_rules_from_gsc_rules_dir():
     repo_root = Path(__file__).parent.parent
     sample = repo_root / "gsc-rules" / "no-unsafe-deserialization.yml"
-    assert sample.exists(), "образец правила отсутствует в gsc-rules/"
+    assert sample.exists(), "sample rule is missing from gsc-rules/"
     rules = compile_rules(str(sample))
     assert len(rules) == 1
     r = rules[0]
@@ -51,13 +51,13 @@ def test_compile_rules_from_gsc_rules_dir():
 def test_to_detector_code_has_correct_import_and_contract():
     rule = _sample_rule()
     code = rule.to_detector_code()
-    # абсолютный импорт — работает через top-level shim gsc_detectors
+    # absolute import — works via the top-level gsc_detectors shim
     assert "from gsc_detectors.base import RegexDetector" in code
     ns = {}
     exec(code, ns)
     det = ns["detector"]
     res = det.detect("app.py", "os.system('id')\n", "python")
-    assert res, "детектор должен дать находку"
+    assert res, "detector should yield a finding"
     f = res[0]
     assert f["file_path"] == "app.py"
     assert f["rule_id"].startswith("YAML-")
@@ -66,13 +66,13 @@ def test_to_detector_code_has_correct_import_and_contract():
 def test_compile_and_write_is_merge_safe():
     with tempfile.TemporaryDirectory() as tmp:
         d = Path(tmp)
-        # симулируем уже существующее скомпилированное правило
+        # simulate an already-compiled rule
         (d / "existing_rule.py").write_text("# pre-existing\n")
         compile_and_write([_sample_rule(id="new-rule")], str(d))
         init = (d / "__init__.py").read_text()
-        # merge-safe: оба должны остаться в __all__
-        assert "existing_rule" in init, "MERGE BUG: существующее правило потеряно"
-        assert "new_rule" in init, "новое правило не добавлено"
+        # merge-safe: both must remain in __all__
+        assert "existing_rule" in init, "MERGE BUG: existing rule was lost"
+        assert "new_rule" in init, "new rule was not added"
 
 
 def test_regenerate_init_lists_all_py():
@@ -90,4 +90,4 @@ def test_regenerate_init_lists_all_py():
 def test_compiled_rules_connected_to_registry():
     from gsc_detectors.registry import get_detectors
     yaml_ids = [d.rule_id for d in get_detectors() if d.rule_id.startswith("YAML-")]
-    assert len(yaml_ids) >= 5, "ожидается ≥5 подключённых YAML-правил"
+    assert len(yaml_ids) >= 5, "expected ≥5 connected YAML rules"

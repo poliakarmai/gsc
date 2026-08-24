@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
-"""GSC YAML Rule Compiler — декларативный pattern DSL.
+"""GSC YAML Rule Compiler — declarative pattern DSL.
 
-Позволяет писать кастомные правила на YAML и компилировать их
-в GSC-детекторы без написания Python-кода.
+Lets you write custom rules in YAML and compile them into GSC detectors
+without writing Python code.
 
-Формат rule schema — декларативный pattern DSL.
+Rule schema format — declarative pattern DSL.
 
 Usage:
     python3 gsc_yaml_rules.py compile rules/my-rule.yml
-    python3 gsc_yaml_rules.py compile rules/  # директория
-    python3 gsc_yaml_rules.py registry update  # обновить из GitHub
+    python3 gsc_yaml_rules.py compile rules/  # directory
+    python3 gsc_yaml_rules.py registry update  # update from GitHub
 """
 
 import hashlib, json, os, re, subprocess, sys, yaml
@@ -31,18 +31,18 @@ from typing import Dict, List, Optional, Tuple
 #       - regex: "exec\\s*\\("
 #         title: "exec() with user input"
 #     fix: "Use safer alternative..."
-#     not-patterns:                 # negation guard (`pattern-not`-аналог)
+#     not-patterns:                 # negation guard (`pattern-not` analogue)
 #       - regex: "ast\\.literal_eval"
 #     references:
 #       - "https://cwe.mitre.org/data/definitions/95.html"
 #
-# ИЛИ pattern-стиль:
+# OR pattern-style:
 #
 # rules:
 #   - id: my-rule-id
 #     severity: ERROR       # → CRITICAL
 #     message: "..."
-#     pattern: "eval($X)"   # → один pattern
+#     pattern: "eval($X)"   # → one pattern
 #     languages: [python]
 
 
@@ -53,8 +53,8 @@ SEVERITY_MAP = {
     "LOW": "LOW",
 }
 
-# Канонический каталог скомпилированных YAML-детекторов (внутри пакета gsc_core).
-# Абсолютный путь, не зависит от CWD (иначе default резолвился в неверную директорию).
+# Canonical directory for compiled YAML detectors (inside the gsc_core package).
+# Absolute path, CWD-independent (otherwise default resolved to the wrong directory).
 YAML_RULES_DIR = Path(__file__).resolve().parent / "gsc_detectors" / "yaml_rules"
 
 
@@ -221,15 +221,14 @@ def detect(file_path, content, language="auto"):
         return f"YAML-{h}"
 
     def _parse_not_patterns(self, rule_dict: dict) -> List[str]:
-        """Собрать negation-guard паттерны из `pattern-not` / `not` / `not-patterns`.
+        """Collect negation-guard patterns from `pattern-not` / `not` / `not-patterns`.
 
-        `pattern-not` (строка или список) компилируется через
-        pattern_to_regex; GSC-стиль `not` / `not-patterns` принимает
-        сырые regex-строки или `{regex: ...}`.
+        `pattern-not` (string or list) is compiled through pattern_to_regex;
+        GSC-style `not` / `not-patterns` accepts raw regex strings or `{regex: ...}`.
         """
         out: List[str] = []
 
-        # pattern-not (string или list)
+        # pattern-not (string or list)
         pn = rule_dict.get("pattern-not")
         if pn:
             items = pn if isinstance(pn, list) else [pn]
@@ -244,7 +243,7 @@ def detect(file_path, content, language="auto"):
                     elif "regex" in it:
                         out.append(it["regex"])
 
-        # GSC-style: `not` / `not-patterns` (regex-строки или {regex: ...})
+        # GSC-style: `not` / `not-patterns` (regex strings or {regex: ...})
         for key in ("not", "not-patterns"):
             np = rule_dict.get(key)
             if not np:
@@ -287,11 +286,10 @@ def compile_rules(path: str) -> List[YamlRule]:
 
 
 def _regenerate_init(output: Path):
-    """Пересобрать __init__.py из ВСЕХ скомпилированных *.py в директории.
+    """Regenerate __init__.py from ALL compiled *.py files in the directory.
 
-    Сканирует каталог (кроме __init__.py), чтобы `add` нового правила не
-    затирал импорты уже существующих — merge-safe. Порядок — сортированный,
-    детерминированный.
+    Scans the directory (except __init__.py) so that `add` of a new rule does
+    not clobber imports of existing ones — merge-safe. Sorted, deterministic order.
     """
     modules = sorted(
         p.stem for p in output.glob("*.py") if p.name != "__init__.py"
