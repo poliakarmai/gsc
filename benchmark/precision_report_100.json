@@ -1,0 +1,640 @@
+{
+  "scanned_at": "2026-08-24T03:29:58.897612+00:00",
+  "projects": [
+    {
+      "project": "django",
+      "lang": "python",
+      "commit": "cccc004b46f7",
+      "recall": false,
+      "total": 1313,
+      "critical": 310,
+      "high": 129,
+      "elapsed": 264.7
+    },
+    {
+      "project": "flask",
+      "lang": "python",
+      "commit": "d318b6834711",
+      "recall": false,
+      "total": 29,
+      "critical": 2,
+      "high": 7,
+      "elapsed": 10.3
+    },
+    {
+      "project": "jinja",
+      "lang": "python",
+      "commit": "5ef70112a1ff",
+      "recall": false,
+      "total": 14,
+      "critical": 0,
+      "high": 8,
+      "elapsed": 9.3
+    },
+    {
+      "project": "requests",
+      "lang": "python",
+      "commit": "8f8b212de8c2",
+      "recall": false,
+      "total": 8,
+      "critical": 0,
+      "high": 1,
+      "elapsed": 6.9
+    },
+    {
+      "project": "urllib3",
+      "lang": "python",
+      "commit": "52dfb19e055b",
+      "recall": false,
+      "total": 57,
+      "critical": 0,
+      "high": 4,
+      "elapsed": 11.2
+    },
+    {
+      "project": "aiohttp",
+      "lang": "python",
+      "commit": "8c8906a19f64",
+      "recall": false,
+      "total": 38,
+      "critical": 0,
+      "high": 8,
+      "elapsed": 23.5
+    },
+    {
+      "project": "httpx",
+      "lang": "python",
+      "commit": "b5addb64f016",
+      "recall": false,
+      "total": 8,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 7.8
+    },
+    {
+      "project": "starlette",
+      "lang": "python",
+      "commit": "398e5a3430eb",
+      "recall": false,
+      "total": 11,
+      "critical": 2,
+      "high": 1,
+      "elapsed": 7.7
+    },
+    {
+      "project": "uvicorn",
+      "lang": "python",
+      "commit": "8988c23704fc",
+      "recall": false,
+      "total": 8,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 7.6
+    },
+    {
+      "project": "pydantic",
+      "lang": "python",
+      "commit": "2151025aa512",
+      "recall": false,
+      "total": 648,
+      "critical": 4,
+      "high": 42,
+      "elapsed": 48.7
+    },
+    {
+      "project": "celery",
+      "lang": "python",
+      "commit": "2c42237d3757",
+      "recall": false,
+      "total": 125,
+      "critical": 1,
+      "high": 28,
+      "elapsed": 40.7
+    },
+    {
+      "project": "scrapy",
+      "lang": "python",
+      "commit": "ab27dfdb1f0f",
+      "recall": false,
+      "total": 35,
+      "critical": 1,
+      "high": 12,
+      "elapsed": 30.9
+    },
+    {
+      "project": "sqlalchemy",
+      "lang": "python",
+      "commit": "16d00eca61cf",
+      "recall": false,
+      "total": 322,
+      "critical": 18,
+      "high": 62,
+      "elapsed": 126.2
+    },
+    {
+      "project": "black",
+      "lang": "python",
+      "commit": "c835e9db6377",
+      "recall": false,
+      "total": 75,
+      "critical": 0,
+      "high": 8,
+      "elapsed": 32.5
+    },
+    {
+      "project": "ruff",
+      "lang": "python",
+      "commit": "564fb737a826",
+      "recall": false,
+      "total": 4409,
+      "critical": 41,
+      "high": 96,
+      "elapsed": 294.6
+    },
+    {
+      "project": "tornado",
+      "lang": "python",
+      "commit": "0096f2897c98",
+      "recall": false,
+      "total": 66,
+      "critical": 4,
+      "high": 18,
+      "elapsed": 20.8
+    },
+    {
+      "project": "pyramid",
+      "lang": "python",
+      "commit": "948c6bac3b8e",
+      "recall": false,
+      "total": 22,
+      "critical": 4,
+      "high": 8,
+      "elapsed": 39.7
+    },
+    {
+      "project": "bottle",
+      "lang": "python",
+      "commit": "62d7e076e1f7",
+      "recall": false,
+      "total": 13,
+      "critical": 0,
+      "high": 6,
+      "elapsed": 9.1
+    },
+    {
+      "project": "falcon",
+      "lang": "python",
+      "commit": "ea2b14d34bdb",
+      "recall": false,
+      "total": 26,
+      "critical": 0,
+      "high": 7,
+      "elapsed": 23.1
+    },
+    {
+      "project": "httpie",
+      "lang": "python",
+      "commit": "5b604c37c6c6",
+      "recall": false,
+      "total": 14,
+      "critical": 0,
+      "high": 2,
+      "elapsed": 11.2
+    },
+    {
+      "project": "pip",
+      "lang": "python",
+      "commit": "0268b0aa0843",
+      "recall": false,
+      "total": 66,
+      "critical": 0,
+      "high": 10,
+      "elapsed": 68.7
+    },
+    {
+      "project": "setuptools",
+      "lang": "python",
+      "commit": "7d531288b7c8",
+      "recall": false,
+      "total": 89,
+      "critical": 0,
+      "high": 28,
+      "elapsed": 37.6
+    },
+    {
+      "project": "boto3",
+      "lang": "python",
+      "commit": "1b554d23c1d3",
+      "recall": false,
+      "total": 24,
+      "critical": 0,
+      "high": 23,
+      "elapsed": 19.6
+    },
+    {
+      "project": "aws-cli",
+      "lang": "python",
+      "commit": "5ad8dc60682d",
+      "recall": false,
+      "total": 189,
+      "critical": 49,
+      "high": 51,
+      "elapsed": 466.4
+    },
+    {
+      "project": "click",
+      "lang": "python",
+      "commit": "e1fd5946ab26",
+      "recall": false,
+      "total": 2,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 11.2
+    },
+    {
+      "project": "typer",
+      "lang": "python",
+      "commit": "9a7b2e83f6b6",
+      "recall": false,
+      "total": 19,
+      "critical": 0,
+      "high": 4,
+      "elapsed": 24.9
+    },
+    {
+      "project": "rich",
+      "lang": "python",
+      "commit": "9d8f9a372cc5",
+      "recall": false,
+      "total": 28,
+      "critical": 0,
+      "high": 3,
+      "elapsed": 28.9
+    },
+    {
+      "project": "loguru",
+      "lang": "python",
+      "commit": "2a17be730e11",
+      "recall": false,
+      "total": 3,
+      "critical": 0,
+      "high": 2,
+      "elapsed": 9.8
+    },
+    {
+      "project": "pendulum",
+      "lang": "python",
+      "commit": "5ad098bc7b74",
+      "recall": false,
+      "total": 9,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 12.8
+    },
+    {
+      "project": "python-dateutil",
+      "lang": "python",
+      "commit": "48bd1af97e71",
+      "recall": false,
+      "total": 3,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 7.5
+    },
+    {
+      "project": "marshmallow",
+      "lang": "python",
+      "commit": "c7b559a1fa3a",
+      "recall": false,
+      "total": 1,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 6.6
+    },
+    {
+      "project": "python-dotenv",
+      "lang": "python",
+      "commit": "a00cb2eed070",
+      "recall": false,
+      "total": 3,
+      "critical": 0,
+      "high": 0,
+      "elapsed": 3.5
+    },
+    {
+      "project": "gunicorn",
+      "lang": "python",
+      "commit": "f6805fd40e33",
+      "recall": false,
+      "total": 92,
+      "critical": 2,
+      "high": 15,
+      "elapsed": 26.9
+    },
+    {
+      "project": "pytest",
+      "lang": "python",
+      "commit": "efa117ad49ce",
+      "recall": false,
+      "total": 78,
+      "critical": 1,
+      "high": 35,
+      "elapsed": 43.2
+    },
+    {
+      "project": "hypothesis",
+      "lang": "python",
+      "commit": "41004301f02b",
+      "recall": false,
+      "total": 65,
+      "critical": 0,
+      "high": 22,
+      "elapsed": 45.9
+    },
+    {
+      "project": "scikit-learn",
+      "lang": "python",
+      "commit": "1be3c64af188",
+      "recall": false,
+      "total": 312,
+      "critical": 1,
+      "high": 23,
+      "elapsed": 186.9
+    },
+    {
+      "project": "matplotlib",
+      "lang": "python",
+      "commit": "0c9b7e2afe62",
+      "recall": false,
+      "total": 402,
+      "critical": 22,
+      "high": 50,
+      "elapsed": 163.5
+    },
+    {
+      "project": "streamlit",
+      "lang": "python",
+      "commit": "5bbe7372eb57",
+      "recall": false,
+      "total": 558,
+      "critical": 9,
+      "high": 265,
+      "elapsed": 221.7
+    },
+    {
+      "project": "gradio",
+      "lang": "python",
+      "commit": "a535e7797d5b",
+      "recall": false,
+      "total": 1117,
+      "critical": 24,
+      "high": 211,
+      "elapsed": 126.0
+    },
+    {
+      "project": "playwright-python",
+      "lang": "python",
+      "commit": "010a9cc73f8a",
+      "recall": false,
+      "total": 57,
+      "critical": 0,
+      "high": 5,
+      "elapsed": 37.7
+    },
+    {
+      "project": "express",
+      "lang": "javascript",
+      "commit": "a3714473feb3",
+      "recall": false,
+      "total": 8,
+      "critical": 0,
+      "high": 2,
+      "elapsed": 7.6
+    },
+    {
+      "project": "axios",
+      "lang": "javascript",
+      "commit": "84a9f3b9a4f3",
+      "recall": false,
+      "total": 87,
+      "critical": 0,
+      "high": 11,
+      "elapsed": 13.9
+    },
+    {
+      "project": "vue",
+      "lang": "javascript",
+      "commit": "9e8870794008",
+      "recall": false,
+      "total": 718,
+      "critical": 1,
+      "high": 27,
+      "elapsed": 18.6
+    },
+    {
+      "project": "next.js",
+      "lang": "javascript",
+      "error": "timeout >900s"
+    },
+    {
+      "project": "nuxt",
+      "lang": "javascript",
+      "commit": "e511e20cf798",
+      "recall": false,
+      "total": 765,
+      "critical": 2,
+      "high": 90,
+      "elapsed": 75.4
+    }
+  ],
+  "per_rule": {
+    "GS005": {
+      "CRITICAL": 29,
+      "MEDIUM": 56
+    },
+    "GS000-LEGACY": {
+      "CRITICAL": 7,
+      "HIGH": 428,
+      "INFO": 5928,
+      "MEDIUM": 563,
+      "LOW": 15
+    },
+    "GS037": {
+      "CRITICAL": 23
+    },
+    "GS012": {
+      "HIGH": 16,
+      "LOW": 112
+    },
+    "GS022": {
+      "MEDIUM": 26,
+      "INFO": 127,
+      "HIGH": 4
+    },
+    "GS001": {
+      "CRITICAL": 376
+    },
+    "GS003": {
+      "LOW": 1064,
+      "INFO": 230
+    },
+    "GS015": {
+      "INFO": 136
+    },
+    "GS020": {
+      "LOW": 14,
+      "HIGH": 110,
+      "MEDIUM": 67,
+      "CRITICAL": 3
+    },
+    "GS032-fake_tool_call_execute": {
+      "HIGH": 37
+    },
+    "GS036-redos": {
+      "LOW": 7
+    },
+    "GS037-hardcoded_password": {
+      "HIGH": 18
+    },
+    "GS037-pickle_load_any": {
+      "HIGH": 36
+    },
+    "GS037-debug_true": {
+      "MEDIUM": 14
+    },
+    "GS037-command_injection_shell_true": {
+      "MEDIUM": 12
+    },
+    "GS040-pii_email": {
+      "LOW": 302
+    },
+    "GS040-suspicious_comment": {
+      "MEDIUM": 30
+    },
+    "GS004": {
+      "HIGH": 84,
+      "CRITICAL": 9,
+      "MEDIUM": 1
+    },
+    "GS007": {
+      "HIGH": 39,
+      "INFO": 157
+    },
+    "GS009": {
+      "supply-chain": 44
+    },
+    "GS017": {
+      "CRITICAL": 8,
+      "HIGH": 5
+    },
+    "GS021": {
+      "MEDIUM": 7,
+      "INFO": 25,
+      "HIGH": 4,
+      "CRITICAL": 2
+    },
+    "GS025-eval_usage": {
+      "HIGH": 229
+    },
+    "YAML-36ACF0AD": {
+      "LOW": 359
+    },
+    "YAML-ECB85AD8": {
+      "MEDIUM": 600
+    },
+    "GS011": {
+      "HIGH": 7,
+      "LOW": 2
+    },
+    "GS019": {
+      "CRITICAL": 7,
+      "HIGH": 11,
+      "MEDIUM": 4
+    },
+    "GS025-debug_mode": {
+      "HIGH": 4
+    },
+    "YAML-B39DC08C": {
+      "HIGH": 94
+    },
+    "GS025-wildcard_bind": {
+      "MEDIUM": 5
+    },
+    "GS031-DOCKER-NO-USER": {
+      "MEDIUM": 45
+    },
+    "GS031-DOCKER-NO-HEALTHCHECK": {
+      "LOW": 45
+    },
+    "GS029": {
+      "CRITICAL": 7,
+      "HIGH": 50
+    },
+    "GS008": {
+      "LOW": 31
+    },
+    "GS031": {
+      "MEDIUM": 5,
+      "HIGH": 1,
+      "LOW": 3
+    },
+    "GS031-DOCKER-LINT": {
+      "CRITICAL": 3
+    },
+    "GS024": {
+      "CRITICAL": 2
+    },
+    "GS032-fake_tool_call_file": {
+      "LOW": 60
+    },
+    "GS002": {
+      "HIGH": 11
+    },
+    "GS025-permissive_cors": {
+      "HIGH": 4
+    },
+    "GS025-hardcoded_secret": {
+      "CRITICAL": 1
+    },
+    "GS037-hardcoded_api_key": {
+      "HIGH": 11
+    },
+    "GS040-private_ip_config": {
+      "LOW": 4
+    },
+    "GS014": {
+      "LOW": 1
+    },
+    "GS031-DOCKER-LATEST": {
+      "MEDIUM": 1
+    },
+    "GS016": {
+      "MEDIUM": 2
+    },
+    "GS032-exfil_git_clone_malicious": {
+      "MEDIUM": 1
+    },
+    "GS034-typo_squatting": {
+      "LOW": 6
+    },
+    "GS037-yaml_full_load": {
+      "CRITICAL": 1
+    },
+    "GS034-token_collector": {
+      "HIGH": 115
+    },
+    "GS032-markdown_image_exfil": {
+      "LOW": 3
+    },
+    "GS032-exfil_env_send": {
+      "CRITICAL": 7
+    },
+    "GS032-markdown_link_injection": {
+      "HIGH": 6
+    },
+    "YAML-SSTI001": {
+      "CRITICAL": 13
+    }
+  },
+  "recall_hits": {}
+}
