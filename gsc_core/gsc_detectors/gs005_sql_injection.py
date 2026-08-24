@@ -396,9 +396,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
             if f is None:
                 continue
 
-            # Downgrade f-string SQL if sanitizer or no taint source
-            if f["severity"] == "CRITICAL" and "f-string" in f["title"]:
-                context = "\n".join(lines[max(0, line_no - 3):line_no])
+            # Downgrade interpolated SQL if sanitizer or no taint source
+            is_interpolated = any(k in f["title"].lower() for k in ("f-string", "format", "%-formatting", "concat", "interpolation", "template literal"))
+            if f["severity"] == "CRITICAL" and is_interpolated:
+                context = "\n".join(lines[max(0, line_no - 15):line_no])
                 if _has_sanitizer(context):
                     f["severity"] = "LOW"
                     f["title"] = f["title"] + " [sanitized — verify manually]"

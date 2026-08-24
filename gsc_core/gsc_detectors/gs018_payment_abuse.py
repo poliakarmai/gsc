@@ -102,7 +102,7 @@ STATE_CHECK_MISSING = re.compile(
 FLOAT_MONEY = re.compile(
     r'(?:price|amount|sum|total|balance|cost|fee|tax|commission|'
     r'cashback|bonus|discount|payment|charge|refund|deposit|withdrawal)'
-    r'\s*=\s*float\s*\(.*?\)\s*[-+*/%]',
+    r'\s*=\s*float\s*\(.*?\)\s*[-+*/%](?!\s*100\b)',
     re.IGNORECASE,
 )
 

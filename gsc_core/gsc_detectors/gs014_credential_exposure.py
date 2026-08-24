@@ -284,6 +284,14 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     # URL inside a docstring (example, not a credential)
                     if fp.suffix.lower() == ".py" and _in_docstring(content, match.start()):
                         continue
+                    # URL inside a log/debug/print statement (diagnostic, not a live credential)
+                    line_start = content.rfind("\n", 0, match.start()) + 1
+                    line_end = content.find("\n", match.end())
+                    if line_end == -1:
+                        line_end = len(content)
+                    line_text = content[line_start:line_end]
+                    if re.search(r'\b(?:logger|logging|log|print|debug|sys\.stdout|app\.logger)\b', line_text, re.I):
+                        continue
                     lineno = content[:match.start()].count("\n") + 1
                     findings.append(Finding(
                         rule_id=RULE_ID,
