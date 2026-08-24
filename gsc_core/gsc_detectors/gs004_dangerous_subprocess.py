@@ -87,6 +87,17 @@ _STATIC_SHELL = re.compile(
     r'(?![\s\S]*(\$\{|["\']\s*\+|\{[a-zA-Z_]\w*\}|\.format\s*\(|%\s*\(|%[sd]))'
 )
 
+# Taint sources for command injection / eval / exec context analysis.
+# Without untrusted input reaching the sink, os.system()/eval()/exec() on
+# internal data is code smell, not a confirmed injection → downgrade to MEDIUM.
+_TAINT_SOURCE_RE = re.compile(
+    r'(?:request\.(?:args|form|values|json|data|GET|POST|COOKIE|headers)|'
+    r'input\s*\(|sys\.argv|os\.environ\[|'
+    r'\$_(?:GET|POST|REQUEST|COOKIE|SERVER)|'
+    r'\.(?:get_json|form_data|params)\s*\()',
+    re.IGNORECASE,
+)
+
 
 def detect(ctx: AuditContext) -> list[Finding]:
     """Find dangerous subprocess/shell usage in source code."""
@@ -111,6 +122,15 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 # input → MEDIUM.
                 if r"\$" in pattern:
                     severity = "MEDIUM"
+                # os.system with f-string/format but no taint source in the
+                # surrounding context → MEDIUM (internal command wrapper, not a
+                # confirmed injection). eval/exec stay HIGH: bare code-exec sinks
+                # are higher risk and guarded as HIGH "potential" by test_corpus.
+                if "system" in pattern:
+                    ctx_start = max(0, m.start() - 800)
+                    ctx_end = min(len(content), m.end() + 200)
+                    if not _TAINT_SOURCE_RE.search(content[ctx_start:ctx_end]):
+                        severity = "MEDIUM"
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=severity,

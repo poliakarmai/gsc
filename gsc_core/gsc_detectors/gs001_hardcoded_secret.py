@@ -269,6 +269,19 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 # Template/interpolation artifacts (HTML tags, SQL params, env refs)
                 if _is_template_artifact(matched):
                     continue
+                # Pure-numeric passwords (12345678, 111111) are weak defaults —
+                # GS017's job, not a leaked secret. Deliberately NOT suppressing
+                # alphanumeric teaching creds (admin123, admin, root, test): those
+                # are TP in vuln-flask/pygoat calibration.
+                if "assword" in label:
+                    val = _extract_quoted_value(matched).strip().lower()
+                    if val.isdigit():
+                        continue
+                # Connection strings with placeholder passwords (user:password@,
+                # user:test@) are config examples, not production leaks.
+                if "onnection" in label:
+                    if re.search(r'://[^:]*:(?:password|test|changeme|admin|root|123456|qwerty|placeholder|example|dummy|fake|pass)@', matched, re.I):
+                        continue
                 # Demo/example credential values (scoped to password/secret labels)
                 if _is_demo_password(matched) and ("assword" in label or "secret" in label):
                     continue

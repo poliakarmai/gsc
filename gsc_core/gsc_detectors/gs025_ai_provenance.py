@@ -47,7 +47,7 @@ AI_VULN_PATTERNS: list[tuple[str, str, str, float]] = [
      "MEDIUM", 0.55),
     ("eval_usage",
      r"\beval\s*\(|\bexec\s*\(|\bchild_process\b.*\beval\b",
-     "HIGH", 0.70),
+     "LOW", 0.40),
     ("hardcoded_secret",
      r"^[ \t]*(?:api[_-]?key|secret|password|passwd|token|client_secret)"
      r"[ \t]*=[ \t]*[\"'][A-Za-z0-9_\-./+]{12,}[\"']",

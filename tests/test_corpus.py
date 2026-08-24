@@ -73,7 +73,10 @@ def test_bare_except():
     assert has_finding(findings, "bare except", "MEDIUM"), "Bare except not detected"
 
 def test_eval():
-    findings = scan_file("def exec(u): return eval(u)\n")
+    # eval(input()) → confirmed code-injection sink (GS004 → HIGH). Bare eval()
+    # without a taint source is GS025's AI-provenance smell (downgraded LOW),
+    # so the HIGH guard asserts on the taint-aware variant.
+    findings = scan_file("def exec(u): return eval(input())\n")
     assert has_finding(findings, "eval", "HIGH"), "eval() not detected"
 
 def test_world_readable_env():
@@ -104,7 +107,7 @@ def run_corpus():
         ("Hardcoded secret", lambda: len(scan_file('password = "my-super-secret-password"\nAPI_TOKEN="ghp_abc...123"\n')) > 0),
         ("Unsafe pickle", lambda: has_finding(scan_file("import pickle\ndef load(x): return pickle.loads(x)\n"), "pickle", "HIGH")),
         ("Bare except", lambda: has_finding(scan_file("try:\n    risky()\nexcept:\n    pass\n"), "bare except", "MEDIUM")),
-        ("eval()", lambda: has_finding(scan_file("def exec(u): return eval(u)\n"), "eval", "HIGH")),
+        ("eval()", lambda: has_finding(scan_file("def exec(u): return eval(input())\n"), "eval", "HIGH")),
         ("World-readable .env", lambda: has_finding(scan_file("SECRET=abc123\ndb://localhost\n", ".env", "644"), "world-readable", "HIGH")),
         ("Clean code", lambda: not has_finding(scan_file("def add(a: int, b: int) -> int:\n    return a + b\n"), "", "CRITICAL")),
         ("assert in prod", lambda: has_finding(scan_file("def validate(x):\n    assert x > 0\n    return x\n"), "assert", "MEDIUM")),
