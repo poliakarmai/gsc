@@ -5,12 +5,16 @@
 """GSC Cloud API (S1–S5). Cloud 1.0 — multi-tenant SaaS backend."""
 from __future__ import annotations
 
+import os
+
 from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from gsc_cloud import store
 from gsc_cloud.apideps import tenant_ctx
 from gsc_cloud.scan_queue import ScanQueue
+from gsc_cloud.rate_limit import rate_limit
+from gsc_cloud.security_headers import SecurityHeadersMiddleware
 
 # ── S3–S5 routers ──────────────────────────────────────
 from gsc_cloud.user_auth import auth_router
@@ -19,7 +23,22 @@ from gsc_cloud.billing import billing_router
 from gsc_cloud.agent_api import router as agent_router
 from gsc_cloud.observability import router as obs_router
 
-app = FastAPI(title="GSC Cloud", version="1.0")
+# DD-08 (audit): Swagger UI (/docs) + ReDoc (/redoc) pull bundles from
+# cdn.jsdelivr.net + inline scripts, which conflicts with our CSP
+# `default-src 'self'`. In production docs are disabled (fail-closed); local
+# dev can re-enable via GSC_ENABLE_DOCS=1.
+_DOCS_ENABLED = os.environ.get("GSC_ENABLE_DOCS", "0").lower() in ("1", "true", "yes")
+
+app = FastAPI(
+    title="GSC Cloud",
+    version="1.0",
+    docs_url="/docs" if _DOCS_ENABLED else None,
+    redoc_url="/redoc" if _DOCS_ENABLED else None,
+)
+
+# DD-08: security headers on every response (HSTS, X-Frame-Options, CSP, …).
+app.add_middleware(SecurityHeadersMiddleware)
+
 queue = ScanQueue()
 
 
@@ -52,7 +71,8 @@ class VerdictRequest(BaseModel):
 
 
 @app.post("/api/v2/scan", status_code=202)
-def create_scan(req: ScanRequest, tenant_id: int = Depends(tenant_ctx)):
+def create_scan(req: ScanRequest, tenant_id: int = Depends(tenant_ctx),
+                _rl: None = Depends(rate_limit(10, window=60.0, resource="scan"))):
     if req.profile not in VALID_PROFILES:
         raise HTTPException(400, "unknown profile")
     from gsc_cloud.target_policy import validate_target as _validate_target
@@ -86,7 +106,8 @@ def scan_status(scan_id: int, tenant_id: int = Depends(tenant_ctx)):
 
 
 @app.post("/api/v2/verdicts")
-def submit_verdict(req: VerdictRequest, tenant_id: int = Depends(tenant_ctx)):
+def submit_verdict(req: VerdictRequest, tenant_id: int = Depends(tenant_ctx),
+                   _rl: None = Depends(rate_limit(30, window=60.0, resource="verdict"))):
     db = store.control_plane(tenant_id)
     if not store.finding_exists(db, tenant_id, req.finding_key):
         raise HTTPException(404, "finding not found for this tenant")
