@@ -254,6 +254,10 @@ signup→stats/findings/scans/dashboard 200.
 | DD-04 | P2 | Убрать DEPRECATED `gsc_cloud/tenancy.py` (legacy `verify_api_key`/`scoped_query`) после удаления теста `test_cloud_s1.py`; канон — `cloud/auth.py` + `apideps.tenant_ctx` | ⬜ |
 | DD-05 | P3 | Fail-fast на старте `verify`/`pof`: если нет docker/podman — понятная ошибка, а не тихий rlimit-fallback | ⬜ |
 | DD-06 | P2 | SCA: резолвить точную версию npm/Go из lock-файла (`package-lock.json`/`yarn.lock`/`go.sum`) вместо нижней границы range из манифеста — иначе `^14.2.0` с пропатченным `14.2.35` в lock даёт ложный CRITICAL (реальный кейс: SCA gate заблокировал `apps/dashboard` на `next@14.2.0` при установленном `14.2.35`) | ⬜ |
+| DD-07 | P1 | Rate limiting на `/api/v2/scan` + `/api/v2/verdicts` (per API-key, напр. 10 req/min) — сейчас rate-limit есть только у GitHub-клиента, на собственных эндпоинтах нет | ⬜ |
+| DD-08 | P1 | Security headers на все ответы cloud API: `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, CSP (сейчас middleware не выставляет ни одного) | ⬜ |
+| DD-09 | P3 | Observability-углубление: structlog (JSON-логи) + Prometheus-формат `/metrics` + OTel tracing (CLI → API → worker → DB). База (`/health`, `/ready`, in-memory `/metrics`) уже есть в `observability.py` | ⬜ |
+| DD-10 | P2 | Объединить два storage backend (server.py SQLite + enterprise PostgreSQL) в один — трек S1. Cloud-контур уже на `PgBackend`+RLS, осталось убрать второй контур (не блокирует pilot) | ⬜ |
 
 ## Эксклюзивы GSC (уже есть, нет у конкурентов)
 
