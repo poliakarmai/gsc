@@ -146,6 +146,11 @@ def _is_demo_password(matched: str) -> bool:
     return _extract_quoted_value(matched).strip().lower() in _DEMO_PASSWORD_VALUES
 
 
+def _is_public_key_material(matched: str) -> bool:
+    """True if the value starts with a PEM public key header (not a secret)."""
+    return _extract_quoted_value(matched).startswith("-----BEGIN")
+
+
 def _luhn_valid(number: str) -> bool:
     """Luhn checksum — mandatory on every real PAN (ISO/IEC 7812).
 
@@ -284,6 +289,9 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         continue
                 # Demo/example credential values (scoped to password/secret labels)
                 if _is_demo_password(matched) and ("assword" in label or "secret" in label):
+                    continue
+                # PEM public key material (certificates, not secrets)
+                if _is_public_key_material(matched):
                     continue
                 # IBAN validation: require valid country code + mod-97 checksum
                 if "IBAN" in label and not _is_valid_iban(matched):

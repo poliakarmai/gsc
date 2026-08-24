@@ -90,6 +90,14 @@ class GS025Detector:
                 matched = match.group(0)
                 if _is_test_secret(matched):
                     continue
+                # Static eval("literal") without any data source is a config/test
+                # artifact, not a vulnerability. Dynamic eval(request/input/...)
+                # carries a taint source and stays flagged.
+                if pattern_id == "eval_usage" and not re.search(
+                    r'(?:input|request|sys\.argv|os\.environ|\$_\w+|process\.env)',
+                    matched, re.I,
+                ):
+                    continue
                 line_no = content[:match.start()].count("\n") + 1
                 snippet = self._snippet(content, line_no)
 

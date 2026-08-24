@@ -298,6 +298,10 @@ def _adjust_xss_severity(
         if severity not in ("CRITICAL", "HIGH"):
             return "HIGH"     # tainted source, no sanitizer — escalate
         return severity
+    # React dangerouslySetInnerHTML without taint is static markup, not XSS —
+    # suppress. With taint it is handled above (has_taint → HIGH/CRITICAL).
+    if "dangerouslySetInnerHTML" in pattern:
+        return "_SUPPRESS"
     # No taint, no sanitizer: HTML interpolation without confirmed user input
     # is framework-internal rendering (error pages, debuggers, test apps), not an
     # XSS sink — suppress. Real reflected XSS requires attacker-controlled input
