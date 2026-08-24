@@ -199,7 +199,7 @@ dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-�
 | 1.1 | Контракт backend-абстракции зафиксирован 12 тестами | `gsc_db_backend.py` + `tests/test_db_backend.py` |
 | 1.2 | Backend-фабрика в server.py (`get_backend()`: SQLite default / PgBackend при `GSC_DATABASE_URL`) | `server.py` |
 | 1.3 | Миграция SQLite→PG + docker postgres | `scripts/gsc_pg_migrate.py`, `cloud/schema_runtime.sql`, `docker-compose.yml` |
-| **Трек 2** | Workers out-of-process: `gsc-worker` контейнер (`gsc_scan_worker.py --loop` поллит `scan_jobs`, без Redis); server при `GSC_WORKER_DAEMON=1` только enqueue; `workers.py` (gsc_jobs) помечен legacy | `gsc_cloud/gsc_scan_worker.py`, `gsc_cloud/server.py`, `docker-compose.yml` |
+| **Трек 2** | Workers out-of-process: `gsc-worker` контейнер (`gsc_scan_worker.py --loop` поллит `scan_jobs`, без Redis); server при `GSC_WORKER_DAEMON=1` только enqueue; `workers.py` (gsc_jobs enterprise-schema) помечен legacy для runtime | `gsc_cloud/gsc_scan_worker.py`, `gsc_cloud/server.py`, `docker-compose.yml` |
 
 Все endpoint'ы переведены с sqlite3 `conn` на backend API (`fetchone`/`query`/`insert_id`/`execute`).
 `INSERT OR REPLACE`→`ON CONFLICT`, `lastrowid`→`RETURNING`, `datetime('now')`→Python timestamp,

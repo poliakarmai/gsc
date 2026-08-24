@@ -9,7 +9,8 @@
   только enqueue; демон единственный потребитель очереди.
 - Починен баг пути в `gsc_scan_worker.py` (`_ROOT` → `_REPO_ROOT`, `gsc.py` искался
   в `gsc_cloud/` вместо корня репо).
-- `gsc_cloud/workers.py` помечен LEGACY (использовал несуществующую таблицу `gsc_jobs`).
+- `gsc_cloud/workers.py` помечен LEGACY для runtime-слоя (использует `gsc_jobs`
+  из enterprise schema_s2.sql, не из runtime schema_runtime.sql).
 
 ## v1.4.0 — 2026-08-19
 

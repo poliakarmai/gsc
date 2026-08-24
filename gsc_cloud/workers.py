@@ -1,8 +1,11 @@
-"""cloud/workers.py — ⚠️ LEGACY (S1 Трек 2, вытеснено gsc_scan_worker.py).
+"""cloud/workers.py — ⚠️ LEGACY для runtime-слоя (S1 Трек 2).
 
-Использовал таблицу gsc_jobs, которой НЕТ в schema_runtime.sql (там scan_jobs).
-Нигде не импортируется. Канонический out-of-process worker — gsc_scan_worker.py
-(--loop поллит scan_jobs через PgBackend/SqliteBackend, без Redis).
+Использует таблицу gsc_jobs из enterprise-схемы schema_s2.sql (S2-слой,
+пока не реализован — см. GSC_AUDIT_GUIDE.md «SaaS S2–S3 не реализованы»).
+Runtime-слой server.py работает на schema_runtime.sql (таблица scan_jobs),
+его канонический out-of-process worker — gsc_scan_worker.py (--loop, без Redis).
+
+Файл НЕ удалять: это задел enterprise S2, алиасится через cloud/__init__.py.
 """
 from __future__ import annotations
 
