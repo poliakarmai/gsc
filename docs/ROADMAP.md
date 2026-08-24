@@ -240,6 +240,20 @@ signup→stats/findings/scans/dashboard 200.
 - `write_file` создаёт файлы `600` → для docker-mount init-скриптов нужен `chmod 644`.
 - SCA/EPSS audit DB пусты (`GS030 findings: 0`, `epss_cache rows: 0`) — буст Ф7 активируется после накопления данных.
 
+## 🔵 Аудит Due Diligence (24.08.2026) — открытые пункты
+
+> Источник: `Due Diligence GSC` (PDF). Критическая сверка: 4 P0 из PDF уже закрыты
+> (auth, RLS tenant-isolation, path traversal, sandbox) — см. `docs/SECURITY_FIX_REPORT.md`
+> и `docs/DUE_DILIGENCE_v2.md`. Ниже — только валидные пробелы, не покрытые тем циклом.
+
+| ID | Приоритет | Карточка | Статус |
+|----|-----------|----------|--------|
+| DD-01 | P2 | CI-матрица: тесты на нескольких Python (3.9/3.10/3.11) + ОС (Linux/macOS) вместо одной версии | ⬜ |
+| DD-02 | P2 | E2E-интеграционный тест: поднять API+worker+БД, прогнать calibration-проект через API, проверить находки в БД | ⬜ |
+| DD-03 | P2 | Единый release manifest: числа детекторов/модулей в `marketing/` и `docs/` сверять с SSOT (`gsc_meta.py`) автоматически | ⬜ |
+| DD-04 | P2 | Убрать DEPRECATED `gsc_cloud/tenancy.py` (legacy `verify_api_key`/`scoped_query`) после удаления теста `test_cloud_s1.py`; канон — `cloud/auth.py` + `apideps.tenant_ctx` | ⬜ |
+| DD-05 | P3 | Fail-fast на старте `verify`/`pof`: если нет docker/podman — понятная ошибка, а не тихий rlimit-fallback | ⬜ |
+
 ## Эксклюзивы GSC (уже есть, нет у конкурентов)
 
 | Фича | Конкуренты |
