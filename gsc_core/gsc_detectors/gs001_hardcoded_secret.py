@@ -287,6 +287,14 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if "onnection" in label:
                     if re.search(r'://[^:]*:(?:password|test|changeme|admin|root|123456|qwerty|placeholder|example|dummy|fake|pass)@', matched, re.I):
                         continue
+                # Stub/test key prefixes (config templates, dev envs) — not real
+                # secrets. Scoped to key/token/secret/password labels only, so
+                # PAN/IBAN/CVV numeric patterns are untouched.
+                if any(k in label.lower() for k in ("key", "token", "secret", "password", "credential")):
+                    val = _extract_quoted_value(matched).strip().lower()
+                    if val.startswith(("test_", "dummy_", "fake_", "sample_", "stub_",
+                                       "mock_", "placeholder_", "example_", "dev_", "local_")):
+                        continue
                 # Demo/example credential values (scoped to password/secret labels)
                 if _is_demo_password(matched) and ("assword" in label or "secret" in label):
                     continue

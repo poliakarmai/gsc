@@ -131,6 +131,13 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     ctx_end = min(len(content), m.end() + 200)
                     if not _TAINT_SOURCE_RE.search(content[ctx_start:ctx_end]):
                         severity = "MEDIUM"
+                # shell=True / os.popen with a variable command and no taint in
+                # the surrounding context → MEDIUM (internal command wrapper).
+                if "shell" in pattern or "popen" in pattern:
+                    ctx_start = max(0, m.start() - 800)
+                    ctx_end = min(len(content), m.end() + 200)
+                    if not _TAINT_SOURCE_RE.search(content[ctx_start:ctx_end]):
+                        severity = "MEDIUM"
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=severity,

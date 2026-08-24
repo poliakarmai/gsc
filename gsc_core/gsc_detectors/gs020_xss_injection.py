@@ -147,8 +147,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 # DOM XSS: .innerHTML/.outerHTML = <variable> is ambiguous — the
                 # variable may be attacker-controlled (e.g. pygoat a9.js
                 # `li.innerHTML = data.logs[i]`). Static string literals are
-                # already suppressed in _is_false_positive; a variable is NOT
-                # suppressed (it is a potential TP, kept as-is).
+                # already suppressed in _is_false_positive. A variable with no
+                # taint source in context is internal rendering, not a confirmed
+                # XSS → downgrade to MEDIUM; with taint it stays HIGH/CRITICAL.
+                if pattern in (r'\.innerHTML\s*=', r'\.outerHTML\s*='):
+                    if not _has_tainted_source(context) and not _has_xss_sanitizer(context):
+                        adjusted_severity = "MEDIUM"
                 findings.append(Finding(
                     rule_id=RULE_ID,
                     severity=adjusted_severity,
