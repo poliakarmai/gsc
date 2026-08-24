@@ -138,15 +138,18 @@ run_case('GS005: parameterized/static queries are not SQLi (FP fix)', t15)
 def t16():
     from gsc_detectors import gs005_sql_injection as g5
     vuln = [
-        'cursor.execute(f"SELECT * FROM users WHERE id={uid}")\n',
-        'cursor.execute("SELECT * FROM users WHERE id=%s" % uid)\n',
-        'cursor.execute("SELECT * FROM users WHERE id=" + uid)\n',
-        'cursor.execute("SELECT {} FROM {}".format(t, c))\n',
-        'session.execute(text(f"SELECT * FROM users WHERE name={name}"))\n',
+        ('cursor.execute(f"SELECT * FROM users WHERE id={uid}")\n', "f-string"),
+        ('cursor.execute("SELECT * FROM users WHERE id=%s" % uid)\n', "%-formatting"),
+        ('cursor.execute("SELECT * FROM users WHERE id=" + uid)\n', "concat"),
+        ('cursor.execute("SELECT {} FROM {}".format(t, c))\n', "format"),
+        ('session.execute(text(f"SELECT * FROM users WHERE name={name}"))\n', "f-string"),
     ]
-    for code in vuln:
+    for code, kw in vuln:
         fs = g5.detect(_ctx_with({"app.py": code}))
         assert fs, f"real SQLi not detected (TP regression): {code!r}"
+        titles = [f.get('title') or '' for f in fs]
+        assert any(kw in t for t in titles), f"SQLi {code!r} not matched to {kw!r}: {titles}"
+        assert all(f.get('rule_id') == 'GS005' for f in fs), f"wrong rule_id: {[f.get('rule_id') for f in fs]}"
 run_case('GS005: real SQLi still detected (TP guard)', t16)
 
 print(f'\n{"="*50}')

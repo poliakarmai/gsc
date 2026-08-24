@@ -154,13 +154,14 @@ def calc_metrics(project: str = None):
         except Exception:
             pass
 
-    # ── Active/deactivated pattern counts ──
+    # ── Active/deactivated/quarantined pattern counts ──
     active = conn.execute("SELECT COUNT(*) FROM patterns WHERE active=1").fetchone()[0]
     dead = conn.execute("SELECT COUNT(*) FROM patterns WHERE active=0").fetchone()[0]
+    quarantined = conn.execute("SELECT COUNT(*) FROM patterns WHERE active=2").fetchone()[0]
     null_eff = conn.execute(
         "SELECT COUNT(*) FROM patterns WHERE active=1 AND effectiveness IS NULL"
     ).fetchone()[0]
-    print(f"\n📋 Patterns: {active} active ({null_eff} unrated), {dead} deactivated")
+    print(f"\n📋 Patterns: {active} active ({null_eff} unrated), {dead} deactivated, {quarantined} quarantined")
 
     conn.close()
 

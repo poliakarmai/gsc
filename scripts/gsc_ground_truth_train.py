@@ -42,6 +42,17 @@ ENGINE_PREFIXES = ("GS037-", "YAML-", "GS0")
 
 MIN_FP_DEFAULT = 20
 
+# Типизированный словарь причин FP (root cause, не симптом) — «отчёт о дефекте» (2.5).
+# Значения reason в fp_log должны браться отсюда, чтобы feedback-цикл атрибутировал
+# причину, а не пересказывал срабатывание.
+FP_REASONS = {
+    "too-broad": "паттерн шире реальной уязвимости (ловит безопасный код)",
+    "wrong-semantics": "паттерн неверно понимает семантику языка/фреймворка",
+    "missing-context": "не хватает контекста (taint/dataflow) для отличия TP от FP",
+    "third-party": "срабатывает на код третьих сторон/фреймворков/минификацию",
+    "ground-truth-fp": "ground-truth: находка в чистом (clean) коде, заведомо не уязвимом",
+}
+
 # Язык по префиксу rule_id. Нужен, чтобы отличать «0 TP из-за отсутствия vuln-проектов
 # этого языка» от «0 TP из-за плохого детектора».
 LANG_BY_PREFIX = {
@@ -134,11 +145,22 @@ def compute_precision(db: sqlite3.Connection, ground_truth: dict[str, str]) -> t
     return out, seen
 
 
-def apply_deactivation(db: sqlite3.Connection, results: dict, min_fp: int) -> tuple[list, list]:
-    """Деактивировать registry-паттерны для FP-генераторов; движковые — отметить."""
+def apply_deactivation(db: sqlite3.Connection, results: dict, min_fp: int) -> tuple[list, list, list]:
+    """Деактивировать registry-паттерны для FP-генераторов; движковые — отметить.
+
+    Guard авто-деактивации (книга 3.1.1 — «ложно положительный тест-кейс»):
+    - CRITICAL-детекторы уходят в КАРАНТИН (active=2, soft-disable) вместо полного
+      отключения — их деактивацию подтверждает человек, чтобы не «убить» критический recall.
+    - reason пишется типизированным значением из FP_REASONS (root cause, не симптом).
+    """
     deactivated: list[str] = []
+    quarantined: list[str] = []
     engine_flagged: list[str] = []
     now = datetime.now(timezone.utc).isoformat()
+
+    # Детекторы, порождающие CRITICAL-находки, — под карантин, не под hard-deactivate.
+    critical_rids = {row[0] for row in db.execute(
+        "SELECT DISTINCT rule_id FROM findings WHERE severity='CRITICAL'")}
 
     for rid, r in results.items():
         if not (r["fp_clean"] >= min_fp and r["tp_vuln"] == 0):
@@ -155,25 +177,32 @@ def apply_deactivation(db: sqlite3.Connection, results: dict, min_fp: int) -> tu
             engine_flagged.append(rid)
             continue
         core = title.split("(")[0].strip()
+
+        # Карантин для CRITICAL (active=2), иначе полная деактивация (active=0).
+        is_critical = rid in critical_rids
+        new_active = 2 if is_critical else 0
+        action = "quarantine-critical" if is_critical else "auto-deactivate"
+
         pat = db.execute(
-            "UPDATE patterns SET active=0, deactivated_at=? WHERE title LIKE ? AND active=1",
-            (now, f"%{core}%"),
+            "UPDATE patterns SET active=?, deactivated_at=? WHERE title LIKE ? AND active=1",
+            (new_active, now, f"%{core}%"),
         )
         try:
             db.execute(
-                "INSERT INTO fp_log (finding_key, rule_id, reason, action_taken, source, actor, created_at) "
-                "VALUES (?,?,?,?,?,?,?)",
+                "INSERT INTO fp_log (finding_key, rule_id, reason, comment, action_taken, source, actor, created_at) "
+                "VALUES (?,?,?,?,?,?,?,?)",
                 (f"gt-{rid}", rid,
-                 f"ground-truth: {r['fp_clean']} FP clean / 0 TP vuln",
-                 "auto-deactivate", "ground_truth_trainer", "system", now),
+                 "ground-truth-fp",
+                 f"{r['fp_clean']} FP в clean-коде, 0 TP в vuln-проектах",
+                 action, "ground_truth_trainer", "system", now),
             )
         except Exception:
             pass
         if pat.rowcount > 0:
-            deactivated.append(rid)
+            (quarantined if is_critical else deactivated).append(rid)
 
     db.commit()
-    return deactivated, engine_flagged
+    return deactivated, quarantined, engine_flagged
 
 
 def main() -> int:
@@ -232,9 +261,11 @@ def main() -> int:
             print(f"   - {rid}: {results[rid]['fp_clean']} FP (lang={rule_lang(rid)}, нет vuln-проектов)")
 
     if args.apply and fg:
-        deactivated, engine_flagged = apply_deactivation(db, results, args.min_fp)
+        deactivated, quarantined, engine_flagged = apply_deactivation(db, results, args.min_fp)
         print()
         print(f"✅ Деактивировано (registry): {len(deactivated)} — {deactivated}")
+        if quarantined:
+            print(f"🟡 Карантин CRITICAL (active=2, подтвердить вручную): {len(quarantined)} — {quarantined}")
         if engine_flagged:
             print(f"⚠️  Требуют правки движка (код): {engine_flagged}")
         print("   fp_log записан, commit выполнен.")
