@@ -253,6 +253,7 @@ signup→stats/findings/scans/dashboard 200.
 | DD-03 | P2 | Единый release manifest: числа детекторов/модулей в `marketing/` и `docs/` сверять с SSOT (`gsc_meta.py`) автоматически | ⬜ |
 | DD-04 | P2 | Убрать DEPRECATED `gsc_cloud/tenancy.py` (legacy `verify_api_key`/`scoped_query`) после удаления теста `test_cloud_s1.py`; канон — `cloud/auth.py` + `apideps.tenant_ctx` | ⬜ |
 | DD-05 | P3 | Fail-fast на старте `verify`/`pof`: если нет docker/podman — понятная ошибка, а не тихий rlimit-fallback | ⬜ |
+| DD-06 | P2 | SCA: резолвить точную версию npm/Go из lock-файла (`package-lock.json`/`yarn.lock`/`go.sum`) вместо нижней границы range из манифеста — иначе `^14.2.0` с пропатченным `14.2.35` в lock даёт ложный CRITICAL (реальный кейс: SCA gate заблокировал `apps/dashboard` на `next@14.2.0` при установленном `14.2.35`) | ⬜ |
 
 ## Эксклюзивы GSC (уже есть, нет у конкурентов)
 
