@@ -126,15 +126,24 @@ idor 0/1→1/1, sql_injection 1/3→3/3 (`eec5d42`); legacy attribution GS000-LE
 remapped (IP/admin-ID/CIDR → quality, `dd6e6a3`); GS018 payment (lookahead `*100`),
 GS014 creds (suppress log/debug) — both in `c2cd2a5`.
 
+**HARD BOUNDARIES (proposed 3× and rejected 3× — do NOT re-propose):**
+- Do **NOT** suppress weak passwords `admin`/`admin123`/`root`/`guest`/`test`/`test123`
+  (e.g. via `_WEAK_PASSWORD_VALUES`). They are **TP** in calibration: vuln-flask
+  (`admin123`), pygoat, `test_regression.py::t14`. Only pure-numeric passwords
+  (`isdigit`) and `-----BEGIN` public-key material are safe to suppress.
+- Do **NOT** suppress AWS documentation example keys (suffix `...EXAMPLE`) — the
+  existing test `test_gs001_hardcoded_secret.py::test_aws_key_still_detected`
+  asserts a real AWS access key is still detected as CRITICAL.
+
 **Your job:** hunt the remaining noise. Priority order from the live findings DB
 (`sqlite3 ~/.hermes/state/gsc_audit.db`, snapshot 2026-08-24):
 
-| Priority | Rule | Noise | Clue |
+| Priority | Rule | Noise | Status / Clue |
 |---|---|---|---|
-| 1 | GS001 hardcoded secret | 4 920 CRITICAL | API keys/tokens/passwords — Luhn-PAN on IDs? stub keys? |
-| 2 | GS020 XSS/template | 2 275 HIGH + 68 CRIT | dangerouslySetInnerHTML (88), reflected/stored without user-input |
-| 3 | GS025 AI-provenance | 1 969 HIGH | eval_usage / insecure defaults — leftover bare eval/Function |
-| 4 | GS004 subprocess/shell | 443 CRIT + 704 HIGH | CVE-2026-56413 command injection, shell=True without taint |
+| 1 | GS001 hardcoded secret | 4 920 CRITICAL | PARTIALLY FIXED (numeric passwords, connection-string placeholder, public-key). Left: API-key/token patterns, PAN/IBAN on IDs |
+| 2 | GS020 XSS/template | 2 275 HIGH + 68 CRIT | PARTIALLY FIXED (dangerouslySetInnerHTML without taint). Left: reflected/stored without user-input |
+| 3 | GS025 AI-provenance | 1 969 HIGH | FIXED (eval_usage→LOW + static eval→suppress). Left: insecure_defaults |
+| 4 | GS004 subprocess/shell | 443 CRIT + 704 HIGH | PARTIALLY FIXED (os.system without taint→MEDIUM). Left: shell=True static |
 
 **Critical rule:** a finding that is real code matching an insecure-API name
 (e.g. `pickle.loads`, `os.system`, `.execute(`) is **NOT** automatically a

@@ -2,7 +2,7 @@
 
 > Передаётся AI-агенту (Claude Code / Codex / саб-агенту). Самодостаточный: содержит контекст,
 > контракт, метрику и формат ответа. **Не проси «улучшить всё» — давай по одному детектору.**
-> Обновлён 24.08.2026 (Замер 4: CRITICAL 4302→498; GS005/GS018/GS014 закрыты; GS001 новый лидер).
+> Обновлён 24.08.2026 (раунды 2–3: GS001/GS020/GS025 частично закрыты; Clean FP 114→106).
 
 ---
 
@@ -17,7 +17,9 @@ SSOT чисел: `python3 gsc_meta.py`. Сверка: `python3 scripts/gsc_recon
 **Текущая боль — precision, не recall.** Замер 4 (24.08, 45 проектов): CRITICAL 498 (было 4 302),
 HIGH 1 324 (было 37 246). Главные исторические FP-источники закрыты: GS008 eval (2 508→0,
 `ba4c2d0`+severity), GS000-LEGACY (505→7), GS005 SQLi (4 258→29, downgrade всех интерполяций).
-Новый лидер CRITICAL-шума — **GS001 hardcoded secrets (4 920 CRITICAL по свежему срезу БД)**.
+Clean FP на calibration-сете: 114 → 106 (раунды 2–3). Лидер CRITICAL-шума — **GS001
+hardcoded secrets (4 920 CRITICAL по свежему срезу БД)**; GS020 XSS и GS025 AI-provenance —
+следующие по HIGH-шуму.
 
 ## 2. Контракт детектора (что НЕЛЬЗЯ ломать)
 
@@ -75,12 +77,12 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
 ## 5. Приоритетные детекторы (текущая очередь)
 
-| Детектор | Файл | Шум (свежий срез БД) | Зацепка |
+| Детектор | Файл | Шум (свежий срез БД) | Статус / зацепка |
 |---|---|---|---|
-| GS001 hardcoded secret | `gsc_core/gsc_detectors/gs001_hardcoded_secret.py` | 4 920 CRITICAL | API keys/tokens/passwords — разобрать, какие паттерны дают FP (Luhn-PAN на ID? ключи-заглушки?) |
-| GS020 XSS/template | `gsc_core/gsc_detectors/gs020_*.py` | 2 275 HIGH + 68 CRIT | `dangerouslySetInnerHTML` (88), reflected/stored — контекст без user-input |
-| GS025 AI-provenance | `gsc_core/gsc_detectors/gs025_*.py` | 1 969 HIGH | `eval_usage`/insecure defaults — остаток голого eval/Function |
-| GS004 subprocess/shell | `gsc_core/gsc_detectors/gs004_*.py` | 443 CRIT + 704 HIGH | CVE-2026-56413 command injection, `shell=True` без taint |
+| GS001 hardcoded secret | `gsc_core/gsc_detectors/gs001_hardcoded_secret.py` | 4 920 CRITICAL | 🔧 частично: числовые пароли + connection-string placeholder + public-key. Осталось: API-key/token паттерны, PAN/IBAN на ID |
+| GS020 XSS/template | `gsc_core/gsc_detectors/gs020_*.py` | 2 275 HIGH + 68 CRIT | 🔧 частично: `dangerouslySetInnerHTML` без taint. Осталось: reflected/stored без user-input |
+| GS025 AI-provenance | `gsc_core/gsc_detectors/gs025_*.py` | 1 969 HIGH | ✅ eval_usage→LOW + static eval→suppress. Осталось: insecure_defaults |
+| GS004 subprocess/shell | `gsc_core/gsc_detectors/gs004_*.py` | 443 CRIT + 704 HIGH | 🔧 частично: os.system без taint→MEDIUM. Осталось: shell=True static |
 
 > Уже закрыто (не брать повторно): GS005 SQLi (downgrade всех интерполяций, `c2cd2a5`), GS018 payment
 > (negative lookahead `*100`), GS014 credential exposure (suppress log/debug), GS008 eval
@@ -130,6 +132,13 @@ def detect(ctx: AuditContext) -> list[Finding]:
 - ❌ Не отключать шумный детектор целиком — только фильтры (правило пользователя).
 - ❌ Не редактировать regex-файлы через patch-tool вслепую (рвёт спецсимволы/`\s` → SyntaxError);
   для regex-правок — `write_file` или python `str.replace` (см. скилл `safe-code-editing`).
+- ❌ **НЕ suppress слабые пароли `admin` / `admin123` / `root` / `guest` / `test` / `test123`**
+  (напр. через `_WEAK_PASSWORD_VALUES`). Это **TP** в calibration: `tests/test_regression.py::t14`
+  (`password="admin123"`), vuln-flask (`admin123`), pygoat. Предлагалось 3 раза подряд и 3 раза
+  отбито — это не случайность, а граница recall, которую двигать нельзя.
+- ❌ **НЕ suppress AWS example key `AKIAIO...MPLE`** — это позитивный TP-guard
+  `tests/test_gs001_hardcoded_secret.py::test_aws_key_still_detected` (детектор обязан его ловить).
+  Разрешается suppress только `-----BEGIN` (публичный ключ/сертификат).
 
 ## 10. Уроки этой сессии (обязательно учесть)
 
