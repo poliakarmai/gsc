@@ -2,7 +2,7 @@
 
 > Передаётся AI-агенту (Claude Code / Codex / саб-агенту). Самодостаточный: содержит контекст,
 > контракт, метрику и формат ответа. **Не проси «улучшить всё» — давай по одному детектору.**
-> Обновлён 23.08.2026 (recall-дыры закрыты, legacy-чистка, GS002 config-FP).
+> Обновлён 24.08.2026 (Замер 4: CRITICAL 4302→498; GS005/GS018/GS014 закрыты; GS001 новый лидер).
 
 ---
 
@@ -14,10 +14,10 @@ Secrets/SCA/IaC/Invariants)**, schema v33, v1.4.0, 169 модулей. Полн�
 Репозиторий: `~/gsc`. Детекторы: `gsc_core/gsc_detectors/gsXXX_*.py`.
 SSOT чисел: `python3 gsc_meta.py`. Сверка: `python3 scripts/gsc_reconcile.py`.
 
-**Текущая боль — precision, не recall.** Замер 3 (21.08, 100 реальных проектов): 64 831 находка,
-4 302 CRITICAL, precision CRIT ~4–5% (48/90 чистых дают ложный CRITICAL), recall 8/10.
-Главный CRITICAL-шум исторически — голый `eval`/`Function` в бандлерах (GS008, починен `ba4c2d0`);
-теперь очередь — GS005 SQLi CRITICAL 4.2K.
+**Текущая боль — precision, не recall.** Замер 4 (24.08, 45 проектов): CRITICAL 498 (было 4 302),
+HIGH 1 324 (было 37 246). Главные исторические FP-источники закрыты: GS008 eval (2 508→0,
+`ba4c2d0`+severity), GS000-LEGACY (505→7), GS005 SQLi (4 258→29, downgrade всех интерполяций).
+Новый лидер CRITICAL-шума — **GS001 hardcoded secrets (4 920 CRITICAL по свежему срезу БД)**.
 
 ## 2. Контракт детектора (что НЕЛЬЗЯ ломать)
 
@@ -77,13 +77,15 @@ def detect(ctx: AuditContext) -> list[Finding]:
 
 | Детектор | Файл | Шум (свежий срез БД) | Зацепка |
 |---|---|---|---|
-| GS005 SQLi | `gsc_core/gsc_detectors/gs005_sql_injection.py` | 4 258 CRITICAL | f-string (1813) + raw-concat (792) + CVE-55721 (786) — проверить на параметризованных/статичных запросах |
-| GS018 payment abuse | `gsc_core/gsc_detectors/gs018_*.py` | 266 HIGH | price/amount манипуляции → FP на легитимных вычислениях |
-| GS014 credential exposure | `gsc_core/gsc_detectors/gs014_*.py` | 73 HIGH | логи/дебаг с кредами → FP |
+| GS001 hardcoded secret | `gsc_core/gsc_detectors/gs001_hardcoded_secret.py` | 4 920 CRITICAL | API keys/tokens/passwords — разобрать, какие паттерны дают FP (Luhn-PAN на ID? ключи-заглушки?) |
+| GS020 XSS/template | `gsc_core/gsc_detectors/gs020_*.py` | 2 275 HIGH + 68 CRIT | `dangerouslySetInnerHTML` (88), reflected/stored — контекст без user-input |
+| GS025 AI-provenance | `gsc_core/gsc_detectors/gs025_*.py` | 1 969 HIGH | `eval_usage`/insecure defaults — остаток голого eval/Function |
+| GS004 subprocess/shell | `gsc_core/gsc_detectors/gs004_*.py` | 443 CRIT + 704 HIGH | CVE-2026-56413 command injection, `shell=True` без taint |
 
-> Уже закрыто (не брать повторно): GS017 weak passwords (`6691959`), GS002 world-readable (`6820e32` +
-> `e50afca`), GS029 secrets, GS022 redirect, GS020 XSS, GS001 secret, GS004 subprocess, legacy-чистка
-> GS000-LEGACY (IP/admin-ID/CIDR → quality). Полная история — `docs/DETECTOR_TRAINING_STATUS.md`.
+> Уже закрыто (не брать повторно): GS005 SQLi (downgrade всех интерполяций, `c2cd2a5`), GS018 payment
+> (negative lookahead `*100`), GS014 credential exposure (suppress log/debug), GS008 eval
+> (`ba4c2d0` + CRITICAL→HIGH), GS000-LEGACY (remap в INFO/MEDIUM), GS017 weak passwords (`6691959`),
+> GS002 world-readable (`e50afca`), GS029 secrets. Полная история — `docs/DETECTOR_TRAINING_STATUS.md`.
 
 ## 6. Что прочитать перед правкой
 
@@ -138,3 +140,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
   `run_audit_echelons`. Если детектор ловит, а CLI нет — пост-фильтры (docstring/inline-suppress).
 - **Перезамер precision** — `python3 scripts/gsc_precision_measure.py` (13 calibration проектов,
   ~2.5 мин). Не гоняй 100-проектный benchmark без нужды — дорого.
+- **Карантин CRITICAL (active=2):** trainer деактивирует FP-генератор через `active=2`
+  (soft-disable), НЕ `active=0` — если видишь `active=2`, это паттерн на ручном подтверждении.
+  Учитывай: `active=1` (активен) ≠ `active=2` (карантин) ≠ `active=0` (выключен).
+- **Типизированный root-cause:** `fp_log.reason` берётся из словаря `FP_REASONS`
+  (too-broad/wrong-semantics/missing-context/third-party/ground-truth-fp) — атрибутируй причину,
+  а не симптом «детектор шумит».
+- **Демонстративные assert'ы:** в тестах проверяй конкретный title-keyword + `rule_id`, а не
+  `len(findings)==1` (проходит при любом срабатывании). Пример — `tests/test_regression.py::t16`.

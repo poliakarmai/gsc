@@ -113,26 +113,28 @@ Three benchmarks on real projects (`--ci` regex-only). Latest: **Замер 3**
 | Clean projects with CRIT (FP noise) | 48/90 |
 | Precision CRITICAL | ~4–5% |
 
-Top CRITICAL generators (FP-noise source):
+Top CRITICAL generators — all three major FP sources now FIXED (Замер 4, 24.08):
 
 | Rule | CRIT | Diagnosis |
 |---|---|---|
-| GS008 (eval/exec) | 2 508 | eval legit in bundlers/minifiers → **FIXED** (`ba4c2d0`) |
-| GS000-LEGACY | 505 | no-rule_id data-quality debt → **FIXED** (remap to quality) |
-| GS005 (SQLi) | 211 → now 4 258 | f-string/raw-concat → **OPEN, top priority** |
+| GS008 (eval/exec) | 2 508 → 0 | eval legit in bundlers → **FIXED** (`ba4c2d0` + CRITICAL→HIGH) |
+| GS000-LEGACY | 505 → 7 | no-rule_id debt → **FIXED** (remap to quality) |
+| GS005 (SQLi) | 4 258 → 29 | f-string/raw-concat → **FIXED** (downgrade all interpolation, `c2cd2a5`) |
 
 **Recall already closed (do NOT re-open):** hardcoded_secret 0/1→1/1,
 idor 0/1→1/1, sql_injection 1/3→3/3 (`eec5d42`); legacy attribution GS000-LEGACY
-remapped (IP/admin-ID/CIDR → quality, `dd6e6a3`).
+remapped (IP/admin-ID/CIDR → quality, `dd6e6a3`); GS018 payment (lookahead `*100`),
+GS014 creds (suppress log/debug) — both in `c2cd2a5`.
 
 **Your job:** hunt the remaining noise. Priority order from the live findings DB
-(`sqlite3 ~/.hermes/state/gsc_audit.db`, snapshot 2026-08-23):
+(`sqlite3 ~/.hermes/state/gsc_audit.db`, snapshot 2026-08-24):
 
 | Priority | Rule | Noise | Clue |
 |---|---|---|---|
-| 1 | GS005 SQLi | 4 258 CRITICAL | f-string (1813) + raw-concat (792) + CVE-55721 (786) |
-| 2 | GS018 payment | 266 HIGH | FLOAT_MONEY regex → FP on legit money math |
-| 3 | GS014 credential exposure | 73 HIGH | logs/debug with creds |
+| 1 | GS001 hardcoded secret | 4 920 CRITICAL | API keys/tokens/passwords — Luhn-PAN on IDs? stub keys? |
+| 2 | GS020 XSS/template | 2 275 HIGH + 68 CRIT | dangerouslySetInnerHTML (88), reflected/stored without user-input |
+| 3 | GS025 AI-provenance | 1 969 HIGH | eval_usage / insecure defaults — leftover bare eval/Function |
+| 4 | GS004 subprocess/shell | 443 CRIT + 704 HIGH | CVE-2026-56413 command injection, shell=True without taint |
 
 **Critical rule:** a finding that is real code matching an insecure-API name
 (e.g. `pickle.loads`, `os.system`, `.execute(`) is **NOT** automatically a
