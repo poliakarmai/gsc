@@ -367,7 +367,7 @@ def sca_findings(packages: List[Package], osv_results: dict,
             original_severity = severity
             if usage is not None:
                 from gsc_reachability import is_reachable
-                reachable = is_reachable(p.name, usage)
+                reachable = is_reachable(p.name, usage, ecosystem=p.ecosystem)
                 if not reachable:
                     severity = _SEV_DOWNGRADE.get(severity, severity)
 
@@ -438,13 +438,16 @@ def main() -> None:
         print("No dependency manifests found.")
         return
 
-    # Ф5 reachability: собрать импорты/вызовы из Python-кода
-    from gsc_reachability import collect_python_usage
-    usage = collect_python_usage(args.repo)
+    # Ф5 reachability: собрать импорты/вызовы по экосистемам (Python + JS/TS + Go)
+    from gsc_reachability import collect_usage
+    usage = collect_usage(args.repo)
 
+    py_imports = len(usage["PyPI"].get("imports", set()))
+    js_imports = len(usage["npm"].get("imports", set()))
+    go_imports = len(usage["Go"].get("imports", set()))
     print(f"📦 {len(packages)} packages in manifests")
-    print(f"🔍 Reachability: {len(usage.get('imports', []))} imported modules, "
-          f"{len(usage.get('calls', []))} called functions")
+    print(f"🔍 Reachability: {py_imports} py / {js_imports} js / {go_imports} go imports, "
+          f"{len(usage['PyPI'].get('calls', set()))} py calls")
     results = query_osv(packages)
     findings = sca_findings(packages, results, usage=usage)
     findings.sort(key=lambda f: (-_sev_rank(f["severity"]), f["rule_id"]))

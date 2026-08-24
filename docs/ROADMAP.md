@@ -76,7 +76,11 @@
 | AST-анализ импортов Python | ✅ `gsc_reachability.py` (ImportVisitor/CallVisitor) |
 | Call graph: кто вызывает уязвимый код? | ✅ `check_reachability` (imported + called) |
 | dos-достижимости: «CVE в библиотеке, но ты не используешь уязвимую функцию» | ✅ not-reachable → downgrade severity (CRITICAL→HIGH→…) |
-| Поддержка JS/TS (npm) | 🟢 потом |
+| Поддержка JS/TS (npm) | ✅ `collect_js_usage` (import/require, scoped `@scope/pkg`, relative/builtin отсекаются) |
+| Поддержка Go | ✅ `collect_go_usage` (single + block import, комментарии стрипаются) |
+| Reachability по экосистеме | ✅ `is_reachable(..., ecosystem=PyPI/npm/Go)` — npm по корню пакета, Go по префиксу `pkg/` |
+| Deploy-context reachability (prod vs dev vs base-image) | ⬜ CVE в dev-контейнере/базовом образе, недоступном в проде — отдельный слой контекста развёртывания (Dockerfile/compose) |
+| Work-vs-Value отчёт-доказательство | ⬜ сводка «из N CRIT → M reachable, K в dev, L с EPSS<0.05» — аргумент для менеджера против красной панели |
 
 ## 🟡 Фаза 5.5 — SCA License Compliance
 

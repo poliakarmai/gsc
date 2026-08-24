@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+### Фаза 5 — Reachability для npm/Go (2026-08-24)
+- `gsc_reachability.py` — `collect_js_usage()` (ESM `import`/CJS `require`, scoped
+  `@scope/pkg` → корень, relative `./x` и builtins `node:fs` отсекаются) и
+  `collect_go_usage()` (single + block import, комментарии стрипаются).
+- `is_reachable(..., ecosystem=)` — диспетчеризация по экосистеме: PyPI (как раньше),
+  npm (по корню пакета), Go (точное совпадение или префикс `pkg/`).
+- `gsc_sca.py` — `sca_findings` передаёт `p.ecosystem`; `main` собирает Python+JS+Go usage.
+- Итог: CVE в неиспользуемом npm/Go пакете теперь downgrade (CRITICAL→HIGH), а не
+  слепой CRITICAL — закрывает боль «800 CVEs, но 15 реально эксплуатируемы».
+- Тесты `tests/test_reachability.py` (+7: js/go collectors, scoped npm, downgrade npm/Go).
+
 ### Фаза 5.5 — Attack trees (2026-08-24)
 - `gsc_attack_tree.py` — детерминированная иерархическая декомпозиция цели атаки:
   root goal → категории (OR) → векторы-листья; AND-узлы для комплементарных пар

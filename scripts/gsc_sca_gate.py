@@ -28,14 +28,14 @@ def main() -> int:
     args = ap.parse_args()
 
     from gsc_sca import parse_repo_manifests, query_osv, sca_findings
-    from gsc_reachability import collect_python_usage
+    from gsc_reachability import collect_usage
 
     packages = parse_repo_manifests(args.repo)
     if not packages:
         print("No dependency manifests found — nothing to gate.")
         return 0
 
-    usage = collect_python_usage(args.repo)
+    usage = collect_usage(args.repo)
     results = query_osv(packages)
     findings = sca_findings(packages, results, usage=usage)
 
