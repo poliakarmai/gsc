@@ -210,7 +210,7 @@ signup→stats/findings/scans/dashboard 200.
 | Трек | Что | Когда |
 |------|-----|-------|
 | **Трек 2** | Workers out-of-process: `cloud/workers.py` → отдельный процесс/контейнер (`gsc_worker`), очередь через существующие таблицы (без Redis), `gsc-worker` сервис в compose | перед multi-tenant prod под нагрузкой |
-| **Трек 3** | Packages split: `src/gsc/` layout (`core/`, `scanners/`, `detectors/`, `cloud/`, `enterprise/`, `forecast/`), относительные импорты, `gsc.py` → console-script | перед внешними контрибьюторами |
+| **Трек 3** | ~~Packages split~~ ✅ **ЗАВЕРШЁН** (0.5.1–0.5.5: `gsc_core/`+`gsc_cli/`+`gsc_cloud/`, shim-ы; `78222dc`, `e821e62`, `b29af60`) | — |
 
 ### ⚠️ Известные ограничения / хвосты
 
