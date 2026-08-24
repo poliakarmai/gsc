@@ -1,5 +1,16 @@
 # GSC Changelog
 
+## Unreleased
+
+### S1 Трек 2 — Workers out-of-process (2026-08-24)
+- `gsc-worker` сервис в `docker-compose.yml`: демон `gsc_scan_worker.py --loop` поллит
+  `scan_jobs` из PostgreSQL (без Redis), долгие clone+scan+store не висят на HTTP worker.
+- `server.py::_run_scan` — при `GSC_WORKER_DAEMON=1` не спавнит per-scan процесс,
+  только enqueue; демон единственный потребитель очереди.
+- Починен баг пути в `gsc_scan_worker.py` (`_ROOT` → `_REPO_ROOT`, `gsc.py` искался
+  в `gsc_cloud/` вместо корня репо).
+- `gsc_cloud/workers.py` помечен LEGACY (использовал несуществующую таблицу `gsc_jobs`).
+
 ## v1.4.0 — 2026-08-19
 
 ### Новые фичи

@@ -13,6 +13,8 @@ services:
       # S1: переключение на PostgreSQL — задать GSC_DATABASE_URL (см. .env):
       #   GSC_DATABASE_URL=postgres://gsc:gsc_dev_pw@postgres:5432/gsc
       # При пустом значении server.py работает на SQLite (dev-дефолт).
+      # S1 Трек 2: демон gsc-worker поллит scan_jobs; server не спавнит per-scan.
+      - GSC_WORKER_DAEMON=1
       - GSC_DATABASE_URL=${GSC_DATABASE_URL:-}
       - PORT=8001
       - GITHUB_CLIENT_ID=${GITHUB_CLIENT_ID:-}
@@ -29,6 +31,30 @@ services:
       - postgres
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # S1 Трек 2 — out-of-process scan worker (демон): поллит scan_jobs из PostgreSQL,
+  # без Redis. Долгие clone+scan+store не висят на HTTP worker gsc-api.
+  gsc-worker:
+    build: .
+    container_name: gsc-worker
+    restart: unless-stopped
+    command: ["python3", "/app/gsc_cloud/gsc_scan_worker.py", "--loop", "5"]
+    environment:
+      - GSC_DIR=/app
+      # Симметрично gsc-api: PG при заданном GSC_DATABASE_URL, иначе SQLite на том же volume.
+      - GSC_DB=/data/gsc_cloud.db
+      - GSC_DATABASE_URL=${GSC_DATABASE_URL:-}
+    volumes:
+      - gsc_data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # Живость: worker всегда пишет heartbeat-строку; проверяем что процесс жив.
+      test: ["CMD-SHELL", "pgrep -f gsc_scan_worker > /dev/null || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3

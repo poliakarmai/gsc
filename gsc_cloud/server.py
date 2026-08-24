@@ -522,7 +522,13 @@ def _run_scan(scan_id: str, tid: int, target: str, profile: str):
     Долгий clone+scan+store выполняется в отдельном процессе (gsc_scan_worker.py),
     а не в FastAPI background task — чтобы не блокировать HTTP worker и не тянуть
     его память. Fallback на in-process при недоступности worker-скрипта.
+
+    S1 Трек 2: при GSC_WORKER_DAEMON=1 (отдельный gsc-worker контейнер с --loop
+    поллит scan_jobs) server НЕ спавнит per-scan процесс — иначе оба потребителя
+    заберут один job. Только enqueue; демон сам подхватит queued-запись.
     """
+    if os.environ.get("GSC_WORKER_DAEMON") == "1":
+        return
     worker = Path(__file__).parent / "gsc_scan_worker.py"
     if worker.exists():
         try:

@@ -1,7 +1,8 @@
-"""cloud/workers.py — SaaS S2: background scan workers with PostgreSQL job queue.
+"""cloud/workers.py — ⚠️ LEGACY (S1 Трек 2, вытеснено gsc_scan_worker.py).
 
-Workers pull jobs from gsc_jobs table, execute gsc.scan(), and store results.
-Uses PgBackend for multi-tenant isolation (RLS + tenant_id filter).
+Использовал таблицу gsc_jobs, которой НЕТ в schema_runtime.sql (там scan_jobs).
+Нигде не импортируется. Канонический out-of-process worker — gsc_scan_worker.py
+(--loop поллит scan_jobs через PgBackend/SqliteBackend, без Redis).
 """
 from __future__ import annotations
 

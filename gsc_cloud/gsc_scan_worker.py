@@ -22,9 +22,11 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
-_ROOT = Path(__file__).resolve().parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+_ROOT = Path(__file__).resolve().parent          # gsc_cloud/
+_REPO_ROOT = _ROOT.parent                         # корень репо (здесь лежит gsc.py)
+for _p in (_REPO_ROOT, _ROOT):
+    if str(_p) not in sys.path:
+        sys.path.insert(0, str(_p))
 
 from gsc_cloud.gsc_db_backend import PgBackend, SqliteBackend  # noqa: E402
 from gsc_cloud.target_policy import validate_target  # noqa: E402
@@ -87,7 +89,7 @@ def process_scan_job(scan_id: str) -> int:
                     raise RuntimeError(f"Clone failed: {clone.stderr.decode()[:100]}")
 
                 result = subprocess.run(
-                    ["python3", str(_ROOT / "gsc.py"), "scan", tmp, "--ci", "--json"],
+                    ["python3", str(_REPO_ROOT / "gsc.py"), "scan", tmp, "--ci", "--json"],
                     capture_output=True, text=True, timeout=SCAN_TIMEOUT_SEC,
                 )
                 if result.returncode == 0 and result.stdout.strip():

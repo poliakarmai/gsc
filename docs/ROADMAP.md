@@ -199,6 +199,7 @@ dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-�
 | 1.1 | Контракт backend-абстракции зафиксирован 12 тестами | `gsc_db_backend.py` + `tests/test_db_backend.py` |
 | 1.2 | Backend-фабрика в server.py (`get_backend()`: SQLite default / PgBackend при `GSC_DATABASE_URL`) | `server.py` |
 | 1.3 | Миграция SQLite→PG + docker postgres | `scripts/gsc_pg_migrate.py`, `cloud/schema_runtime.sql`, `docker-compose.yml` |
+| **Трек 2** | Workers out-of-process: `gsc-worker` контейнер (`gsc_scan_worker.py --loop` поллит `scan_jobs`, без Redis); server при `GSC_WORKER_DAEMON=1` только enqueue; `workers.py` (gsc_jobs) помечен legacy | `gsc_cloud/gsc_scan_worker.py`, `gsc_cloud/server.py`, `docker-compose.yml` |
 
 Все endpoint'ы переведены с sqlite3 `conn` на backend API (`fetchone`/`query`/`insert_id`/`execute`).
 `INSERT OR REPLACE`→`ON CONFLICT`, `lastrowid`→`RETURNING`, `datetime('now')`→Python timestamp,
@@ -209,8 +210,8 @@ signup→stats/findings/scans/dashboard 200.
 
 | Трек | Что | Когда |
 |------|-----|-------|
-| **Трек 2** | Workers out-of-process: `cloud/workers.py` → отдельный процесс/контейнер (`gsc_worker`), очередь через существующие таблицы (без Redis), `gsc-worker` сервис в compose | перед multi-tenant prod под нагрузкой |
 | **Трек 3** | ~~Packages split~~ ✅ **ЗАВЕРШЁН** (0.5.1–0.5.5: `gsc_core/`+`gsc_cli/`+`gsc_cloud/`, shim-ы; `78222dc`, `e821e62`, `b29af60`) | — |
+| — | ⚠️ Redis-цепочка webhook (`scan_queue.py` → `api.py`/`scanjobs.py`) — заменить на БД-очередь `scan_jobs` для полного «без Redis» (отдельный объём, не входит в Трек 2) | при переносе PR-webhook на PG-очередь |
 
 ### ⚠️ Известные ограничения / хвосты
 
