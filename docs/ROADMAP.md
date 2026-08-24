@@ -99,7 +99,11 @@ PR-gate через `--gate` (exit 1 при forbidden). Тесты (10 passed).
 
 ✅ DREAD/PASTA добавлены (22.08.2026): детерминированный DREAD-скоринг (0-50) +
 7 стадий PASTA в `gsc_threat_model.py` (`dread_score`/`apply_dread`/`pasta_stages`).
-Осталось: attack trees (Фаза 6 атаки).
+✅ Attack trees добавлены (24.08.2026): детерминированная иерархическая декомпозиция
+цели атаки (root goal → категории через OR → векторы-листья, AND-узлы для
+комплементарных пар) в `gsc_attack_tree.py` (`build_attack_tree`/`tree_to_mermaid`/
+`tree_risk`/`render_attack_tree`). Без LLM, переиспользует DREAD. CLI `gsc attack-tree`.
+Реализует PASTA стадию 6 (Attack modeling). Тесты `tests/test_attack_tree.py` (10 passed).
 
 ## 🟢 Фаза 6 — Dashboard с трендами
 

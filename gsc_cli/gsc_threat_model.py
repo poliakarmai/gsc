@@ -290,7 +290,7 @@ def pasta_stages(context: dict, model: dict) -> list[dict]:
         2: f"{context.get('route_count', 0)} routes, {len(context.get('auth_files', []))} auth files",
         3: f"{len(model.get('trust_boundaries', []))} trust boundaries",
         4: f"{len(model.get('attack_surfaces', model.get('top_threats', [])))} surfaces (CWE-подсказки)",
-        5: "PoC → gsc_poc_deterministic / gsc_proofoffix",
+        5: "attack tree → gsc_attack_tree.build_attack_tree (deterministic, no LLM)",
         6: "DREAD-скоринг (apply_dread)",
     }
     return [{"stage": s, "purpose": p, "evidence": evidence.get(i, "")}

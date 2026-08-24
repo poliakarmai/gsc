@@ -2782,6 +2782,14 @@ def main():
     ag_p.add_argument('--out', '-o', default='attack_paths.md', help='Output .md with mermaid block')
     ag_p.add_argument('--title', default='Attack Paths', help='Graph title')
 
+    # gsc attack-tree — deterministic attack tree from threat model
+    at_p = sub.add_parser('attack-tree', help='Attack tree (Mermaid) from threat-model attack surfaces')
+    at_p.add_argument('--threat-model', default='threat_model.json',
+                      help='Threat model JSON (with attack_surfaces)')
+    at_p.add_argument('--out', '-o', default='attack_tree.md', help='Output .md with mermaid block')
+    at_p.add_argument('--root-goal', default='Compromise the application', help='Root goal label')
+    at_p.add_argument('--title', default='Attack Tree', help='Document title')
+
     # gsc fix-quality — оценка качества патча
     fq_p = sub.add_parser('fix-quality', help='Fix quality scoring (minimality/regression/tests)')
     fq_p.add_argument('--evidence', required=True, help='Evidence JSON from `pof generate --output`')
@@ -3161,6 +3169,13 @@ def main():
         from gsc_attack_graph import render_attack_graph
         out = render_attack_graph(args.scan, args.out, args.title)
         print(f"Attack graph written to {out}")
+    elif args.command == "attack-tree":
+        import json as _json
+        from gsc_attack_tree import render_attack_tree
+        data = _json.loads(Path(args.threat_model).read_text())
+        surfaces = (data.get("attack_surfaces") or data.get("top_threats") or [])
+        out = render_attack_tree(surfaces, args.out, args.root_goal, args.title)
+        print(f"Attack tree written to {out}")
     elif args.command == "fix-quality":
         import json as _json
         from gsc_fix_quality import score_from_evidence_json

@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+### Фаза 5.5 — Attack trees (2026-08-24)
+- `gsc_attack_tree.py` — детерминированная иерархическая декомпозиция цели атаки:
+  root goal → категории (OR) → векторы-листья; AND-узлы для комплементарных пар
+  (exposure+auth, exposure+authz, exposure+injection, auth+authz, ssrf+injection).
+- Переиспользует `dread_score()` из threat model; без LLM (детерминированно).
+- `categorize_surface()` — детерминированная категоризация attack-surface по
+  CWE-подсказке, затем по ключевым словам.
+- `tree_risk()` — агрегация риска дерева по severity order (не лексикографический max).
+- `tree_to_mermaid()` / `render_attack_tree()` — Mermaid flowchart TD с edge-labels
+  `-->|OR|` / `-->|AND|`.
+- CLI `gsc attack-tree --threat-model threat_model.json --out attack_tree.md`.
+- PASTA стадия 6 («Attack modeling») теперь ссылается на attack tree вместо заглушки.
+- Тесты `tests/test_attack_tree.py` (10 passed). Независимый code review (судья) — OK.
+
 ### S1 Трек 2 — Workers out-of-process (2026-08-24)
 - `gsc-worker` сервис в `docker-compose.yml`: демон `gsc_scan_worker.py --loop` поллит
   `scan_jobs` из PostgreSQL (без Redis), долгие clone+scan+store не висят на HTTP worker.
