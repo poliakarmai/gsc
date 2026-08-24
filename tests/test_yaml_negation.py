@@ -1,6 +1,6 @@
 """Negation guards (pattern-not / not / not-patterns) — YAML-DSL (#3).
 
-Заимствовано из Semgrep `pattern-not`: правило матчит позитивный паттерн,
+`pattern-not`: правило матчит позитивный паттерн,
 но НЕ поднимает находку, если строка с матчем попадает под guard-паттерн.
 Реализация — line-level (regex-движок без AST): многострочный/AST-level
 negation (double-free через переприсваивание в соседнем statement) вне
@@ -22,7 +22,7 @@ def _detector(rule_dict):
 
 # ── Парсинг ────────────────────────────────────────────────────────────────
 
-def test_parse_semgrep_pattern_not():
+def test_parse_pattern_not():
     rule = YamlRule({
         "id": "eval-no-literal",
         "severity": "CRITICAL",

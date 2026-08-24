@@ -1,33 +1,33 @@
-"""Tests for the Semgrep YAML-DSL compiler (Ф3)."""
+"""Tests for the YAML rule DSL compiler (Ф3)."""
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from gsc_yaml_rules import semgrep_pattern_to_regex, YamlRule
+from gsc_yaml_rules import pattern_to_regex, YamlRule
 
 
 def test_metavariable():
-    assert semgrep_pattern_to_regex("eval($X)") == r"eval\([\w.]+\)"
+    assert pattern_to_regex("eval($X)") == r"eval\([\w.]+\)"
 
 
 def test_ellipsis():
-    assert semgrep_pattern_to_regex("danger(...)") == r"danger\([\s\S]*?\)"
+    assert pattern_to_regex("danger(...)") == r"danger\([\s\S]*?\)"
 
 
 def test_spread():
-    assert semgrep_pattern_to_regex("foo($...ARGS)") == r"foo\([\s\S]*?\)"
+    assert pattern_to_regex("foo($...ARGS)") == r"foo\([\s\S]*?\)"
 
 
 def test_inline_regex_passthrough():
-    assert semgrep_pattern_to_regex(r'/password\s*=\s*"[^"]+"/') == r'password\s*=\s*"[^"]+"'
+    assert pattern_to_regex(r'/password\s*=\s*"[^"]+"/') == r'password\s*=\s*"[^"]+"'
 
 
 def test_literal_escaping():
-    assert semgrep_pattern_to_regex("a.b(c)") == r"a\.b\(c\)"
+    assert pattern_to_regex("a.b(c)") == r"a\.b\(c\)"
 
 
-def test_yaml_rule_semgrep_pattern_compiles():
+def test_yaml_rule_pattern_compiles():
     rule = YamlRule({
         "id": "python-eval-injection",
         "severity": "ERROR",
@@ -56,7 +56,7 @@ def test_yaml_rule_pattern_either():
 
 def test_yaml_rule_none_patterns_does_not_crash():
     # Some community rules ship `patterns:` / `pattern-either:` as null —
-    # must not crash (regression from real semgrep-rules import run).
+    # must not crash (regression from real community-rules import run).
     rule = YamlRule({
         "id": "null-patterns-rule",
         "severity": "ERROR",

@@ -37,16 +37,24 @@
 > LLM-first-pass (Claude-style «аудит за 30 сек»): GSC использует LLM только как верификатор/threat-model, не как генератор findings первого эшелона — добавить опциональный whole-repo LLM-проход, комплементарно regex (semantic depth vs deterministic recall).
 > Rejudge (syabro): panel+judge (3 ревьюера + судья) замыкает лестницу точности Фазы 2 — self-verification (1 модель) < cross-model voting (2) < panel+judge (4). ⚠️ автор честно: «no measured advantage over one strong model», дорого, только CRITICAL/HIGH.
 
-## 🟡 Фаза 3 — Semgrep-совместимые правила
+## 🟢 Фаза 3 — YAML-DSL правила (declarative pattern DSL)
 
-**Проблема:** детекторы на Python — никто не будет писать код чтобы добавить правило. Semgrep выиграл YAML-DSL'ом.
+**Проблема:** детекторы на Python — никто не будет писать код чтобы добавить правило. YAML-DSL решает это.
 
 | Фича | Статус |
 |------|--------|
 | YAML → Python rule compiler | ✅ `gsc_yaml_rules.py` |
-| Поддержка Semgrep pattern syntax (`$X`, `...`) | ✅ best-effort regex (аппроксимация AST-матча) |
-| Импорт community-правил из semgrep-registry | ✅ `registry update <path\|git-url>` — 63% (1425/2234) компилируются |
-| GSC Registry — свой реестр правил | ⬜ |
+| Поддержка pattern syntax (`$X`, `...`) | ✅ best-effort regex (аппроксимация AST-матча) |
+| Импорт community-правил из внешнего реестра | ✅ `registry update <path\|git-url>` — 63% (1425/2234) компилируются |
+| GSC Registry — свой реестр правил | ✅ `gsc registry list/add/update` + `gsc-rules/` (конвенция метаданных) |
+
+✅ Реализовано (24.08.2026): CLI `gsc registry` (list/add/update) в `gsc_cli/main.py`
+(`cmd_registry`); `YAML_RULES_DIR` — канонический абсолютный путь, не зависит от CWD;
+`compile_and_write()` merge-safe (пересборка `__init__.py` сканированием всех `*.py`,
+иначе `add` затирал существующие правила); структура собственного реестра
+`gsc-rules/` (README-конвенция + образец `no-unsafe-deserialization.yml`).
+Тесты `tests/test_registry.py` (6 passed). Бренды конкурентов вычищены из кода
+сканера (имена функций/комментарии) — остались только как цели сканирования.
 
 ## 🟢 Фаза 4 — GitHub App с Check Runs
 

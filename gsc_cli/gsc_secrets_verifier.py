@@ -4,7 +4,7 @@
 # Licensed under Apache License 2.0 — see LICENSE
 """GSC Secrets Verifier v1.1 — live-проверка секретов одним безопасным запросом.
 
-Фаза 8. TruffleHog-идея: один запрос к API провайдера → 200 = live (TP),
+Фаза 8. Live-проверка секретов: один запрос к API провайдера → 200 = live (TP),
 401 = dead (FP). Убивает шум тестовых/мёртвых/placeholder-секретов.
 
 Redaction: значение секрета НЕ логируется и НЕ сохраняется — только fingerprint.
@@ -182,7 +182,7 @@ def verify_secret(secret: str, provider: str = None) -> dict:
 
 
 def deboost_dead(findings: list, verify_fn=verify_secret) -> int:
-    """Пометить dead-секреты (deboost confidence + severity→INFO) — TruffleHog-стиль.
+    """Пометить dead-секреты (deboost confidence + severity→INFO).
 
     finding несёт значение в `value`/`secret_value` (этап детекта, в памяти).
     Возвращает число deboosted.

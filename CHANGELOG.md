@@ -12,6 +12,23 @@
 - `gsc_cloud/workers.py` помечен LEGACY для runtime-слоя (использует `gsc_jobs`
   из enterprise schema_s2.sql, не из runtime schema_runtime.sql).
 
+### Фаза 3 — GSC Registry (свой реестр правил) (2026-08-24)
+- CLI `gsc registry` (`list`/`add`/`update`) в `gsc_cli/main.py` (`cmd_registry`).
+- `YAML_RULES_DIR` — канонический абсолютный путь (не зависит от CWD); default-пути
+  `update_registry()`/CLI переведены на него.
+- `compile_and_write()` merge-safe: `__init__.py` пересобирается сканированием всех
+  `*.py` в каталоге (раньше `add` затирал существующие правила).
+- Структура собственного реестра `gsc-rules/` (README-конвенция + образец
+  `no-unsafe-deserialization.yml`).
+- Тесты `tests/test_registry.py` (6 passed).
+
+### Chore — бренды конкурентов вычищены из кода
+- Из кода сканера (gsc_core/gsc_cli/gsc_cloud, tests) убраны упоминания брендов
+  конкурентов как источника идеи (имена функций, docstring, комментарии):
+  `semgrep_pattern_to_regex` → `pattern_to_regex`, «Semgrep-совместимый» →
+  «декларативный pattern DSL», «TruffleHog-идея» → «live-проверка», «Snyk-подобный» → нейтр.
+- Цели сканирования (GitHub Actions/GitLab CI/Jenkins в GS033, хосты в target_policy) — не тронуты.
+
 ## v1.4.0 — 2026-08-19
 
 ### Новые фичи

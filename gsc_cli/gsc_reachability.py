@@ -6,7 +6,7 @@
 
 Определяет, используется ли уязвимая зависимость в коде (import / call), чтобы
 отличить **reachable** (реальный риск) от **not-reachable** (установлена, но не
-используется). Snyk-подобный reachability для SCA.
+используется). Reachability-анализ для SCA.
 
 Контракт (закреплён в tests/test_phases_2_6.py::TestReachability):
   analyze_project(root) → (ImportVisitor, CallVisitor, usage)

@@ -353,7 +353,7 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
     ),
 ]
 
-# ── YAML custom rules (Semgrep-compatible) ──
+# ── YAML custom rules (declarative pattern DSL) ──
 try:
     from . import yaml_rules as _yr
     for _mod_name in getattr(_yr, '__all__', []):

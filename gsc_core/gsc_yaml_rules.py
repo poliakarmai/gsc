@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""GSC YAML Rule Compiler — Semgrep-совместимый DSL.
+"""GSC YAML Rule Compiler — декларативный pattern DSL.
 
 Позволяет писать кастомные правила на YAML и компилировать их
 в GSC-детекторы без написания Python-кода.
 
-Формат совместим с Semgrep rule schema v1.0.
+Формат rule schema — декларативный pattern DSL.
 
 Usage:
     python3 gsc_yaml_rules.py compile rules/my-rule.yml
@@ -31,12 +31,12 @@ from typing import Dict, List, Optional, Tuple
 #       - regex: "exec\\s*\\("
 #         title: "exec() with user input"
 #     fix: "Use safer alternative..."
-#     not-patterns:                 # negation guard (Semgrep `pattern-not`-аналог)
+#     not-patterns:                 # negation guard (`pattern-not`-аналог)
 #       - regex: "ast\\.literal_eval"
 #     references:
 #       - "https://cwe.mitre.org/data/definitions/95.html"
 #
-# ИЛИ Semgrep-стиль:
+# ИЛИ pattern-стиль:
 #
 # rules:
 #   - id: my-rule-id
@@ -53,9 +53,13 @@ SEVERITY_MAP = {
     "LOW": "LOW",
 }
 
+# Канонический каталог скомпилированных YAML-детекторов (внутри пакета gsc_core).
+# Абсолютный путь, не зависит от CWD (иначе default резолвился в неверную директорию).
+YAML_RULES_DIR = Path(__file__).resolve().parent / "gsc_detectors" / "yaml_rules"
 
-def semgrep_pattern_to_regex(pattern: str) -> str:
-    """Translate Semgrep pattern syntax into a best-effort regex.
+
+def pattern_to_regex(pattern: str) -> str:
+    """Translate declarative pattern syntax into a best-effort regex.
 
     Supported constructs:
       $X        → metavariable (identifier/expression)
@@ -64,7 +68,7 @@ def semgrep_pattern_to_regex(pattern: str) -> str:
       /regex/   → inline regex literal (pass-through)
       literals  → regex-escaped
 
-    This is an APPROXIMATION: Semgrep matches on the AST, we match on source
+    This is an APPROXIMATION: an AST-based matcher works on the AST, we match on source
     text. Good enough for the common community rules (function calls, imports,
     assignments), not for deep structural patterns. Precision-first: metavars
     match identifier-like text, not arbitrary expressions.
@@ -124,34 +128,34 @@ class YamlRule:
         self.patterns: List[Tuple[str, str]] = []
         self.not_patterns: List[str] = []
 
-        # Semgrep-style: single `pattern` (compiled to regex) or `pattern-regex` (raw)
+        # pattern-style: single `pattern` (compiled to regex) or `pattern-regex` (raw)
         if "pattern" in rule_dict:
             self.patterns.append(
-                (semgrep_pattern_to_regex(rule_dict["pattern"]), self.message))
+                (pattern_to_regex(rule_dict["pattern"]), self.message))
         elif "pattern-regex" in rule_dict:
             self.patterns.append((rule_dict["pattern-regex"], self.message))
 
-        # Semgrep-style: `pattern-either` — OR of alternatives
+        # `pattern-either` — OR of alternatives
         for alt in rule_dict.get("pattern-either") or []:
             if isinstance(alt, dict):
                 if "pattern" in alt:
                     self.patterns.append(
-                        (semgrep_pattern_to_regex(alt["pattern"]), self.message))
+                        (pattern_to_regex(alt["pattern"]), self.message))
                 elif "pattern-regex" in alt:
                     self.patterns.append((alt["pattern-regex"], self.message))
             elif isinstance(alt, str):
                 self.patterns.append(
-                    (semgrep_pattern_to_regex(alt), self.message))
+                    (pattern_to_regex(alt), self.message))
 
-        # GSC-style `patterns` list AND Semgrep AND-list (`patterns:`).
+        # GSC-style `patterns` list AND pattern AND-list (`patterns:`).
         for p in rule_dict.get("patterns") or []:
             if isinstance(p, str):
                 self.patterns.append((p, self.message))
             elif isinstance(p, dict):
-                # Semgrep AND-operator: positive `pattern` → compile
+                # AND-operator: positive `pattern` → compile
                 if "pattern" in p:
                     self.patterns.append(
-                        (semgrep_pattern_to_regex(p["pattern"]), self.message))
+                        (pattern_to_regex(p["pattern"]), self.message))
                 elif "pattern-regex" in p:
                     self.patterns.append((p["pattern-regex"], self.message))
                 # GSC-style: `regex` + optional title
@@ -159,7 +163,7 @@ class YamlRule:
                     title = p.get("title") or p.get("message") or self.message
                     self.patterns.append((p["regex"], title))
 
-        # Negation guards (Semgrep `pattern-not` + GSC `not`/`not-patterns`).
+        # Negation guards (`pattern-not` + GSC `not`/`not-patterns`).
         for neg in self._parse_not_patterns(rule_dict):
             self.not_patterns.append(neg)
 
@@ -219,22 +223,22 @@ def detect(file_path, content, language="auto"):
     def _parse_not_patterns(self, rule_dict: dict) -> List[str]:
         """Собрать negation-guard паттерны из `pattern-not` / `not` / `not-patterns`.
 
-        Semgrep `pattern-not` (строка или список) компилируется через
-        semgrep_pattern_to_regex; GSC-стиль `not` / `not-patterns` принимает
+        `pattern-not` (строка или список) компилируется через
+        pattern_to_regex; GSC-стиль `not` / `not-patterns` принимает
         сырые regex-строки или `{regex: ...}`.
         """
         out: List[str] = []
 
-        # Semgrep-style: pattern-not (string или list)
+        # pattern-not (string или list)
         pn = rule_dict.get("pattern-not")
         if pn:
             items = pn if isinstance(pn, list) else [pn]
             for it in items:
                 if isinstance(it, str):
-                    out.append(semgrep_pattern_to_regex(it))
+                    out.append(pattern_to_regex(it))
                 elif isinstance(it, dict):
                     if "pattern" in it:
-                        out.append(semgrep_pattern_to_regex(it["pattern"]))
+                        out.append(pattern_to_regex(it["pattern"]))
                     elif "pattern-regex" in it:
                         out.append(it["pattern-regex"])
                     elif "regex" in it:
@@ -282,8 +286,26 @@ def compile_rules(path: str) -> List[YamlRule]:
     return rules
 
 
+def _regenerate_init(output: Path):
+    """Пересобрать __init__.py из ВСЕХ скомпилированных *.py в директории.
+
+    Сканирует каталог (кроме __init__.py), чтобы `add` нового правила не
+    затирал импорты уже существующих — merge-safe. Порядок — сортированный,
+    детерминированный.
+    """
+    modules = sorted(
+        p.stem for p in output.glob("*.py") if p.name != "__init__.py"
+    )
+    init_code = "# Auto-generated YAML rule loader\n"
+    for m in modules:
+        init_code += f"from . import {m}\n"
+    init_code += f"\n__all__ = {modules!r}\n"
+    (output / "__init__.py").write_text(init_code)
+    return modules
+
+
 def compile_and_write(rules: List[YamlRule], output_dir: str):
-    """Write compiled rules as Python detectors."""
+    """Write compiled rules as Python detectors, merge-safe."""
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
 
@@ -294,17 +316,8 @@ def compile_and_write(rules: List[YamlRule], output_dir: str):
         py_file.write_text(code)
         print(f"✅ {rule.id} → {py_file} ({len(rule.patterns)} patterns)")
 
-    # Write __init__.py to auto-load all
-    module_names = []
-    init_code = "# Auto-generated YAML rule loader\n"
-    for rule in rules:
-        module_name = rule.id.replace("-", "_")
-        module_names.append(module_name)
-        init_code += f"from . import {module_name}\n"
-    init_code += f"\n__all__ = {module_names!r}\n"
-    (output / "__init__.py").write_text(init_code)
-
-    print(f"\n📦 {len(rules)} rules compiled to {output}/")
+    modules = _regenerate_init(output)
+    print(f"\n📦 {len(modules)} rules total in {output}/")
 
 
 def create_sample_rule():
@@ -372,16 +385,19 @@ def create_sample_rule():
     }
 
 
-def update_registry(source: str, output_dir: str = "gsc_detectors/yaml_rules") -> int:
-    """Import community rules from a Semgrep registry (directory or git URL).
+def update_registry(source: str, output_dir: str = "") -> int:
+    """Import community rules from a rule registry (directory or git URL).
 
     Clones a git URL into a temp dir if needed, compiles every rule our
     best-effort compiler supports (pattern / pattern-regex / pattern-either /
     pattern-not), and writes them as Python detectors. Rules using unsupported
-    Semgrep operators (metavariable-regex, taint) are skipped.
+    Advanced operators (metavariable-regex, taint) are skipped.
     """
     import shutil
     import tempfile
+
+    if not output_dir:
+        output_dir = str(YAML_RULES_DIR)
 
     src = Path(source)
     tmp = None
@@ -423,7 +439,7 @@ if __name__ == "__main__":
 
     compile_ap = sub.add_parser("compile", help="Compile YAML → Python detectors")
     compile_ap.add_argument("path", help="YAML file or directory")
-    compile_ap.add_argument("-o", "--output", default="gsc_detectors/yaml_rules",
+    compile_ap.add_argument("-o", "--output", default=str(YAML_RULES_DIR),
                            help="Output directory for compiled rules")
 
     init_ap = sub.add_parser("init", help="Create sample rule file")
@@ -433,8 +449,8 @@ if __name__ == "__main__":
     reg_sub = reg_ap.add_subparsers(dest="reg_command")
     reg_update = reg_sub.add_parser(
         "update", help="Import community rules from a directory or git URL")
-    reg_update.add_argument("source", help="Path or git URL to a Semgrep rules registry")
-    reg_update.add_argument("-o", "--output", default="gsc_detectors/yaml_rules")
+    reg_update.add_argument("source", help="Path or git URL to a rules registry")
+    reg_update.add_argument("-o", "--output", default=str(YAML_RULES_DIR))
 
     args = ap.parse_args()
 
