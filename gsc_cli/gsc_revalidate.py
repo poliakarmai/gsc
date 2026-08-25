@@ -30,6 +30,8 @@ import re
 from pathlib import Path
 from datetime import datetime, timezone
 
+from gsc_llm_providers import defang, UNTRUSTED_GUARD, guard_system
+
 
 class Revalidator:
     """Structured revalidation — cuts FP rate by 50%+."""
@@ -393,10 +395,10 @@ class Revalidator:
                 f"--- idx={i} ---\n"
                 f"rule: {f.get('rule_id', '?')}\n"
                 f"severity: {f.get('severity', '?')}\n"
-                f"title: {f.get('title', '')}\n"
-                f"file: {f.get('file_path', '')}:{f.get('line', f.get('line_number', 1))}\n"
-                f"git: {f.get('revalidation_git_fixed', '')}\n"
-                f"code:\n```\n{ctx.get('code_snippet', 'N/A')[:800]}\n```\n"
+                f"title: {defang(f.get('title', ''))}\n"
+                f"file: {defang(f.get('file_path', ''))}:{f.get('line', f.get('line_number', 1))}\n"
+                f"git: {defang(f.get('revalidation_git_fixed', ''))}\n"
+                f"code:\n{defang(ctx.get('code_snippet', 'N/A')[:800])}\n"
             )
         body = "\n".join(parts)
         return (
@@ -412,7 +414,7 @@ class Revalidator:
         """Call LLM once, parse a JSON array of verdicts."""
         from gsc_llm_providers import llm_chat
         content = llm_chat(
-            "You are a security auditor. Reply ONLY with a valid JSON array.",
+            guard_system("You are a security auditor. Reply ONLY with a valid JSON array."),
             prompt, max_tokens=max(800, expected * 120), temperature=0.1,
         )
         if content is None:
@@ -459,26 +461,24 @@ class Revalidator:
 
     def _build_revalidation_prompt(self, finding: dict, context: dict) -> str:
         """Build structured revalidation prompt."""
-        return f"""You are a security auditor revalidating a vulnerability finding.
+        return f"""{UNTRUSTED_GUARD}
+
+You are a security auditor revalidating a vulnerability finding.
 
 FINDING:
   Rule: {finding.get('rule_id', '?')}
   Severity: {finding.get('severity', '?')}
-  Title: {finding.get('title', '')}
-  Detail: {finding.get('detail', '')}
+  Title: {defang(finding.get('title', ''))}
+  Detail: {defang(finding.get('detail', ''))}
 
-FILE: {finding.get('file_path', '')}
+FILE: {defang(finding.get('file_path', ''))}
 LINE: {finding.get('line', finding.get('line_number', 1))}
 
 CODE CONTEXT:
-```
-{context.get('code_snippet', 'N/A')[:2000]}
-```
+{defang(context.get('code_snippet', 'N/A')[:2000])}
 
 IMPORTS:
-```
-{context.get('imports', 'N/A')[:500]}
-```
+{defang(context.get('imports', 'N/A')[:500])}
 
 INSTRUCTIONS:
 Determine the verdict for this finding. Choose ONE:
@@ -495,7 +495,7 @@ Reply in JSON:
         from gsc_llm_providers import llm_chat
 
         content = llm_chat(
-            "You are a security auditor. Reply ONLY with valid JSON.",
+            guard_system("You are a security auditor. Reply ONLY with valid JSON."),
             prompt, max_tokens=400, temperature=0.1,
         )
         if content is None:

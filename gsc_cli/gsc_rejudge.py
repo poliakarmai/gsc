@@ -17,6 +17,8 @@ import json, os, subprocess, sys, tempfile, shutil
 from pathlib import Path
 from typing import Optional
 
+from gsc_llm_providers import defang, UNTRUSTED_GUARD
+
 REJUDGE_PATH = shutil.which("rejudge")
 
 def _get_api_key() -> str:
@@ -60,12 +62,14 @@ def revalidate_findings(scan_json: str) -> dict:
     if not critical_high:
         return {"status": "ok", "revalidated": 0, "message": "No CRITICAL/HIGH findings"}
 
-    # Build prompt
-    lines = ["Review these security findings and classify each as TP (true positive) or FP (false positive):\n"]
+    # Build prompt — untrusted fields (title/file/snippet come from the scanned
+    # repo) are defanged so embedded instructions cannot steer the verdict.
+    lines = [UNTRUSTED_GUARD + "\n\n",
+             "Review these security findings and classify each as TP (true positive) or FP (false positive):\n"]
     for i, f in enumerate(critical_high[:10], 1):  # max 10 per batch
-        lines.append(f"{i}. {f.get('rule_id','?')} {f.get('title','?')}")
-        lines.append(f"   File: {f.get('file','?')}:{f.get('line','?')}")
-        lines.append(f"   Snippet: {f.get('snippet','?')[:100]}")
+        lines.append(f"{i}. {f.get('rule_id','?')} {defang(f.get('title','?'))}")
+        lines.append(f"   File: {defang(f.get('file','?'))}:{f.get('line','?')}")
+        lines.append(f"   Snippet: {defang(f.get('snippet','?')[:100])}")
         lines.append("")
 
     prompt = "\n".join(lines)
@@ -85,14 +89,16 @@ def validate_poc(poc_text: str) -> dict:
     Returns FALSE_POSITIVE when all 3 agree it's not exploitable.
     Returns NEEDS_REVIEW when models disagree.
     """
-    prompt = f"""Review this security exploit proof-of-concept. Is it:
+    prompt = f"""{UNTRUSTED_GUARD}
+
+Review this security exploit proof-of-concept. Is it:
 
 1. Actually exploitable (not a false positive)?
 2. Complete (all steps are present and correct)?
 3. Safe (doesn't contain destructive commands)?
 
 PoC:
-{poc_text}
+{defang(poc_text)}
 
 Answer with: verdict (EXPLOITABLE / FALSE_POSITIVE / INCOMPLETE), confidence (0-100), and reasoning."""
 
@@ -139,9 +145,9 @@ def validate_detector(pattern_file: str, fixtures_dir: str = None) -> dict:
             fpath = os.path.join(fixtures_dir, fname)
             if os.path.isfile(fpath):
                 with open(fpath, errors='ignore') as f:
-                    test_cases.append(f"File: {fname}\n```\n{f.read()[:500]}\n```")
+                    test_cases.append(f"File: {fname}\n{defang(f.read()[:500])}")
 
-    lines = ["Validate these GSC security detector patterns for:", ""]
+    lines = [UNTRUSTED_GUARD + "\n\n", "Validate these GSC security detector patterns for:", ""]
     lines.append("1. False positives — would they trigger on safe code?")
     lines.append("2. False negatives — would they miss real vulnerabilities?")
     lines.append("3. Regex robustness — are the patterns well-formed and efficient?")

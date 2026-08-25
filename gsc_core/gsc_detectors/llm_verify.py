@@ -17,6 +17,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+from gsc_llm_providers import defang, guard_system
+
 # ── LLM Client ───────────────────────────────────────────────────────────────
 
 def _get_llm_client():
@@ -60,7 +62,7 @@ def _call_llm(api_key: str, base_url: str, model: str, prompt: str) -> str | Non
         "Reply with JSON only: {\"real_vuln\": true/false, "
         "\"confidence\": 0.0-1.0, \"reason\": \"brief explanation\"}"
     )
-    return llm_chat(system, prompt, max_tokens=300, temperature=0.1)
+    return llm_chat(guard_system(system), prompt, max_tokens=300, temperature=0.1)
 
 
 # ── Code Context Extractor ──────────────────────────────────────────────────
@@ -107,14 +109,12 @@ def verify_finding(finding: dict, project_path: str = "") -> dict | None:
 
     prompt = f"""Analyze this security finding for a potential vulnerability.
 
-Finding: {title} ({rule_id})
-File: {Path(filepath).name}:{line_no}
-Detail: {detail}
+Finding: {defang(title)} ({rule_id})
+File: {defang(Path(filepath).name)}:{line_no}
+Detail: {defang(detail)}
 
 Surrounding code:
-```
-{code_context}
-```
+{defang(code_context)}
 
 Is this a REAL vulnerability or a FALSE POSITIVE? Consider:
 - Are inputs from user/request or internal/trusted?
