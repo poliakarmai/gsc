@@ -1414,28 +1414,26 @@ def _revalidate(finding: dict, project_path: Path, severities=None) -> dict:
     if not snippet:
         return f
 
-    from gsc_llm_providers import llm_chat_with_deadline
+    from gsc_llm_providers import llm_chat_with_deadline, defang, guard_system
 
     try:
-        safe_snippet = redact(snippet[:2000])
-        safe_detail = redact((f.get("detail") or "")[:500])
+        safe_snippet = defang(redact(snippet[:2000]))
+        safe_detail = defang(redact((f.get("detail") or "")[:500]))
 
         prompt = f"""Security audit. Is this a real vulnerability?
 
-FINDING: {f.get('category')} — {f.get('title')}
+FINDING: {f.get('category')} — {defang(redact(f.get('title') or ''))}
 Detail: {safe_detail}
-File: {fp}:{line}
+File: {defang(fp)}:{line}
 
 CODE:
-```
 {safe_snippet}
-```
 
 Reply JSON: {{"verdict":"true-positive"|"false-positive"|"uncertain","confidence":0.0-1.0,"reasoning":"2-3 sentences"}}
 
 RULES: localhost/127.0.0.1 defaults → false-positive. Test files/docs → false-positive. Placeholders → false-positive. Real secrets/injection in production code → true-positive."""
 
-        content = llm_chat_with_deadline("Security auditor. JSON only.", prompt, 300, 0.1)
+        content = llm_chat_with_deadline(guard_system("Security auditor. JSON only."), prompt, 300, 0.1)
         if content:
             sj, ej = content.find("{"), content.rfind("}") + 1
             if sj >= 0 and ej > sj:

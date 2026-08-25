@@ -62,9 +62,9 @@ def _get_api_key() -> str:
 
 def _call_llm(system: str, user: str, max_tokens: int = 800) -> Optional[str]:
     """Unified LLM call via gsc_llm_providers (DeepSeek/OpenRouter/OLLAMA/LM Studio)."""
-    from gsc_llm_providers import llm_chat
+    from gsc_llm_providers import llm_chat, guard_system
     try:
-        return llm_chat(system, user, max_tokens)
+        return llm_chat(guard_system(system), user, max_tokens)
     except Exception as e:
         print(f"[PoC] LLM error: {e}", file=sys.stderr)
         return None
@@ -141,6 +141,7 @@ class PoCGenerator:
         return poc
 
     def _build_prompt(self, f: dict, code: str, kind: str, fmt: str, feedback: Optional[str] = None) -> str:
+        from gsc_llm_providers import defang
         line = f.get("line", f.get("line_number", 1))
         lines = code.splitlines()
         start = max(0, line - 1 - POC_WINDOW_LINES // 2)
@@ -149,14 +150,14 @@ class PoCGenerator:
         if feedback:
             feedback_block = (
                 f"\n\nPrevious attempt FAILED in the sandbox. Improve the PoC based on this output:\n"
-                f"```\n{feedback[:600]}\n```\n"
+                f"{defang(feedback[:600])}\n"
                 f"Fix the error and keep the SAME EXPLOIT CONTRACT.\n"
             )
         return (
             f"Generate a minimal proof-of-concept exploit.\n\n"
             f"Rule: {f.get('rule_id', '?')} ({kind})\n"
-            f"File: {f.get('file_path', '?')}:{line}\n"
-            f"Code:\n{ctx}\n\n"
+            f"File: {defang(f.get('file_path', '?'))}:{line}\n"
+            f"Code:\n{defang(ctx)}\n\n"
             f"Format: {fmt}\n"
             f"Use placeholder values ONLY. One request/script. No destructive actions.\n"
             f"EXPLOIT CONTRACT (required for Proof-of-Fix verification):\n"

@@ -101,14 +101,12 @@ def _extract_candidates(file_path: Path, max_per_file: int = 5) -> list[dict]:
 
 def _call_llm(snippet: str, file_path: str) -> dict:
     """Unified LLM classify via gsc_llm_providers."""
-    from gsc_llm_providers import llm_chat
+    from gsc_llm_providers import llm_chat, defang, guard_system
 
     prompt = f"""You are a security code auditor. Analyze this code for SQL injection vulnerabilities.
 
 CODE:
-```
-{snippet[:2500]}
-```
+{defang(snippet[:2500])}
 
 Determine if this is a REAL SQL injection vulnerability or a SAFE pattern.
 
@@ -129,7 +127,7 @@ Reply with JSON only:
 {{"vulnerable": true/false, "confidence": 0.0-1.0, "reason": "one sentence"}}"""
 
     content = llm_chat(
-        "You are a security auditor. Reply with JSON only.",
+        guard_system("You are a security auditor. Reply with JSON only."),
         prompt, max_tokens=200, temperature=0.1,
     )
     if not content:
