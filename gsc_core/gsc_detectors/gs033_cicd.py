@@ -82,6 +82,11 @@ CICD_PATTERNS: list[tuple[str, str, str, float]] = [
     ("curl_pipe_bash_in_ci",
      r'run:\s*\|\s*\n\s*curl\s+.*\|\s*(?:sh|bash|python)',
      "HIGH", 0.75),
+
+    # inline one-liner: `run: curl -sSfL ... | sh` (no `|` block scalar)
+    ("curl_pipe_sh_inline",
+     r'run:\s*(?:curl|wget)\b[^\n]*\|\s*(?:sudo\s+)?(?:ba|z|k)?sh\b',
+     "HIGH", 0.75),
 ]
 
 # ── EXCLUSIONS ────────────────────────────────────────────────────────
@@ -191,7 +196,7 @@ class GS033CICDDetector:
 # ── Registry bridge ───────────────────────────────────────────────────
 
 RULE_ID = "GS033"
-ECHELON = 1
+ECHELON = 2
 NOISE_TIER = "sensitive"
 description = "GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns"
 

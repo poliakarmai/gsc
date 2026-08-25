@@ -50,7 +50,7 @@ SKIP_FILE_PATTERNS = [
     "test_*.py", "*_test.py", "conftest.py", "__init__.py",
     "setup.py", "migrations/*.py", "*.md", "*.rst", "*.txt",
     "docs_src/**", "docs/**", "tests/**", "examples/**",
-    ".github/**", "node_modules/**", "vendor/**"
+    "node_modules/**", "vendor/**"
 ]
 
 # Categories that are always skipped in framework context
@@ -86,7 +86,7 @@ def should_skip_file(file_path: str) -> bool:
         except Exception:
             pass
     # Check by substring (catch docs_src/, docs/, tests/ anywhere in path)
-    for skip_dir in ["docs_src/", "docs/", "tests/", "examples/", "node_modules/", "vendor/", ".github/"]:
+    for skip_dir in ["docs_src/", "docs/", "tests/", "examples/", "node_modules/", "vendor/"]:
         if skip_dir in file_path:
             return True
     return False

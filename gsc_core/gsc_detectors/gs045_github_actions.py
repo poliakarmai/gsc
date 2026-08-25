@@ -34,6 +34,12 @@ GHA_PATTERNS: list[tuple[str, str, str, float]] = [
     ("hardcoded_env_secret",
      r'(?i)^\s{2,}(?:aws_access_key_id|aws_secret_access_key|db_password|github_token|private_key|password|passwd|secret|token|api[_-]?key|access[_-]?key|client[_-]?secret)\s*:\s*(?!\s*["\']?\s*\$)\s*["\']?[^"\'\n\r$]{8,}["\']?\s*$',
      "HIGH", 0.80),
+
+    # unpinned action — uses: owner/repo@vN (or @main/@master) without a 40-char
+    # SHA digest. Pin-by-SHA prevents a tag-takeover hijacking the action.
+    ("unpinned_action",
+     r'uses:\s*[A-Za-z0-9._-]+/[A-Za-z0-9._-]+@(?:v\d+(?:\.\d+)*|main|master)\b',
+     "MEDIUM", 0.70),
 ]
 
 WORKFLOW_RE = re.compile(r'\.github/workflows/.*\.ya?ml$', re.IGNORECASE)
@@ -102,7 +108,7 @@ class GS045GitHubActionsDetector:
 # ── Registry bridge ───────────────────────────────────────────────────
 
 RULE_ID = "GS045"
-ECHELON = 1
+ECHELON = 2
 NOISE_TIER = "sensitive"
 description = "GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE"
 

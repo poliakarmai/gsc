@@ -105,6 +105,11 @@ class AuditContext:
         ".pgpass", ".npmrc", ".pypirc", ".git-credentials",
     })
 
+    # Hidden CI dirs that hold real workflow/config surface and MUST be scanned
+    # (.github/workflows, .circleci/config.yml). They are not "never-code" —
+    # GS033/GS045 read them — but the generic hidden-dir filter drops them.
+    CI_DIRS: frozenset[str] = frozenset({".github", ".circleci"})
+
     # Glob patterns for files that are NEVER code (skip in all detectors)
     NON_CODE_GLOBS: tuple[str, ...] = (
         "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.webp",
@@ -158,7 +163,8 @@ class AuditContext:
         for dirpath, dirnames, filenames in os.walk(self.path):
             dirnames[:] = [
                 d for d in dirnames
-                if not d.startswith(".") and d not in self.SKIP_DIRS
+                if (not d.startswith(".") or d in self.CI_DIRS)
+                and d not in self.SKIP_DIRS
             ]
             for fn in filenames:
                 out.append(Path(dirpath) / fn)
@@ -180,7 +186,8 @@ class AuditContext:
             self.files = sorted(
                 f for f in self._walk_all_files()
                 if f.is_file()
-                and not any(p.startswith(".") for p in f.parts[:-1])
+                and not any(p.startswith(".") and p not in self.CI_DIRS
+                            for p in f.parts[:-1])
                 and (not f.name.startswith(".")
                      or f.name.startswith(".env")
                      or f.name in self.SECRET_DOTFILES)

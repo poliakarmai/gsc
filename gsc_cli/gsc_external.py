@@ -152,6 +152,10 @@ EXCLUDE_DIRS = {
 }
 
 EXCLUDE_FILES = {".DS_Store", "Thumbs.db"}
+
+# Hidden CI dirs holding real workflow/config surface — must NOT be excluded
+# (GS033/GS045 read .github/workflows, .circleci/config.yml).
+CI_DIRS = {".github", ".circleci"}
 EXCLUDE_EXTENSIONS = {
     ".min.js", ".min.css", ".map", ".lock",
     ".svg", ".png", ".jpg", ".jpeg", ".gif", ".ico", ".webp",
@@ -470,7 +474,7 @@ def should_exclude(file_path: Path, relative_to: Path) -> bool:
     try: rel = file_path.relative_to(relative_to)
     except ValueError: return True
     parts = rel.parts
-    if any(p.startswith(".") for p in parts[:-1]): return True
+    if any(p.startswith(".") and p not in CI_DIRS for p in parts[:-1]): return True
     if any(p in EXCLUDE_DIRS for p in parts): return True
     if file_path.suffix in EXCLUDE_EXTENSIONS: return True
     if file_path.name in EXCLUDE_FILES: return True

@@ -228,7 +228,7 @@ class GS034SupplyChainDetector:
 # ── Registry bridge ───────────────────────────────────────────────────
 
 RULE_ID = "GS034"
-ECHELON = 1
+ECHELON = 2
 NOISE_TIER = "sensitive"
 description = "GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json"
 
