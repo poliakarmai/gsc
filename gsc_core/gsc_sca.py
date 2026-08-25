@@ -68,7 +68,35 @@ def parse_requirements(path: str, content: str) -> List[Package]:
     return packages
 
 
-def parse_package_json(path: str, content: str) -> List[Package]:
+def parse_package_lock(content: str) -> dict:
+    """Parse package-lock.json → {name: exact_version} for hoisted (depth-1)
+    dependencies only (npm lockfile v2/v3). Nested transitive copies
+    (node_modules/a/node_modules/b) are skipped so a transitive version never
+    overwrites the direct dependency's version."""
+    try:
+        data = json.loads(content)
+    except json.JSONDecodeError:
+        return {}
+    out: dict = {}
+    for pkg_key, meta in (data.get("packages") or {}).items():
+        if not isinstance(meta, dict):
+            continue
+        if not pkg_key.startswith("node_modules/"):
+            continue  # skip root "" and workspace source entries
+        if "/node_modules/" in pkg_key:
+            continue  # skip nested transitive copies
+        name = pkg_key[len("node_modules/"):]
+        ver = meta.get("version")
+        if name and ver:
+            out[name] = ver
+    return out
+
+
+_RANGE_HINT = re.compile(r'[\^~><*|]| - ')
+
+
+def parse_package_json(path: str, content: str,
+                       lock_versions: Optional[dict] = None) -> List[Package]:
     try:
         data = json.loads(content)
     except json.JSONDecodeError:
@@ -77,8 +105,16 @@ def parse_package_json(path: str, content: str) -> List[Package]:
     lines = content.splitlines()
     for section in ("dependencies", "devDependencies"):
         for name, spec in (data.get(section) or {}).items():
+            spec_str = str(spec)
+            version = extract_version(spec_str)
+            # DD-06: a manifest range (^15.5.16) must resolve to the exact
+            # version pinned in package-lock.json — otherwise the lower bound
+            # makes an actually-patched dependency look vulnerable.
+            if (lock_versions and name in lock_versions
+                    and _RANGE_HINT.search(spec_str)):
+                version = lock_versions[name]
             packages.append(Package(
-                name=name, version=extract_version(str(spec)),
+                name=name, version=version,
                 ecosystem="npm", manifest=path,
                 line=_find_line(lines, f'"{name}"'),
                 raw=f"{name}@{spec}"))
@@ -188,6 +224,17 @@ def _collect_solc_packages(root: Path) -> List[Package]:
             for v, (mf, ln, raw) in seen.items()]
 
 
+def _load_lock_versions(manifest: Path) -> dict:
+    """Load exact versions from the sibling package-lock.json, if present."""
+    lock = manifest.with_name("package-lock.json")
+    if not lock.exists():
+        return {}
+    try:
+        return parse_package_lock(lock.read_text(encoding="utf-8", errors="ignore"))
+    except OSError:
+        return {}
+
+
 def parse_repo_manifests(root) -> List[Package]:
     """Collect all packages from all manifests in repo (incl. solc versions)."""
     root = Path(root)
@@ -200,7 +247,11 @@ def parse_repo_manifests(root) -> List[Package]:
                 content = manifest.read_text(encoding="utf-8", errors="ignore")
             except OSError:
                 continue
-            packages.extend(parser(str(manifest), content))
+            if manifest_name == "package.json":
+                lock_versions = _load_lock_versions(manifest)
+                packages.extend(parser(str(manifest), content, lock_versions=lock_versions))
+            else:
+                packages.extend(parser(str(manifest), content))
     packages.extend(_collect_solc_packages(root))
     return packages
 
