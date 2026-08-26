@@ -53,6 +53,19 @@ def main() -> int:
     test_files = len(list((GSC / "tests").glob("test_*.py")))
     print(f"  test files (tests/test_*.py): {test_files} — exact count via `pytest --collect-only -q | tail -1`")
 
+    # DD-03: marketing one-pager (HTML) must match SSOT too.
+    onepager = GSC / "marketing" / "gsc-onepager-yandex.html"
+    if onepager.exists():
+        op = onepager.read_text(errors="ignore")
+        if f"{total} детектор" not in op and f"{total} detectors" not in op.lower():
+            issues.append(f"marketing/gsc-onepager-yandex.html: detectors {total} not found")
+        if f"{modules} модул" not in op and f"{modules} modules" not in op.lower():
+            issues.append(f"marketing/gsc-onepager-yandex.html: modules {modules} not found")
+        if f"schema {schema}" not in op and f"schema v{schema}" not in op.lower():
+            issues.append(f"marketing/gsc-onepager-yandex.html: schema {schema} not found")
+        if f"v{version}" not in op:
+            issues.append(f"marketing/gsc-onepager-yandex.html: version v{version} not found")
+
     print("=" * 60)
     print("GSC RECONCILIATION")
     print(f"  SSOT: v{version}, {total} detectors ({reg} registry + "
