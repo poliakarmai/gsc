@@ -7,8 +7,8 @@ sys.path.insert(0, '.')
 passed, failed = 0, 0
 def t(name, fn):
     global passed, failed
-    try: fn(); print(f'  ✅ {name}'); passed += 1
-    except Exception as e: print(f'  ❌ {name}: {e}'); failed += 1
+    try: fn(); print(f'  PASS {name}'); passed += 1
+    except Exception as e: print(f'  FAIL {name}: {e}'); failed += 1
 
 def fresh_db():
     db = sqlite3.connect(":memory:")
@@ -21,7 +21,7 @@ def fresh_db():
     return db
 
 def t1():
-    from cloud.tenancy import generate_api_key
+    from gsc_cloud.auth import generate_api_key
     raw, h = generate_api_key()
     assert raw.startswith("gsk_") and len(h) == 64
 t('api key generation', t1)
@@ -29,19 +29,22 @@ t('api key generation', t1)
 def t2():
     import hashlib
     db = fresh_db()
-    raw = "gsk_test100"; h = hashlib.sha256(raw.encode()).hexdigest()
-    db.execute("INSERT INTO api_keys (tenant_id,key_hash,key_prefix) VALUES (1,?,?)", (h, "gsk_"))
+    raw = "gsk_test100"
+    h = hashlib.sha256(raw.encode()).hexdigest()
+    # Canonical: key_prefix mirrors server.py key minting (raw[:8]).
+    db.execute("INSERT INTO api_keys (tenant_id,key_hash,key_prefix) VALUES (1,?,?)", (h, raw[:8]))
     db.commit()
-    # Mock DB interface
+    # Mock DB interface compatible with gsc_cloud.auth.verify_api_key
     class D: pass
     d = D()
-    def _fo(s,p):
-        row = db.execute(s,p).fetchone()
-        return dict(zip(['tenant_id','key_hash','key_prefix','revoked_at','created_at'], row)) if row else None
-    d.fetchone = _fo
-    from cloud.tenancy import verify_api_key
-    assert verify_api_key(d, raw) == 1
-    assert verify_api_key(d, "gsk_bad") is None
+    def _q(s, p):
+        cur = db.execute(s, p)
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    d.query = _q
+    from gsc_cloud.auth import verify_api_key
+    assert verify_api_key(raw, d) == 1
+    assert verify_api_key("gsk_bad", d) is None
 t('verify api key resolves tenant', t2)
 
 def t3():
@@ -51,7 +54,7 @@ def t3():
     db.commit()
     class D: pass
     d = D(); d.query = lambda s,p: [dict(zip([c[0] for c in db.execute(s,p).description], row)) for row in db.execute(s,p).fetchall()]
-    from cloud.tenancy import scoped_query
+    from gsc_cloud.auth import scoped_query
     sql, params = scoped_query("SELECT * FROM findings", 1)
     rows = d.query(sql, params)
     assert len(rows) == 1 and rows[0]["tenant_id"] == 1
@@ -60,24 +63,26 @@ t('scoped query tenant isolation', t3)
 def t4():
     db = fresh_db()
     import hashlib
-    raw = "gsk_test100"; h = hashlib.sha256(raw.encode()).hexdigest()
-    db.execute("INSERT INTO api_keys (tenant_id,key_hash,key_prefix,revoked_at) VALUES (1,?,?,datetime('now'))", (h,"gsk_"))
+    raw = "gsk_test100"
+    h = hashlib.sha256(raw.encode()).hexdigest()
+    db.execute("INSERT INTO api_keys (tenant_id,key_hash,key_prefix,revoked_at) VALUES (1,?,?,datetime('now'))", (h, raw[:8]))
     db.commit()
     class D: pass
     d = D()
-    def _fo(s,p):
-        row = db.execute(s,p).fetchone()
-        return dict(zip(['tenant_id','key_hash','key_prefix','revoked_at','created_at'], row)) if row else None
-    d.fetchone = _fo
-    from cloud.tenancy import verify_api_key
-    assert verify_api_key(d, raw) is None
+    def _q(s, p):
+        cur = db.execute(s, p)
+        cols = [c[0] for c in cur.description]
+        return [dict(zip(cols, row)) for row in cur.fetchall()]
+    d.query = _q
+    from gsc_cloud.auth import verify_api_key
+    assert verify_api_key(raw, d) is None
 t('revoked key rejected', t4)
 
 def t5():
     db = fresh_db()
     class D: pass
-    d = D(); d.fetchone = lambda s,p: None
-    from cloud.api_v2 import handle_scan_v2
+    d = D(); d.query = lambda s, p: []
+    from gsc_cloud.api_v2 import handle_scan_v2
     _, status = handle_scan_v2(d, "gsk_bad", "./repo", "audit")
     assert status == 401
 t('scan v2 unauthorized', t5)

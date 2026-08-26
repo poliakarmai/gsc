@@ -19,12 +19,14 @@ import gsc_cloud as _cloud
 _sys.modules["cloud"] = _cloud
 
 # Бывшие cloud-модули (без gsc_* инфра и server.py).
+# DD-04: legacy ``tenancy`` removed — canonical helpers live in
+# ``gsc_cloud.auth`` (verify_api_key, scoped_query).
 _CLOUD_MODULES = {
     "agent_api", "apideps", "api", "api_v2", "audit", "auth", "billing",
     "canary", "dash_api", "data_lifecycle", "dedup", "federated_server",
     "github_auth", "github_oidc", "github_worker", "manage", "marketplace",
     "mutations_cloud", "observability", "onboarding", "pr_commands", "publish",
-    "scanjobs", "scan_queue", "session", "sso", "store", "tenancy",
+    "scanjobs", "scan_queue", "session", "sso", "store",
     "user_auth", "webhook", "worker", "workers",
 }
 
