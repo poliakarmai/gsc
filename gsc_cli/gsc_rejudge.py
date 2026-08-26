@@ -423,6 +423,382 @@ def _extract_confidence(text: str) -> int:
     return int(m.group(1)) if m else 50
 
 
+# --- Fine-grained criteria rejudge (Phase 2) ---------------------------------
+#
+# A single binary TP/FP verdict is too coarse: a finding can be reachable yet
+# un-exploitable (e.g. a sink that requires a privilege the attacker never has),
+# or source-to-sink-true but gated by an input validator (not actually
+# reachable). Asking the LLM for THREE independent verdicts per finding lets us
+# surface WHY something is or is not a real issue, and only promotes to TP when
+# ALL three criteria are independently confirmed.
+#
+#   * source_to_sink   — tainted data CAN flow from the cited source to the cited sink
+#   * reachability     — an external attacker can actually REACH the vulnerable code
+#   * exploitability   — the vulnerability is practically EXPLOITABLE (PoV exists)
+#
+# This module is pure: parse_criteria() turns LLM free-form text into a
+# structured CriteriaReport; fine_grained_verdict() aggregates the three
+# per-criterion verdicts into a single overall verdict (TP only if all three
+# are confirmed). No I/O, no LLM calls — both are unit-testable in isolation.
+
+# The three fine-grained criteria, in canonical order. Pure constants so the
+# helpers below are self-contained and need no state.
+_CRITERION_NAMES: tuple[str, ...] = (
+    "source_to_sink",
+    "reachability",
+    "exploitability",
+)
+
+# Verdict vocabulary accepted from the LLM per criterion. We recognise two
+# positive shapes ("yes" / "confirmed"), two negative shapes ("no" /
+# "rejected"), and "uncertain" for anything ambiguous. The parser is
+# deliberately case-insensitive and tolerant of punctuation around the verdict.
+_AFFIRMATIVE_VERDICTS: frozenset[str] = frozenset({
+    "yes", "true", "confirmed", "positive", "pass", "ok",
+})
+_NEGATIVE_VERDICTS: frozenset[str] = frozenset({
+    "no", "false", "rejected", "negative", "fail", "not",
+})
+_UNCERTAIN_VERDICTS: frozenset[str] = frozenset({
+    "uncertain", "unknown", "unclear", "n/a", "na", "maybe",
+})
+
+# Confidence default when the LLM does not provide one. Deliberately low so
+# the aggregator errs on the side of demotion.
+_DEFAULT_CONFIDENCE: int = 50
+
+
+@dataclass
+class Criterion:
+    """A single fine-grained criterion verdict from the LLM.
+
+    Attributes:
+        name:        Criterion key, one of ``_CRITERION_NAMES`` (e.g. ``"reachability"``).
+        verdict:     ``True`` (confirmed) / ``False`` (denied) / ``None`` (uncertain).
+        confidence:  LLM-reported confidence in [0, 100]. Clamped on construction.
+        evidence:    Optional short quote / line the model cited as proof.
+    """
+    name: str
+    verdict: Optional[bool]
+    confidence: int = _DEFAULT_CONFIDENCE
+    evidence: str = ""
+
+    def __post_init__(self) -> None:
+        # Clamp confidence to the documented range. Confidences outside [0, 100]
+        # almost always mean the LLM hallucinated a percentage, so we trust
+        # them no more than the documented bounds.
+        try:
+            conf = int(self.confidence)
+        except (TypeError, ValueError):
+            conf = _DEFAULT_CONFIDENCE
+        self.confidence = max(0, min(100, conf))
+
+
+@dataclass
+class CriteriaReport:
+    """Three-criterion rejudge report parsed from a single LLM response.
+
+    All three criteria are always present — missing ones are reported as
+    ``verdict=None`` (uncertain) and given the default confidence. This makes
+    downstream aggregation straightforward: callers do not need to guard
+    against KeyError on any individual criterion.
+    """
+    source_to_sink: Criterion
+    reachability: Criterion
+    exploitability: Criterion
+    raw: str = ""
+
+    def criteria(self) -> list[Criterion]:
+        """Return all three criteria in canonical order (helper for the aggregator)."""
+        return [self.source_to_sink, self.reachability, self.exploitability]
+
+    @property
+    def all_confirmed(self) -> bool:
+        """``True`` only when every criterion is explicitly confirmed (not uncertain)."""
+        return all(c.verdict is True for c in self.criteria())
+
+    @property
+    def any_denied(self) -> bool:
+        """``True`` if at least one criterion is explicitly denied (False)."""
+        return any(c.verdict is False for c in self.criteria())
+
+    @property
+    def any_uncertain(self) -> bool:
+        """``True`` if at least one criterion is uncertain (None)."""
+        return any(c.verdict is None for c in self.criteria())
+
+
+def _normalise_verdict_token(token: str) -> Optional[bool]:
+    """Map a free-form verdict token to ``True`` / ``False`` / ``None``.
+
+    The function is strict about *whole-word* matches to avoid false positives
+    on substrings (e.g. ``"not"`` inside ``"notification"``). Returns
+    ``None`` when the token is empty, whitespace, or not in any of the known
+    vocabularies.
+    """
+    if not token:
+        return None
+    t = token.strip().lower()
+    # Strip trailing punctuation that LLMs love to add (`yes.`, `no,`).
+    t = t.rstrip(".,;:!?'\"`")
+    if not t:
+        return None
+    # Whole-word match (case-insensitive) so e.g. "notification" does not
+    # accidentally match "no" and yield a False verdict.
+    if t in _AFFIRMATIVE_VERDICTS:
+        return True
+    if t in _NEGATIVE_VERDICTS:
+        return False
+    if t in _UNCERTAIN_VERDICTS:
+        return None
+    return None
+
+
+def _extract_criterion_block(text: str, criterion: str) -> str | None:
+    """Locate the LLM's text block for a single criterion.
+
+    Looks for any of these shapes (case-insensitive):
+        ``<criterion>: yes (confidence: 80)``  — inline
+        ``<criterion>:\\n  yes``               — line-broken
+        ``<criterion> = yes``                 — ``=`` separator
+        ``### <criterion>\\nyes``              — Markdown header
+
+    Returns the matched substring (criterion line + optional body) so the
+    caller can re-parse verdict/confidence/evidence from it. Returns ``None``
+    if the criterion is not mentioned at all.
+    """
+    if not text or not criterion:
+        return None
+    # Boundary on the left: start of line OR whitespace. The criterion name
+    # itself is anchored with \b so ``reachability`` does not also match
+    # ``unreachability``.
+    pattern = (
+        r"(?:^|[\n\r;])"
+        r"[\s#>*\-]*"
+        r"\b" + re.escape(criterion) + r"\b"
+        r"\s*(?:[:=]\s*|[\r\n]+)"
+    )
+    m = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
+    if not m:
+        return None
+    start = m.end()
+    # Take a small window — enough to capture verdict + confidence + a short
+    # evidence line, but bounded so a single block does not swallow the next
+    # criterion's text.
+    window = text[start:start + 400]
+    # If the next criterion header appears within the window, cut at it so
+    # we do not bleed into the next block.
+    next_idx = len(window)
+    for other in _CRITERION_NAMES:
+        if other == criterion:
+            continue
+        nxt = re.search(
+            r"(?:^|[\n\r;])[\s#>*\-]*\b" + re.escape(other) + r"\b\s*[:=]",
+            window,
+            re.IGNORECASE | re.MULTILINE,
+        )
+        if nxt and nxt.start() < next_idx:
+            next_idx = nxt.start()
+    return window[:next_idx]
+
+
+def _parse_criterion_block(name: str, block: str) -> Criterion:
+    """Parse a single criterion block into a ``Criterion``.
+
+    Pure function — depends only on the block text and the criterion name.
+    Defaults are applied so the returned ``Criterion`` is always usable.
+    """
+    if not block:
+        return Criterion(name=name, verdict=None)
+
+    # 1) Verdict: the first word/token after the criterion header is usually
+    # the verdict. We try the whole block, but anchor to the very first
+    # recognisable token so trailing rationale does not confuse the parser.
+    verdict: Optional[bool] = None
+    # Take the first non-empty line as the candidate verdict line.
+    for line in block.splitlines():
+        stripped = line.strip().lstrip("-*#>` ").rstrip()
+        if not stripped:
+            continue
+        # Split off the first whitespace-separated token and normalise it.
+        first = stripped.split(None, 1)[0]
+        verdict = _normalise_verdict_token(first)
+        first_clean = first.lower().rstrip(".,;:!?'\"`")
+        if verdict is not None or first_clean in _UNCERTAIN_VERDICTS:
+            # Either we got a definitive verdict or the first token is an
+            # explicit "uncertain" marker — stop after the first line.
+            break
+        # If the first line is something like "Verdict: yes" we look one
+        # level deeper.
+        m = re.match(r"^\s*verdict\s*[:=]\s*(\S+)", line, re.IGNORECASE)
+        if m:
+            verdict = _normalise_verdict_token(m.group(1))
+            break
+        # If we cannot recognise the first token at all, do not give up —
+        # try the inline match (verdict can be anywhere on the line after
+        # the header).
+        verdict = _normalise_verdict_token(first)
+        break
+
+    # 2) Confidence: ``confidence: 80`` or ``conf 80`` anywhere in the block.
+    conf = _DEFAULT_CONFIDENCE
+    m_conf = re.search(
+        r"(?:confidence|conf)\s*[:=]\s*(-?\d{1,3})",
+        block,
+        re.IGNORECASE,
+    )
+    if m_conf:
+        try:
+            conf = int(m_conf.group(1))
+        except (TypeError, ValueError):
+            conf = _DEFAULT_CONFIDENCE
+
+    # 3) Evidence: capture either a backtick-quoted fragment or an
+    # ``evidence:`` / ``quote:`` / ``snippet:`` field, mirroring the receipt
+    # parser's tolerance.
+    evidence = ""
+    backticks = re.findall(r"`([^`\n]{2,200})`", block)
+    if backticks:
+        evidence = backticks[0].strip()
+    if not evidence:
+        m_ev = re.search(
+            r"(?:evidence|quote|snippet|code|reason(?:ing)?)\s*[:\-]\s*"
+            r"([^\n]{2,200})",
+            block,
+            re.IGNORECASE,
+        )
+        if m_ev:
+            evidence = m_ev.group(1).strip()
+            for q in ("`", "'", '"'):
+                if evidence.startswith(q) and evidence.endswith(q) and len(evidence) >= 2:
+                    evidence = evidence[1:-1]
+                    break
+
+    return Criterion(
+        name=name,
+        verdict=verdict,
+        confidence=conf,
+        evidence=evidence,
+    )
+
+
+def parse_criteria(text: str) -> CriteriaReport:
+    """Parse a multi-criteria LLM response into a structured ``CriteriaReport``.
+
+    The expected response shape (one block per criterion, case-insensitive):
+
+        source_to_sink: yes (confidence: 85)
+          evidence: `request.args.get('q') -> eval(q)`
+
+        reachability: no (confidence: 70)
+          evidence: `requires admin role`
+
+        exploitability: uncertain (confidence: 40)
+
+    Missing criteria are filled with ``verdict=None`` and the default
+    confidence so callers never have to special-case absence. Unparseable
+    text does NOT raise — it returns a report with all criteria uncertain,
+    which the aggregator will treat as a demotion signal (no criterion
+    confirmed → not a TP).
+
+    This is a pure function: no subprocess calls, no I/O, no LLM.
+    """
+    if not text:
+        text = ""
+    parsed: dict[str, Criterion] = {}
+    for name in _CRITERION_NAMES:
+        block = _extract_criterion_block(text, name)
+        parsed[name] = _parse_criterion_block(name, block or "")
+
+    return CriteriaReport(
+        source_to_sink=parsed["source_to_sink"],
+        reachability=parsed["reachability"],
+        exploitability=parsed["exploitability"],
+        raw=text or "",
+    )
+
+
+def fine_grained_verdict(report: CriteriaReport) -> dict:
+    """Aggregate a ``CriteriaReport`` into a single rejudge verdict.
+
+    Aggregation rules (deterministic, no LLM):
+      * ``verdict == "TP"``  iff every criterion is ``verdict is True``
+        (i.e. all three of source_to_sink, reachability, exploitability
+        independently confirmed). This is the strict "all evidence" gate.
+      * ``verdict == "FP"``  iff at least one criterion is ``verdict is False``
+        AND no criterion is uncertain — i.e. the LLM actively denies the
+        finding without hedging. A single denial is enough to demote.
+      * ``verdict == "UNCERTAIN"`` otherwise (any uncertain criterion, or
+        the report is empty / incomplete).
+      * ``demote`` is ``True`` whenever the verdict is NOT ``"TP"`` — the
+        caller can use this to apply the same demotion flow as
+        ``demote_finding_for_missing_receipt``.
+
+    Returned dict is JSON-serialisable and contains the full per-criterion
+    breakdown so a downstream consumer (DB writer, PR comment, audit log) can
+    surface *why* the finding was promoted or demoted without re-parsing.
+
+    Pure function — no I/O, no LLM, no env access.
+    """
+    if report is None:
+        # Defensive: should not happen in practice, but keep the helper
+        # total so callers can blindly call fine_grained_verdict(parse_criteria(x)).
+        empty = Criterion(name="source_to_sink", verdict=None)
+        report = CriteriaReport(
+            source_to_sink=empty,
+            reachability=Criterion(name="reachability", verdict=None),
+            exploitability=Criterion(name="exploitability", verdict=None),
+            raw="",
+        )
+
+    # Per-criterion serialisation — keep the wire format stable and
+    # human-readable for audit logs and PR comments.
+    per_criterion = []
+    total_confidence = 0
+    for c in report.criteria():
+        per_criterion.append({
+            "name": c.name,
+            "verdict": (
+                "yes" if c.verdict is True
+                else "no" if c.verdict is False
+                else "uncertain"
+            ),
+            "verdict_bool": c.verdict,
+            "confidence": c.confidence,
+            "evidence": c.evidence,
+        })
+        total_confidence += c.confidence
+
+    # Aggregation. The order of these checks is intentional and documented:
+    # explicit denials beat "all-yes-but-with-hedges" because a single
+    # confirmed-deny is a stronger signal than a missing confirmation.
+    if report.all_confirmed:
+        verdict = "TP"
+        demote = False
+    elif report.any_denied and not report.any_uncertain:
+        verdict = "FP"
+        demote = True
+    else:
+        verdict = "UNCERTAIN"
+        demote = True
+
+    # Mean confidence across the three criteria, clamped + rounded. We keep
+    # the per-criterion confidences intact so callers can drill down.
+    n = max(1, len(per_criterion))
+    mean_confidence = round(total_confidence / n)
+    mean_confidence = max(0, min(100, mean_confidence))
+
+    return {
+        "verdict": verdict,
+        "demote": demote,
+        "confidence": mean_confidence,
+        "criteria": per_criterion,
+        "all_confirmed": report.all_confirmed,
+        "any_denied": report.any_denied,
+        "any_uncertain": report.any_uncertain,
+    }
+
+
 if __name__ == "__main__":
     import argparse
     ap = argparse.ArgumentParser()
