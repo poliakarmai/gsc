@@ -1596,7 +1596,7 @@ def generate_seed_patterns(count: int) -> list[dict]:
         # with provision-skip). Deactivated 22.08 (DB id 24): ~277 CRIT FP on
         # clean projects.
         # ("Broken Access Control", "A01", 2, "CRITICAL", "chmod: World-readable configs", "regex", r"chmod.*[0-7][4-7][4-7]"),
-        ("Cryptographic Failures", "A02", 2, "CRITICAL", "Hardcoded encryption key", "regex", r"\b(?:(?:encryption|encrypt|aes|cipher|fernet|secret|api)[_ -]?key|password|token|secret)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
+        ("Cryptographic Failures", "A02", 2, "HIGH", "Hardcoded encryption key", "regex", r"\b(?:(?:encryption|encrypt|aes|cipher|fernet|secret|api)[_ -]?key|password|token|secret)\b\s*=\s*['\"][^'\"]{8,}['\"]"),
         # SQL injection is covered by GS005 (75 taint-aware patterns + sanitizer
         # downgrade-to-MEDIUM). Bare f-string SQL without taint was a noisy
         # duplicate — mapped to GS005 via _derive_rule_id, ~200 CRIT FP on clean
