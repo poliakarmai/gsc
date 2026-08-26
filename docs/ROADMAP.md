@@ -270,6 +270,30 @@ semgrep/trivy как движок.
 
 **Порядок внедрения:** GitLab → PoF JS/TS (Node) → data-flow в NL-policy → OpenAPI BOLA/IDOR → perf-бенчмарк.
 
+## ⬜ Фаза 15 — Open-core split + монетизация (26.08.2026)
+
+**Источник:** обсуждение «как продать код, если он открыт». План перехода к закрытому Enterprise-активу.
+
+| Этап | Что | Срок |
+|------|-----|------|
+| 0. Аудит | автор (git log), карта зависимостей ядро↔cloud, инвентаризация платного слоя | 1–2 дн |
+| 1. Лицензии | ядро Apache-2.0 (оставить) + cloud/enterprise proprietary в private-репо; CLA | 1 нед |
+| 2. Разделение | git filter-repo: cloud/enterprise → private-репо; починить shim'ы/`gsc_meta.py`/CI | 1–2 нед |
+| 3. Упаковка | тиры (Community/Team/Enterprise), SLA, on-prem air-gap гайд, русские доки | 1–2 нед |
+| 4. Продажа | пилоты, вендоры (acqui-hire/партнёрство), Git-платформы (GitFlic/GitVerse) | пост. |
+
+**Граница open-core:** открыто — `gsc_core/` + `gsc_cli/` (Apache-2.0, маркетинг); закрыто — `gsc_cloud/` + `enterprise/` + `server.py` (proprietary, продаётся).
+
+### ✅ Этап 0 — Аудит (выполнен 26.08.2026)
+
+- **Автор:** один — Alexey Polyakov (661 коммит, 2 регистра email). Перелицензировать/закрывать можно свободно, без CLA.
+- **Ядро самодостаточно:** `gsc_core`/`gsc_cli` НЕ импортируют `gsc_cloud`. Единственные 2 точки соприкосновения — lazy-импорты в `gsc_cli/main.py`:
+  - `from gsc_router import FindingRouter…` (строка 1698)
+  - `from gsc_api import app` (строка 3106, команда `api`)
+  → обе выносятся в private-слой (optional-import).
+- **Платный слой (что выносить):** `gsc_cloud/` (43 .py) + `enterprise/` (7: airgap, audit_log, compliance, helm, rbac, sso, tenancy) + 6 top-level shim'ов (`gsc_api`, `gsc_db_backend`, `gsc_mcp_server`, `gsc_router`, `gsc_scan_worker`, `server.py`).
+- **SSOT:** `gsc_meta.py` `_count_modules()` — пересчитать после split.
+
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
 **Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
