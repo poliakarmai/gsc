@@ -236,6 +236,20 @@ Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам исполь
 ⚠️ MIT (openworker) — guardrail-модули портируются напрямую с атрибуцией. AGPL (Cybersecurity-Projects) —
 только механика, код НЕ брать. Коннекторы/GUI/aisuite/STT — off-scope.
 
+## 🟡 Фаза 13 — Executive HTML reporting (presentation-layer)
+
+**Источник:** разбор openworker «Security Coworker» — детекция не конкуренция (готовые сканеры),
+сильна ПОДАЧА: self-contained HTML + executive-сводка. У GSC отчёты технические (markdown/JSON/STIX).
+
+| Фича | Статус |
+|------|--------|
+| Self-contained HTML-генератор из `scan.json`: summary cards (severity × статус), bottom line, findings table color-coded | ⬜ |
+| Секция «Auto-fixed (Proof-of-Fix)» vs «Needs human decision» (секрет в git history → ротация, IAM/OIDC, DAST-пробелы) | ⬜ |
+| Collapsible «findings by exposure/category» | ⬜ |
+
+⚠️ Presentation-layer, не детекция. Берём формат отчёта (HTML-артефакт), не LLM-чтение кода и не
+semgrep/trivy как движок.
+
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
 **Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
