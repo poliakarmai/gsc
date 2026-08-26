@@ -35,6 +35,13 @@ def test_taint_unmarked():
     assert require_untainted(rec) is True
 
 
+def test_gate_blocks_side_effect_on_tainted():
+    # NO_UNTRUSTED_INFLUENCE: a tainted finding must not auto-approve a side-effecting action.
+    finding = mark_tainted({"rule_id": "GS005", "file_path": "a.py"})
+    assert require_untainted(finding) is False  # gate CLOSED on tainted input
+    assert require_untainted({"rule_id": "GS005"}) is True  # gate OPEN on untainted
+
+
 def test_make_finding_invariant_flag():
     from gsc_core.gsc_detectors.base import make_finding
     f = make_finding("GS001", "t", "critical", 0.9, "a.py", 1, "s", invariant=True)

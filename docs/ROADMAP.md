@@ -229,7 +229,7 @@ Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам исполь
 | Provenance (data lineage) — знать, что файл «создан/скачан агентом», а не репозиторием (`gsc_core/gsc_provenance.py`, помечен в PoF) | ✅ |
 | SecretStore — единое хранилище кредов (0600 JSON, `${ENV_VAR}`, атомарная запись; подключён как fallback в `_env_key`) | ✅ |
 | Unicode-smuggling + encoding-closure normalization в `gsc_llm_providers.py` (NFKC + bidi/tag/zero-width — закрыть bypass defang) | ✅ |
-| Taint propagation / toolauth (`NO_UNTRUSTED_INFLUENCE` per-tool) — примитив `gsc_core/gsc_taint.py`, gate-интеграция в rejudge/self-healing | 🟡 |
+| Taint propagation / toolauth (`NO_UNTRUSTED_INFLUENCE` per-tool) — `gsc_core/gsc_taint.py` + gate в self-healing (mark_tainted/require_untainted перед side-effecting PR) | ✅ |
 | Egress canary-closure — `redact_secrets` на выходе LLM (матч известных секретов) | ✅ |
 | Invariant/heuristic разделение — поле `Finding.invariant` (RegexDetector → True) | ✅ |
 

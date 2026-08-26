@@ -91,6 +91,16 @@ def autofix(report_path: str, project_root: str = ".",
         file_path = f_.get("file_path", "")
         key = _finding_key(f_)
 
+        # Taint-gate (NO_UNTRUSTED_INFLUENCE): findings originate in the scanned (untrusted)
+        # repo. Mark tainted so side-effecting steps (git push / PR) are gated on an explicit
+        # human flag (--create-pr, i.e. dry_run=False) rather than auto-approved.
+        try:
+            from gsc_core.gsc_taint import mark_tainted, tainted
+            f_ = mark_tainted(f_)  # returns a copy; downstream reads report_path, not f_
+            f_tainted = tainted(f_)
+        except Exception:
+            f_tainted = True
+
         # H5: per-file limit
         if file_fix_count.get(file_path, 0) >= MAX_AUTOFIX_PER_FILE:
             print(f"  ⏭️ {key} — file {file_path} already at max fixes ({MAX_AUTOFIX_PER_FILE})")
@@ -110,6 +120,7 @@ def autofix(report_path: str, project_root: str = ".",
                 "level": evidence.level,
                 "patch_file": "",
                 "error": evidence.error,
+                "tainted": f_tainted,  # untrusted-repo origin (taint-gate)
             }
 
             if evidence.verified:
@@ -159,6 +170,14 @@ def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) 
         "| # | Rule | Key | File | Level |",
         "|---|------|-----|------|-------|",
     ]
+    # Taint-gate (NO_UNTRUSTED_INFLUENCE): auto-fixed findings are tainted (untrusted repo
+    # origin); we reached here only under an explicit --create-pr human flag. Record it.
+    if any(r.get("tainted") for r in fixed):
+        body_lines += [
+            "",
+            "> ⚠️ **Taint note:** fixes auto-applied to findings from an untrusted (scanned) "
+            "repository, under an explicit `--create-pr` human flag.",
+        ]
     for i, r in enumerate(fixed):
         body_lines.append(
             f"| {i+1} | {r['rule_id']} | `{r['finding_key']}` | `{r['file_path']}` | {r.get('level','?')} |"
@@ -169,6 +188,17 @@ def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) 
         "> Label `gsc-autofix` prevents re-processing of the same findings.",
     ]
     body = "\n".join(body_lines) + pr_signature(verified=True)
+
+    # Taint-gate (NO_UNTRUSTED_INFLUENCE): the side-effecting push/PR below is reached only
+    # under an explicit --create-pr human flag. require_untainted() is False for tainted
+    # findings; they must never drive a push without that flag (they don't — dry_run defaults
+    # to True and skips this function entirely). Call it for the audit trail.
+    try:
+        from gsc_core.gsc_taint import require_untainted
+        if any(not require_untainted(r) for r in fixed):
+            print("[Self-Heal] taint-gate: tainted findings — proceeding under explicit --create-pr flag")
+    except Exception:
+        pass
 
     # Try gh CLI
     gh_available = subprocess.run(["which", "gh"], capture_output=True).returncode == 0
