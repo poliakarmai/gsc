@@ -5,7 +5,7 @@ from typing import Dict, List, Tuple
 
 def make_finding(rule_id: str, title: str, severity: str, confidence: float,
                  file: str, line: int, snippet: str,
-                 metadata: Dict | None = None) -> Dict:
+                 metadata: Dict | None = None, invariant: bool = False) -> Dict:
     if not rule_id or not str(rule_id).strip():
         import warnings
         warnings.warn(f"make_finding: empty rule_id — skipped. title={title!r} file={file!r}")
@@ -19,6 +19,7 @@ def make_finding(rule_id: str, title: str, severity: str, confidence: float,
             "file_path": file, "file": file,
             "line_number": line, "line": line,
             "detail": snippet[:200], "snippet": snippet[:200],
+            "invariant": invariant,
             "metadata": metadata or {}}
 
 
@@ -52,7 +53,8 @@ class RegexDetector(BaseDetector):
                 findings.append(make_finding(
                     rule_id=self.rule_id, title=title, severity=self.severity,
                     confidence=self.confidence, file=file_path,
-                    line=line_no, snippet=m.group(0)[:200]))
+                    line=line_no, snippet=m.group(0)[:200],
+                    invariant=True))  # regex detector → structural invariant, not a guess
         return findings
 
     def _negated(self, line: str) -> bool:

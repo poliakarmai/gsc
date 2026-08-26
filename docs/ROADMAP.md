@@ -225,13 +225,13 @@ Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам исполь
 | Фича | Статус |
 |------|--------|
 | SSRF address-guard + DNS-rebinding pinning в `gsc_dast_validator`/`gsc_poc_generator`/`gsc_secrets_verifier` (блок loopback/private/metadata перед каждым fetch из untrusted URL) | ✅ |
-| Read-only shell classifier (fail-closed) в PoF/self-healing sandbox — whitelist команд вместо бинарного no-network, exfil-исключение | 🟡 |
-| Provenance (data lineage) в rejudge — знать, что файл «создан/скачан агентом», а не репозиторием | ⬜ |
-| SecretStore — единое хранилище кредов: секреты не в контексте модели/трассах, атомарная 0600-запись (mkstemp+O_EXCL), `${ENV_VAR}`-резолв | 🟡 |
-| Unicode-smuggling + encoding-closure normalization в `gsc_llm_providers.py` (tag-block/bidi/confusables — закрыть bypass defang) | ✅ |
-| Taint propagation / toolauth (`NO_UNTRUSTED_INFLUENCE` per-tool) в rejudge/self-healing — отказ действию, downstream от untrusted | ⬜ |
-| Egress canary-closure — матч секретов на выходе LLM через все кодировки + SSRF exfil-check query string | ⬜ |
-| Invariant/heuristic разделение в confidence-модели (`Finding.invariant`) — не выдавать guess за guarantee | ⬜ |
+| Read-only shell classifier (fail-closed) — whitelist команд, exfil-исключение (модуль `gsc_core/gsc_readonly.py`) | ✅ |
+| Provenance (data lineage) — знать, что файл «создан/скачан агентом», а не репозиторием (`gsc_core/gsc_provenance.py`, помечен в PoF) | ✅ |
+| SecretStore — единое хранилище кредов (0600 JSON, `${ENV_VAR}`, атомарная запись; подключён как fallback в `_env_key`) | ✅ |
+| Unicode-smuggling + encoding-closure normalization в `gsc_llm_providers.py` (NFKC + bidi/tag/zero-width — закрыть bypass defang) | ✅ |
+| Taint propagation / toolauth (`NO_UNTRUSTED_INFLUENCE` per-tool) — примитив `gsc_core/gsc_taint.py`, gate-интеграция в rejudge/self-healing | 🟡 |
+| Egress canary-closure — `redact_secrets` на выходе LLM (матч известных секретов) | ✅ |
+| Invariant/heuristic разделение — поле `Finding.invariant` (RegexDetector → True) | ✅ |
 
 ⚠️ MIT (openworker) — guardrail-модули портируются напрямую с атрибуцией. AGPL (Cybersecurity-Projects) —
 только механика, код НЕ брать. Коннекторы/GUI/aisuite/STT — off-scope.

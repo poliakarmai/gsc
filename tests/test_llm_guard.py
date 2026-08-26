@@ -85,3 +85,16 @@ def test_defang_strips_tag_block_and_zero_width():
     out = defang("x\U000e0001y\u200bz")  # tag-block + zero-width space
     assert "\u200b" not in out
     assert "\U000e0001" not in out
+
+
+def test_redact_secrets_egress(monkeypatch):
+    from gsc_llm_providers import redact_secrets
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-abcdef123456")
+    out = redact_secrets("leaked: sk-test-abcdef123456 end")
+    assert "sk-test-abcdef123456" not in out
+    assert "[REDACTED]" in out
+
+
+def test_redact_secrets_noop_without_key():
+    from gsc_llm_providers import redact_secrets
+    assert redact_secrets("nothing here") == "nothing here"

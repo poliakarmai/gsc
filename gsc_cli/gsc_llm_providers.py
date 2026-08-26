@@ -82,7 +82,7 @@ class LLMProvider:
                 raise _NonRetryableError(f"{self.name} HTTP {resp.status_code}")
             raise RuntimeError(f"{self.name} HTTP {resp.status_code}: {resp.text[:200]}")
         try:
-            return resp.json()["choices"][0]["message"]["content"]
+            return redact_secrets(resp.json()["choices"][0]["message"]["content"])
         except (KeyError, IndexError, ValueError) as e:
             raise RuntimeError(f"{self.name} bad response shape: {e}")
 
@@ -125,7 +125,8 @@ class LLMProviderManager:
 
 
 def _env_key(name: str) -> str:
-    """Read an API key from env, then trusted env files (never the scanned repo)."""
+    """Read an API key from env, then trusted env files, then the SecretStore
+    (never the scanned repo)."""
     v = os.environ.get(name, "")
     if v:
         return v.strip().strip('"').strip("'")
@@ -140,6 +141,15 @@ def _env_key(name: str) -> str:
                             return v
             except Exception:
                 pass
+    # SecretStore fallback — the canonical file-backed credential store (0600 JSON,
+    # ${ENV_VAR} refs). Never the scanned repo.
+    try:
+        from gsc_core.gsc_secret_store import SecretStore
+        data = SecretStore().get(name)
+        if isinstance(data, dict) and data.get("value"):
+            return str(data["value"]).strip().strip('"').strip("'")
+    except Exception:
+        pass
     return ""
 
 
@@ -315,3 +325,30 @@ def defang(text) -> str:
 def guard_system(base: str) -> str:
     """Return a base system prompt extended with the untrusted-data boundary."""
     return f"{base}\n\n{UNTRUSTED_GUARD}"
+
+
+# Egress canary-closure: known secret values must never leave in an LLM response.
+_SECRET_ENV_NAMES = (
+    "DEEPSEEK_API_KEY", "OPENROUTER_API_KEY", "LLM_API_KEY",
+    "GITHUB_TOKEN", "TELEGRAM_BOT_TOKEN", "JWT_SECRET",
+)
+
+
+def redact_secrets(text) -> str:
+    """Redact any known secret value that appears in `text` (egress canary).
+
+    If a model echoes a credential it saw in context, the value is replaced with
+    ``[REDACTED]`` before the response reaches a caller. Only long enough values
+    (>= 8 chars) are matched to avoid clobbering common short strings.
+    """
+    s = str(text if text is not None else "")
+    if not s:
+        return s
+    vals = set()
+    for name in _SECRET_ENV_NAMES:
+        v = _env_key(name)
+        if v and len(v) >= 8:
+            vals.add(v)
+    for v in vals:
+        s = s.replace(v, "[REDACTED]")
+    return s

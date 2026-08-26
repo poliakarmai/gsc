@@ -205,6 +205,11 @@ def _run_poc_sandboxed(poc_code: str, sandbox_dir: str, fmt: str = "python",
     # Python PoC — write to poc_verify.py and run under best isolation.
     poc_path = os.path.join(sandbox_dir, "poc_verify.py")
     Path(poc_path).write_text(poc_code, encoding="utf-8")
+    try:
+        from gsc_core.gsc_provenance import mark
+        mark(poc_path, "agent", "poc_generation")  # provenance: agent-created, not repo
+    except Exception:
+        pass
 
     # DD-01 + DD-02: PoC must NOT inherit host secrets (DEEPSEEK_API_KEY,
     # GITHUB_TOKEN, JWT_SECRET, ...) and must run under the best available
