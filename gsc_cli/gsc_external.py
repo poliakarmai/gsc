@@ -56,7 +56,7 @@ PROFILES = {
         "block_min_confidence": 0.80,
         "warn_min_severity": "MEDIUM",
         "warn_min_confidence": 0.60,
-        "report_formats": ["json", "markdown", "sarif"],
+        "report_formats": ["json", "markdown", "sarif", "html"],
         "show_uncertain": False,
         "disabled_rules": ["GS003", "GS008", "GS015"],
         "review_only_rules": ["GS007", "GS012", "GS013", "GS018", "GS019", "GS023"],
@@ -89,7 +89,7 @@ PROFILES = {
         "block_min_confidence": 0.80,
         "warn_min_severity": "MEDIUM",
         "warn_min_confidence": 0.55,
-        "report_formats": ["json", "markdown", "sarif"],
+        "report_formats": ["json", "markdown", "sarif", "html"],
         "show_uncertain": True,
         "disabled_rules": [],
         "review_only_rules": [],
@@ -1469,14 +1469,14 @@ def main():
     scan.add_argument("--ref", default="main")
     scan.add_argument("--base", default="", help="Base ref for diff mode (e.g. origin/main)")
     scan.add_argument("--head", default="HEAD", help="Head ref for diff mode")
-    scan.add_argument("--format", choices=["json", "markdown", "sarif"], default="markdown")
+    scan.add_argument("--format", choices=["json", "markdown", "sarif", "html"], default="markdown")
     scan.add_argument("--output", "-o", help="Output file or directory")
     scan.add_argument("--fail-on-blocking", action="store_true",
                       help="Exit 1 if blocking findings found")
 
     report = sub.add_parser("report", help="Generate report from JSON")
     report.add_argument("input_file")
-    report.add_argument("--format", choices=["json", "markdown", "sarif", "pr_comment"], required=True)
+    report.add_argument("--format", choices=["json", "markdown", "sarif", "pr_comment", "html"], required=True)
     report.add_argument("--output", "-o")
 
     fb = sub.add_parser("feedback", help="Record feedback")
@@ -1542,6 +1542,9 @@ def main():
             out = json.dumps(generate_sarif(result), indent=2)
         elif args.format == "pr_comment":
             out = generate_pr_comment(result)
+        elif args.format == "html":
+            from gsc_report_html import render_html
+            out = render_html(data)
         else:
             out = json.dumps(data, indent=2)
 

@@ -21,6 +21,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+import statistics
 
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 CALIBRATION_DIR = Path(__file__).parent / "calibration"
@@ -39,6 +40,35 @@ SEVERITY_DEGRADE = {
     "MEDIUM": "LOW",
     "LOW": "INFO",
 }
+
+
+# Phase 11 — adaptive self-learning threshold (median + k*MAD) instead of a hardcoded 0.80.
+# The threshold follows the distribution of per-rule FP rates, so it self-scales when the
+# calibration set (or overall precision) shifts, and is robust to a few pathological rules.
+def _median(values) -> float:
+    return statistics.median(values) if values else 0.0
+
+
+def _mad(values, median: float) -> float:
+    """Median Absolute Deviation — robust spread."""
+    return statistics.median([abs(v - median) for v in values]) if values else 0.0
+
+
+def adaptive_threshold(fp_rates, k: float = 2.0) -> float:
+    """Adaptive FP threshold = median + k*MAD, clipped to [0.5, 0.95].
+
+    Falls back to FP_THRESHOLD when there are too few rates (<3) to compute a spread.
+    Note (bimodal population): if pathological rules dominate (>~50% of the rates), the
+    median drifts into that group and the threshold can rise; the 0.95 ceiling still
+    bounds the worst case. For GSC's calibration set (a handful of noisy rules among many
+    clean ones) this is the common, well-behaved case.
+    """
+    if len(fp_rates) < 3:
+        return FP_THRESHOLD
+    med = _median(fp_rates)
+    spread = _mad(fp_rates, med)
+    raw = med + k * spread
+    return min(0.95, max(0.5, raw))
 
 
 def scan_project(project_path: Path) -> list[dict]:
@@ -103,11 +133,17 @@ def calibrate() -> dict[str, dict]:
                     else:
                         results[rid]["fp"] += 1
 
-    # Compute FP rates
+    # Compute FP rates, then an adaptive "noisy" threshold (Phase 11: median + k*MAD)
+    # instead of a hardcoded 0.80 — self-scaling to the calibration set, robust to outliers.
     for rid, stats in results.items():
         stats["fp_rate"] = stats["fp"] / max(stats["total"], 1)
-        stats["noisy"] = (stats["fp_rate"] > FP_THRESHOLD and stats["total"] >= MIN_SAMPLES)
 
+    fp_rates = [s["fp_rate"] for s in results.values() if s["total"] >= MIN_SAMPLES]
+    threshold = adaptive_threshold(fp_rates)
+    for rid, stats in results.items():
+        stats["noisy"] = (stats["fp_rate"] > threshold and stats["total"] >= MIN_SAMPLES)
+
+    results["_threshold"] = threshold  # metadata (not a rule)
     return results
 
 
@@ -117,6 +153,8 @@ def degrade_rules(results: dict, dry_run: bool = False) -> list[str]:
     degraded = []
 
     for rid, stats in results.items():
+        if rid == "_threshold":
+            continue
         if not stats.get("noisy"):
             continue
 
@@ -191,15 +229,16 @@ def report(results: dict | None = None):
     if results is None:
         results = calibrate()
 
-    noisy = {rid: s for rid, s in results.items() if s.get("noisy")}
-    clean = {rid: s for rid, s in results.items() if not s.get("noisy") and s["total"] >= MIN_SAMPLES}
+    noisy = {rid: s for rid, s in results.items() if rid != "_threshold" and s.get("noisy")}
+    clean = {rid: s for rid, s in results.items() if rid != "_threshold" and not s.get("noisy") and s["total"] >= MIN_SAMPLES}
 
     print(f"\n{'='*60}")
     print(f"GSC Noise Report — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}")
     print(f"{'='*60}")
-    print(f"Total rules with data: {len(results)}")
-    print(f"Noisy (>80% FP):       {len(noisy)}")
-    print(f"Clean (≤80% FP):       {len(clean)}")
+    print(f"Total rules with data: {len([r for r in results if r != '_threshold'])}")
+    print(f"Adaptive FP threshold:  {results.get('_threshold', FP_THRESHOLD):.0%} (median + 2·MAD)")
+    print(f"Noisy (>threshold):    {len(noisy)}")
+    print(f"Clean (≤threshold):    {len(clean)}")
 
     if noisy:
         print(f"\n🔴 Noisy rules (candidates for degradation):")

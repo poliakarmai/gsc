@@ -203,7 +203,7 @@ url/double-encode, html-entities, case-swap, whitespace/`/**/`, альтерна
 ⚠️ Оба детерминированные (без LLM). `mutation_tracker` расширить с паттернов на PoC-payload'ы;
 dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-ветку (не только SAST finding_key).
 
-## 🟡 Фаза 11 — Adaptive self-learning thresholds (MAD)
+## ✅ Фаза 11 — Adaptive self-learning thresholds (MAD)
 
 **Источник:** разбор Grafana `promql-anomaly-detection` (Apache 2.0, PromQL-аномалии).
 **Проблема:** деградация шумных правил идёт по ФИКСИРОВАННОМУ порогу (`<30% TP at ≥10 verdicts`).
@@ -211,7 +211,7 @@ dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-�
 
 | Фича | Статус |
 |------|--------|
-| Adaptive threshold: baseline = медиана исторического FP-rate правила, порог = median ± k·MAD; деактивация при выходе за полосу (выброс), не при дрейфе к константе | ⬜ |
+| Adaptive threshold: `adaptive_threshold()` в `gsc_noise_engine.py` — FP-порог = median + k·MAD (clip [0.5, 0.95], fallback 0.80) | ✅ |
 
 ⚠️ Low-priority. Домен другой (observability-метрики), код PromQL не переносится — берём только
 идею robust-порога (median+MAD) для `gsc_noise_engine`/self-learning. Не «вооружение сканера».
@@ -236,16 +236,16 @@ Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам исполь
 ⚠️ MIT (openworker) — guardrail-модули портируются напрямую с атрибуцией. AGPL (Cybersecurity-Projects) —
 только механика, код НЕ брать. Коннекторы/GUI/aisuite/STT — off-scope.
 
-## 🟡 Фаза 13 — Executive HTML reporting (presentation-layer)
+## ✅ Фаза 13 — Executive HTML reporting (presentation-layer)
 
 **Источник:** разбор openworker «Security Coworker» — детекция не конкуренция (готовые сканеры),
 сильна ПОДАЧА: self-contained HTML + executive-сводка. У GSC отчёты технические (markdown/JSON/STIX).
 
 | Фича | Статус |
 |------|--------|
-| Self-contained HTML-генератор из `scan.json`: summary cards (severity × статус), bottom line, findings table color-coded | ⬜ |
-| Секция «Auto-fixed (Proof-of-Fix)» vs «Needs human decision» (секрет в git history → ротация, IAM/OIDC, DAST-пробелы) | ⬜ |
-| Collapsible «findings by exposure/category» | ⬜ |
+| Self-contained HTML-генератор из `scan.json` (`gsc_report_html.py`, CLI `report --format html`): summary cards, bottom line, findings table color-coded | ✅ |
+| Секция «Auto-fixed (Proof-of-Fix)» vs «Needs human decision» (секрет GS001/GS029 → ротация) | ✅ |
+| Collapsible «findings by severity» | ✅ |
 
 ⚠️ Presentation-layer, не детекция. Берём формат отчёта (HTML-артефакт), не LLM-чтение кода и не
 semgrep/trivy как движок.
