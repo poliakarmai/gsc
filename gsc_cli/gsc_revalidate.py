@@ -194,6 +194,402 @@ def cross_model_vote(verdict_a: str, verdict_b: str,
     }
 
 
+def aggregate_panel(verdicts: list[tuple[str, int | float]] | list[list]) -> dict:
+    """Aggregate N isolated reviewer verdicts into a single panel verdict (Phase 2).
+
+    ``cross_model_vote`` mixes two models pairwise. ``aggregate_panel`` is the
+    multi-model analogue: three (or N) *isolated* reviewers (separate prompts,
+    separate contexts, separate providers) each return ``(verdict, confidence)``
+    and the panel summarises them into one decision.
+
+    The aggregation is a strict majority over the canonical verdict vocabulary
+    (``VERDICTS``). Ties are broken deterministically by ``VERDICTS`` order, so
+    the same input always produces the same output (regression-safe, hash-safe).
+
+    Returned dict keys:
+
+      * ``verdict``        — majority verdict; ``"uncertain"`` when the input is
+                             empty or no verdict reaches a strict majority.
+      * ``confidence``     — arithmetic mean of the per-vote confidences of
+                             the *surviving verdict's backers*, clamped to
+                             ``[0, 100]`` and rounded. If the panel split, we
+                             fall back to the mean across ALL votes so the
+                             caller still gets a usable signal.
+      * ``agreement_pct``  — share of votes that backed the surviving verdict
+                             (``1.0`` for unanimity, ``0.0`` for an empty input).
+      * ``disagreement``   — ``True`` when no verdict reached a strict majority
+                             (i.e. an exact tie or a 3-way split, so the caller
+                             should escalate to a judge / human review).
+      * ``unanimous``      — ``True`` when *all* votes agree (1.0 agreement).
+      * ``split``          — ``True`` when the panel could not reach a strict
+                             majority (``disagreement == split``; one is the
+                             boolean flag, the other is the same flag aliased
+                             for readability at the call site).
+      * ``votes``          — ``Counter`` of raw vote counts per verdict label
+                             (e.g. ``{"true-positive": 2, "false-positive": 1}``).
+                             Plain dict, JSON-serialisable.
+
+    Pure function: no state, no I/O, no LLM calls, no env reads. The caller is
+    responsible for obtaining the per-reviewer verdicts (typically through
+    ``gsc_llm_providers`` with three independent provider keys / prompts).
+    Safe to call from hot paths and trivially unit-testable.
+
+    >>> aggregate_panel([("true-positive", 90), ("true-positive", 80), ("true-positive", 70)])
+    {'verdict': 'true-positive', 'confidence': 80, 'agreement_pct': 1.0, 'disagreement': False, 'unanimous': True, 'split': False, 'votes': {'true-positive': 3}}
+    >>> r = aggregate_panel([("true-positive", 90), ("false-positive", 80), ("uncertain", 60)])
+    >>> r["disagreement"]
+    True
+    >>> r["split"]
+    True
+    """
+    if not verdicts:
+        return {
+            "verdict": "uncertain",
+            "confidence": 0,
+            "agreement_pct": 0.0,
+            "disagreement": True,
+            "unanimous": False,
+            "split": True,
+            "votes": {},
+        }
+
+    # Defensive normalisation: callers may pass tuples OR 2-element lists, and
+    # confidences may be ints / floats / strings / None. We coerce to (str, int)
+    # and silently downgrade unparseable confidences to 0 instead of raising —
+    # the aggregator must be total, not crash the triage loop on bad input.
+    def _clamp(c) -> int:
+        try:
+            v = int(round(float(c)))
+        except (TypeError, ValueError):
+            v = 0
+        return max(0, min(100, v))
+
+    def _coerce(pair) -> tuple[str, int] | None:
+        if not pair or len(pair) < 2:
+            return None
+        v = pair[0]
+        if v is None:
+            return None
+        s = str(v).strip()
+        if not s:
+            return None
+        return s, _clamp(pair[1])
+
+    cleaned: list[tuple[str, int]] = []
+    for pair in verdicts:
+        coerced = _coerce(pair)
+        if coerced is not None:
+            cleaned.append(coerced)
+
+    if not cleaned:
+        return {
+            "verdict": "uncertain",
+            "confidence": 0,
+            "agreement_pct": 0.0,
+            "disagreement": True,
+            "unanimous": False,
+            "split": True,
+            "votes": {},
+        }
+
+    votes_list = [v for v, _ in cleaned]
+    confs_list = [c for _, c in cleaned]
+    counts = Counter(votes_list)
+    total = len(votes_list)
+
+    # Stable, deterministic tie-break: highest count first, then by canonical
+    # VERDICTS order (so the result is reproducible, not hash-dependent).
+    ordered = sorted(
+        counts.items(),
+        key=lambda kv: (-kv[1], VERDICTS.index(kv[0]) if kv[0] in VERDICTS else len(VERDICTS)),
+    )
+    top_verdict, top_count = ordered[0]
+    agreement = top_count / total
+    # Strict majority: the surviving verdict must hold more than half the votes.
+    # An exact tie (e.g. 1-1-1) and a 2-1 split both pass (top_count * 2 > total).
+    disagreement = top_count * 2 <= total
+    unanimous = top_count == total and total > 0
+
+    # Confidence: when the panel is unanimous, take the mean of all voters'
+    # confidences (they all voted for the same label). On a majority, we also
+    # take the all-vote mean so dissenting voices still dampen the signal
+    # (a single low-confidence dissenter pulls the average down, which is
+    # the desired conservative behaviour). Clamp + round to int.
+    # NOTE: we use half-up rounding (math.floor(x + 0.5)) to match the
+    # convention used by the existing cross_model_vote() helper. Python's
+    # built-in round() is banker's rounding (round(72.5) == 72), which
+    # is surprising for percentile scores — half-up is the right choice
+    # for an audit-facing confidence.
+    import math
+    raw_mean = sum(confs_list) / len(confs_list)
+    mean_conf = max(0, min(100, int(math.floor(raw_mean + 0.5))))
+
+    # Build the votes dict in canonical VERDICTS order so the JSON output is
+    # stable and human-readable across runs.
+    votes_dict: dict[str, int] = {v: 0 for v in VERDICTS}
+    for k, n in counts.items():
+        votes_dict[k] = votes_dict.get(k, 0) + n
+    # Drop the zero entries so the wire format stays compact, but keep the
+    # ordering by re-inserting in VERDICTS order above.
+    votes_compact = {k: n for k, n in votes_dict.items() if n > 0}
+
+    return {
+        "verdict": top_verdict,
+        "confidence": mean_conf,
+        "agreement_pct": round(agreement, 4),
+        "disagreement": disagreement,
+        "unanimous": unanimous,
+        "split": disagreement,
+        "votes": votes_compact,
+    }
+
+
+def judge_verdict(panel_result: dict, judge_verdict_str: str,
+                  judge_confidence: int | float = 0) -> dict:
+    """Follow-up judge step on top of a panel result (Phase 2).
+
+    A 3-way panel of independent reviewers (see :func:`aggregate_panel`) is
+    usually enough, but a *split* panel (no strict majority) is the
+    worst-case signal: 1-1-1 means the three reviewers couldn't agree, and a
+    human or a higher-cost LLM judge is brought in to break the tie. The
+    judge is also useful for an unanimity check — when three reviewers all
+    say "true-positive" but a judge (with broader context / a better model)
+    disagrees, we trust the judge and flip the verdict.
+
+    Rules (deterministic, total — never raises on bad input):
+
+      1. Empty / missing ``panel_result`` → we still apply the judge and
+         return a judge-based verdict (judge confidence drives the final
+         signal).
+      2. **Unanimous panel that matches the judge** → panel survives, judge
+         confidence is folded in as a *boost* (averaged with the panel's
+         confidence, clamped to ``[0, 100]``).
+      3. **Unanimous panel that DISAGREES with the judge** → judge wins
+         (the more expensive model overrides the cheap consensus). The
+         surviving verdict is the judge's, confidence is the judge's.
+      4. **Split panel (1-1-1, or any non-strict majority)** → judge
+         decisively *replaces* the panel verdict. Confidence is the
+         judge's; we also flag ``judge_overrode_split`` so the caller
+         can audit the override (e.g. for human-in-the-loop review).
+      5. **Majority panel (2-1)** → judge still wins if its confidence is
+         strictly higher than the panel's surviving confidence. This
+         matches the spirit of "judge breaks ties" while not letting a
+         low-confidence judge silently flip a confident majority.
+         If the judge is tied-or-lower in confidence, the panel survives.
+
+    Returned dict keys (additive over ``panel_result`` — original keys are
+    preserved so callers can keep using the panel result unchanged):
+
+      * All keys from ``panel_result`` (verbatim, so the function is a
+        drop-in enrichment — verdict / confidence / agreement_pct / etc.).
+      * ``final_verdict``     — the verdict that actually wins after the
+                                judge step. May differ from
+                                ``panel_result["verdict"]``.
+      * ``final_confidence``  — the confidence that wins alongside the
+                                final verdict.
+      * ``judge_verdict``     — the input judge verdict (normalised),
+                                echoed for audit.
+      * ``judge_confidence``  — input judge confidence, clamped to ``[0, 100]``.
+      * ``judge_overrode``    — ``True`` iff the judge overrode the panel
+                                (panel != judge, judge won). Useful for
+                                downstream auditing.
+      * ``judge_overrode_split`` — ``True`` iff the override happened
+                                specifically on a split panel (rule 4).
+                                A subset of ``judge_overrode``.
+      * ``reason``            — short human-readable explanation of which
+                                rule fired (e.g. ``"judge_unanimity_override"``,
+                                ``"judge_replaces_split"``,
+                                ``"judge_boosted_unanimous"``,
+                                ``"panel_survives"``).
+
+    Pure function: no state, no I/O, no LLM calls, no env reads. Safe to
+    chain on top of :func:`aggregate_panel` and trivial to unit-test.
+
+    >>> p = {"verdict": "true-positive", "confidence": 80, "agreement_pct": 1.0,
+    ...      "disagreement": False, "unanimous": True, "split": False,
+    ...      "votes": {"true-positive": 3}}
+    >>> r = judge_verdict(p, "true-positive", 90)
+    >>> r["final_verdict"]
+    'true-positive'
+    >>> r["judge_overrode"]
+    False
+    >>> r["judge_overrode_split"]
+    False
+    """
+    # Clamp + normalise judge confidence defensively.
+    try:
+        jc = int(round(float(judge_confidence)))
+    except (TypeError, ValueError):
+        jc = 0
+    jc = max(0, min(100, jc))
+
+    # Normalise judge verdict: empty / None → "uncertain" so we never crash
+    # on bad caller input.
+    jv = (judge_verdict_str or "").strip().lower() if judge_verdict_str else ""
+    if not jv:
+        jv = "uncertain"
+
+    # Start from the panel result; if the caller passed None or a non-dict,
+    # synthesise a minimal "uncertain" panel so the rest of the logic still
+    # works (total function).
+    if not isinstance(panel_result, dict):
+        panel_result = {
+            "verdict": "uncertain",
+            "confidence": 0,
+            "agreement_pct": 0.0,
+            "disagreement": True,
+            "unanimous": False,
+            "split": True,
+            "votes": {},
+        }
+
+    # Always echo the inputs for audit. Use a copy so we never mutate the
+    # caller's dict (caller may still hold a reference and pass it to
+    # serialisation / DB writers).
+    out: dict = dict(panel_result)
+    out["judge_verdict"] = jv
+    out["judge_confidence"] = jc
+
+    panel_v = panel_result.get("verdict", "uncertain") or "uncertain"
+    panel_c = panel_result.get("confidence", 0) or 0
+    try:
+        panel_c = int(round(float(panel_c)))
+    except (TypeError, ValueError):
+        panel_c = 0
+    panel_c = max(0, min(100, panel_c))
+
+    unanimous = bool(panel_result.get("unanimous", False))
+    split = bool(panel_result.get("split", True) or panel_result.get("disagreement", False))
+
+    final_v = panel_v
+    final_c = panel_c
+    reason = "panel_survives"
+    judge_overrode = False
+    judge_overrode_split = False
+
+    # Rule 4: split panel → judge replaces it (always). This is the most
+    # important case: when the cheap panel cannot decide, the judge's word
+    # is final regardless of the numeric confidence (the very fact that
+    # we called the judge means we trust it more than the panel).
+    if split:
+        final_v = jv
+        final_c = jc
+        reason = "judge_replaces_split"
+        judge_overrode = (jv != panel_v)
+        judge_overrode_split = True
+
+    # Rule 3: unanimous panel that disagrees with the judge → judge wins.
+    # The panel unanimous-agreement gives the cheap consensus a boost, but
+    # a single authoritative override flips the verdict. Confidence is the
+    # judge's, not an average.
+    elif unanimous and jv != panel_v:
+        final_v = jv
+        final_c = jc
+        reason = "judge_unanimity_override"
+        judge_overrode = True
+
+    # Rule 2: unanimous panel that matches the judge → judge confidence is
+    # folded in as a *boost*. Average of panel + judge, clamped. The
+    # surviving verdict is unchanged but the caller gets a stronger signal.
+    elif unanimous and jv == panel_v:
+        avg = (panel_c + jc) // 2 if (panel_c + jc) % 2 == 0 else (panel_c + jc) // 2 + 1
+        # Defensive clamp (avg fits in [0, 100] by construction since both
+        # operands do, but keep the explicit clamp for forward-compat with
+        # potential future non-integer confidences).
+        final_c = max(0, min(100, avg))
+        reason = "judge_boosted_unanimous"
+
+    # Rule 5: 2-1 majority → judge wins ONLY when it both disagrees with
+    # the majority AND has strictly higher confidence. A agreeing judge
+    # (even with a higher number) does not "override" anything — and a
+    # disagreeing judge with tied-or-lower confidence must not silently
+    # flip a confident majority. This keeps the rule conservative.
+    elif jv != panel_v and jc > panel_c:
+        final_v = jv
+        final_c = jc
+        reason = "judge_overrode_majority"
+        judge_overrode = True
+    # else: panel survives as-is, reason stays "panel_survives".
+
+    out["final_verdict"] = final_v
+    out["final_confidence"] = final_c
+    out["judge_overrode"] = judge_overrode
+    out["judge_overrode_split"] = judge_overrode_split
+    out["reason"] = reason
+    return out
+
+
+# Canonical per-verdict base priority for auto-triage scoring. Pure constants
+# so ``triage_score`` stays self-contained and deterministic.
+_TRIAGE_BASE = {
+    "true-positive": 80,
+    "false-positive": 20,
+    "fixed": 10,
+    "uncertain": 50,
+}
+
+
+def triage_score(regex_hits: int, llm_verdict: str, llm_confidence: int) -> dict:
+    """Fuse regex + LLM signals into a single auto-triage priority (Phase 2).
+
+    Pure, deterministic, no I/O. Combines three independent signals:
+
+      * ``regex_hits``     — how many regex detectors fired for this finding
+                             (``>=3`` confirms independently, ``0`` means the
+                             LLM flagged something the scanners missed).
+      * ``llm_verdict``    — one of the canonical ``VERDICTS`` tokens.
+      * ``llm_confidence`` — LLM-reported confidence in ``[0, 100]``.
+
+    Scoring:
+      * base priority from the verdict (TP high, FP low, uncertain middle);
+      * ``llm_confidence`` nudges the base by ``(confidence - 50) * 0.4``;
+      * ``regex_hits >= 3`` adds ``+10`` (independent confirmation), and
+        ``regex_hits == 0`` subtracts ``10`` (scanner/LLM divergence);
+      * the result is clamped to ``[0, 100]``.
+
+    Category:
+      * ``auto-close``   — FP verdict, or score below 30;
+      * ``escalate``     — TP verdict with score >= 70;
+      * ``needs-review`` — everything else (human looks at it).
+
+    >>> triage_score(3, "true-positive", 90)
+    {'score': 96, 'category': 'escalate', 'reason': 'tp_confirmed_multi_regex'}
+    >>> triage_score(1, "false-positive", 60)['category']
+    'auto-close'
+    """
+    def _clamp_int(v) -> int:
+        try:
+            return int(round(float(v)))
+        except (TypeError, ValueError):
+            return 0
+
+    verdict = str(llm_verdict or "").strip().lower()
+    conf = max(0, min(100, _clamp_int(llm_confidence)))
+    hits = max(0, _clamp_int(regex_hits))
+
+    base = _TRIAGE_BASE.get(verdict, 50)  # unknown verdict -> neutral
+
+    score = base + (conf - 50) * 0.4
+    if hits >= 3:
+        score += 10
+    elif hits == 0:
+        score -= 10
+
+    score = max(0, min(100, int(round(score))))
+
+    if verdict == "false-positive" or score < 30:
+        category = "auto-close"
+        reason = "fp_verdict" if verdict == "false-positive" else "low_score"
+    elif verdict == "true-positive" and score >= 70:
+        category = "escalate"
+        reason = "tp_confirmed_multi_regex" if hits >= 3 else "tp_high_confidence"
+    else:
+        category = "needs-review"
+        reason = "uncertain_or_mid_score"
+
+    return {"score": score, "category": category, "reason": reason}
+
+
 class Revalidator:
     """Structured revalidation — cuts FP rate by 50%+."""
 
