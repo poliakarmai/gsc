@@ -90,6 +90,110 @@ def best_of_n_verdict(verdicts: list[tuple[str, int]]) -> dict:
     }
 
 
+# ── Severity ladder (highest → lowest). Mirrors the severity vocabulary used
+# across GSC findings. Kept module-level so pure helpers can reference it and
+# tests can import it without instantiating Revalidator.
+SEVERITY_RANK = ("CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO")
+# Reverse lookup: severity → ordinal (0 = CRITICAL = strongest).
+_SEVERITY_ORD = {s: i for i, s in enumerate(SEVERITY_RANK)}
+
+
+def demote_severity(severity: str) -> str:
+    """Demote ``severity`` by one rung of the SEVERITY_RANK ladder.
+
+    CRITICAL→HIGH→MEDIUM→LOW→INFO. An unknown or already-lowest severity
+    stays at INFO. Pure function — no I/O, trivially unit-testable.
+
+    >>> demote_severity("CRITICAL")
+    'HIGH'
+    >>> demote_severity("INFO")
+    'INFO'
+    >>> demote_severity("BOGUS")
+    'INFO'
+    """
+    sev = (severity or "INFO").upper()
+    ord_ = _SEVERITY_ORD.get(sev)
+    if ord_ is None or ord_ >= len(SEVERITY_RANK) - 1:
+        return "INFO"
+    return SEVERITY_RANK[ord_ + 1]
+
+
+def cross_model_vote(verdict_a: str, verdict_b: str,
+                     confidence_a: int | float = 0,
+                     confidence_b: int | float = 0) -> dict:
+    """Aggregate two verdicts coming from two *different* models (Phase 2).
+
+    ``verdict_a`` is the primary (e.g. DeepSeek) verdict, ``verdict_b`` is the
+    secondary (e.g. OpenRouter) verdict. When both agree the result is that
+    verdict with an averaged confidence and no demotion. When they disagree —
+    specifically the noisy-signal case of TP vs FP — the disagreement is flagged
+    and the caller is told to (a) demote the severity by one rung and
+    (b) halve the confidence, so downstream triage / noise-engine gets a
+    conservative signal instead of a hard false-positive suppression.
+
+    Returned dict keys:
+      * ``verdict``            — the surviving verdict (A on disagreement,
+                                  matching ``best_of_n_verdict`` tie-break style).
+      * ``confidence``         — averaged, clamped to [0, 100], rounded.
+      * ``disagreement``       — True when A != B, else False.
+      * ``demote_severity``    — bool: True when disagreement is a TP/FP split
+                                 (or either side is TP), signaling severity
+                                 should drop one rung.
+      * ``demote_confidence``  — bool: True when confidence should be halved
+                                 (any disagreement).
+
+    This is a pure function: no state, no I/O, no network, no env reads — the
+    caller is responsible for obtaining ``verdict_b`` from the configured
+    secondary model (itself selected through ``gsc_llm_providers``, see
+    ``GSC_REVALIDATE_MODEL_B``). It performs no LLM calls itself.
+
+    >>> cross_model_vote("true-positive", "true-positive", 90, 80)
+    {'verdict': 'true-positive', 'confidence': 85, 'disagreement': False, 'demote_severity': False, 'demote_confidence': False}
+    >>> r = cross_model_vote("true-positive", "false-positive", 90, 80)
+    >>> r['disagreement']
+    True
+    >>> r['demote_severity']
+    True
+    >>> r['demote_confidence']
+    True
+    """
+    # Normalise + clamp confidences up front (defensive against bad callers).
+    def _clamp(c: int | float) -> int:
+        try:
+            v = int(round(float(c)))
+        except (TypeError, ValueError):
+            v = 0
+        return max(0, min(100, v))
+
+    ca, cb = _clamp(confidence_a), _clamp(confidence_b)
+    mean_conf = ca + cb
+    mean_conf = mean_conf // 2 if mean_conf % 2 == 0 else (mean_conf // 2) + 1
+    # Round-half-even isn't required; a simple average clamped/rounded suffices.
+    mean_conf = max(0, min(100, round((ca + cb) / 2)))
+
+    disagreement = verdict_a != verdict_b
+    # Demote severity only on the high-noise splits: a real TP/FP clash, or when
+    # one side is a (confirmed) TP that the other model rejected. Any TP verdict
+    # is the expensive signal to lose, so when models fight over TP/FP we drop
+    # severity by one rung but never flip a confirmed FP into a TP outright.
+    tp_fp_split = {("true-positive", "false-positive"),
+                   ("false-positive", "true-positive")}
+    is_tp = {"true-positive"}
+    demote_sev = disagreement and (
+        (verdict_a, verdict_b) in tp_fp_split
+        or verdict_a in is_tp or verdict_b in is_tp
+    )
+    demote_conf = disagreement
+
+    return {
+        "verdict": verdict_a,          # primary verdict is the survivor
+        "confidence": mean_conf,
+        "disagreement": disagreement,
+        "demote_severity": demote_sev,
+        "demote_confidence": demote_conf,
+    }
+
+
 class Revalidator:
     """Structured revalidation — cuts FP rate by 50%+."""
 
