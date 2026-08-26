@@ -77,7 +77,10 @@ Finding GS005 (SQL Injection) — app.py:42
 > before/after exploit evidence. PoC OS-isolation requires a container runtime
 > (Docker/Podman); without it GSC degrades to rlimit (CPU/mem limits with no
 > filesystem/network namespace) and marks the result **NOT verified** (fail-closed)
-> — never «verified». The PoF pipeline is **Python-first** (JS/TS — roadmap). For
+> — never «verified». The PoF pipeline is **Python-first**, with manifest
+> parsers for **Node.js / Go / Java** already landed (`gsc_pof_node_parser`,
+> `gsc_pof_go_parser`, `gsc_pof_java_parser`); Rust (Cargo.toml) and
+> per-ecosystem sandbox runners are on the roadmap. For
 > **hostile/untrusted repository code** a container/VM backend is required — see
 > `docs/THREAT_MODEL.md`.
 
@@ -90,7 +93,7 @@ Honest product boundaries (details — `docs/KNOWN_LIMITATIONS.md`):
 | Replace manual pentesting | Automation covers only what detectors + PoC can see |
 | Guarantee 100% precision | CRITICAL precision ~4–5% on 100 real projects (Замер 3); run your own measurement |
 | Run PoF without isolation | No container runtime → `NOT verified`, never a false «verified» |
-| Fully verify JS/TS PoFs | Python-first; JS/TS PoC is on the roadmap |
+| Fully verify JS/TS/Go/Java PoFs | Python-first; manifest parsers landed, PoC/sandbox runners on the roadmap |
 | Multi-writer store on SQLite | Production requires PostgreSQL (`GSC_DATABASE_URL`) |
 | Hardcode accuracy percentages | Detector numbers come from `gsc_meta.py`, not marketing |
 

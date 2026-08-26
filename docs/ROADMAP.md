@@ -20,17 +20,17 @@
 | Фича | Статус |
 |------|--------|
 | DeepSeek API в контейнере | ⬜ |
-| Авто-триаж: regex → LLM → confidence score | ⬜ |
+| Авто-триаж: regex → LLM → confidence score | ✅ `triage_score()` в `gsc_revalidate.py` |
 | Батч-ревалидация старых находок | ⬜ |
 | Fallback на regex-only при отсутствии API ключа | ✅ уже есть |
-| Cross-model voting — второй вердикт другой моделью (Qwen/Gemini) для CRITICAL/HIGH, расхождение → demote | ⬜ |
-| Receipt-контракт — rejudge по полному `file:line` + taint-пути (`gsc_ast_dataflow.py`), вердикт без цитаты = INCOMPLETE/demote | ⬜ |
-| Self-verification (Best-of-N той же модели) — дешевле cross-model voting, доказано +7-9% точности | ⬜ |
-| Fine-grained criteria rejudge — source-to-sink / reachability / exploitability вместо одного вердикта | ⬜ |
-| Flash-verifier — rejudge на deepseek-v4-flash (дёшево) | ⬜ |
-| Logprob-based confidence вместо regex `_extract_confidence` | ⬜ |
+| Cross-model voting — второй вердикт другой моделью (Qwen/Gemini) для CRITICAL/HIGH, расхождение → demote | ✅ `cross_model_vote()` |
+| Receipt-контракт — rejudge по полному `file:line` + taint-пути (`gsc_ast_dataflow.py`), вердикт без цитаты = INCOMPLETE/demote | ✅ receipt-контракт в `gsc_rejudge.py` |
+| Self-verification (Best-of-N той же модели) — дешевле cross-model voting, доказано +7-9% точности | ✅ `best_of_n_verdict()` |
+| Fine-grained criteria rejudge — source-to-sink / reachability / exploitability вместо одного вердикта | ✅ `parse_criteria()` + `fine_grained_verdict()` |
+| Flash-verifier — rejudge на deepseek-v4-flash (дёшево) | ✅ `select_flash_model()` |
+| Logprob-based confidence вместо regex `_extract_confidence` | ✅ `confidence_from_logprobs()` |
 | LLM-first-pass auditor — LLM читает весь репо → semantic findings (до regex), опциональный `--with-llm-first-pass` | ⬜ |
-| Multi-model panel + judge — 3 ревьюера в изоляции + судья (follow-up) для CRITICAL/HIGH | ⬜ |
+| Multi-model panel + judge — 3 ревьюера в изоляции + судья (follow-up) для CRITICAL/HIGH | ✅ `aggregate_panel()` + `judge_verdict()` |
 
 > Источник усиления: разбор NeuroSploit (agentic pentest, MIT) — grounding «no claim without a receipt» + cross-model validation. Не конкурент-сканер, но 2 механики бьют по галлюцинациям single-model rejudge (`gsc_rejudge.py` видит только `snippet[:100]`).
 > Уточнение (LLM-as-a-Verifier, pip `llm-verifier`): self-verification Best-of-N той же моделью (Pass@1 79→88%) может быть выгоднее cross-model voting; fine-grained criteria + flash-verifier + logprob-калибровка заменяют грубый бинарный rejudge.
@@ -80,7 +80,7 @@
 | Поддержка Go | ✅ `collect_go_usage` (single + block import, комментарии стрипаются) |
 | Reachability по экосистеме | ✅ `is_reachable(..., ecosystem=PyPI/npm/Go)` — npm по корню пакета, Go по префиксу `pkg/` |
 | Deploy-context reachability (prod vs dev vs base-image) | ⬜ CVE в dev-контейнере/базовом образе, недоступном в проде — отдельный слой контекста развёртывания (Dockerfile/compose) |
-| Work-vs-Value отчёт-доказательство | ⬜ сводка «из N CRIT → M reachable, K в dev, L с EPSS<0.05» — аргумент для менеджера против красной панели |
+| Work-vs-Value отчёт-доказательство | ✅ `work_vs_value_report()` — сводка «из N CRIT → M reachable, K в dev, L с EPSS<0.05» — аргумент для менеджера против красной панели |
 
 ## 🟡 Фаза 5.5 — SCA License Compliance
 
@@ -257,7 +257,7 @@ semgrep/trivy как движок.
 | Идея | Статус | Что делать | LLM | Трудоёмк. |
 |------|--------|-----------|-----|-----------|
 | Локальные LLM (Ollama/vLLM, air-gap) | ✅ **уже есть** (`gsc_llm_providers.py`: `OLLAMA_BASE_URL`/`LMSTUDIO_BASE_URL`/`LLM_BASE_URL`) | задокументировать air-gap-сценарий + тест failover-цепочки `GSC_LLM_PROVIDERS` | 0 | S |
-| PoF мультиязычность (JS/TS/Go/Java/Rust) | ⬜ только Python (`gsc_proofoffix.py` fmt=python) | sandbox-раннеры + PoC-шаблоны; начать с **Node.js** | 0–частично | L |
+| PoF мультиязычность (JS/TS/Go/Java/Rust) | 🟡 парсеры manifest'ов Node/Go/Java ✅ (`gsc_pof_node_parser`/`gsc_pof_go_parser`/`gsc_pof_java_parser`); Rust (Cargo.toml) + sandbox-раннеры ⬜ | sandbox-раннеры + PoC-шаблоны; следующий — Rust | 0–частично | L |
 | Семантический NL-policy через AST/Data Flow | 🟡 `gsc_ast_dataflow.py` есть, к NL-policy не подключён | taint-путь `secret → logger` в policy-движок вместо чистого regex | 0 | M |
 | AI-фаззинг BOLA/IDOR по OpenAPI/Swagger | 🟡 threat_model/attack_tree есть, OpenAPI-фаззинга нет | OpenAPI-парсер + запросы под 2 auth-контекста | частично | M |
 | Трекеры задач: Jira/Linear/GitLab Issues | ⬜ только GitHub (`github_adapter`) | REST-адаптеры + тикет с PoC/логами | 0 | S–M |
