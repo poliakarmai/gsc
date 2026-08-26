@@ -250,6 +250,26 @@ Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам исполь
 ⚠️ Presentation-layer, не детекция. Берём формат отчёта (HTML-артефакт), не LLM-чтение кода и не
 semgrep/trivy как движок.
 
+## ⬜ Фаза 14 — Expansion / Enterprise (идеи 26.08.2026)
+
+**Источник:** обсуждение векторов расширения (опенсорс → Enterprise, рынок РФ). Записано «на потом».
+
+| Идея | Статус | Что делать | LLM | Трудоёмк. |
+|------|--------|-----------|-----|-----------|
+| Локальные LLM (Ollama/vLLM, air-gap) | ✅ **уже есть** (`gsc_llm_providers.py`: `OLLAMA_BASE_URL`/`LMSTUDIO_BASE_URL`/`LLM_BASE_URL`) | задокументировать air-gap-сценарий + тест failover-цепочки `GSC_LLM_PROVIDERS` | 0 | S |
+| PoF мультиязычность (JS/TS/Go/Java/Rust) | ⬜ только Python (`gsc_proofoffix.py` fmt=python) | sandbox-раннеры + PoC-шаблоны; начать с **Node.js** | 0–частично | L |
+| Семантический NL-policy через AST/Data Flow | 🟡 `gsc_ast_dataflow.py` есть, к NL-policy не подключён | taint-путь `secret → logger` в policy-движок вместо чистого regex | 0 | M |
+| AI-фаззинг BOLA/IDOR по OpenAPI/Swagger | 🟡 threat_model/attack_tree есть, OpenAPI-фаззинга нет | OpenAPI-парсер + запросы под 2 auth-контекста | частично | M |
+| Трекеры задач: Jira/Linear/GitLab Issues | ⬜ только GitHub (`github_adapter`) | REST-адаптеры + тикет с PoC/логами | 0 | S–M |
+| Perf-бенчмарк патча (CPU/mem до/после) | 🟡 `fix_quality` есть, микробенчмарка нет | timeit/mem harness в sandbox + порог «безопасно, но медленно» | 0 | S–M |
+
+**РФ Enterprise-адаптация (продажа в контур):**
+- [ ] GitLab / GitFlic / GitVerse адаптер (все бизнес-инсталляции в РФ — локальные)
+- [ ] Русский язык доков + отчётов (требование Реестра Минцифры)
+- [ ] Air-gap/on-prem через Ollama/vLLM — задокументировать (движок уже готов)
+
+**Порядок внедрения:** GitLab → PoF JS/TS (Node) → data-flow в NL-policy → OpenAPI BOLA/IDOR → perf-бенчмарк.
+
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
 **Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
