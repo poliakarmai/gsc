@@ -27,15 +27,74 @@ import json
 import os
 import subprocess
 import re
+from collections import Counter
 from pathlib import Path
 from datetime import datetime, timezone
 
 from gsc_llm_providers import defang, UNTRUSTED_GUARD, guard_system
 
 
+# Canonical verdict vocabulary — module-level constant so pure helpers such as
+# ``best_of_n_verdict`` can reference it without importing the whole class.
+# Revalidator.VERDICTS is an alias kept for backward compatibility.
+VERDICTS = ("true-positive", "false-positive", "fixed", "uncertain")
+
+
+def best_of_n_verdict(verdicts: list[tuple[str, int]]) -> dict:
+    """Aggregate N verdicts from the same model (Self-verification Best-of-N).
+
+    Given a list of ``(verdict, confidence)`` pairs produced by ``n`` independent
+    LLM calls to the *same* model and *same* prompt (temperature low enough that
+    sampling yields non-degenerate diversity), return a single aggregated verdict:
+
+      * ``verdict``            — the majority verdict (ties broken in ``VERDICTS``
+                                 order so the result is deterministic).
+      * ``confidence``         — arithmetic mean of per-sample confidences,
+                                 clamped to [0, 100] and rounded.
+      * ``agreement_pct``      — fraction of votes that backed the majority
+                                 verdict (1.0 = unanimity).
+      * ``disagreement``       — ``True`` when there is no clear majority
+                                 (i.e. an exact tie / split), so the caller can
+                                 escalate for human review.
+
+    This is a pure function: it owns no state and performs no I/O, which makes
+    it trivially unit-testable and safe to call from hot paths.
+
+    >>> best_of_n_verdict([("true-positive", 80), ("true-positive", 70)])
+    {'verdict': 'true-positive', 'confidence': 75, 'agreement_pct': 1.0, 'disagreement': False}
+    """
+    if not verdicts:
+        return {
+            "verdict": "uncertain",
+            "confidence": 0,
+            "agreement_pct": 0.0,
+            "disagreement": True,
+        }
+
+    votes = [v for v, _ in verdicts]
+    confs = [c for _, c in verdicts]
+    counts = Counter(votes)
+    # Stable, deterministic order so ties are reproducible, not hash-dependent.
+    ordered = sorted(counts.items(), key=lambda kv: (-kv[1], VERDICTS.index(kv[0])))
+    top_verdict, top_count = ordered[0]
+    total = len(votes)
+    agreement = top_count / total
+    disagreement = top_count * 2 <= total  # split / tie (not a strict majority)
+    mean_conf = round(sum(confs) / len(confs))
+    mean_conf = max(0, min(100, mean_conf))
+    return {
+        "verdict": top_verdict,
+        "confidence": mean_conf,
+        "agreement_pct": round(agreement, 4),
+        "disagreement": disagreement,
+    }
+
+
 class Revalidator:
     """Structured revalidation — cuts FP rate by 50%+."""
 
+    # Same vocabulary as the module-level VERDICTS — kept as a class attribute
+    # for backward compatibility with code that references Revalidator.VERDICTS.
     VERDICTS = ("true-positive", "false-positive", "fixed", "uncertain")
 
     def __init__(self, db_path: str, project_path: Path):
