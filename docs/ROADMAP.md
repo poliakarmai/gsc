@@ -218,17 +218,22 @@ dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-�
 
 ## 🔴 Фаза 12 — Agentic hardening (guardrails собственного agentic-слоя)
 
-**Источник:** разбор Andrew Ng `openworker` (MIT) — эталон agentic-security. GSC сам использует
-LLM-агентов (rejudge/self-healing/pof) с теми же векторами: prompt injection → command exec,
-SSRF через fetch untrusted URL. Три guardrail-механики, которых у GSC нет.
+**Источник:** разбор Andrew Ng `openworker` (MIT) + `Cybersecurity-Projects` LLM Prompt Injection
+Firewall (AGPL-3.0) — эталоны agentic-security. GSC сам использует LLM-агентов (rejudge/self-healing/pof)
+с теми же векторами: prompt injection → command exec, SSRF через fetch untrusted URL.
 
 | Фича | Статус |
 |------|--------|
 | SSRF address-guard + DNS-rebinding pinning в `gsc_dast_validator`/`gsc_poc_generator`/`gsc_secrets_verifier` (блок loopback/private/metadata перед каждым fetch из untrusted URL) | ⬜ |
 | Read-only shell classifier (fail-closed) в PoF/self-healing sandbox — whitelist команд вместо бинарного no-network, exfil-исключение | ⬜ |
 | Provenance (data lineage) в rejudge — знать, что файл «создан/скачан агентом», а не репозиторием | ⬜ |
+| Unicode-smuggling + encoding-closure normalization в `gsc_llm_providers.py` (tag-block/bidi/confusables — закрыть bypass defang) | ⬜ |
+| Taint propagation / toolauth (`NO_UNTRUSTED_INFLUENCE` per-tool) в rejudge/self-healing — отказ действию, downstream от untrusted | ⬜ |
+| Egress canary-closure — матч секретов на выходе LLM через все кодировки + SSRF exfil-check query string | ⬜ |
+| Invariant/heuristic разделение в confidence-модели (`Finding.invariant`) — не выдавать guess за guarantee | ⬜ |
 
-⚠️ MIT — guardrail-модули портируются напрямую с атрибуцией. Коннекторы/GUI/aisuite/STT — off-scope.
+⚠️ MIT (openworker) — guardrail-модули портируются напрямую с атрибуцией. AGPL (Cybersecurity-Projects) —
+только механика, код НЕ брать. Коннекторы/GUI/aisuite/STT — off-scope.
 
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
