@@ -86,6 +86,13 @@ def _http(method: str, url: str, headers: dict):
     global _requests_this_run
     if _requests_this_run >= _REQUEST_BUDGET:
         return None, None  # бюджет исчерпан → unknown (не блокируем скан)
+    # SSRF guard (defense-in-depth): provider API URLs are fixed, but never resolve to
+    # the machine's own network position. Bypass the DNS cost with a small host cache.
+    from gsc_core.gsc_ssrf_guard import guard_url
+    try:
+        guard_url(url)
+    except PermissionError:
+        return None, None  # blocked → unknown (не роняем скан, не делаем запрос)
     _throttle()
     _requests_this_run += 1
     req = Request(url, method=method, headers=headers)

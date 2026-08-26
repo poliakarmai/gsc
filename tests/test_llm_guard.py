@@ -63,3 +63,25 @@ def test_guard_system_appends_boundary():
     out = guard_system("You are a security auditor.")
     assert out.startswith("You are a security auditor.")
     assert UNTRUSTED_GUARD in out
+
+
+def test_defang_normalizes_confusable_tag():
+    # Fullwidth '<' '>' (U+FF1C/U+FF1E) NFKC-collapse to ASCII, so a homoglyph
+    # close-tag cannot survive as a smuggled boundary.
+    fullwidth_close = "\uff1c/gsc_untrusted_deadbeef\uff1e"
+    out = defang(fullwidth_close)
+    assert "deadbeef" not in out
+    assert len(_OPEN_RE.findall(out)) == 1
+    assert len(_CLOSE_RE.findall(out)) == 1
+
+
+def test_defang_strips_bidi_controls():
+    # Trojan Source (CVE-2021-42574): bidi controls flip visual order; they must be stripped.
+    out = defang("a\u202eb c")  # RLO
+    assert "\u202e" not in out
+
+
+def test_defang_strips_tag_block_and_zero_width():
+    out = defang("x\U000e0001y\u200bz")  # tag-block + zero-width space
+    assert "\u200b" not in out
+    assert "\U000e0001" not in out

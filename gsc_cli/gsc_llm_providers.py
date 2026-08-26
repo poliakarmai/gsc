@@ -28,6 +28,7 @@ import os
 import re
 import secrets
 import time
+import unicodedata
 from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Optional
@@ -270,13 +271,42 @@ UNTRUSTED_GUARD = (
 )
 
 
+# Unicode characters that smuggle instructions past a byte-level guard: bidi controls
+# (Trojan Source CVE-2021-42574), invisible tag-block (U+E0000–U+E007F) and zero-width /
+# word-joiner chars carry no semantic value but can hide a close tag or flip visual order.
+_BIDI_CONTROLS = set(range(0x202A, 0x202F)) | set(range(0x2066, 0x206A))
+_TAG_BLOCK = set(range(0xE0000, 0xE0080))
+_ZERO_WIDTH = {0x200B, 0x200C, 0x200D, 0x200E, 0x200F, 0xFEFF, 0x2060, 0x00AD}
+
+
+def _normalize_untrusted(text: str) -> str:
+    """NFKC-collapse confusables + strip bidi/tag/zero-width so Unicode smuggling
+    cannot bypass the delimiter guard (OWASP LLM01 / confusables CVE-2021-42694).
+
+    NFKC turns fullwidth/math/gothic homoglyphs into their ASCII equivalents (a fullwidth
+    ``<`` becomes ``<``), so a tag rendered with confusables matches the ASCII guard regex.
+    Bidi controls and invisible tag-block/zero-width chars are stripped — they carry no
+    semantic value but can flip visual order or hide a close tag.
+    """
+    if not text:
+        return ""
+    s = unicodedata.normalize("NFKC", text)
+    return "".join(
+        ch for ch in s
+        if ord(ch) not in _BIDI_CONTROLS
+        and ord(ch) not in _TAG_BLOCK
+        and ord(ch) not in _ZERO_WIDTH
+    )
+
+
 def defang(text) -> str:
     """Wrap untrusted text in a fresh random delimiter pair the guard tells
-    the LLM to treat as data. Any attacker-supplied tag mimicking the pattern
+    the LLM to treat as data. The text is Unicode-normalized first so homoglyph
+    tags cannot bypass the guard; any attacker-supplied tag mimicking the pattern
     is stripped so it cannot close the block early."""
     token = secrets.token_hex(6)
     open_tag, close_tag = f"<gsc_untrusted_{token}>", f"</gsc_untrusted_{token}>"
-    s = str(text if text is not None else "")
+    s = _normalize_untrusted(str(text if text is not None else ""))
     s = _UNTRUSTED_TAG_RE.sub("", s)
     s = _UNTRUSTED_TOKEN_RE.sub("", s)
     return f"{open_tag}\n{s}\n{close_tag}"

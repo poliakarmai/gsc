@@ -36,6 +36,14 @@ class DastValidator:
           dast_verified=False → staging still vulnerable (fix incomplete)
           dast_verified=None  → test skipped/unavailable
         """
+        # SSRF guard: the staging URL must not resolve to the machine's own network
+        # position (metadata endpoint, loopback, private space) before nuclei is pointed at it.
+        from gsc_core.gsc_ssrf_guard import guard_url
+        try:
+            guard_url(self.staging_url)
+        except PermissionError as e:
+            return {"dast_verified": None, "dast_output": f"SSRF guard: {e}", "dast_exit": None}
+
         severity = finding.get("severity", finding.get("category", "medium")).lower()
         if severity not in self.severity_filter:
             return {"dast_verified": None, "dast_output": "skipped (severity)",
