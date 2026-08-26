@@ -292,6 +292,21 @@ def _isolation_allows_verified(iso_before: str, iso_after: str) -> bool:
     return _is_container_isolation(iso_before) and _is_container_isolation(iso_after)
 
 
+def _warn_no_container_isolation() -> Optional[str]:
+    """DD-05: fail-fast — surface when docker/podman is absent so callers never
+    silently accept an rlimit-degraded "verified". Returns a warning, or None."""
+    try:
+        from gsc_pof_sandbox import _isolation_backend, _is_container_isolation
+        backend = _isolation_backend()
+        if not _is_container_isolation(backend):
+            return ("container runtime (docker/podman) not found — proof-of-fix "
+                    "degrades to rlimit (structural only, not 'verified'). "
+                    "Install docker or podman for full verification.")
+    except Exception:
+        pass
+    return None
+
+
 # ── LLM helpers ────────────────────────────────────────────
 def _call_llm(system: str, user: str, max_tokens: int = 900) -> Optional[str]:
     api_key = os.environ.get("DEEPSEEK_API_KEY", "")
@@ -645,6 +660,11 @@ def _generate_poc_code(finding: dict, source_code: str):
 # ── Main entry point ───────────────────────────────────────
 def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEvidence:
     root = Path(project_root).resolve()
+    _warn = _warn_no_container_isolation()
+    if _warn:
+        # Fail-fast (DD-05): generate_fix always executes the PoC in the sandbox
+        # (there is no dry-run path here), so rlimit degradation is immediately relevant.
+        print(f"[PoF] {_warn}", file=sys.stderr)
     finding = _find_finding(report_path, finding_key)
     ev = FixEvidence(finding_key=finding_key)
 
