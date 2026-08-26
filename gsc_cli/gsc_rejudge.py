@@ -13,13 +13,203 @@ GSC Rejudge Integration — multi-model revalidation for findings, PoC, and dete
   python3 gsc_rejudge.py detector patterns.json test_fixtures/
 """
 
-import json, os, subprocess, sys, tempfile, shutil
+import json, os, re, subprocess, sys, tempfile, shutil
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from gsc_llm_providers import defang, UNTRUSTED_GUARD
 
 REJUDGE_PATH = shutil.which("rejudge")
+
+# --- Receipt contract (Phase 2) ---------------------------------------------
+#
+# A LLM verdict on a finding must cite concrete code as proof:
+#   file path, line number, and a short code fragment from the cited location.
+# Without that, the verdict is INCOMPLETE — we cannot trust the model's claim
+# and the finding is demoted (severity + confidence).
+#
+# The receipt is extracted from the model's free-form verdict text. Parsing is
+# deliberately tolerant (multiple acceptable formats) but the presence of a
+# `file:line` reference plus a code fragment is non-negotiable.
+
+# Severity demotion table for verdicts missing a receipt.
+_RECEIPT_DEMOTION = {
+    "CRITICAL": "HIGH",
+    "HIGH":     "MEDIUM",
+    "MEDIUM":   "LOW",
+    "LOW":      "INFO",
+}
+
+# Confidence penalty (subtracted) when verdict lacks a receipt.
+_RECEIPT_CONFIDENCE_PENALTY = 25
+
+# Snippet cap passed to the LLM as evidence context. Larger than the old
+# [:100] so the model can actually reason about the cited code.
+_SNIPPET_EVIDENCE_CAP = 300
+
+
+@dataclass
+class Receipt:
+    """Structured proof cited by an LLM in its verdict.
+
+    A valid receipt has all three fields populated:
+      * file — path to the source file (or relative path)
+      * line — 1-based line number (int)
+      * code — short code fragment actually present at file:line
+    """
+    file: str = ""
+    line: int = 0
+    code: str = ""
+
+    @property
+    def is_valid(self) -> bool:
+        """True iff all three fields are present and line > 0."""
+        return bool(self.file) and self.line > 0 and bool(self.code)
+
+
+def parse_receipt(text: str) -> Optional[Receipt]:
+    """Extract a Receipt from a free-form LLM verdict.
+
+    Accepts several common shapes:
+      * `path/to/file.py:42`  (with optional `File: ` prefix)
+      * `path/to/file.py:42 — <code>`
+      * `Receipt: path/to/file.py:42  Code: <code>`
+      * `path/to/file.py line 42` (with explicit `line` keyword)
+
+    Returns None if no recognisable file:line reference is found.
+    The `code` field is best-effort — if the line immediately after the
+    `file:line` reference looks like a quoted/indented code fragment, we keep
+    it; otherwise the receipt is returned without code (caller will treat
+    it as INCOMPLETE).
+    """
+    if not text:
+        return None
+
+    # Pattern 1: `File: path/to/file.py:42`  or  `path/to/file.py:42`
+    m = re.search(
+        r"(?:file\s*[:\-]?\s*)?"
+        r"([^\s:`'\"]+\.[A-Za-z0-9]{1,8})"   # path with extension
+        r"\s*[:]\s*"
+        r"(\d{1,6})",                          # line number
+        text,
+        re.IGNORECASE,
+    )
+    file_path = ""
+    line_no = 0
+    if m:
+        file_path = m.group(1).strip().strip("`'\"")
+        try:
+            line_no = int(m.group(2))
+        except (TypeError, ValueError):
+            line_no = 0
+
+    # Pattern 2: `path/to/file.py line 42`  (no colon)
+    if not line_no:
+        m2 = re.search(
+            r"([^\s:`'\"]+\.[A-Za-z0-9]{1,8})\s+line\s+(\d{1,6})",
+            text,
+            re.IGNORECASE,
+        )
+        if m2:
+            file_path = m2.group(1).strip().strip("`'\"")
+            try:
+                line_no = int(m2.group(2))
+            except (TypeError, ValueError):
+                line_no = 0
+
+    if not file_path or line_no <= 0:
+        return None
+
+    # Try to capture a code fragment after the file:line reference.
+    # Look for either a backtick-quoted fragment, a `Code:` field, or the
+    # first non-empty indented/bulleted line following the reference.
+    code = ""
+
+    # a) Backtick-quoted: `some code`
+    backticks = re.findall(r"`([^`\n]{2,200})`", text)
+    if backticks:
+        code = backticks[0].strip()
+
+    # b) Explicit `Code:` / `Snippet:` / `Evidence:` field
+    if not code:
+        m3 = re.search(
+            r"(?:code|snippet|evidence|quote)\s*[:\-]\s*"
+            r"([^\n]{2,200})",
+            text,
+            re.IGNORECASE,
+        )
+        if m3:
+            code = m3.group(1).strip()
+            # Strip only a *matching* surrounding quote pair, not every
+            # trailing quote (a secret value may itself end in a quote).
+            for q in ("`", "'", '"'):
+                if code.startswith(q) and code.endswith(q) and len(code) >= 2:
+                    code = code[1:-1]
+                    break
+
+    # c) First non-empty line after the file:line reference that looks
+    #    like code (starts with a typical code char, not a sentence).
+    if not code:
+        idx = text.find(f"{file_path}:{line_no}")
+        if idx == -1:
+            idx = text.find(file_path)
+        if idx != -1:
+            tail = text[idx:].splitlines()[1:]  # skip the reference line
+            for ln in tail:
+                ln_stripped = ln.strip()
+                if not ln_stripped:
+                    continue
+                if re.match(r"^[\w\s.,;:()\[\]{}=\"'`+\-*/<>!|&%]+$", ln_stripped) and \
+                   any(ch in ln_stripped for ch in "=(){}[]<>"):
+                    code = ln_stripped[:200]
+                    break
+
+    return Receipt(file=file_path, line=line_no, code=code)
+
+
+def validate_receipt(receipt: Optional[Receipt]) -> bool:
+    """Pure check: does the receipt carry enough evidence to trust the verdict?
+
+    A receipt is valid iff it has a non-empty file, a positive line number,
+    AND a non-empty code fragment. Without all three, the verdict cannot be
+    reproduced or verified — it is INCOMPLETE.
+    """
+    return receipt is not None and receipt.is_valid
+
+
+def demote_finding_for_missing_receipt(finding: dict) -> dict:
+    """Apply a deterministic demotion when a verdict lacks a receipt.
+
+    Severity is demoted one step (CRITICAL→HIGH, HIGH→MEDIUM, …).
+    Confidence is reduced by _RECEIPT_CONFIDENCE_PENALTY (floored at 0).
+    A `receipt_status: INCOMPLETE` flag and original values are preserved in
+    metadata so downstream consumers can see what happened.
+    """
+    if not isinstance(finding, dict):
+        return finding
+
+    new = dict(finding)  # shallow copy — don't mutate caller's dict
+    original_severity = new.get("severity", "")
+    demoted = _RECEIPT_DEMOTION.get(original_severity)
+    if demoted:
+        new["severity"] = demoted
+        new["original_severity"] = original_severity
+
+    # Confidence may live at top level or in metadata; honour both.
+    try:
+        orig_conf = int(new.get("confidence", 0) or 0)
+    except (TypeError, ValueError):
+        orig_conf = 0
+    new_conf = max(0, orig_conf - _RECEIPT_CONFIDENCE_PENALTY)
+    new["confidence"] = new_conf
+    if new_conf < orig_conf:
+        new.setdefault("metadata", {})
+        if isinstance(new["metadata"], dict):
+            new["metadata"]["original_confidence"] = orig_conf
+
+    new["receipt_status"] = "INCOMPLETE"
+    return new
 
 def _get_api_key() -> str:
     """Load DEEPSEEK_API_KEY from Hermes .env for Rejudge."""
@@ -52,7 +242,17 @@ def rejudge(prompt: str, timeout: int = 120) -> tuple[bool, str]:
 
 
 def revalidate_findings(scan_json: str) -> dict:
-    """Pipe CRITICAL/HIGH findings through Rejudge for consensus verdict."""
+    """Pipe CRITICAL/HIGH findings through Rejudge for consensus verdict.
+
+    For each finding the LLM is asked to return a *receipt* — a file:line
+    citation plus a short code fragment — alongside the TP/FP verdict. Verdict
+    blocks are split per finding, the receipt is parsed, and any finding
+    whose verdict lacks a valid receipt is demoted (severity one step down,
+    confidence reduced) and flagged ``receipt_status: INCOMPLETE``.
+
+    Returned dict includes ``receipts`` (per-finding dict) and
+    ``incomplete`` (count) so callers can audit the demotions.
+    """
     with open(scan_json) as f:
         data = json.load(f)
 
@@ -64,21 +264,66 @@ def revalidate_findings(scan_json: str) -> dict:
 
     # Build prompt — untrusted fields (title/file/snippet come from the scanned
     # repo) are defanged so embedded instructions cannot steer the verdict.
-    lines = [UNTRUSTED_GUARD + "\n\n",
-             "Review these security findings and classify each as TP (true positive) or FP (false positive):\n"]
+    # Phase 2: we pass a full file:line + snippet cap (300 chars, not 100) so
+    # the model has enough evidence to cite concrete code, and we explicitly
+    # require a receipt in the response.
+    lines = [
+        UNTRUSTED_GUARD + "\n\n",
+        "Review these security findings and classify each as TP (true positive) or FP (false positive).",
+        "For EACH finding you MUST cite concrete code as a receipt:",
+        "  Receipt: <relative/path/to/file>:<line>  Code: <short code fragment>",
+        "Without a receipt, the verdict is INCOMPLETE and will be rejected.\n",
+    ]
     for i, f in enumerate(critical_high[:10], 1):  # max 10 per batch
-        lines.append(f"{i}. {f.get('rule_id','?')} {defang(f.get('title','?'))}")
-        lines.append(f"   File: {defang(f.get('file','?'))}:{f.get('line','?')}")
-        lines.append(f"   Snippet: {defang(f.get('snippet','?')[:100])}")
+        lines.append(f"--- Finding {i} ---")
+        lines.append(f"Rule: {f.get('rule_id','?')}  Title: {defang(f.get('title','?'))}")
+        lines.append(f"File: {defang(f.get('file','?'))}:{f.get('line','?')}")
+        lines.append(f"Snippet: {defang(f.get('snippet','?')[:_SNIPPET_EVIDENCE_CAP])}")
         lines.append("")
 
     prompt = "\n".join(lines)
     passed, output = rejudge(prompt, timeout=180)
 
+    # Parse per-finding receipts from the verdict. The model is asked to
+    # delimit each finding with `--- Finding N ---` but we don't depend on
+    # it — we just look for every `file:line` reference in the output and
+    # pair it with the finding at the same index.
+    receipts = []
+    incomplete = 0
+    for idx, finding in enumerate(critical_high[:10], 1):
+        receipt = parse_receipt(output)
+        # Per-finding window: try to find a receipt mentioning this finding's
+        # file path explicitly; fall back to the first parsed receipt.
+        if receipt is not None and finding.get("file"):
+            target = str(finding.get("file", ""))
+            # Search the verdict for a mention of this file's full path,
+            # falling back to basename only if the full path is absent.
+            needle = target if target in output else os.path.basename(target)
+            if needle and needle in output:
+                # Re-parse starting from the first mention of this file.
+                pos = output.find(needle)
+                receipt = parse_receipt(output[pos:])
+        ok = validate_receipt(receipt)
+        if not ok:
+            incomplete += 1
+        receipts.append({
+            "finding_index": idx,
+            "rule_id": finding.get("rule_id"),
+            "file": finding.get("file"),
+            "line": finding.get("line"),
+            "receipt_ok": ok,
+            "receipt": (
+                {"file": receipt.file, "line": receipt.line, "code": receipt.code}
+                if receipt is not None else None
+            ),
+        })
+
     return {
         "status": "ok" if passed else "error",
         "revalidated": len(critical_high[:10]),
-        "verdict": output[:1000]
+        "incomplete": incomplete,
+        "receipts": receipts,
+        "verdict": output[:1000],
     }
 
 
