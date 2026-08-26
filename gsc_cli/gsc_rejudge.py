@@ -417,10 +417,266 @@ def validate_detector(pattern_file: str, fixtures_dir: str = None) -> dict:
 
 
 def _extract_confidence(text: str) -> int:
-    """Extract confidence percentage from text."""
-    import re
+    """Extract confidence percentage from text.
+
+    Legacy regex-based fallback. Used when no logprobs are available from the
+    LLM. Kept verbatim for backward compatibility — callers that DO have
+    logprobs should prefer :func:`extract_confidence` (or the low-level
+    :func:`confidence_from_logprobs`) which prefer the calibrated signal.
+    """
     m = re.search(r'(?:confidence|conf)[:\s]*(\d+)', text, re.IGNORECASE)
     return int(m.group(1)) if m else 50
+
+
+# --- Logprob-based confidence (Phase 2) -------------------------------------
+#
+# The regex-based :func:`_extract_confidence` only catches a *self-reported*
+# "confidence: N" line. That is fragile: the LLM can (and does) emit
+# inconsistent confidences for the same logical certainty, and the field is
+# sometimes missing entirely. The OpenAI-style chat-completions API exposes
+# per-token logprobs, which carry the model's *actual* probability mass for
+# the verdict token. We convert that into a 0..100 confidence in the same
+# units so downstream consumers (DB, PR comment, aggregator) don't need to
+# special-case two scales.
+#
+# Conventions accepted by :func:`confidence_from_logprobs`:
+#
+#   1. New OpenAI v2 shape (preferred):
+#      ``response.choices[0].logprobs.content`` is a list of
+#      ``{"token": str, "logprob": float, "top_logprobs": [...]}`` entries.
+#      The *chosen* token's logprob is the one in ``content[i].logprob``.
+#
+#   2. Old OpenAI shape (legacy, still seen in tooling):
+#      ``response.choices[0].logprobs.top_logprobs`` is a list of
+#      ``{token: logprob}`` dicts; the chosen token is the FIRST key of each
+#      inner dict.
+#
+#   3. Raw flat list — list of ``{"token": str, "logprob": float}`` dicts
+#      or list of ``(token, logprob)`` tuples. Useful for tests and for
+#      adapters that already flatten the response.
+#
+#   4. Single-dict form — ``{"token": str, "logprob": float}`` for a single
+#      token (e.g. a one-token verdict answer).
+#
+# All four shapes are normalised to a list of chosen-token logprobs; we then
+# average (geometric mean of probabilities) and convert to a percentage.
+# The function is intentionally tolerant: anything unrecognised returns
+# ``None`` so the caller can fall back to the regex path.
+
+#: Floor used when converting a single logprob to a percentage. A probability
+#: of 1e-6 (logprob ≈ -13.8) is treated as ~0% so pathological logprobs do
+#: not poison the average. Symmetric ceiling: prob >= 0.999999 rounds to 100.
+_LOGPROB_FLOOR: float = -20.0  # exp(-20) ≈ 2.06e-9 → 0%
+_LOGPROB_CEIL: float = 0.0     # exp(0) = 1 → 100%
+
+
+def _logprob_to_percent(lp: float) -> float:
+    """Convert one natural-log logprob to a 0..100 confidence percentage.
+
+    Clamps to ``[_LOGPROB_FLOOR, _LOGPROB_CEIL]`` so an outlier does not
+    produce a negative percent or a >100 percent. Pure function, no I/O.
+    """
+    if lp is None:
+        return 0.0
+    try:
+        f = float(lp)
+    except (TypeError, ValueError):
+        return 0.0
+    if f != f:  # NaN guard
+        return 0.0
+    if f < _LOGPROB_FLOOR:
+        f = _LOGPROB_FLOOR
+    elif f > _LOGPROB_CEIL:
+        f = _LOGPROB_CEIL
+    # exp(logprob) is the probability mass assigned to the chosen token.
+    import math
+    prob = math.exp(f)
+    return max(0.0, min(100.0, prob * 100.0))
+
+
+def _normalise_logprobs(logprobs) -> Optional[list[float]]:
+    """Return a flat list of chosen-token logprobs from any supported shape.
+
+    Returns ``None`` if the input cannot be interpreted as any of the
+    documented shapes; callers then fall back to the regex path.
+    """
+    if logprobs is None:
+        return None
+
+    # Shape 4: a single {"token": str, "logprob": float} dict.
+    if isinstance(logprobs, dict):
+        # Direct {"token": ..., "logprob": ...}
+        if "logprob" in logprobs:
+            try:
+                return [float(logprobs["logprob"])]
+            except (TypeError, ValueError):
+                return None
+        # OpenAI legacy: {token: logprob, ...} flat dict
+        try:
+            return [float(v) for v in logprobs.values()]
+        except (TypeError, ValueError):
+            return None
+
+    # Anything else must be iterable.
+    if not hasattr(logprobs, "__iter__"):
+        return None
+
+    out: list[float] = []
+    for item in logprobs:
+        if item is None:
+            continue
+        # Tuple / list pair: (token, logprob)
+        if isinstance(item, (tuple, list)) and not isinstance(item, (str, bytes, dict)):
+            if len(item) == 0:
+                continue
+            # Find the first numeric entry (skip the token string).
+            for v in item:
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    try:
+                        out.append(float(v))
+                    except (TypeError, ValueError):
+                        pass
+                    break
+            continue
+        # Dict entry
+        if isinstance(item, dict):
+            # OpenAI v2: {"token": str, "logprob": float, ...}
+            if "logprob" in item:
+                try:
+                    out.append(float(item["logprob"]))
+                    continue
+                except (TypeError, ValueError):
+                    pass
+            # OpenAI legacy: {token: logprob, ...} (no "logprob" key)
+            try:
+                values = [float(v) for v in item.values()]
+                if values:
+                    out.extend(values)
+            except (TypeError, ValueError):
+                pass
+            continue
+        # Bare number
+        if isinstance(item, (int, float)) and not isinstance(item, bool):
+            try:
+                out.append(float(item))
+            except (TypeError, ValueError):
+                pass
+            continue
+        # Stray token string — skip silently.
+    return out or None
+
+
+def confidence_from_logprobs(logprobs) -> Optional[int]:
+    """Extract a calibrated confidence score in [0, 100] from LLM logprobs.
+
+    Pure function. Accepts the response of an OpenAI-style chat-completions
+    call (or any adapter that mimics the same shape) and returns the model's
+    *measured* confidence in the verdict token(s), as an integer percentage.
+
+    Supported input shapes:
+
+      * **OpenAI v2** (preferred) — the value of
+        ``response.choices[0].logprobs.content``: a list of per-token
+        ``{"token": str, "logprob": float, ...}`` dicts. The *chosen* token's
+        logprob is taken from the ``logprob`` field of each entry.
+      * **OpenAI legacy** — ``response.choices[0].logprobs.top_logprobs``:
+        a list of ``{token: logprob}`` dicts, where the first key is the
+        chosen token. All values are averaged.
+      * **Flat list** of ``{"token": str, "logprob": float}`` dicts or
+        ``(token, logprob)`` tuples — useful for tests and lightweight
+        adapters that pre-flatten the response.
+      * **Single dict** — ``{"token": str, "logprob": float}`` for a
+        one-token answer.
+      * **Wrapped response** — the full ``{"choices": [...]}`` dict. We dig
+        into ``choices[0].logprobs`` automatically so callers can pass the
+        whole response when convenient.
+
+    The probability mass for each chosen token is
+    ``exp(logprob) ∈ (0, 1]``; we average the *probabilities* (geometric
+    mean in log-space) and scale to 0..100. Returns ``None`` when the
+    input shape is unrecognised or carries no usable logprob — callers
+    should then fall back to :func:`_extract_confidence` (regex).
+
+    The function is total: no exceptions are raised for malformed input.
+    """
+    if logprobs is None:
+        return None
+
+    # Allow callers to pass the full response {"choices": [...]} — we dig in.
+    if isinstance(logprobs, dict) and "choices" in logprobs and not (
+        "logprob" in logprobs or any(isinstance(v, (int, float)) for v in logprobs.values())
+    ):
+        try:
+            choices = logprobs.get("choices") or []
+            if not choices:
+                return None
+            first = choices[0] or {}
+            logprobs = first.get("logprobs")
+        except (AttributeError, TypeError):
+            return None
+
+    # OpenAI v2: {"content": [{"token", "logprob", ...}, ...]}
+    if isinstance(logprobs, dict) and isinstance(logprobs.get("content"), list):
+        logprobs = logprobs["content"]
+
+    # OpenAI legacy: {"top_logprobs": [{token: logprob, ...}, ...]}
+    # In this shape, each inner dict lists top-N alternatives for ONE
+    # position; the CHOSEN token is the FIRST key (and the model picked
+    # the highest logprob). We must NOT average the alternatives — that
+    # would deflate the confidence signal — so we extract the chosen
+    # logprob from each inner dict and aggregate those directly.
+    if isinstance(logprobs, dict) and isinstance(logprobs.get("top_logprobs"), list):
+        top = logprobs["top_logprobs"]
+        chosen: list[float] = []
+        for entry in top:
+            if not entry:
+                continue
+            # The chosen token is the one with the HIGHEST logprob (i.e.
+            # the highest probability mass). We use max() defensively in
+            # case the API does not preserve insertion order, but in
+            # practice the chosen token is always the first key.
+            try:
+                values = list(entry.values())
+                if values:
+                    chosen.append(max(float(v) for v in values))
+            except (TypeError, ValueError):
+                continue
+        if not chosen:
+            return None
+        # Aggregate and return directly — do NOT fall through to the
+        # generic _normalise_logprobs path, which would re-expand each
+        # inner dict and double-count the alternatives.
+        avg_prob = sum(_logprob_to_percent(v) for v in chosen) / len(chosen)
+        return max(0, min(100, int(round(avg_prob))))
+
+    values = _normalise_logprobs(logprobs)
+    if not values:
+        return None
+
+    # Average the probabilities (geometric mean of logprobs is equivalent to
+    # arithmetic mean of probs here) and scale to a percentage. Rounding to
+    # an int keeps the wire format identical to the regex path.
+    avg_prob = sum(_logprob_to_percent(v) for v in values) / len(values)
+    return max(0, min(100, int(round(avg_prob))))
+
+
+def extract_confidence(text: str, logprobs=None) -> int:
+    """Confidence in [0, 100] — prefers logprobs, falls back to regex.
+
+    The preferred path: when ``logprobs`` is supplied (OpenAI v2 / legacy /
+    flat / wrapped-response), use the calibrated probability mass of the
+    chosen verdict token(s). When ``logprobs`` is missing or unparseable,
+    fall back to :func:`_extract_confidence` (regex on the verdict text).
+
+    This is the single entry-point new callers should use; the legacy
+    ``_extract_confidence`` is kept verbatim for backward compatibility
+    and for any code path that explicitly wants the regex signal.
+    """
+    if logprobs is not None:
+        calibrated = confidence_from_logprobs(logprobs)
+        if calibrated is not None:
+            return calibrated
+    return _extract_confidence(text)
 
 
 # --- Fine-grained criteria rejudge (Phase 2) ---------------------------------
@@ -797,6 +1053,178 @@ def fine_grained_verdict(report: CriteriaReport) -> dict:
         "any_denied": report.any_denied,
         "any_uncertain": report.any_uncertain,
     }
+
+
+# --- Flash-verifier (Phase 2) -------------------------------------------------
+#
+# A rejudge through the strong model (e.g. ``deepseek-chat``) is expensive.
+# A flash-verifier runs the same prompt through a cheaper, lower-latency model
+# (``deepseek-v4-flash`` by default) and only escalates to the primary model
+# when the flash verdict is uncertain. This cuts token spend on the bulk of
+# findings without sacrificing accuracy on the few that matter.
+#
+# This module owns the *selection* step only — what model to use and whether
+# flash is enabled at all. The actual call is the caller's job (it needs the
+# provider manager, the API key, the prompt); ``select_flash_model`` is the
+# pure decision function that callers wire into the rejudge pipeline.
+#
+# The selection must be pure and deterministic given its inputs, so the same
+# config + env produces the same model choice across processes (auditability)
+# and the unit tests can exercise every branch without monkeypatching the
+# process environment.
+
+# Canonical default — what we fall back to when neither ``GSC_FLASH_MODEL`` nor
+# an explicit ``configured_flash`` is set. Pinning the string here (rather than
+# reading it from a model registry) keeps the function side-effect free and
+# trivially mockable.
+DEFAULT_FLASH_MODEL = "deepseek-v4-flash"
+
+
+@dataclass
+class FlashModelSelection:
+    """Outcome of ``select_flash_model``: which model to use + whether to use it.
+
+    Attributes:
+        model:    The model identifier to pass to the LLM provider (e.g.
+                  ``"deepseek-v4-flash"`` or ``"deepseek-chat"``).
+        enabled:  ``True`` iff flash-verifier should be used at all. ``False``
+                  means the caller should fall back to ``primary_model``
+                  (no extra call, no extra spend).
+        source:   Where the choice came from — one of ``"env"``,
+                  ``"configured"``, ``"default"``, ``"disabled_env"``,
+                  ``"disabled_configured"``. Diagnostic only; callers MUST
+                  NOT branch on it (use ``enabled``).
+    """
+    model: str
+    enabled: bool
+    source: str
+
+    def as_dict(self) -> dict:
+        """JSON-serialisable view (for logs / PR comments / audit)."""
+        return {"model": self.model, "enabled": self.enabled, "source": self.source}
+
+
+def select_flash_model(
+    primary_model: str,
+    configured_flash: str | None,
+    env: dict | None = None,
+) -> FlashModelSelection:
+    """Pick the model for the cheap flash rejudge pass (Phase 2).
+
+    The lookup order is the documented "env beats config beats default" ladder
+    — and *both* env and config support an explicit "off" via the empty
+    string, so a CI pipeline can disable flash for reproducibility without
+    unsetting the variable in shared env files.
+
+    Lookup order (first match wins):
+
+      1. ``env["GSC_FLASH_MODEL"]`` set to a non-empty value
+         → ``(value, enabled=True, source="env")``.
+      2. ``env["GSC_FLASH_MODEL"]`` set to ``""`` (explicit empty)
+         → ``(primary_model, enabled=False, source="disabled_env")``.
+      3. ``configured_flash`` non-empty
+         → ``(configured_flash, enabled=True, source="configured")``.
+      4. ``configured_flash`` is ``""`` (explicit empty)
+         → ``(primary_model, enabled=False, source="disabled_configured")``.
+      5. Nothing set
+         → ``(DEFAULT_FLASH_MODEL, enabled=True, source="default")``.
+
+    Parameters:
+        primary_model:     The model the rest of the rejudge pipeline uses.
+                           Used as the fallback target when flash is disabled
+                           (so the caller keeps a valid model identifier).
+        configured_flash:  The flash model from the caller config (YAML, CLI
+                           flag, function argument). May be ``None`` to mean
+                           "no config entry"; ``""`` means "explicitly off".
+        env:               Mapping used to read ``GSC_FLASH_MODEL``. Defaults
+                           to a fresh ``dict`` (so tests don't have to pass
+                           anything), but callers should pass ``os.environ``
+                           in production. Read INSIDE the function, never
+                           at module level, so ``patch.dict(os.environ)``
+                           in tests works as expected.
+
+    Returns:
+        ``FlashModelSelection`` — never raises. ``enabled=True`` means the
+        caller should run a flash pass; ``enabled=False`` means skip flash
+        and use ``primary_model`` directly.
+
+    This is a pure function: no I/O, no network, no subprocess, no module-level
+    env reads. The "model" string returned is opaque to this function — it
+    is the caller's responsibility to dispatch it through a real provider.
+    """
+    # Defensive: never let an empty / missing primary_model produce a broken
+    # selection. Without a primary fallback the caller would have nothing to
+    # call when flash is disabled, which would crash downstream. We don't
+    # invent a model name here — that would be a silent policy choice — but
+    # we do refuse to return a worse one.
+    primary = (primary_model or "").strip()
+    if not primary:
+        # No primary → we still pick a sensible flash model, but flag the
+        # anomaly via source so callers can decide whether to proceed.
+        flash_default = DEFAULT_FLASH_MODEL
+    else:
+        flash_default = primary  # only used as the disabled-fallback target
+
+    # env wins, but only when the caller actually passed a mapping. Reading
+    # os.environ() here (instead of at module scope) is the whole point: a
+    # test using patch.dict(os.environ, ...) MUST see the patched value.
+    env_value: str | None = None
+    env_key_present = False
+    if env is not None and "GSC_FLASH_MODEL" in env:
+        env_key_present = True
+        env_value = env["GSC_FLASH_MODEL"]
+        if env_value is not None:
+            env_value = str(env_value).strip()
+
+    # Branch 1 + 2: env is the most explicit knob.
+    if env_key_present:
+        if env_value:  # non-empty → use it
+            return FlashModelSelection(
+                model=env_value,
+                enabled=True,
+                source="env",
+            )
+        # env_value is "" (explicit empty) → disabled. A None value in the env
+        # mapping means "present but unset" — fall through to configured/default
+        # so callers can rely on the env-beats-config ladder without a None
+        # env entry clobbering a real configured entry.
+        if env_value is None:
+            pass  # present-but-unset → fall through to configured/default
+        elif env_value == "":
+            return FlashModelSelection(
+                model=flash_default,
+                enabled=False,
+                source="disabled_env",
+            )
+
+    # Branch 3 + 4: configured value, with ``None`` meaning "no config entry"
+    # and ``""`` meaning "explicitly off" (mirrors the env semantics).
+    if configured_flash is None:
+        # No config entry → fall through to the default.
+        pass
+    elif isinstance(configured_flash, str) and configured_flash.strip() == "":
+        return FlashModelSelection(
+            model=flash_default,
+            enabled=False,
+            source="disabled_configured",
+        )
+    else:
+        # Anything truthy — non-empty string. ``str(...)`` for defence against
+        # accidental enum/int values sneaking in via YAML.
+        return FlashModelSelection(
+            model=str(configured_flash).strip(),
+            enabled=True,
+            source="configured",
+        )
+
+    # Branch 5: nothing set → canonical default. Flash is enabled by default
+    # because the whole point of Phase 2 is to cut cost on the cheap model,
+    # and the default is exactly that model.
+    return FlashModelSelection(
+        model=DEFAULT_FLASH_MODEL,
+        enabled=True,
+        source="default",
+    )
 
 
 if __name__ == "__main__":
