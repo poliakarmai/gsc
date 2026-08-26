@@ -203,6 +203,33 @@ url/double-encode, html-entities, case-swap, whitespace/`/**/`, альтерна
 ⚠️ Оба детерминированные (без LLM). `mutation_tracker` расширить с паттернов на PoC-payload'ы;
 dependency-PoF — в `gsc_verify_fix.py`/`proofoffix.py` добавить SCA-ветку (не только SAST finding_key).
 
+## 🟡 Фаза 11 — Adaptive self-learning thresholds (MAD)
+
+**Источник:** разбор Grafana `promql-anomaly-detection` (Apache 2.0, PromQL-аномалии).
+**Проблема:** деградация шумных правил идёт по ФИКСИРОВАННОМУ порогу (`<30% TP at ≥10 verdicts`).
+Детектор, чей FP-rate резко вырос относительно СВОЕЙ истории (выброс), гасится по константе, а не по аномалии.
+
+| Фича | Статус |
+|------|--------|
+| Adaptive threshold: baseline = медиана исторического FP-rate правила, порог = median ± k·MAD; деактивация при выходе за полосу (выброс), не при дрейфе к константе | ⬜ |
+
+⚠️ Low-priority. Домен другой (observability-метрики), код PromQL не переносится — берём только
+идею robust-порога (median+MAD) для `gsc_noise_engine`/self-learning. Не «вооружение сканера».
+
+## 🔴 Фаза 12 — Agentic hardening (guardrails собственного agentic-слоя)
+
+**Источник:** разбор Andrew Ng `openworker` (MIT) — эталон agentic-security. GSC сам использует
+LLM-агентов (rejudge/self-healing/pof) с теми же векторами: prompt injection → command exec,
+SSRF через fetch untrusted URL. Три guardrail-механики, которых у GSC нет.
+
+| Фича | Статус |
+|------|--------|
+| SSRF address-guard + DNS-rebinding pinning в `gsc_dast_validator`/`gsc_poc_generator`/`gsc_secrets_verifier` (блок loopback/private/metadata перед каждым fetch из untrusted URL) | ⬜ |
+| Read-only shell classifier (fail-closed) в PoF/self-healing sandbox — whitelist команд вместо бинарного no-network, exfil-исключение | ⬜ |
+| Provenance (data lineage) в rejudge — знать, что файл «создан/скачан агентом», а не репозиторием | ⬜ |
+
+⚠️ MIT — guardrail-модули портируются напрямую с атрибуцией. Коннекторы/GUI/aisuite/STT — off-scope.
+
 ## 🟡 S1 — Multi-tenant PostgreSQL + packages split (архитектурный долг)
 
 **Источник:** A-01/A-04/A-05 (audit) — «несколько контуров, in-process workers, SQLite».
