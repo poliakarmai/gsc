@@ -53,8 +53,27 @@ def test_hash_password_still_detected(tmp_path):
 
 
 def test_aws_key_still_detected(tmp_path):
-    (tmp_path / "cfg.py").write_text('aws = "AKIAIOSFODNN7EXAMPLE"\n')
+    # Real-format AWS Access Key ID (AKIA + 16 uppercase) must still fire.
+    (tmp_path / "cfg.py").write_text('aws = "AKIA1234567890ABCDEF"\n')
     assert "AWS Access Key ID" in _titles(_run(tmp_path))
+
+
+def test_aws_example_demo_key_not_flagged(tmp_path):
+    # "AKIAIOSFODNN7EXAMPLE" is the AWS docs demo key — a copy-paste artifact, not a secret.
+    (tmp_path / "cfg.py").write_text('aws = "AKIAIOSFODNN7EXAMPLE"\n')
+    assert "AWS Access Key ID" not in _titles(_run(tmp_path))
+
+
+def test_aws_lowercase_base64_blob_not_flagged(tmp_path):
+    # Mixed/lowercase "AkIA..." is base64 data from a bundle, not an AWS key.
+    (tmp_path / "bundle.py").write_text('x = "AkIANwMgDOACC0EAIQAC"\n')
+    assert "AWS Access Key ID" not in _titles(_run(tmp_path))
+
+
+def test_gettext_po_file_excluded(tmp_path):
+    # gettext translations (.po) — `msgstr "пароль"` is not a hardcoded secret.
+    (tmp_path / "locale.po").write_text('msgid "password"\nmsgstr "пароль"\n')
+    assert _run(tmp_path) == []
 
 
 # ── Negatives (must NOT fire) ──────────────────────────────────────────────

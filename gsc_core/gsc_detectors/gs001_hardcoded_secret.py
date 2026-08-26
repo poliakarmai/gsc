@@ -94,6 +94,7 @@ def _is_placeholder(value: str) -> bool:
                     # Vendor test/integration keys (hCaptcha docs, Stripe test mode, etc.)
                     "00000000-", "aaaa-bbbb", "ffff-ffff",  # zero-padded / placeholder UUIDs
                     "0x0000000000000000000000000000000000000000",  # hCaptcha test secret
+                    "aws_access_key_id", "aws_secret_access_key",  # placeholder == var name
                     # Очевидные демо/тестовые пароли (не секреты)
                     "example-password", "test-password", "dummy-password",
                     "demo-password", "sample-password", "fake-password",
@@ -233,7 +234,8 @@ _EXCLUDE_PATHS_GS001 = re.compile(
     r'migrations?|__pycache__|node_modules|generated|dist|build)(?:/|$)', re.IGNORECASE)
 
 _EXCLUDE_FILES_GS001 = re.compile(
-    r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.|setup\.cfg|\.ini$)', re.IGNORECASE)
+    r'(?:^test_|_test\.|tests?\.py|testing\.py|conftest\.|setup\.cfg|\.ini$|'
+    r'\.(?:po|pot)$)', re.IGNORECASE)
 
 
 # Internal dev connection hosts (docker-compose services, localhost) without
@@ -270,6 +272,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
                 if "onnection" in label and _INTERNAL_CONN_HOSTS.search(matched):
                     continue
                 if _is_placeholder(matched):
+                    continue
+                # AWS Access Key IDs are strictly UPPERCASE: a lowercase match is a base64
+                # blob from a bundle, and "...EXAMPLE" is the AWS docs demo key (AKIAIOSFODNN7EXAMPLE).
+                if "AWS" in label and (re.search(r'[a-z]', matched) or "EXAMPLE" in matched.upper()):
                     continue
                 # Template/interpolation artifacts (HTML tags, SQL params, env refs)
                 if _is_template_artifact(matched):
