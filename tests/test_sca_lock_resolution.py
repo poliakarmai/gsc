@@ -1,9 +1,12 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2026 Алексей Поляков
 """Tests for SCA lockfile resolution (DD-06): exact version from
-package-lock.json must override a manifest range lower bound."""
+package-lock.json / yarn.lock / go.sum must override a manifest range lower bound."""
 
-from gsc_sca import parse_package_lock, parse_package_json
+from gsc_sca import (
+    parse_package_lock, parse_package_json,
+    parse_yarn_lock, parse_go_sum, parse_go_mod,
+)
 
 
 def test_parse_package_lock_extracts_exact_versions():
@@ -49,3 +52,44 @@ def test_parse_package_lock_skips_nested_transitive():
     )
     out = parse_package_lock(lock)
     assert out == {"next": "15.5.23"}  # top-level wins, nested skipped
+
+
+def test_parse_yarn_lock_v1():
+    lock = (
+        "# yarn lockfile v1\n\n"
+        'lodash@^4.17.21:\n  version "4.17.21"\n  resolved "https://registry.yarnpkg.com/lodash"\n\n'
+        '"@babel/code-frame@^7.0.0":\n  version "7.22.5"\n'
+    )
+    assert parse_yarn_lock(lock) == {"lodash": "4.17.21", "@babel/code-frame": "7.22.5"}
+
+
+def test_parse_yarn_lock_berry_scoped():
+    lock = (
+        '"lodash@npm:^4.17.21":\n  version: 4.17.21\n  resolution: "lodash@npm:4.17.21"\n'
+    )
+    assert parse_yarn_lock(lock) == {"lodash": "4.17.21"}
+
+
+def test_parse_go_sum():
+    go_sum = (
+        "github.com/gin-gonic/gin v1.9.1 h1:abc\n"
+        "github.com/gin-gonic/gin v1.9.1/go.mod h1:def\n"
+        "github.com/spf13/cobra v1.7.0 h1:ghi\n"
+    )
+    assert parse_go_sum(go_sum) == {
+        "github.com/gin-gonic/gin": "1.9.1",
+        "github.com/spf13/cobra": "1.7.0",
+    }
+
+
+def test_parse_go_mod_resolves_from_go_sum():
+    mod = "require github.com/gin-gonic/gin v1.9.0\n"
+    go_sum = {"github.com/gin-gonic/gin": "1.9.1"}
+    pkgs = parse_go_mod("go.mod", mod, go_sum=go_sum)
+    assert pkgs[0].version == "1.9.1"  # go.sum actually-built version wins
+
+
+def test_parse_go_mod_without_go_sum_uses_require():
+    mod = "require github.com/gin-gonic/gin v1.9.0\n"
+    pkgs = parse_go_mod("go.mod", mod)
+    assert pkgs[0].version == "1.9.0"

@@ -92,6 +92,49 @@ def parse_package_lock(content: str) -> dict:
     return out
 
 
+def parse_yarn_lock(content: str) -> dict:
+    """Parse yarn.lock (classic v1 and berry v2+) → {name: exact_version}.
+
+    Handles both header styles — v1 ``name@spec:`` + ``version "x.y.z"``, and
+    berry ``"name@npm:^spec":`` + ``version: x.y.z`` — including @scoped names."""
+    out: dict = {}
+    current: Optional[str] = None
+    for line in content.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#"):
+            continue
+        # Header line at column 0 (no leading indent): name@spec: (v1) or "name@npm:^spec": (berry).
+        # Indented lines inside a block (version/resolved/dependencies) never parse as headers.
+        if s == line and s.endswith(":") and "@" in s and not s.lower().startswith(("version", "__")):
+            body = s.rstrip(":").strip().strip('"')
+            if body.startswith("@"):
+                # @scope/name@spec → keep the leading @scope
+                name = "@" + body[1:].split("@", 1)[0]
+            else:
+                name = body.split("@", 1)[0]
+            current = name
+            continue
+        # Version line: version "x.y.z" (v1) or version: x.y.z (berry)
+        m = re.match(r'^version\s*:?\s*["\']?\s*([0-9][0-9A-Za-z.\-+]*)', s, re.IGNORECASE)
+        if m and current:
+            out[current] = m.group(1)
+            current = None
+    return out
+
+
+def parse_go_sum(content: str) -> dict:
+    """Parse go.sum → {module: exact_version}. Lines are ``module version h1:...``;
+    ``module version/go.mod h1:...`` entries are checksum-only and skipped."""
+    out: dict = {}
+    for line in content.splitlines():
+        parts = line.split()
+        if len(parts) >= 3 and parts[2].startswith("h1:"):
+            if parts[1].endswith("/go.mod"):
+                continue  # checksum-only entry, not a concrete version line
+            out[parts[0]] = parts[1].lstrip("v")
+    return out
+
+
 _RANGE_HINT = re.compile(r'[\^~><*|]| - ')
 
 
@@ -128,7 +171,7 @@ def _find_line(lines: List[str], needle: str) -> int:
     return 0
 
 
-def parse_go_mod(path: str, content: str) -> List[Package]:
+def parse_go_mod(path: str, content: str, go_sum: Optional[dict] = None) -> List[Package]:
     packages = []
     in_block = False
     for line_no, line in enumerate(content.splitlines(), 1):
@@ -140,17 +183,22 @@ def parse_go_mod(path: str, content: str) -> List[Package]:
         if stripped.startswith("require ") and "(" not in stripped:
             parts = stripped[len("require "):].split()
             if len(parts) >= 2:
-                packages.append(Package(
-                    name=parts[0], version=parts[1].lstrip("v"),
-                    ecosystem="Go", manifest=path, line=line_no, raw=stripped))
+                packages.append(_go_pkg(parts[0], parts[1], go_sum, path, line_no, stripped))
             continue
         if in_block and stripped:
             parts = stripped.split()
             if len(parts) >= 2:
-                packages.append(Package(
-                    name=parts[0], version=parts[1].lstrip("v"),
-                    ecosystem="Go", manifest=path, line=line_no, raw=stripped))
+                packages.append(_go_pkg(parts[0], parts[1], go_sum, path, line_no, stripped))
     return packages
+
+
+def _go_pkg(name: str, version: str, go_sum: Optional[dict],
+            path: str, line_no: int, raw: str) -> Package:
+    # DD-06: go.sum holds the actually-built version — prefer it over the require pin.
+    if go_sum and name in go_sum:
+        version = go_sum[name]
+    return Package(name=name, version=version.lstrip("v"), ecosystem="Go",
+                   manifest=path, line=line_no, raw=raw)
 
 
 MANIFEST_PARSERS = {
@@ -225,12 +273,26 @@ def _collect_solc_packages(root: Path) -> List[Package]:
 
 
 def _load_lock_versions(manifest: Path) -> dict:
-    """Load exact versions from the sibling package-lock.json, if present."""
-    lock = manifest.with_name("package-lock.json")
+    """Load exact versions from sibling lockfiles (package-lock.json or yarn.lock)."""
+    for lockname, parser in (("package-lock.json", parse_package_lock),
+                              ("yarn.lock", parse_yarn_lock)):
+        lock = manifest.with_name(lockname)
+        if not lock.exists():
+            continue
+        try:
+            return parser(lock.read_text(encoding="utf-8", errors="ignore"))
+        except OSError:
+            continue
+    return {}
+
+
+def _load_go_sum(manifest: Path) -> dict:
+    """Load exact versions from the sibling go.sum, if present."""
+    lock = manifest.with_name("go.sum")
     if not lock.exists():
         return {}
     try:
-        return parse_package_lock(lock.read_text(encoding="utf-8", errors="ignore"))
+        return parse_go_sum(lock.read_text(encoding="utf-8", errors="ignore"))
     except OSError:
         return {}
 
@@ -250,6 +312,9 @@ def parse_repo_manifests(root) -> List[Package]:
             if manifest_name == "package.json":
                 lock_versions = _load_lock_versions(manifest)
                 packages.extend(parser(str(manifest), content, lock_versions=lock_versions))
+            elif manifest_name == "go.mod":
+                go_sum = _load_go_sum(manifest)
+                packages.extend(parser(str(manifest), content, go_sum=go_sum))
             else:
                 packages.extend(parser(str(manifest), content))
     packages.extend(_collect_solc_packages(root))
