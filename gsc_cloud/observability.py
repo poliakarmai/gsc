@@ -4,6 +4,10 @@
 
 """Observability: health, readiness, metrics (Cloud 1.0).
 
+DEPRECATED: this module serves the legacy ``gsc_cloud.api`` (Cloud 1.0).
+Production ``gsc_cloud.server`` (v1.4.0) now exposes ``/metrics`` via
+``gsc_cloud.metrics`` and structured logging via ``gsc_cloud.logging``.
+
 Prometheus text exposition format on /metrics (default).
 JSON snapshot kept on /metrics/json for backward compatibility.
 """
