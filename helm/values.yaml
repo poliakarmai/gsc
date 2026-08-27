@@ -13,6 +13,7 @@ gsc:
   #   url: https://github.com/user/repo.git
   #   branch: main
   openrouter_key: ""  # For E4 LLM analysis
+  databaseUrl: ""  # PostgreSQL URL (empty = SQLite on /data)
 
 sso:
   enabled: false
@@ -25,4 +26,13 @@ sso:
     client_id: ""
     client_secret: ""
 
-resources: {}
+persistence:
+  size: 1Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
