@@ -169,6 +169,45 @@ def enrich_sca_findings(findings: List[dict], db=None) -> List[dict]:
     return findings
 
 
+def enrich_with_priority(findings: List[dict], kev_catalog=None, exploit_index=None) -> List[dict]:
+    """Unified priority scoring over already-EPSS-enriched GS030 findings.
+
+    Combines EPSS + CISA KEV + public-exploit availability into a single
+    ``metadata.priority`` via :func:`gsc_priority.compute_priority`.
+
+    ``kev_catalog`` / ``exploit_index`` are optional — pass fetched catalogs
+    (``gsc_kev.KEVCatalog`` / ``gsc_exploitdb.ExploitDbIndex``) for full
+    scoring, or ``None`` to leave those signals off (callers without network
+    or without the catalogs still get the EPSS-only signal).
+
+    Lazy imports keep ``gsc_epss`` importable without the new modules present.
+    """
+    from gsc_core.gsc_kev import is_known_exploited
+    from gsc_core.gsc_exploitdb import has_public_exploit
+    from gsc_core.gsc_priority import compute_priority
+
+    for f in findings:
+        if not f.get("rule_id", "").startswith("GS030"):
+            continue
+        meta = f.get("metadata", {})
+        epss_meta = meta.get("epss", {})
+        cve = epss_meta.get("cve") or extract_cve_id(meta.get("sca", {}))
+        if not cve:
+            continue
+        epss_score = epss_meta.get("score", 0.0)
+        is_kev = bool(kev_catalog) and is_known_exploited(cve, kev_catalog)
+        has_exploit = bool(exploit_index) and has_public_exploit(cve, exploit_index)
+        reach = estimate_reachability(f)
+        meta["priority"] = compute_priority(
+            f.get("severity", "MEDIUM"), epss_score, is_kev, has_exploit, reach
+        )
+        if is_kev:
+            meta["exploit_signal"] = "known_exploited_kev"
+        elif has_exploit:
+            meta["exploit_signal"] = "public_exploit"
+    return findings
+
+
 # ── CLI ────────────────────────────────────────────────────
 def main() -> None:
     import argparse
