@@ -2449,6 +2449,11 @@ def main():
     issue.add_argument('--linear', action='store_true')
     issue.add_argument('--md', action='store_true')
 
+    gitlab = sub.add_parser('gitlab', help='Post a GSC scan result as a GitLab MR note')
+    gitlab.add_argument('url', help='GitLab merge-request URL')
+    gitlab.add_argument('--report', help='Path to a markdown report to attach')
+    gitlab.add_argument('--dry-run', action='store_true')
+
     # gsc revalidate (Deepsec-inspired)
     reval = sub.add_parser('revalidate', help='Re-check existing findings (TP/FP/Fixed)')
     reval.add_argument('project', help='Project name or path')
@@ -2914,6 +2919,16 @@ def main():
             if args.jira: mod.create_jira(finding)
             elif args.linear: mod.create_linear(finding)
             else: mod.print_markdown(finding)
+
+    elif args.command == 'gitlab':
+        from gsc_cli.gsc_gitlab_adapter import run_gitlab_mr_adapter
+        _code = run_gitlab_mr_adapter(
+            args.url,
+            report_path=getattr(args, 'report', None),
+            dry_run=getattr(args, 'dry_run', False),
+        )
+        if _code:
+            sys.exit(_code)
 
     elif args.command == 'doctor':
         subprocess.run([sys.executable, str(_GSC_ROOT / "scripts" / "gsc_doctor.py")])
