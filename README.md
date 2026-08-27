@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 47 · **Modules:** 195 · **Schema:** v33
+**Version:** v1.4.0 · **Detectors:** 47 · **Modules:** 197 · **Schema:** v33
 <!-- GSC-META-END -->
 
 ### Find it. Prove it. Fix it. Verify it.
