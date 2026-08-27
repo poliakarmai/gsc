@@ -11,8 +11,11 @@ Usage:
 Integrated with pr_feedback for self-learning loop.
 """
 
-import json, os, sys, urllib.request, urllib.error
-from pathlib import Path
+import json
+import os
+import sys
+import urllib.error
+import urllib.request
 from datetime import datetime, timezone
 
 
@@ -70,8 +73,8 @@ def findings_to_check_run(findings: list, conclusion: str = None) -> dict:
             conclusion = "success"
 
     # Build summary
-    summary = f"## 🔒 GSC Security Scan\n\n"
-    summary += f"| Severity | Count |\n|----------|-------|\n"
+    summary = "## 🔒 GSC Security Scan\n\n"
+    summary += "| Severity | Count |\n|----------|-------|\n"
     summary += f"| 🔴 Critical | {len(critical)} |\n"
     summary += f"| 🟠 High | {len(high)} |\n"
     summary += f"| 🟡 Medium | {len(med)} |\n"
@@ -110,7 +113,7 @@ def findings_to_check_run(findings: list, conclusion: str = None) -> dict:
             "title": f"GSC: {len(critical)} critical, {len(high)} high, {len(med)} medium",
             "summary": summary[:65535],  # GitHub limit
             "annotations": annotations[:50],  # GitHub limit: 50 per run
-            "text": f"Scanned with [GSC](https://github.com/poliakarmai/gsc) v1.4.0",
+            "text": "Scanned with [GSC](https://github.com/poliakarmai/gsc) v1.4.0",
         },
     }
 

@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 """Federated Aggregation Server — central service for cross-tenant learning."""
-import sqlite3, json
+import sqlite3
 from pathlib import Path
-from datetime import datetime, timezone
 
 DB = Path.home() / ".hermes" / "state" / "federated_server.db"
 

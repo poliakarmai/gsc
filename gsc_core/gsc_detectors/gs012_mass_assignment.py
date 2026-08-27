@@ -16,8 +16,9 @@ Detects mass assignment vulnerability patterns:
 
 Sources: Hacking APIs Ch.11 Mass Assignment (No Starch Press)
 """
-from . import AuditContext, Finding
 import re
+
+from . import AuditContext, Finding
 
 RULE_ID = "GS012"
 ECHELON = 2

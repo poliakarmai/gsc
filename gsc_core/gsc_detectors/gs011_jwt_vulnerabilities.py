@@ -16,8 +16,9 @@ Detects JWT/JOSE implementation vulnerabilities:
 
 Sources: Hacking APIs (No Starch Press), 2025 Playbooks
 """
-from . import AuditContext, Finding
 import re
+
+from . import AuditContext, Finding
 
 RULE_ID = "GS011"
 ECHELON = 2

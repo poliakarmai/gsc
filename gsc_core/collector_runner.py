@@ -9,8 +9,8 @@ Usage:
     python3 gsc_collector.py all         # все источники (медленно)
     python3 gsc_collector.py quick       # быстрый сбор (1 стр/запрос, без пагинации)
 """
-import sys
 import os
+import sys
 from pathlib import Path
 
 # Ensure gsc_core (parent package) is importable before Scrapy resolves settings

@@ -21,12 +21,9 @@ Attack chain (ChainDrop):
 
 from __future__ import annotations
 
-import json
-import re
 import hashlib
-from pathlib import Path
+import re
 from typing import Any
-
 
 # ── PACKAGE.JSON PATTERNS ─────────────────────────────────────────────
 

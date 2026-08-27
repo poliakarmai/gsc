@@ -7,9 +7,9 @@ also exposes ``/api/v2`` routes via ``gsc_cloud.server``; this module
 is the standalone variant driven by ``verify_api_key`` /
 ``scoped_query`` from :mod:`gsc_cloud.auth` (canonical auth helpers).
 """
-from typing import Tuple, Optional
+from typing import Tuple
 
-from gsc_cloud.auth import verify_api_key, scoped_query
+from gsc_cloud.auth import scoped_query, verify_api_key
 
 
 def handle_scan_v2(db, api_key: str, target: str, profile: str) -> Tuple[dict, int]:

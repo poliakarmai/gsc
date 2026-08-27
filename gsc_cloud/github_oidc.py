@@ -21,7 +21,6 @@ import os
 import time
 from typing import Optional
 
-
 # ── OIDC Token ────────────────────────────────────────────────────────
 
 def get_oidc_token(audience: str = "sts.amazonaws.com") -> str:
@@ -214,8 +213,9 @@ def gh_token_from_secrets_manager(role_arn: str, secret_id: str = "gsc/github-ap
 
 def _github_app_token(app_id: str, private_key: str) -> str:
     """Generate GitHub App installation token from private key."""
-    import jwt
     import time
+
+    import jwt
 
     now = int(time.time())
     payload = {

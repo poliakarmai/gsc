@@ -1,7 +1,10 @@
 """Unified detector contract (refactor #1). All detectors implement BaseDetector."""
 from __future__ import annotations
-import hashlib, re
+
+import hashlib
+import re
 from typing import Dict, List, Tuple
+
 
 def make_finding(rule_id: str, title: str, severity: str, confidence: float,
                  file: str, line: int, snippet: str,

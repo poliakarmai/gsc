@@ -9,7 +9,12 @@ HMAC-SHA256 SBOM signing with tamper detection.
 
 from __future__ import annotations
 
-import hashlib, hmac, json, os, re, uuid
+import hashlib
+import hmac
+import json
+import os
+import re
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional

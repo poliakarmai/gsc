@@ -8,7 +8,11 @@ No agents installed on remote servers.
 
 Usage: python3 gsc_agentless.py <host> [--user root] [--key ~/.ssh/id_ed25519]
 """
-import subprocess, json, sys, argparse, re
+import argparse
+import json
+import re
+import subprocess
+import sys
 from datetime import datetime
 
 # ── Lynis-style SSH hardening scan (one script, one SSH round-trip) ──
@@ -342,15 +346,15 @@ def main():
                 print(f"  Failed logins (48h): {data.get('total_failures', 0)}")
                 print(f"  Unique attacker IPs: {data.get('unique_ips', 0)}")
                 if data.get('alert'):
-                    print(f"  ⚠️  BRUTE-FORCE ALERT: threshold exceeded!")
+                    print("  ⚠️  BRUTE-FORCE ALERT: threshold exceeded!")
                 
                 if data.get("top_attackers"):
-                    print(f"\n  Top attackers:")
+                    print("\n  Top attackers:")
                     for a in data["top_attackers"][:5]:
                         print(f"    {a['ip']}: {a['count']} attempts")
                 
                 if data.get("targeted_users"):
-                    print(f"\n  Targeted users:")
+                    print("\n  Targeted users:")
                     for u in data["targeted_users"][:5]:
                         print(f"    {u['username']}: {u['count']} attempts")
         

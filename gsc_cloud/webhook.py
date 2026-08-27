@@ -18,7 +18,7 @@ import os
 
 from fastapi import APIRouter, HTTPException, Request
 
-from gsc_cloud import onboarding, pr_commands, scanjobs
+from gsc_cloud import pr_commands, scanjobs
 from gsc_cloud.dedup import DeliveryDedup
 
 router = APIRouter()

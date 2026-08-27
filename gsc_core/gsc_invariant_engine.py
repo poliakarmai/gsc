@@ -20,7 +20,8 @@ Design decisions:
   - Fail fast: invalid config → InvariantLoadError → exit 2
 """
 
-import fnmatch, os, re
+import fnmatch
+import re
 from dataclasses import dataclass, field
 from typing import Any
 

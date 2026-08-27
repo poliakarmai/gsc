@@ -22,11 +22,16 @@ Usage:
   gsc doctor --github
 """
 
-import os, sys, json, re, time, subprocess
-from pathlib import Path
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
-from dataclasses import dataclass, field
 
 GSC_EXTERNAL = Path(__file__).resolve().parent / "gsc_external.py"
 COMMENT_MARKER = "<!-- gsc:pr-scan:v1 -->"
@@ -77,7 +82,7 @@ class GitHubAPIClient:
             time.sleep(min(wait, 30))
 
     def _request(self, method: str, path: str, json_data: dict = None,
-                 params: dict = None, retries: int = 2) -> "requests.Response":
+                 params: dict = None, retries: int = 2) -> "requests.Response":  # noqa: F821
         import requests
         url = f"{self.api_url}{path}"
         for attempt in range(retries + 1):
@@ -102,7 +107,7 @@ class GitHubAPIClient:
                     time.sleep(2 ** attempt)
                     continue
                 return resp
-            except requests.RequestException as e:
+            except requests.RequestException:
                 if attempt < retries:
                     time.sleep(2 ** attempt)
                     continue
@@ -483,7 +488,7 @@ def print_doctor(status: dict):
     print(f"  LLM enabled: {status.get('llm_enabled', False)}")
     print(f"  Blocking enabled: {status.get('blocking_enabled', False)}")
     if status["errors"]:
-        print(f"  ⚠️ Issues:")
+        print("  ⚠️ Issues:")
         for e in status["errors"]:
             print(f"    - {e}")
     print()
@@ -635,7 +640,7 @@ def _build_pr_comment(out_dir: Optional[Path], ctx: GitHubPRContext,
     llm_label = "Disabled" if no_llm else "Enabled"
 
     lines = [
-        f"## 🔒 GSC Security Scan",
+        "## 🔒 GSC Security Scan",
         "",
         f"**Profile:** `pr-gate` · **Mode:** {mode_label}",
         f"**Base:** `{ctx.base_ref}` → **Head:** `{ctx.head_ref}`",
@@ -671,7 +676,7 @@ def _build_pr_comment(out_dir: Optional[Path], ctx: GitHubPRContext,
     lines.extend([
         "",
         "---",
-        f"*Blocking policy: severity ≥ HIGH, confidence ≥ 80%.*",
+        "*Blocking policy: severity ≥ HIGH, confidence ≥ 80%.*",
     ])
     return "\n".join(lines)
 

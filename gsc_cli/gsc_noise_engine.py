@@ -17,11 +17,11 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import statistics
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-import statistics
 
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 CALIBRATION_DIR = Path(__file__).parent / "calibration"
@@ -241,12 +241,12 @@ def report(results: dict | None = None):
     print(f"Clean (≤threshold):    {len(clean)}")
 
     if noisy:
-        print(f"\n🔴 Noisy rules (candidates for degradation):")
+        print("\n🔴 Noisy rules (candidates for degradation):")
         for rid, s in sorted(noisy.items(), key=lambda x: x[1]["fp_rate"], reverse=True):
             print(f"  {rid:>20s}  FP={s['fp_rate']:.0%}  n={s['total']}")
 
     if clean:
-        print(f"\n🟢 Clean rules:")
+        print("\n🟢 Clean rules:")
         for rid, s in sorted(clean.items(), key=lambda x: x[1]["fp_rate"]):
             print(f"  {rid:>20s}  FP={s['fp_rate']:.0%}  n={s['total']}")
 

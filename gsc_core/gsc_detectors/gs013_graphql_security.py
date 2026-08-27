@@ -17,8 +17,9 @@ Detects GraphQL security misconfigurations:
 
 Sources: Hacking APIs Ch.14 Attacking GraphQL (No Starch Press)
 """
-from . import AuditContext, Finding
 import re
+
+from . import AuditContext, Finding
 
 RULE_ID = "GS013"
 ECHELON = 2

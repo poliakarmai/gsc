@@ -112,6 +112,7 @@ def _downgrade_to_free(db, event) -> None:
 # ── FastAPI billing routes ────────────────────────────────
 
 from fastapi import APIRouter, HTTPException, Request
+
 from gsc_cloud import billing
 from gsc_cloud.store import control_plane
 

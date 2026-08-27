@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from . import AuditContext, Finding
+from . import Finding
 
 # ── AI provenance markers (comment patterns across languages) ──────
 AI_MARKERS: list[tuple[str, float]] = [

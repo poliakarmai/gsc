@@ -9,8 +9,9 @@ No LLM → fork-safe. GS031.
 
 from __future__ import annotations
 
-import hashlib, re
-from typing import Dict, List
+import hashlib
+import re
+from typing import List
 
 
 # ── Helpers ─────────────────────────────────────────────────

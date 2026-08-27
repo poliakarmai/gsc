@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """GS030 — SCA detector. Thin wrapper over gsc_sca for external scan pipeline."""
 
-from pathlib import Path
 from gsc_core.gsc_sca import parse_repo_manifests, query_osv, sca_findings
 
 

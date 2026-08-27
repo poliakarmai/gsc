@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable, Protocol, Sequence
 
-
 # ── Types ────────────────────────────────────────────────────────────────────
 
 class Finding(dict):

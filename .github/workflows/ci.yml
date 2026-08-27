@@ -43,6 +43,19 @@ jobs:
             tests/test_sandbox_isolation.py::test_verify_fix_fail_closed_without_container \
             -v
 
+  lint:
+    name: ruff (undefined/redefined names)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned, GSC-009)
+      - uses: actions/setup-python@0b93645e9fea7318ecaed2b359559ac225c90a2b  # v5.3.0 (pinned, GSC-009)
+        with:
+          python-version: "3.12"
+      - name: Install ruff
+        run: pip install "ruff==0.16.4"
+      - name: "Lint (pyflakes: undefined/redefined names gate)"
+        run: ruff check gsc_core gsc_cli gsc_cloud --select F821,F811,F823
+
   sca:
     name: SCA gate (reachable MEDIUM+)
     runs-on: ubuntu-latest

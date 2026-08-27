@@ -10,8 +10,8 @@ Complements GS033 (CI/CD anti-patterns) with workflow-level checks GS033 misses:
 """
 from __future__ import annotations
 
-import re
 import hashlib
+import re
 from typing import Any
 
 # ── PATTERNS ──────────────────────────────────────────────────────────

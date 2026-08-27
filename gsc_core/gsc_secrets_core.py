@@ -3,7 +3,9 @@
 Used by BOTH: GS029 detector + gsc_crossrepo_secrets correlation.
 Same fingerprint = same cross-repo correlation.
 """
-import hashlib, math, re
+import hashlib
+import math
+import re
 from typing import Dict, List
 
 PATTERNS: List[tuple] = [

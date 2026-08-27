@@ -10,12 +10,12 @@ Usage:
 Требуется: GITHUB_TOKEN в env или gh auth.
 """
 
+import json
 import os
 import sys
-import json
 import time
-import urllib.request
 import urllib.parse
+import urllib.request
 from datetime import datetime, timedelta
 
 # ── Dorks ──────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ def search_github(query: str, org: str, token: str, days: int = 7, per_page: int
         if e.code == 403:
             print(f"  ⚠️ Rate limited. Жди {e.headers.get('Retry-After', '60')}с")
         elif e.code == 422:
-            print(f"  ⚠️ Query too complex, skipping")
+            print("  ⚠️ Query too complex, skipping")
         else:
             print(f"  ❌ HTTP {e.code}: {e.reason}")
         return []

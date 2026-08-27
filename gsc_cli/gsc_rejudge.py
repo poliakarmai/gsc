@@ -13,12 +13,16 @@ GSC Rejudge Integration — multi-model revalidation for findings, PoC, and dete
   python3 gsc_rejudge.py detector patterns.json test_fixtures/
 """
 
-import json, os, re, subprocess, sys, tempfile, shutil
+import json
+import os
+import re
+import shutil
+import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from gsc_llm_providers import defang, UNTRUSTED_GUARD
+from gsc_llm_providers import UNTRUSTED_GUARD, defang
 
 REJUDGE_PATH = shutil.which("rejudge")
 

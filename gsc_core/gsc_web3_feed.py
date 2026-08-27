@@ -21,9 +21,6 @@ Only accurate, source-verified data lives here.
 
 from __future__ import annotations
 
-from typing import Optional
-
-
 # ── Manual npm web3 CVE feed ────────────────────────────────────────────────
 # Each entry: id, aliases, summary, severity, ranges [(introduced, fixed)], fixed.
 # Ranges are half-open [introduced, fixed) matching OSV ECOSYSTEM semantics.

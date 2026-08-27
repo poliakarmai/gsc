@@ -19,9 +19,12 @@ Usage:
   gsc external-scan ./repo --with-poc
 """
 
-import json, re, sys, os
-from pathlib import Path
+import json
+import os
+import re
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional
 
 POC_MIN_CONFIDENCE = 0.80
@@ -62,7 +65,7 @@ def _get_api_key() -> str:
 
 def _call_llm(system: str, user: str, max_tokens: int = 800) -> Optional[str]:
     """Unified LLM call via gsc_llm_providers (DeepSeek/OpenRouter/OLLAMA/LM Studio)."""
-    from gsc_llm_providers import llm_chat, guard_system
+    from gsc_llm_providers import guard_system, llm_chat
     try:
         return llm_chat(guard_system(system), user, max_tokens)
     except Exception as e:
@@ -229,7 +232,7 @@ def attach_pocs(findings: list[dict], source_map: dict[str, str], budget: int = 
                 f["confidence"] = max(0.3, round(old_conf - 0.3, 2))
                 f["metadata"]["poc_rejudge_penalty"] = 0.3
             # else NEEDS_REVIEW → no change, models disagree
-    except Exception as e:
+    except Exception:
         pass  # Rejudge unavailable — proceed without
 
     # Watermark all PoCs (dual-use mitigation). Must never break scanning.

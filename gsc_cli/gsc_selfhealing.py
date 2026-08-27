@@ -12,12 +12,11 @@ Fixed:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
 sys.path.insert(0, str(Path(__file__).parent))
 
@@ -151,7 +150,7 @@ def autofix(report_path: str, project_root: str = ".",
 
 
 def _create_autofix_pr(results: List[dict], fixes_dir: Path, project_root: str) -> str:
-    from gsc_signature import pr_signature, sign_commit_message, label_name, badge_markdown
+    from gsc_signature import badge_markdown, label_name, pr_signature, sign_commit_message
 
     branch = f"gsc-autofix-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
     root = Path(project_root)

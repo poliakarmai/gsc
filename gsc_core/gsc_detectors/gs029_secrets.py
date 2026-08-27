@@ -11,7 +11,9 @@ No value is stored or displayed — only fact of detection.
 
 from __future__ import annotations
 
-import math, os, re
+import math
+import os
+import re
 from typing import Dict, List
 
 SECRET_PATTERNS = [
@@ -121,7 +123,7 @@ class GS029SecretsDetector:
         Ленивый import — verifier живёт в gsc_cli (сеть), core не зависит статически.
         """
         try:
-            from gsc_secrets_verifier import verify_secret, DEAD_DEBOOST, is_test_key
+            from gsc_secrets_verifier import DEAD_DEBOOST, is_test_key, verify_secret
         except Exception:
             return
         try:

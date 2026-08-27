@@ -22,9 +22,8 @@ Dependencies: stdlib + ``requests`` (already a project dependency — see
 ``gsc_trackers.py`` and ``gsc_github_adapter.py``). No new third-party packages.
 """
 
-import json
 import urllib.parse
-from typing import Optional, Any
+from typing import Any, Optional
 
 import requests
 

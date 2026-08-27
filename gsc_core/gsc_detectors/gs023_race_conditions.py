@@ -19,7 +19,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from . import AuditContext, Detector, Finding
+from . import AuditContext, Finding
 
 RULE_ID = "GS023"
 ECHELON = 3

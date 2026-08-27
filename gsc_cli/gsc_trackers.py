@@ -6,12 +6,11 @@
 GSC Tracker Adapters v0.1 — Jira, Linear, GitLab Issue Creation
 """
 
-import os
 import json
+import os
+from typing import Optional
+
 import requests  # Using requests as in gsc_github_adapter.py
-from typing import Optional, Any
-from pathlib import Path
-from datetime import datetime, timezone
 
 # Credentials are read from os.environ inside each function (not at import
 # time), so tests can override them with unittest.mock.patch.dict.

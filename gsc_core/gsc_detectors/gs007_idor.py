@@ -18,7 +18,6 @@ Inspired by: Meta $78K bounty (2026) — chained BAC in support infrastructure.
 """
 
 import re
-from pathlib import Path
 
 from . import AuditContext, Finding
 

@@ -18,10 +18,8 @@ Precision target: >50% (vs <5% for regex approach).
 """
 
 import os
-import sys
 import re
 from pathlib import Path
-
 
 RULE_ID = "GS024"
 ECHELON = 2
@@ -101,7 +99,7 @@ def _extract_candidates(file_path: Path, max_per_file: int = 5) -> list[dict]:
 
 def _call_llm(snippet: str, file_path: str) -> dict:
     """Unified LLM classify via gsc_llm_providers."""
-    from gsc_llm_providers import llm_chat, defang, guard_system
+    from gsc_llm_providers import defang, guard_system, llm_chat
 
     prompt = f"""You are a security code auditor. Analyze this code for SQL injection vulnerabilities.
 

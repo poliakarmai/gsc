@@ -22,17 +22,15 @@ Usage:
     rev = Revalidator(db_path, project_path)
     results = rev.revalidate_findings(findings, min_severity="HIGH")
 """
-import sqlite3
 import json
-import os
-import subprocess
 import re
+import sqlite3
+import subprocess
 from collections import Counter
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
-from gsc_llm_providers import defang, UNTRUSTED_GUARD, guard_system
-
+from gsc_llm_providers import UNTRUSTED_GUARD, defang, guard_system
 
 # Canonical verdict vocabulary — module-level constant so pure helpers such as
 # ``best_of_n_verdict`` can reference it without importing the whole class.

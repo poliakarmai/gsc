@@ -234,8 +234,8 @@ def llm_chat_with_deadline(system: str, user: str, max_tokens: int = 800,
     daemon thread and degrade to regex-only (None) on timeout/error. Daemon thread
     means a stuck provider never blocks process exit either.
     """
-    import threading
     import queue
+    import threading
     q = queue.Queue(maxsize=1)
 
     def _run():

@@ -11,17 +11,17 @@ from fastapi import Depends, FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from gsc_cloud import store
+from gsc_cloud.agent_api import router as agent_router
 from gsc_cloud.apideps import tenant_ctx
-from gsc_cloud.scan_queue import ScanQueue
+from gsc_cloud.billing import billing_router
+from gsc_cloud.dash_api import router as dash_router
+from gsc_cloud.observability import router as obs_router
 from gsc_cloud.rate_limit import rate_limit
+from gsc_cloud.scan_queue import ScanQueue
 from gsc_cloud.security_headers import SecurityHeadersMiddleware
 
 # ── S3–S5 routers ──────────────────────────────────────
 from gsc_cloud.user_auth import auth_router
-from gsc_cloud.dash_api import router as dash_router
-from gsc_cloud.billing import billing_router
-from gsc_cloud.agent_api import router as agent_router
-from gsc_cloud.observability import router as obs_router
 
 # DD-08 (audit): Swagger UI (/docs) + ReDoc (/redoc) pull bundles from
 # cdn.jsdelivr.net + inline scripts, which conflicts with our CSP

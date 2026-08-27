@@ -8,8 +8,7 @@ For each vulnerability: WHAT is it, WHY it matters, WHEN it happens, HOW to fix.
 
 from __future__ import annotations
 
-import hashlib
-from typing import Dict, Optional
+from typing import Dict
 
 # ── Knowledge base: CWE → educational context ────────────────────────────────
 
@@ -256,14 +255,15 @@ def add_edu_section_to_pr(pr_body: str, rule_id: str) -> str:
     for r in edu["resources"]:
         section += f"- [{r}]({r})\n"
 
-    section += f"\n---\n🐛 Found by [GSC](https://github.com/poliakarmai/gsc) — понимай код, а не принимай."
+    section += "\n---\n🐛 Found by [GSC](https://github.com/poliakarmai/gsc) — понимай код, а не принимай."
     return pr_body + section
 
 
 # ── CLI ──────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import json, sys
+    import json
+    import sys
     if len(sys.argv) > 1 and sys.argv[1] == "--list":
         for rid in sorted(EDU_KB):
             if rid != "_default":

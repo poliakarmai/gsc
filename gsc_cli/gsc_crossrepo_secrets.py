@@ -24,16 +24,11 @@ def fingerprint_secret(value: str) -> str:
     """Return 32-char SHA256 fingerprint. Value is NOT stored."""
     return hashlib.sha256(value.encode()).hexdigest()[:32]
 import json
-import os
 import sqlite3
-import subprocess
-import sys
-import tempfile
 from collections import defaultdict
-from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, List
 
 # Module-level patterns for tests (single source: REFINED_PATTERNS)
 REFINED_PATTERNS = [

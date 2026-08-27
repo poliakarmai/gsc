@@ -10,7 +10,8 @@ Builds on gsc_sca + gsc_epss — high leverage, low new code.
 
 from __future__ import annotations
 
-import hashlib, json, uuid
+import hashlib
+import uuid
 from datetime import datetime, timezone
 from typing import Dict, List, Optional
 

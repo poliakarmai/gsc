@@ -11,9 +11,11 @@ Cycle: SAST → PoC → fix → sandbox → re-PoC → DAST staging → verified
 
 from __future__ import annotations
 
-import subprocess, sys, tempfile
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 

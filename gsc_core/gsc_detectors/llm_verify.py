@@ -15,7 +15,6 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Any
 
 from gsc_llm_providers import defang, guard_system
 

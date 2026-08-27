@@ -23,15 +23,20 @@ Usage:
   gsc api --port 8766
 """
 
-import os, sys, json, sqlite3, uuid, time, threading, re
-from pathlib import Path
+import json
+import os
+import re
+import sqlite3
+import sys
+import threading
+import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Optional
 from urllib.parse import urlparse
-import subprocess
 
 try:
-    from fastapi import FastAPI, HTTPException, BackgroundTasks, Query, Header, Depends, Request
+    from fastapi import BackgroundTasks, Depends, FastAPI, Header, HTTPException, Query, Request
     from fastapi.responses import JSONResponse
     from pydantic import BaseModel, Field
 except ImportError:
@@ -47,7 +52,7 @@ SCANS_DIR.mkdir(parents=True, exist_ok=True)
 DB_PATH = Path(os.path.expanduser("~/.hermes/state/gsc_audit.db"))
 
 sys.path.insert(0, str(GSC_HOME))
-from gsc_external import run_external_scan, load_policy, merge_policy, EXTERNAL_DIR as _EXT
+from gsc_external import run_external_scan
 
 # ── App ───────────────────────────────────────────────────
 app = FastAPI(
@@ -538,7 +543,9 @@ async def delete_workspace(name: str, x_api_key: str = Header(..., alias="x-api-
 
 # ── Main ──────────────────────────────────────────────────
 if __name__ == "__main__":
-    import argparse, uvicorn
+    import argparse
+
+    import uvicorn
     p = argparse.ArgumentParser(description="GSC REST API")
     p.add_argument("--port", type=int, default=8766)
     p.add_argument("--host", default="127.0.0.1")

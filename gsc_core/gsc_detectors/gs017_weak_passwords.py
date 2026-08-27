@@ -17,7 +17,7 @@ Detects weak and default credentials — a top-3 fintech vulnerability per 2026 
 Sources: 2026 Fintech Pentest Report, OWASP ASVS V2.1, PCI-DSS 8.3
 """
 import re
-from pathlib import Path
+
 from . import AuditContext, Finding
 
 RULE_ID = "GS017"

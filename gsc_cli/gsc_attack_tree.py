@@ -19,11 +19,10 @@ PASTA_STAGES in gsc_threat_model.py.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field, asdict
-from typing import Iterable, Mapping, Optional
+from dataclasses import asdict, dataclass, field
+from typing import Iterable, Mapping
 
 from gsc_threat_model import dread_score
-
 
 # ── Attack category taxonomy ────────────────────────────────────────
 # Maps a CWE hint / surface keyword to a stable attack category (sub-goal).

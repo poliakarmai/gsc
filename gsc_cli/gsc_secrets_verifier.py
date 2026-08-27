@@ -24,9 +24,8 @@ import re
 import ssl
 import threading
 import time
-from urllib.request import (Request, build_opener, ProxyHandler,
-                            HTTPRedirectHandler)
 from urllib.error import HTTPError, URLError
+from urllib.request import HTTPRedirectHandler, ProxyHandler, Request, build_opener
 
 TIMEOUT = 10
 DEAD_DEBOOST = 0.3

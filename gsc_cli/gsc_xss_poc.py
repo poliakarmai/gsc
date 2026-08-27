@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import re
 import urllib.parse
-from dataclasses import dataclass, field
-
+from dataclasses import dataclass
 
 XSS_PAYLOADS = [
     # (payload, marker, description)
@@ -225,7 +224,7 @@ if __name__ == "__main__":
         XSS_PAYLOADS[0][0], XSS_PAYLOADS[0][1],
         timeout=5
     )
-    print(f"\nCurl test (httpbin — safe):")
+    print("\nCurl test (httpbin — safe):")
     print(f"  vulnerable={result.vulnerable}, method={result.method}")
     print(f"  detail={result.detail}")
 

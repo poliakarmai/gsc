@@ -23,10 +23,15 @@ Usage:
     python3 gsc_collect_bounty.py vrt          # Bugcrowd VRT taxonomy
     python3 gsc_collect_bounty.py all          # everything
 """
-import sys, os, json, re, hashlib, sqlite3, time, requests
+import hashlib
+import json
+import re
+import sqlite3
+import time
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
-from collections import Counter
+
+import requests
 
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 STATE_PATH = Path.home() / ".hermes" / "state" / "gsc_bounty_state.json"
@@ -436,7 +441,7 @@ class GhsaCollector:
             pattern_hash = _compute_pattern_hash(vulnerable_code, language)
             if pattern_hash in self.state.get("pattern_hashes", []):
                 self.dup_patterns += 1
-                print(f"    ⏭️  Duplicate pattern (skipped)")
+                print("    ⏭️  Duplicate pattern (skipped)")
                 return
             self.state.setdefault("pattern_hashes", []).append(pattern_hash)
 
@@ -709,8 +714,8 @@ def show_dashboard(db: sqlite3.Connection):
         for cwe, lang in ready_combos:
             print(f"   {cwe} | {lang}")
     else:
-        print(f"\n📈 Working toward 5+ examples per CWE+lang...")
-        print(f"   Run 'ghsa' daily to build the dataset.")
+        print("\n📈 Working toward 5+ examples per CWE+lang...")
+        print("   Run 'ghsa' daily to build the dataset.")
 
     # Summary
     total = db.execute("SELECT COUNT(*) FROM bounty_examples").fetchone()[0]
@@ -718,7 +723,7 @@ def show_dashboard(db: sqlite3.Connection):
     unique_cwe = db.execute("SELECT COUNT(DISTINCT cwe_id) FROM bounty_examples WHERE cwe_id != ''").fetchone()[0]
     print(f"\n{'='*65}")
     print(f"  Total: {total} positive | {total_neg} negative | {unique_cwe} unique CWEs")
-    print(f"  Public data (GHSA) — no DP needed ✓")
+    print("  Public data (GHSA) — no DP needed ✓")
 
 
 # ── Bugcrowd VRT Collector ────────────────────────────────────────────────────

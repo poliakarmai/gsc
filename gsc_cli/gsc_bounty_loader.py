@@ -23,9 +23,9 @@ Usage:
     # For revalidator: match finding against nearest examples
     context = loader.get_finding_context(finding_detail="...", language="python")
 """
-import os, re, sqlite3, hashlib
-from pathlib import Path
-from typing import Optional
+import os
+import re
+import sqlite3
 
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
 
@@ -103,7 +103,7 @@ class BountyLoader:
 
         lines.append("\n---")
         lines.append(f"Now fix the following {cwe_id} vulnerability in {language}.")
-        lines.append(f"Use the same approach as the examples above.")
+        lines.append("Use the same approach as the examples above.")
         lines.append(f"```{language}\n{current_code}\n```")
 
         return "\n".join(lines)
@@ -184,7 +184,7 @@ class BountyLoader:
         if not examples:
             return ""
 
-        lines = [f"\n## 📚 Reference: Real vulnerability patterns (retrieval-matched)"]
+        lines = ["\n## 📚 Reference: Real vulnerability patterns (retrieval-matched)"]
         lines.append("The following are REAL vulnerabilities found in production. Compare the code above against these patterns.\n")
 
         for i, ex in enumerate(examples, 1):
@@ -312,7 +312,8 @@ class BountyLoader:
 # ── CLI test ──────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import sys, json
+    import json
+    import sys
     loader = BountyLoader()
 
     if len(sys.argv) < 2:

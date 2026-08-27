@@ -5,27 +5,33 @@ SaaS MVP: scan, findings, billing, GitHub auth.
 Deploy: docker build -t gsc-api . && docker run -d -p 8081:8000 gsc-api
 """
 
-import os, sys, json, uuid, hashlib, hmac, secrets, subprocess, tempfile, time
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import subprocess
+import sys
+import tempfile
+import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from datetime import datetime, timezone, timedelta
 from typing import Optional
-from urllib.parse import urlparse
 
 import httpx
-from fastapi import FastAPI, HTTPException, Query, Body, Header, Depends, BackgroundTasks
+import jwt
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
-from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel, Field
-import jwt
+from pydantic import BaseModel
 
 # ── GSC paths ──
 GSC_DIR = Path(os.environ.get("GSC_DIR", "/app"))
 sys.path.insert(0, str(GSC_DIR))
 
 import sqlite3
-from gsc_db import DB_PATH as GSC_DB_PATH  # just for reference
-from gsc_cloud.gsc_db_backend import SqliteBackend, PgBackend
+
+from gsc_cloud.gsc_db_backend import PgBackend, SqliteBackend
 
 # GSC-008: default to a writable user path so `import server` doesn't fail
 # creating /data (which only exists in the container). Production sets
@@ -418,7 +424,8 @@ def _normalize_finding(f: dict) -> dict:
     }
 
 
-from gsc_cloud.target_policy import allowed_hosts, validate_target as _policy_validate
+from gsc_cloud.target_policy import allowed_hosts
+from gsc_cloud.target_policy import validate_target as _policy_validate
 
 ALLOWED_GIT_HOSTS = allowed_hosts()  # SSOT: gsc_cloud.target_policy
 

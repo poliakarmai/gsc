@@ -20,10 +20,9 @@ Patterns derived from OWASP Top 10 + PHP Security Cheat Sheet.
 
 from __future__ import annotations
 
-import re
 import hashlib
+import re
 from typing import Any
-
 
 # ── PATTERNS ───────────────────────────────────────────────────────────
 

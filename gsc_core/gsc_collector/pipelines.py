@@ -6,11 +6,11 @@ Three outputs:
   2. Obsidian vault — markdown notes for human review
   3. JSON export — for downstream processing
 """
-import sqlite3
 import json
-import os
-from pathlib import Path
+import sqlite3
 from datetime import datetime
+from pathlib import Path
+
 from gsc_core.gsc_collector.items import VulnerabilityItem
 
 
@@ -120,16 +120,16 @@ class ObsidianExportPipeline:
             filepath = self.vault_path / filename
 
             with open(filepath, "w") as f:
-                f.write(f"---\n")
+                f.write("---\n")
                 f.write(f"title: \"GSC Collector — {source} ({timestamp})\"\n")
                 f.write(f"source: {source}\n")
                 f.write(f"collected: {datetime.now().isoformat()}\n")
                 f.write(f"count: {len(items)}\n")
-                f.write(f"type: gsc-collector\n")
-                f.write(f"---\n\n")
+                f.write("type: gsc-collector\n")
+                f.write("---\n\n")
                 f.write(f"# GSC Collector — {source}\n\n")
                 f.write(f"**{len(items)}** findings collected on {timestamp}.\n\n")
-                f.write(f"## Findings\n\n")
+                f.write("## Findings\n\n")
 
                 for i, item in enumerate(items):
                     f.write(f"### {i+1}. {item.severity}: {item.title[:80]}\n")

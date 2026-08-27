@@ -17,11 +17,10 @@ from __future__ import annotations
 import ast
 import json
 import warnings
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
 
-from gsc_sca import Package, parse_repo_manifests, query_osv
+from gsc_sca import parse_repo_manifests, query_osv
 
 _SEV_RANK = {"CRITICAL": 4, "HIGH": 3, "MEDIUM": 2, "LOW": 1, "INFO": 0}
 _SEV_TO_CVSS = {"CRITICAL": 9.5, "HIGH": 7.5, "MEDIUM": 5.0, "LOW": 2.5}

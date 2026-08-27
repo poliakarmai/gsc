@@ -43,7 +43,6 @@ from gsc_cli.gsc_openapi_parser import (
     OpenAPIParameter,
 )
 
-
 # ── Configuration ─────────────────────────────────────────────────────────
 
 # Environment variable names — read inside functions only.

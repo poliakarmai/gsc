@@ -23,7 +23,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
 
 GSC_HOME = Path.home() / ".gsc"
 WORKSPACE_DB = GSC_HOME / "workspaces.db"
@@ -223,7 +223,7 @@ def workspace_report(workspace: str, fmt: str = "markdown") -> str:
         f"# GSC Workspace Report: {workspace}",
         f"Generated: {_utcnow()}",
         "",
-        f"## Summary",
+        "## Summary",
         f"- Scans: {len(scans)}",
         f"- CRITICAL: {total_c}",
         f"- HIGH: {total_h}",

@@ -36,7 +36,6 @@ import re
 from dataclasses import dataclass, field
 from typing import Iterable
 
-
 # A file is considered a package.json candidate when its basename is
 # exactly "package.json" (case-insensitive). The PoF pipeline is run on
 # already-walked file lists, so we don't try to guess paths here.

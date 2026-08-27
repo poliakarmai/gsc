@@ -37,12 +37,10 @@ imports from stdlib + ``requests`` (already a project dependency, used in
 """
 
 import os
-import json
 import urllib.parse
-from typing import Optional, Any
+from typing import Any, Optional
 
 import requests
-
 
 # --- Defaults ---
 

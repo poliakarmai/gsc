@@ -5,11 +5,19 @@ Replaces regex with LLM: feeds code → DeepSeek analyzes → structured finding
 
 Usage: python3 gsc_deep_reducer.py <file-or-dir> [--model deepseek-chat] [--confidence 60]
 """
-import os, sys, json, hashlib, sqlite3, argparse, re, fnmatch, time
-from pathlib import Path
+import argparse
+import fnmatch
+import hashlib
+import json
+import os
+import re
+import sqlite3
+import sys
+import time
 from datetime import datetime, timezone
-from urllib.request import Request, urlopen
+from pathlib import Path
 from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 DB = os.path.expanduser("~/.hermes/state/gsc_audit.db")
 API_URL = "https://api.deepseek.com/v1/chat/completions"

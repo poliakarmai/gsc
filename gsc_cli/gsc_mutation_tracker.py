@@ -14,8 +14,9 @@ Parent = only resolved finding within lookback_days.
 Alerts are always warn-only — never affect PR gate exit code.
 """
 
-import hashlib, re
-from dataclasses import dataclass, asdict
+import hashlib
+import re
+from dataclasses import asdict, dataclass
 from difflib import SequenceMatcher
 from typing import Optional
 

@@ -24,7 +24,6 @@ The mask helper is reused by GS043 (honeypot).
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from . import AuditContext, Finding
 

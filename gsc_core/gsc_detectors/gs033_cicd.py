@@ -16,8 +16,8 @@ Book reference: Brikman "Fundamentals of DevOps", 2026, ch.5 (CI/CD).
 
 from __future__ import annotations
 
-import re
 import hashlib
+import re
 from typing import Any
 
 # ── PATTERNS ──────────────────────────────────────────────────────────

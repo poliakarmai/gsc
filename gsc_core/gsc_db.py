@@ -10,10 +10,14 @@ Handles: findings, chains, feedback, metrics, schema versioning.
 Auto-migrates on first access. Creates timestamped backups.
 """
 
-import json, os, re, shutil, sqlite3, hashlib
+import hashlib
+import json
+import os
+import re
+import shutil
+import sqlite3
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 # GSC roadmap 5.2: все пути через env. GSC_DB_PATH > GSC_DATA_DIR > XDG-совместимый
 # default (~/.hermes/state). GSC_DATA_DIR — общий data-корень для всех артефактов.
@@ -1170,7 +1174,6 @@ class GSCDatabase:
             FROM feedback
             WHERE created_at > datetime('now', ?)
         """, (window,)).fetchone()
-        from . import phase5_stats as _ps
         events = {}
         try:
             rows = self.query("""

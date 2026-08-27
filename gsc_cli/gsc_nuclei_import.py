@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """GSC Nuclei Template Importer v1.0 — Wave 2. Imports nuclei YAML into DB for DAST."""
 from __future__ import annotations
-import json, sys
+
+import json
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, List, Optional
+
 try:
     import yaml
 except ImportError:

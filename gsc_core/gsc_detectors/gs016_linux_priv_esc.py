@@ -18,7 +18,7 @@ Detects privilege escalation vectors learned from:
 Sources: Bandit wargame, CIS Benchmarks, OWASP Linux Hardening
 """
 import re
-from pathlib import Path
+
 from . import AuditContext, Finding
 
 RULE_ID = "GS016"

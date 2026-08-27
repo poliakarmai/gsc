@@ -12,9 +12,9 @@ Does NOT flag vulnerabilities — just ensures the AI sees every entry point.
 
 Covers: Flask, FastAPI, Django, Sanic, Tornado, aiohttp, Falcon, Bottle
 """
-from . import AuditContext, Finding
 import re
-from pathlib import Path
+
+from . import AuditContext, Finding
 
 RULE_ID = "GS015"
 ECHELON = 1

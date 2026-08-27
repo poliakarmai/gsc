@@ -1,7 +1,7 @@
 """
 GSC Collector Items — structured vulnerability data from web scraping.
 """
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from datetime import datetime
 
 

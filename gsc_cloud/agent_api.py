@@ -10,7 +10,7 @@ import hmac
 import json
 import secrets
 
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, Header, HTTPException
 
 from gsc_cloud import audit
 from gsc_cloud.store import control_plane

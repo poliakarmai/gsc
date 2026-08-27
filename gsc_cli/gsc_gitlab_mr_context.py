@@ -68,7 +68,6 @@ from dataclasses import dataclass
 from typing import Optional
 from urllib.parse import urlparse
 
-
 # ── Dataclass ────────────────────────────────────────────────────────────
 
 

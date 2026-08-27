@@ -16,7 +16,8 @@ Shadow mode: compute but set blocking=False.
 PoC boost: +0.05 effective confidence for PoC-validated findings.
 """
 from __future__ import annotations
-from typing import Any, Optional
+
+from typing import Optional
 
 PHASE_THRESHOLDS: dict = {
     "blocking-critical": [("CRITICAL", 0.90)],

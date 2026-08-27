@@ -1,4 +1,5 @@
 from pathlib import Path
+
 """
 GSC Collector — Scrapy settings.
 """

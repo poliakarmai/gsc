@@ -19,7 +19,6 @@ The Solidity lexical mask is reused from GS042 so comments/strings never fire.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 
 from . import AuditContext, Finding
 from .gs042_solidity import solidity_code_mask

@@ -13,10 +13,9 @@ from __future__ import annotations
 
 import os
 import secrets
-import time
+from urllib.parse import quote
 
 import requests
-from urllib.parse import quote
 
 GH_API = "https://api.github.com"
 OAUTH_STATE_TTL = 600
@@ -100,8 +99,9 @@ def grant_owner_on_first_install(db, user_id: int, github_login: str):
 # ── FastAPI auth routes ───────────────────────────────────
 
 from fastapi import APIRouter, HTTPException, Response
-from gsc_cloud.dedup import DeliveryDedup
+
 from gsc_cloud import session
+from gsc_cloud.dedup import DeliveryDedup
 from gsc_cloud.store import control_plane
 
 auth_router = APIRouter()

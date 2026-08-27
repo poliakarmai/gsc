@@ -102,3 +102,13 @@ markers = [
     "slow: tests taking >10s",
     "smoke: registry/import smoke tests (fast, full-suite subset)",
 ]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+# Минимальный надёжный набор: реальные баги (pyflakes F + pycodestyle E4/E7/E9),
+# порядок импортов (I) и bugbear (B). Стилистика (UP/SIM/PLR/RUF) — off-scope.
+select = ["E4", "E7", "E9", "F", "I", "B"]
+ignore = ["E501", "E731"]

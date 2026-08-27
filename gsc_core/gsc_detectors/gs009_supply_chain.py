@@ -15,8 +15,8 @@ Scans developer endpoint for:
 Delegates to bumblebee CLI (Perplexity, Apache 2.0).
 """
 import json
-import subprocess
 import os
+import subprocess
 from typing import List, Optional
 
 from . import Finding
@@ -130,7 +130,7 @@ def detect(ctx) -> List[Finding]:
                         line=0,
                         message=f"[{eco}] {pkg['package_name']}@{pkg.get('version', '?')} — {pkg.get('source_type', '?')}",
                         fix_suggestion=f"Review {eco} package: {pkg['package_name']}",
-                        references=[f"https://github.com/perplexityai/bumblebee"],
+                        references=["https://github.com/perplexityai/bumblebee"],
                     ))
             else:
                 # Summary for non-interesting ecosystems

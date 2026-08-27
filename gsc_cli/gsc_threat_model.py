@@ -7,11 +7,14 @@ Pipeline: threat-model → deep-reduce → validate (GS024)
 
 Usage: python3 gsc_threat_model.py <repo-path> [--quick]
 """
-import os, sys, json, hashlib, argparse, re
-from pathlib import Path
+import argparse
+import json
+import os
+import re
+import sys
 from datetime import datetime
-from urllib.request import Request, urlopen
 from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 API_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -421,13 +424,13 @@ def save_threat_model(model: dict, repo_path: str, output_dir: str = None):
         
         if 'stack' in model:
             s = model['stack']
-            f.write(f"## Stack\n")
+            f.write("## Stack\n")
             for k, v in s.items():
                 f.write(f"- **{k}:** {v}\n")
             f.write("\n")
         
         if 'attack_surfaces' in model:
-            f.write(f"## Attack Surfaces\n")
+            f.write("## Attack Surfaces\n")
             for a in model['attack_surfaces'][:10]:
                 risk_icon = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(a.get('risk', ''), '⚪')
                 f.write(f"\n### {risk_icon} {a.get('surface', '?')}\n")
@@ -486,7 +489,7 @@ def main():
     apply_dread(result)
     result.setdefault("pasta_stages", pasta_stages(context, result))
     json_path, md_path = save_threat_model(result, repo_path, args.output)
-    print(f"\n✅ Threat model saved:")
+    print("\n✅ Threat model saved:")
     print(f"   📄 {json_path}")
     print(f"   📝 {md_path}")
     
@@ -499,7 +502,7 @@ def main():
     
     attack_surfaces = result.get('attack_surfaces', result.get('top_threats', []))
     if attack_surfaces:
-        print(f"\n⚔️  Top Attack Surfaces:")
+        print("\n⚔️  Top Attack Surfaces:")
         for a in attack_surfaces[:5]:
             risk = a.get('risk', '?')
             icon = {'CRITICAL': '🔴', 'HIGH': '🟠', 'MEDIUM': '🟡', 'LOW': '🟢'}.get(risk, '⚪')
@@ -509,7 +512,7 @@ def main():
     
     priorities = result.get('scan_priorities', [])
     if priorities:
-        print(f"\n📋 Scan Priorities for deep-reducer:")
+        print("\n📋 Scan Priorities for deep-reducer:")
         for i, p in enumerate(priorities[:5], 1):
             print(f"   {i}. {p[:100]}")
 

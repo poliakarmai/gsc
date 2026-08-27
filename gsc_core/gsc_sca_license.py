@@ -14,15 +14,15 @@ CLI: ``gsc sca-license --repo ./project``
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
-import hashlib
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .gsc_sca import parse_repo_manifests, Package
+from .gsc_sca import Package, parse_repo_manifests
 
 HTTP_TIMEOUT = 5
 

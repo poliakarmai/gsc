@@ -112,7 +112,7 @@ def parse_docker_compose(path: Path) -> List[DockerComposeService]:
     Returns:
         A list of DockerComposeService objects.
     """
-    import yaml # Use standard library yaml parser, if available.
+    import yaml  # Use standard library yaml parser, if available.
     
     services: List[DockerComposeService] = []
     content = path.read_text(encoding="utf-8", errors="ignore")

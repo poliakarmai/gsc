@@ -17,12 +17,12 @@ Usage:
     fsm.mark_scanned(file_path, candidates_count)
     fsm.mark_processed(file_path, findings_count)
 """
-import sqlite3
 import hashlib
 import json
+import sqlite3
 import time
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
 
 
 class FileStateManager:

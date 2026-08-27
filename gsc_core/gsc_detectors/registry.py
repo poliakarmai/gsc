@@ -13,11 +13,9 @@ from __future__ import annotations
 
 from typing import Callable, Sequence
 
-from . import AuditContext, Detector, Finding
-
+from . import AuditContext, Finding
 
 # ── Import detectors ─────────────────────────────────────────────────────────
-
 from . import gs001_hardcoded_secret as _gs001
 from . import gs002_world_readable as _gs002
 from . import gs003_debug_prints as _gs003
@@ -55,7 +53,6 @@ from . import gs042_solidity as _gs042
 from . import gs043_honeypot as _gs043
 from . import gs044_trading_bots as _gs044
 from . import gs045_github_actions as _gs045
-
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
 

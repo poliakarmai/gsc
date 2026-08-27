@@ -1,9 +1,14 @@
 #!/usr/bin/env python3
 """GSC DAST Scanner v1.0 — nuclei-based dynamic scanning (SAST+DAST hybrid)."""
 from __future__ import annotations
-import json, subprocess, sys, tempfile
+
+import json
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import List
+
 try:
     import yaml
 except ImportError:

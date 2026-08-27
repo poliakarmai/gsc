@@ -14,16 +14,17 @@ Usage:
     python3 gsc_collect_light.py github   # GitHub code search
     python3 gsc_collect_light.py all      # everything
 """
-import sys
-import os
-import json
-import re
 import hashlib
+import json
+import os
+import re
 import sqlite3
+import sys
 import time
-import requests
-from pathlib import Path
 from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
 
 DB_PATH = Path.home() / ".hermes" / "state" / "gsc_audit.db"
 VAULT_PATH = Path.home() / "obsidian-vault" / "hermes" / "gsc-collector"
@@ -245,7 +246,7 @@ class GscCollector:
                 )
 
                 if resp.status_code == 403:
-                    print(f"    ⚠️ Rate limited — skipping remaining queries")
+                    print("    ⚠️ Rate limited — skipping remaining queries")
                     break
                 if resp.status_code != 200:
                     print(f"    ⚠️ HTTP {resp.status_code}")

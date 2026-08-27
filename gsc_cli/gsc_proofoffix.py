@@ -22,7 +22,6 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -216,8 +215,11 @@ def _run_poc_sandboxed(poc_code: str, sandbox_dir: str, fmt: str = "python",
     # isolation — container (docker/podman) first, then rlimit+minimal-env.
     try:
         from gsc_pof_sandbox import (
-            SANDBOX_ENV_WHITELIST, _sandbox_env, _sandbox_limits,
-            _isolation_backend, _run_isolated,
+            SANDBOX_ENV_WHITELIST,
+            _isolation_backend,
+            _run_isolated,
+            _sandbox_env,
+            _sandbox_limits,
         )
     except Exception:
         SANDBOX_ENV_WHITELIST = {
@@ -296,7 +298,7 @@ def _warn_no_container_isolation() -> Optional[str]:
     """DD-05: fail-fast — surface when docker/podman is absent so callers never
     silently accept an rlimit-degraded "verified". Returns a warning, or None."""
     try:
-        from gsc_pof_sandbox import _isolation_backend, _is_container_isolation
+        from gsc_pof_sandbox import _is_container_isolation, _isolation_backend
         backend = _isolation_backend()
         if not _is_container_isolation(backend):
             return ("container runtime (docker/podman) not found — proof-of-fix "
@@ -705,6 +707,7 @@ def generate_fix(finding_key: str, report_path: str, project_root: str) -> FixEv
         target_rule = finding.get("rule_id", "")
         try:
             from gsc_detectors.registry import get_detectors
+
             from gsc_detectors import AuditContext
             for det in get_detectors(echelon=None):
                 if det.rule_id != target_rule:

@@ -15,8 +15,9 @@ import os
 import subprocess
 import tempfile
 import time
+
+from gsc_cloud import store  # CRUD по scans/findings/usage
 from gsc_cloud.gsc_db_backend import PgBackend
-from gsc_cloud import store          # CRUD по scans/findings/usage
 from gsc_cloud.scan_queue import ScanQueue
 from gsc_cloud.target_policy import validate_target
 

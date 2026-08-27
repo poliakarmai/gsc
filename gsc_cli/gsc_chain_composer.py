@@ -14,9 +14,14 @@ Candidate selection uses rule categories and heuristics before LLM
 to conserve budget. Chains are persisted in SQLite via gsc_db.py.
 """
 
-import hashlib, itertools, json, os, re, sys
+import hashlib
+import itertools
+import json
+import os
+import re
+import sys
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from dataclasses import dataclass, field, asdict
 from typing import Optional
 
 SEVERITY_ORDER = {"LOW": 1, "MEDIUM": 2, "HIGH": 3, "CRITICAL": 4}

@@ -13,8 +13,7 @@ import json
 import os
 
 from gsc_cloud.gsc_db_backend import PgBackend
-from gsc_mutation_tracker import (MutationMatcher, fingerprint,
-                                  normalize_snippet)
+from gsc_mutation_tracker import MutationMatcher, fingerprint, normalize_snippet
 
 LOOKBACK_DAYS = 90
 MIN_CONFIDENCE = 0.55

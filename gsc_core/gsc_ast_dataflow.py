@@ -17,7 +17,8 @@ Rules:
 Requires Python >= 3.9 (ast.unparse).
 """
 
-import ast, re
+import ast
+import re
 from typing import Optional
 
 

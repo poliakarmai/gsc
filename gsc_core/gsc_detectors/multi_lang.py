@@ -7,7 +7,8 @@
 GSC Multi-Language Detectors — Go, TypeScript, Rust, Java.
 v0.16 — basic regex patterns for secrets, injection, unsafe operations.
 """
-import re, os, json
+import json
+import re
 from pathlib import Path
 from typing import Optional
 

@@ -18,7 +18,7 @@ Row = sqlite3.Row (SqliteBackend) или dict (PgBackend, psycopg dict_row) —
 from __future__ import annotations
 
 import sqlite3
-from typing import Any, List, Optional
+from typing import Any, List
 
 
 def q_to_pg(sql: str) -> str:

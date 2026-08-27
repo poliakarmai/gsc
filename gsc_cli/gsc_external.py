@@ -24,10 +24,18 @@ Usage:
   gsc feedback <id> --verdict fp --reason "..."
 """
 
-import os, sys, json, subprocess, tempfile, shutil, re, hashlib, time
-from pathlib import Path
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
-from dataclasses import dataclass, field, asdict
+from pathlib import Path
 from typing import Optional
 
 # ── Paths ────────────────────────────────────────────────────────────────────
@@ -530,7 +538,7 @@ def generate_markdown_report(result: ScanResult) -> str:
                  if f.get("review_status") == "uncertain"]
 
     lines = [
-        f"# 🔒 GSC Developer Project Audit",
+        "# 🔒 GSC Developer Project Audit",
         "",
         f"**Project:** `{result.repo}`  ",
         f"**Commit:** `{result.commit}`  ",
@@ -540,12 +548,12 @@ def generate_markdown_report(result: ScanResult) -> str:
         f"**LLM calls:** {result.llm_calls}  ",
         f"**Date:** {result.finished_at[:19] if result.finished_at else 'N/A'}  ",
         "",
-        f"## 📊 Summary",
+        "## 📊 Summary",
         "",
         f"**Overall risk: {'🔴 HIGH' if len(blocking) > 0 else '🟡 MEDIUM' if result.findings_likely > 0 else '🟢 LOW'}**",
         "",
-        f"| Category | Count |",
-        f"|----------|------:|",
+        "| Category | Count |",
+        "|----------|------:|",
         f"| 🚨 Blocking | **{len(blocking)}** |",
         f"| 🔴 Confirmed | {result.findings_confirmed} |",
         f"| 🟡 Likely | {result.findings_likely} |",
@@ -618,8 +626,8 @@ def _format_finding_section(num: int, f: dict, tag: str) -> list[str]:
         "",
         f"**{tag}** — Risk Score: {f.get('risk_score', 0)}/100",
         "",
-        f"| Property | Value |",
-        f"|----------|-------|",
+        "| Property | Value |",
+        "|----------|-------|",
         f"| Severity | {f.get('category', '?')} |",
         f"| Confidence | {f.get('confidence_score', 0):.0%} |",
         f"| Status | {f.get('review_status', '?')} |",
@@ -920,7 +928,7 @@ def generate_pr_diff_comment(result: ScanResult, diff: DiffResult, diff_ctx: Dif
         )
 
     lines = [
-        f"## 🔒 GSC Security Scan",
+        "## 🔒 GSC Security Scan",
         "",
         f"**Profile:** `{result.profile}` · "
         f"Base: `{diff_ctx.base_ref}` → Head: `{diff_ctx.head_ref}`",
@@ -968,7 +976,7 @@ def generate_pr_diff_comment(result: ScanResult, diff: DiffResult, diff_ctx: Dif
 
     lines.extend([
         "---",
-        f"*Blocking: severity ≥ HIGH, confidence ≥ 80%.*",
+        "*Blocking: severity ≥ HIGH, confidence ≥ 80%.*",
     ])
     return "\n".join(lines)
 
@@ -1105,7 +1113,7 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     print(f"📋 Profile: {profile_name} | Mode: {mode}")
 
     # Step 3: GSC scan
-    print(f"🔍 Scanning...")
+    print("🔍 Scanning...")
     raw_findings = []
     try:
         r = subprocess.run(
@@ -1175,7 +1183,8 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
                 with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as tmp:
                     json.dump({"findings": critical_enriched}, tmp)
                     tmp_path = tmp.name
-                import threading, queue
+                import queue
+                import threading
                 _q = queue.Queue(maxsize=1)
                 def _rej():
                     try:
@@ -1235,8 +1244,10 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     if poc_budget > 0 and any(f.get("confidence_score", 0) >= 0.80 for f in enriched):
         print(f"   Generating PoCs (budget: {poc_budget})...")
         try:
+            import queue
+            import threading
+
             from gsc_poc_generator import attach_pocs
-            import threading, queue
             _q = queue.Queue(maxsize=1)
             def _poc():
                 try:
@@ -1280,8 +1291,8 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
     # ── v0.19: Temporal Mutation Tracker (no LLM, before rollout) ──
     mutation_alerts = []
     try:
-        from gsc_mutation_tracker import MutationTracker, auto_resolve
         from gsc_db import GSCDatabase
+        from gsc_mutation_tracker import MutationTracker, auto_resolve
         with GSCDatabase() as db:
             tracker = MutationTracker(db)
             mutation_alerts = tracker.process(enriched, target=target, scan_mode=mode)
@@ -1346,7 +1357,7 @@ def run_external_scan(target: str, profile_name: str = "developer-review",
               f"{len(diff_ctx.deleted_files)} deleted)")
 
         # Build base baseline
-        print(f"   Building base baseline...")
+        print("   Building base baseline...")
         base_fps = build_base_baseline(target_path, diff_ctx)
         print(f"   Base fingerprints: {len(base_fps)}")
 
@@ -1418,7 +1429,7 @@ def _revalidate(finding: dict, project_path: Path, severities=None) -> dict:
     if not snippet:
         return f
 
-    from gsc_llm_providers import llm_chat_with_deadline, defang, guard_system
+    from gsc_llm_providers import defang, guard_system, llm_chat_with_deadline
 
     try:
         safe_snippet = defang(redact(snippet[:2000]))
@@ -1493,7 +1504,7 @@ def main():
 
         # Output directory
         name = args.target.rstrip("/").split("/")[-1].replace(".git", "")
-        mode_suffix = f"-diff" if args.mode in ("diff", "pr") else ""
+        mode_suffix = "-diff" if args.mode in ("diff", "pr") else ""
         out_dir = EXTERNAL_DIR / name / (datetime.now().strftime("%Y-%m-%d_%H%M") + mode_suffix)
         if args.output:
             out_dir = Path(args.output)

@@ -8,13 +8,13 @@ Sources:
 
 Each finding is fed into the GSC pipeline for pattern creation and self-learning.
 """
-import scrapy
-import re
 import json
-import hashlib
+import re
 from urllib.parse import quote, urljoin
-from gsc_core.gsc_collector.items import VulnerabilityItem
 
+import scrapy
+
+from gsc_core.gsc_collector.items import VulnerabilityItem
 
 # ── Search queries matching GSC detectors ─────────────────────────────────
 

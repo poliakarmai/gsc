@@ -14,7 +14,6 @@ Inspired by OWASP A03:2021 — Injection.
 """
 
 import re
-from pathlib import Path
 
 from . import AuditContext, Finding
 

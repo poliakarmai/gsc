@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Master Orchestrator (v0.39). Unified pipeline: scan→enrich→chains→sbom→report."""
-from dataclasses import dataclass, field, asdict
+from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
+
 
 @dataclass
 class PipelineResult:
@@ -50,8 +51,8 @@ class GSCOrchestrator:
 
     def _sbom(self, target):
         try:
-            from gsc_sca import parse_repo_manifests
             from gsc_sbom import generate_sbom
+            from gsc_sca import parse_repo_manifests
             pkgs = parse_repo_manifests(target)
             return generate_sbom(pkgs) if pkgs else None
         except: return None

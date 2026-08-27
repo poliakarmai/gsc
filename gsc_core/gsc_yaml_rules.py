@@ -12,10 +12,15 @@ Usage:
     python3 gsc_yaml_rules.py registry update  # update from GitHub
 """
 
-import hashlib, json, os, re, subprocess, sys, yaml
+import hashlib
+import json
+import re
+import subprocess
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Tuple
 
+import yaml
 
 # ── YAML Schema ──────────────────────────────────────────────────────
 #

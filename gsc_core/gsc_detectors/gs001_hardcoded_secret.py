@@ -13,7 +13,6 @@ v1.1 — 26.06.2026: new patterns (GitHub, JWT, connection strings),
 """
 
 import re
-from pathlib import Path
 
 from . import AuditContext, Finding
 

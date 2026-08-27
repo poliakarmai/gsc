@@ -1,7 +1,15 @@
 #!/usr/bin/env python3
 """GS031 — IaC misconfiguration detector (v0.34)."""
-from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, detect_ansible, _is_kubernetes
 import re
+
+from gsc_iac import (
+    _is_kubernetes,
+    detect_ansible,
+    detect_dockerfile,
+    detect_kubernetes,
+    detect_terraform,
+)
+
 
 class GS031IaCDetector:
     rule_id = "GS031"

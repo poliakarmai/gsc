@@ -19,8 +19,8 @@ File targets: .md, .txt, .py, .js, .ts, .yml, .yaml, .json, .html
 
 from __future__ import annotations
 
-import re
 import math
+import re
 from typing import Any
 
 # ── INJECTION PATTERNS ─────────────────────────────────────────────────
@@ -268,7 +268,6 @@ description = "GS032: Prompt Injection — detect AI agent hijack via code/docs/
 
 def detect(ctx) -> list[dict]:
     """Bridge function for registry compatibility — uses AuditContext."""
-    from pathlib import Path
     det = GS032PromptInjectionDetector()
     findings = []
     files = ctx.files if ctx.files else list(ctx.path.rglob("*"))

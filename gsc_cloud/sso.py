@@ -14,15 +14,14 @@ from __future__ import annotations
 
 import os
 import secrets
-import time
 
-import requests
 import jwt
-from jwt import InvalidTokenError, PyJWKClient
+import requests
 from authlib.integrations.requests_client import OAuth2Session
+from jwt import InvalidTokenError, PyJWKClient
 
 from gsc_cloud import audit
-from gsc_cloud.session import COOKIE_OPTS, issue as issue_session
+from gsc_cloud.session import issue as issue_session
 
 NONCE_TTL = 600
 REDIRECT_URI = os.environ.get("GSC_SSO_REDIRECT_URI",

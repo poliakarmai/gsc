@@ -10,11 +10,15 @@ Uses subprocess with timeout + resource limits for safety.
 """
 from __future__ import annotations
 
-import json, os, re, shutil, subprocess, sys, tempfile, time, venv
-from dataclasses import dataclass, field
+import os
+import re
+import shutil
+import subprocess
+import time
+import venv
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
-
 
 SANDBOX_TIMEOUT = 30  # Max seconds per PoC execution
 MAX_OUTPUT_BYTES = 10_000
@@ -400,7 +404,8 @@ class PoFSandbox:
             )
         except Exception:
             return None
-        import urllib.request, urllib.error
+        import urllib.error
+        import urllib.request
         url = f"http://127.0.0.1:{port}"
         for _ in range(20):
             try:
@@ -458,7 +463,8 @@ class PoFSandbox:
             )
         except Exception:
             return None
-        import urllib.request, urllib.error
+        import urllib.error
+        import urllib.request
         url = f"http://127.0.0.1:{port}"
         for _ in range(30):
             try:

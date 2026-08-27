@@ -15,3 +15,6 @@ fastmcp==3.4.7
 Authlib==1.7.2
 redis==8.1.0
 requests==2.33.0
+
+# lint (see [tool.ruff] in pyproject.toml)
+ruff==0.16.4

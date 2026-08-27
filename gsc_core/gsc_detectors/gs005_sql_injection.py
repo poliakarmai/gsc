@@ -10,14 +10,10 @@ Per-pattern precision can be tracked and noisy patterns selectively disabled.
 from __future__ import annotations
 
 import re
-from pathlib import Path
-
-from . import AuditContext, Finding
-from .base import make_finding
 
 # ── assign_ids (inlined for module-relative import) ────────────────────────
-
-import re as _re
+from . import AuditContext, Finding
+from .base import make_finding
 
 _TYPE_MAP = {
     "f-string": "FSTR", "format(": "FMT", "%.format": "FMT",

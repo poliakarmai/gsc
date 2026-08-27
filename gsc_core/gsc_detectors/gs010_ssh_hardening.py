@@ -63,8 +63,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         line=lineno,
                         severity="CRITICAL",
                         title="SSH root login enabled",
-                        detail=f"PermitRootLogin is set to 'yes' — allows direct root SSH access. "
-                               f"Use 'prohibit-password' or 'forced-commands-only'.",
+                        detail="PermitRootLogin is set to 'yes' — allows direct root SSH access. "
+                               "Use 'prohibit-password' or 'forced-commands-only'.",
                         fix_suggestion="Set 'PermitRootLogin prohibit-password' or 'PermitRootLogin no'",
                         references=["SSH Hardening & Offensive Mastery §3.1.3"]
                     ))

@@ -20,9 +20,10 @@ Detects credential exposure patterns from Redteam Kit:
 Sources: Window Privilege Escalation, SSH Hardening & Offensive Mastery,
 2025 Playbooks (Credential Stuffing)
 """
-from . import AuditContext, Finding
 import re
 from pathlib import Path
+
+from . import AuditContext, Finding
 
 RULE_ID = "GS014"
 ECHELON = 2

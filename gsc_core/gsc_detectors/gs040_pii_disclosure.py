@@ -39,10 +39,9 @@ for this detector and belongs to the AST dataflow engine).
 
 from __future__ import annotations
 
-import re
 import hashlib
+import re
 from typing import Any
-
 
 # ── Patterns ─────────────────────────────────────────────────────────────────
 
@@ -66,7 +65,7 @@ _EMAIL_DOMAIN_BLOCK = frozenset({
     "mailinator.com", "yopmail.com", "tempmail.com", "10minutemail.com",
     "guerrillamail.com", "dispostable.com", "fakemail.com",
     "example.local", "example.dev", "example.me", "sample.com",
-    "ex.com", "example.co.uk", "example.test", "test.example.com",
+    "ex.com", "example.co.uk", "test.example.com",
 })
 
 # Non-PII local-parts (role accounts that are never a person's address).

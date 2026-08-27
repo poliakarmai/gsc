@@ -21,9 +21,9 @@ Detects:
 
 from __future__ import annotations
 
-import re, hashlib
+import hashlib
+import re
 from typing import Any
-
 
 RUBY_RULES: list[tuple[str, str, str, float]] = [
     # --- YAML Deserialization ---

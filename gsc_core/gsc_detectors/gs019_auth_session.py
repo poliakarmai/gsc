@@ -23,7 +23,7 @@ Detects auth/session vulnerabilities — #5 in fintech pentest reports:
 Sources: 2026 Fintech Pentest Report, OWASP ASVS V2/V3, PCI-DSS 8
 """
 import re
-from pathlib import Path
+
 from . import AuditContext, Finding
 
 RULE_ID = "GS019"

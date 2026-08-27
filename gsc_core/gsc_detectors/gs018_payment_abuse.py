@@ -22,7 +22,7 @@ the #2 finding in 2026 fintech pentest reports (scanners are blind to these):
 Sources: 2026 Fintech Pentest Report, OWASP ASVS V5 (Business Logic)
 """
 import re
-from pathlib import Path
+
 from . import AuditContext, Finding
 
 RULE_ID = "GS018"
@@ -229,7 +229,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     rule_id=RULE_ID, file_path=rel_path,
                     line=_lineno(content, match.start()),
                     severity="CRITICAL",
-                    title=f"Balance update without atomic locking — race condition risk",
+                    title="Balance update without atomic locking — race condition risk",
                     detail=f"Direct balance += at line {_lineno(content, match.start())} without SELECT FOR UPDATE or transaction isolation.",
                     fix_suggestion="Use SELECT ... FOR UPDATE before balance modification. Or use UPDATE ... SET balance = balance + ? WHERE ... RETURNING balance.",
                     noise_tier="normal",
@@ -282,7 +282,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     rule_id=RULE_ID, file_path=rel_path,
                     line=_lineno(content, match.start()),
                     severity="CRITICAL",
-                    title=f"Webhook handler without signature verification",
+                    title="Webhook handler without signature verification",
                     detail="Webhook/callback endpoint lacks HMAC signature validation. Vulnerable to forged callbacks.",
                     fix_suggestion="Validate webhook signature using shared secret (HMAC-SHA256). Compare constant-time. Include timestamp to prevent replay.",
                     noise_tier="precise",
@@ -303,7 +303,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     rule_id=RULE_ID, file_path=rel_path,
                     line=_lineno(content, match.start()),
                     severity="MEDIUM",
-                    title=f"Payment endpoint without rate limiting",
+                    title="Payment endpoint without rate limiting",
                     detail="Sensitive payment endpoint lacks rate limit protection.",
                     fix_suggestion="Add rate limiting: max 5-10 requests/minute per user for payment endpoints. Use token bucket or sliding window.",
                     noise_tier="normal",
@@ -322,7 +322,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                     rule_id=RULE_ID, file_path=rel_path,
                     line=_lineno(content, match.start()),
                     severity="HIGH",
-                    title=f"Amount from request without negative validation",
+                    title="Amount from request without negative validation",
                     detail="Amount/price taken from request without checking > 0. Negative amounts can exploit refund logic.",
                     fix_suggestion="Validate all amounts: must be > 0, within allowed range. Add explicit check before processing.",
                     noise_tier="normal",

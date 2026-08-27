@@ -20,10 +20,9 @@ Detects:
 
 from __future__ import annotations
 
-import re
 import hashlib
+import re
 from typing import Any
-
 
 NODE_RULES: list[tuple[str, str, str, float]] = [
     # --- Prototype Pollution ---

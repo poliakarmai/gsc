@@ -13,9 +13,6 @@ Supported:
 
 from __future__ import annotations
 
-import re
-from pathlib import Path
-
 # Mapping: rule_id prefix → (kind, payload, success_marker, format)
 DETERMINISTIC_RULES: dict[str, tuple[str, str, str, str]] = {
     "YAML-SSTI001": (

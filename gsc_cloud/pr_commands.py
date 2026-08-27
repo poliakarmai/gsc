@@ -9,7 +9,7 @@ import requests
 
 from gsc_cloud.github_auth import gh_headers
 from gsc_cloud.store import control_plane
-from scripts.gsc_pr_commands import (ALLOWED_ASSOCIATIONS, parse_commands)
+from scripts.gsc_pr_commands import ALLOWED_ASSOCIATIONS, parse_commands
 
 
 def handle_issue_comment(payload: dict) -> dict:

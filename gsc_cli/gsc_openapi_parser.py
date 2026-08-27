@@ -20,7 +20,7 @@ import re
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal, Mapping
+from typing import Literal
 
 import yaml
 
@@ -170,7 +170,7 @@ def main():
                 json.dump(output_data, f, indent=2, ensure_ascii=False)
             print(f"✅ Extracted endpoints saved to {args.output}")
         
-        print(f"\nSummary:")
+        print("\nSummary:")
         print(f"Total endpoints found: {len(endpoints)}")
         print(f"Potential BOLA/IDOR candidates: {len(bola_idor_candidates)}")
 

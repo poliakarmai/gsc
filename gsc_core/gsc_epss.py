@@ -12,7 +12,9 @@ EPSS API: https://api.first.org/data/v1/epss (free, no key required).
 
 from __future__ import annotations
 
-import json, re, sys
+import json
+import re
+import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 

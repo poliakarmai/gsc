@@ -16,14 +16,14 @@ Usage:
   gsc db <sql>             Query audit database
 """
 
-import sys
-import os
 import argparse
 import json
+import os
 import sqlite3
 import subprocess
-from pathlib import Path
+import sys
 from datetime import datetime
+from pathlib import Path
 
 _GSC_ROOT = Path(__file__).resolve().parent.parent
 
@@ -180,7 +180,7 @@ def cmd_scan(args):
     # 4. Report
     # IaC: сканирование инфраструктурных файлов (GS031)
     try:
-        from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, _is_kubernetes
+        from gsc_iac import _is_kubernetes, detect_dockerfile, detect_kubernetes, detect_terraform
         for fpath in project_path.rglob("*"):
             if not fpath.is_file():
                 continue
@@ -246,8 +246,9 @@ def run_audit_echelons(project: str, path: Path, echelons: str = None, deep: boo
     # ── v0.20: Security Invariant Engine (GS028) ──
     if not echelons or "2" in echelons:
         try:
-            from gsc_invariant_engine import InvariantEngine
             from gsc_detectors.gs028_invariants import GS028Detector
+
+            from gsc_invariant_engine import InvariantEngine
             config = path / ".gsc-audit.yml"
             if config.exists():
                 engine = InvariantEngine(str(config))
@@ -434,8 +435,9 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
         _gsc_root = str(_GSC_ROOT)
         if _gsc_root not in _sys.path:
             _sys.path.insert(0, _gsc_root)
-        from gsc_detectors import AuditContext, Finding
         from gsc_detectors.registry import get_detectors
+
+        from gsc_detectors import AuditContext, Finding
 
         ctx = AuditContext(project=project, path=path)
         # Pre-filter: populate the file inventory once (with size/binary/dir
@@ -898,7 +900,7 @@ def run_diff_scan(project: str, path: Path) -> list[dict]:
     findings = []
     for fname in changed_files:
         fpath = path / fname
-        if not fpath.exists() or not fpath.suffix in ('.py', '.go', '.ts', '.rs', '.java', '.tf', '.js', '.yaml', '.yml'):
+        if not fpath.exists() or fpath.suffix not in ('.py', '.go', '.ts', '.rs', '.java', '.tf', '.js', '.yaml', '.yml'):
             continue
 
         # Run patterns on this file only
@@ -1061,6 +1063,7 @@ def export_junit(findings: list[dict], project: str) -> str:
 def cmd_scan_diff(args) -> int:
     """Compare two scan JSON files; print drift summary. Exit 1 if new findings."""
     import json
+
     from gsc_scan_diff import diff_scans, diff_summary
 
     def _load(path):
@@ -1295,7 +1298,7 @@ def print_summary(findings: list[dict]):
     print(f"   LOW:      {len(low)}")
 
     if critical:
-        print(f"\n🔴 CRITICAL:")
+        print("\n🔴 CRITICAL:")
         for f in critical[:5]:
             print(f"   {f['file_path']}:{f.get('line_number','?')} — {f['title']}")
 
@@ -1368,7 +1371,7 @@ def cmd_dashboard(args):
     os.chdir(str(GSC_HOME))
     with socketserver.TCPServer(("", port), Handler) as httpd:
         print(f"🌐 GSC Dashboard: http://localhost:{port}")
-        print(f"   Press Ctrl+C to stop")
+        print("   Press Ctrl+C to stop")
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:
@@ -1513,7 +1516,7 @@ def cmd_patterns_review():
 
     if pending:
         print(f"\n🟡 PENDING ACTIVATION ({len(pending)} patterns):")
-        print(f"   Run: gsc patterns --activate <id>   or   gsc patterns --reject <id>")
+        print("   Run: gsc patterns --activate <id>   or   gsc patterns --reject <id>")
         print(f"{'ID':<6} {'Title':<50} {'Category':<10} {'Created'}")
         print("-" * 85)
         for p in pending:
@@ -1538,8 +1541,8 @@ def cmd_patterns_review():
     print(f"\n📊 Total: {total} patterns ({active} active, {total - active} inactive)")
 
     if pending:
-        print(f"\n💡 To activate a pattern: gsc db \"UPDATE patterns SET active=1 WHERE id=<id>\"")
-        print(f"💡 To reject (delete):   gsc db \"DELETE FROM patterns WHERE id=<id>\"")
+        print("\n💡 To activate a pattern: gsc db \"UPDATE patterns SET active=1 WHERE id=<id>\"")
+        print("💡 To reject (delete):   gsc db \"DELETE FROM patterns WHERE id=<id>\"")
 
 
 def cmd_patterns(args):
@@ -1695,7 +1698,7 @@ def cmd_db(args):
 def cmd_state(args):
     """Manage finding state lifecycle with FSM router."""
     from gsc_db import GSCDatabase
-    from gsc_router import FindingRouter, FindingEvent, FindingState, Action
+    from gsc_router import Action, FindingEvent, FindingRouter, FindingState
 
     db = GSCDatabase()
     router = FindingRouter()
@@ -1750,6 +1753,7 @@ def cmd_state(args):
 def cmd_verify_fix(args):
     """Verify a fix before creating PR."""
     import json
+
     from gsc_verify_fix import verify_fix
 
     report = verify_fix(
@@ -2013,7 +2017,7 @@ def cmd_fix(args):
 
     print(f"🔧 GSC fix #{row['id']}: {row['title']}")
     print(f"   File: {fp}:{ln}")
-    print(f"   Analyzing with OpenRouter...")
+    print("   Analyzing with OpenRouter...")
 
     try:
         sys.path.insert(0, str(_GSC_ROOT / "scripts"))
@@ -2042,7 +2046,8 @@ Output format:
 ```"""
 
         # Use direct OpenRouter call for fix generation
-        import requests, yaml
+        import requests
+        import yaml
 
         api_key = os.environ.get("OPENROUTER_API_KEY")
         if not api_key:
@@ -2147,8 +2152,9 @@ def cmd_revalidate(args):
 def cmd_sbom(args):
     """gsc sbom — generate SBOM (CycloneDX or SPDX)."""
     import json
-    from gsc_sca import parse_repo_manifests
+
     from gsc_sbom import generate_sbom
+    from gsc_sca import parse_repo_manifests
     from gsc_spdx import generate_spdx
     packages = parse_repo_manifests(args.repo)
     if not packages:
@@ -2165,6 +2171,7 @@ def cmd_supply_chain(args):
     """gsc supply-chain — link code findings to reachable vulnerable dependencies."""
     import json
     from pathlib import Path
+
     from gsc_supply_chain_chains import compose_supply_chains
 
     scan_file = getattr(args, 'scan', 'scan.json')
@@ -2191,6 +2198,7 @@ def cmd_exploit_refine(args):
     """gsc exploit-refine — iterate a PoC until sandbox success (feedback loop)."""
     import json
     from pathlib import Path
+
     from gsc_exploit_refiner import ExploitRefiner
 
     try:
@@ -2228,8 +2236,9 @@ def cmd_exploit_refine(args):
 
 def cmd_iac(args):
     """gsc iac — IaC misconfiguration scan."""
-    from gsc_iac import detect_dockerfile, detect_kubernetes, detect_terraform, _is_kubernetes
     from pathlib import Path
+
+    from gsc_iac import _is_kubernetes, detect_dockerfile, detect_kubernetes, detect_terraform
     findings = []
     for path in Path(args.repo).rglob("*"):
         if not path.is_file(): continue
@@ -2249,7 +2258,8 @@ def cmd_iac(args):
 def cmd_sbom_verify(args):
     """gsc sbom-verify — verify SBOM signature."""
     import json
-    from gsc_spdx import verify_sbom, load_signing_key
+
+    from gsc_spdx import load_signing_key, verify_sbom
     sbom = json.load(open(args.sbom)); sig = json.load(open(args.signature))
     key = load_signing_key()
     if key is None: print("No signing key"); return 1
@@ -2292,10 +2302,13 @@ def cmd_registry(args):
     if _gsc_root not in _sys.path:
         _sys.path.insert(0, _gsc_root)
 
-    from gsc_core.gsc_yaml_rules import (
-        YAML_RULES_DIR, compile_rules, compile_and_write, update_registry,
-    )
     from gsc_core.gsc_detectors import registry as _det_reg
+    from gsc_core.gsc_yaml_rules import (
+        YAML_RULES_DIR,
+        compile_and_write,
+        compile_rules,
+        update_registry,
+    )
 
     if args.reg_command == "list":
         # 1) Compiled detectors
@@ -2940,8 +2953,12 @@ def main():
         cmd_status(args)
     elif args.command == "workspace":
         from gsc_workspace import (
-            workspace_create, workspace_add, workspace_scan,
-            workspace_report, workspace_list, workspace_delete,
+            workspace_add,
+            workspace_create,
+            workspace_delete,
+            workspace_list,
+            workspace_report,
+            workspace_scan,
         )
         if args.ws_cmd == 'create':
             workspace_create(args.name, args.description)
@@ -3118,6 +3135,7 @@ def main():
 
     elif args.command == "api":
         import uvicorn
+
         from gsc_api import app
         print(f"🔒 GSC API v1.0 — http://{args.host}:{args.port}")
         print(f"   Docs: http://{args.host}:{args.port}/docs")
@@ -3186,6 +3204,7 @@ def main():
         print(f"Attack graph written to {out}")
     elif args.command == "attack-tree":
         import json as _json
+
         from gsc_attack_tree import render_attack_tree
         data = _json.loads(Path(args.threat_model).read_text())
         surfaces = (data.get("attack_surfaces") or data.get("top_threats") or [])
@@ -3193,11 +3212,13 @@ def main():
         print(f"Attack tree written to {out}")
     elif args.command == "fix-quality":
         import json as _json
+
         from gsc_fix_quality import score_from_evidence_json
         q = score_from_evidence_json(args.evidence)
         print(_json.dumps(q.to_dict(), indent=2, ensure_ascii=False))
     elif args.command == "sla":
         import json as _json
+
         from gsc_sla import sla_report
         print(_json.dumps(sla_report(days=args.days, group_by=args.by), indent=2, ensure_ascii=False))
     elif args.command == "supply-chain":
@@ -3244,8 +3265,9 @@ def main():
             print(_json.dumps(db.mutation_stats(), indent=2))
         db.close()
     elif args.command == "rollout" and args.cmd == "report":
-        from gsc_db import GSCDatabase
         from datetime import datetime
+
+        from gsc_db import GSCDatabase
         db = GSCDatabase()
         cfg = {}
         try:
@@ -3255,7 +3277,7 @@ def main():
         except Exception:
             pass
         now = datetime.now().isoformat()[:19]
-        print(f"# GSC Rollout Report")
+        print("# GSC Rollout Report")
         print(f"_Generated: {now}_")
         print()
         print("## Phases")
