@@ -202,7 +202,8 @@ def detect(ctx: AuditContext) -> list[Finding]:
         evm_seen: dict[str, Finding] = {}
 
         def _emit_evm(key_hex: str, line_no: int, title: str, severity: str,
-                      secret_type: str, fix: str) -> None:
+                      secret_type: str, fix: str, evm_seen=evm_seen,
+                      rel_path=rel_path) -> None:
             norm = key_hex.lower().lstrip("0x")
             if norm not in evm_seen:
                 evm_seen[norm] = _mk(rel_path, line_no, title, severity,

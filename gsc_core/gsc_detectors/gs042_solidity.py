@@ -137,11 +137,11 @@ def detect(ctx: AuditContext) -> list[Finding]:
         mask = solidity_code_mask(content)
         lines = content.split("\n")
 
-        def _line_no(pos: int) -> int:
+        def _line_no(pos: int, content=content) -> int:
             return content[:pos].count("\n") + 1
 
         def _emit(m: re.Match, title: str, severity: str, detail: str,
-                  fix: str, refs: list[str]) -> None:
+                  fix: str, refs: list[str], rel=rel, mask=mask) -> None:
             if not mask[m.start()]:
                 return
             findings.append(_mk(rel, _line_no(m.start()), title, severity,

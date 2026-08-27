@@ -112,3 +112,8 @@ line-length = 100
 # порядок импортов (I) и bugbear (B). Стилистика (UP/SIM/PLR/RUF) — off-scope.
 select = ["E4", "E7", "E9", "F", "I", "B"]
 ignore = ["E501", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+# FastAPI dependency markers (Depends/Body/Query/Header) are *intended* to be
+# called in argument defaults — B008 is a false positive for the whole router.
+"gsc_cloud/server.py" = ["B008"]

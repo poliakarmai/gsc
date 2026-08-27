@@ -132,7 +132,7 @@ def detect(ctx: AuditContext) -> list[Finding]:
                         pass
 
                 # Manual {match.group(N)} substitution — str.format() doesn't support method calls
-                formatted_detail = re.sub(r'\{match\.group\((\d+)\)\}', lambda m: (match.group(int(m.group(1))) or ""), detail)
+                formatted_detail = re.sub(r'\{match\.group\((\d+)\)\}', lambda m, match=match: (match.group(int(m.group(1))) or ""), detail)
 
                 findings.append(Finding(
                     rule_id=RULE_ID,

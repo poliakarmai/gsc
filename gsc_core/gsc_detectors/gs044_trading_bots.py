@@ -222,10 +222,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
         mask = _code_mask(content)
         lines = content.split("\n")
 
-        def _line_no(pos: int) -> int:
+        def _line_no(pos: int, content=content) -> int:
             return content[:pos].count("\n") + 1
 
-        def _is_code(m: re.Match) -> bool:
+        def _is_code(m: re.Match, mask=mask) -> bool:
             return mask[m.start()]
 
         # ── Rule 1a: timestamp used as nonce (replay) ──

@@ -27,7 +27,7 @@ def entropy(s: str) -> float:
     return -sum((c/n)*math.log2(c/n) for c in freq.values())
 
 def fingerprint_secret(value: str) -> str:
-    return hashlib.sha256(value.strip().strip("'\"'").encode()).hexdigest()[:32]
+    return hashlib.sha256(value.strip().strip("'\"'").encode()).hexdigest()[:32]  # noqa: B005 — strip whitespace, then surrounding quotes
 
 def extract_secrets(content: str, file_path: str, include_value: bool = False) -> List[Dict]:
     """Извлечь секреты. При include_value=True добавляет 'value' в память

@@ -105,10 +105,10 @@ def detect(ctx: AuditContext) -> list[Finding]:
         lines = content.split("\n")
         emitted: set[str] = set()  # honeypot rules are presence-based: one per file
 
-        def _line_no(pos: int) -> int:
+        def _line_no(pos: int, content=content) -> int:
             return content[:pos].count("\n") + 1
 
-        def _once(title: str) -> bool:
+        def _once(title: str, emitted=emitted) -> bool:
             if title in emitted:
                 return False
             emitted.add(title)
