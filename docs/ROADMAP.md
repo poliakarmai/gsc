@@ -29,7 +29,7 @@
 | Fine-grained criteria rejudge — source-to-sink / reachability / exploitability вместо одного вердикта | ✅ `parse_criteria()` + `fine_grained_verdict()` |
 | Flash-verifier — rejudge на deepseek-v4-flash (дёшево) | ✅ `select_flash_model()` |
 | Logprob-based confidence вместо regex `_extract_confidence` | ✅ `confidence_from_logprobs()` |
-| LLM-first-pass auditor — LLM читает весь репо → semantic findings (до regex), опциональный `--with-llm-first-pass` | ⬜ |
+| LLM-first-pass auditor — LLM читает весь репо → semantic findings (до regex), опциональный `--with-llm-first-pass` | 🟡 модуль `gsc_llm_first_pass.py` (`select_relevant_files`/`build_first_pass_prompt`/`parse_first_pass_response`) ✅; интеграция `--with-llm-first-pass` в orchestrator ⬜ |
 | Multi-model panel + judge — 3 ревьюера в изоляции + судья (follow-up) для CRITICAL/HIGH | ✅ `aggregate_panel()` + `judge_verdict()` |
 
 > Источник усиления: разбор NeuroSploit (agentic pentest, MIT) — grounding «no claim without a receipt» + cross-model validation. Не конкурент-сканер, но 2 механики бьют по галлюцинациям single-model rejudge (`gsc_rejudge.py` видит только `snippet[:100]`).
@@ -79,7 +79,7 @@
 | Поддержка JS/TS (npm) | ✅ `collect_js_usage` (import/require, scoped `@scope/pkg`, relative/builtin отсекаются) |
 | Поддержка Go | ✅ `collect_go_usage` (single + block import, комментарии стрипаются) |
 | Reachability по экосистеме | ✅ `is_reachable(..., ecosystem=PyPI/npm/Go)` — npm по корню пакета, Go по префиксу `pkg/` |
-| Deploy-context reachability (prod vs dev vs base-image) | ⬜ CVE в dev-контейнере/базовом образе, недоступном в проде — отдельный слой контекста развёртывания (Dockerfile/compose) |
+| Deploy-context reachability (prod vs dev vs base-image) | ✅ `gsc_deploy_context.py` (`parse_dockerfile`/`parse_docker_compose`/`analyze_deploy_context`) |
 | Work-vs-Value отчёт-доказательство | ✅ `work_vs_value_report()` — сводка «из N CRIT → M reachable, K в dev, L с EPSS<0.05» — аргумент для менеджера против красной панели |
 
 ## 🟡 Фаза 5.5 — SCA License Compliance
@@ -257,14 +257,14 @@ semgrep/trivy как движок.
 | Идея | Статус | Что делать | LLM | Трудоёмк. |
 |------|--------|-----------|-----|-----------|
 | Локальные LLM (Ollama/vLLM, air-gap) | ✅ **уже есть** (`gsc_llm_providers.py`: `OLLAMA_BASE_URL`/`LMSTUDIO_BASE_URL`/`LLM_BASE_URL`) | задокументировать air-gap-сценарий + тест failover-цепочки `GSC_LLM_PROVIDERS` | 0 | S |
-| PoF мультиязычность (JS/TS/Go/Java/Rust) | 🟡 парсеры manifest'ов Node/Go/Java ✅ (`gsc_pof_node_parser`/`gsc_pof_go_parser`/`gsc_pof_java_parser`); Rust (Cargo.toml) + sandbox-раннеры ⬜ | sandbox-раннеры + PoC-шаблоны; следующий — Rust | 0–частично | L |
+| PoF мультиязычность (JS/TS/Go/Java/Rust) | 🟡 парсеры manifest'ов Node/Go/Java/Rust ✅ (`gsc_pof_node_parser`/`gsc_pof_go_parser`/`gsc_pof_java_parser`/`gsc_pof_rust_parser`); мультиязычные sandbox-раннеры ⬜ | sandbox-раннеры (Node/Go/Java/Rust) + PoC-шаблоны | частично | L |
 | Семантический NL-policy через AST/Data Flow | 🟡 `gsc_ast_dataflow.py` есть, к NL-policy не подключён | taint-путь `secret → logger` в policy-движок вместо чистого regex | 0 | M |
-| AI-фаззинг BOLA/IDOR по OpenAPI/Swagger | 🟡 threat_model/attack_tree есть, OpenAPI-фаззинга нет | OpenAPI-парсер + запросы под 2 auth-контекста | частично | M |
-| Трекеры задач: Jira/Linear/GitLab Issues | ⬜ только GitHub (`github_adapter`) | REST-адаптеры + тикет с PoC/логами | 0 | S–M |
+| AI-фаззинг BOLA/IDOR по OpenAPI/Swagger | ✅ `gsc_openapi_parser.py` + `gsc_bola_fuzzer.py` (`build_bola_pairs`/`dispatch_pair`, 2 auth-контекста) | расширить на IDOR-параметры в теле/query | частично | M |
+| Трекеры задач: Jira/Linear/GitLab Issues | ✅ `gsc_trackers.py` (`create_jira_issue`/`create_linear_issue`/`create_gitlab_issue`) | интеграция с `gsc_issue` CLI | S | S–M |
 | Perf-бенчмарк патча (CPU/mem до/после) | 🟡 `fix_quality` есть, микробенчмарка нет | timeit/mem harness в sandbox + порог «безопасно, но медленно» | 0 | S–M |
 
 **РФ Enterprise-адаптация (продажа в контур):**
-- [ ] GitLab / GitFlic / GitVerse адаптер (все бизнес-инсталляции в РФ — локальные)
+- [x] GitLab адаптер — `gsc_gitlab_mr_context` + `gsc_gitlab_api_client` + `gsc_gitlab_adapter` + CLI `gsc gitlab` (MR-заметка с результатом скана); GitFlic/GitVerse — TODO
 - [ ] Русский язык доков + отчётов (требование Реестра Минцифры)
 - [ ] Air-gap/on-prem через Ollama/vLLM — задокументировать (движок уже готов)
 
@@ -344,7 +344,7 @@ signup→stats/findings/scans/dashboard 200.
 | DD-03 | P2 | Единый release manifest: числа детекторов/модулей в `marketing/` и `docs/` сверять с SSOT (`gsc_meta.py`) автоматически | ⬜ |
 | DD-04 | P2 | Убрать DEPRECATED `gsc_cloud/tenancy.py` (legacy `verify_api_key`/`scoped_query`) после удаления теста `test_cloud_s1.py`; канон — `cloud/auth.py` + `apideps.tenant_ctx` | ⬜ |
 | DD-05 | P3 | Fail-fast на старте `verify`/`pof`: если нет docker/podman — понятная ошибка, а не тихий rlimit-fallback | ⬜ |
-| DD-06 | P2 | SCA: резолвить точную версию npm/Go из lock-файла (`package-lock.json`/`yarn.lock`/`go.sum`) вместо нижней границы range из манифеста — иначе `^14.2.0` с пропатченным `14.2.35` в lock даёт ложный CRITICAL (реальный кейс: SCA gate заблокировал `apps/dashboard` на `next@14.2.0` при установленном `14.2.35`) | ✅ npm (`gsc_sca.py:parse_package_lock`); ⬜ Go/yarn |
+| DD-06 | P2 | SCA: резолвить точную версию npm/Go/yarn из lock-файла (`package-lock.json`/`yarn.lock`/`go.sum`) вместо нижней границы range из манифеста — иначе `^14.2.0` с пропатченным `14.2.35` в lock даёт ложный CRITICAL (реальный кейс: SCA gate заблокировал `apps/dashboard` на `next@14.2.0` при установленном `14.2.35`) | ✅ npm/Go/yarn (`gsc_sca.py`: `parse_package_lock`/`parse_go_sum`/`parse_yarn_lock`; `tests/test_sca_lock_resolution.py`) |
 | DD-07 | P1 | Rate limiting на `/api/v2/scan` + `/api/v2/verdicts` (per API-key, напр. 10 req/min) — сейчас rate-limit есть только у GitHub-клиента, на собственных эндпоинтах нет | ✅ `gsc_cloud/rate_limit.py` |
 | DD-08 | P1 | Security headers на все ответы cloud API: `Strict-Transport-Security`, `X-Frame-Options`, `X-Content-Type-Options`, CSP (сейчас middleware не выставляет ни одного) | ✅ `gsc_cloud/security_headers.py` |
 | DD-09 | P3 | Observability-углубление: structlog (JSON-логи) + Prometheus-формат `/metrics` + OTel tracing (CLI → API → worker → DB). База (`/health`, `/ready`, in-memory `/metrics`) уже есть в `observability.py` | ⬜ |
