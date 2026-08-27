@@ -6,7 +6,7 @@
 """
 GSC Blocking Engine (Phase 5 — v0.26).
 
-Phase rules (PROJECT.md 4):
+Phase rules:
   blocking-critical:  CRITICAL >= 0.90
   blocking-standard:  CRITICAL >= 0.90, HIGH >= 0.85
   + chain CRITICAL >= 0.90 in blocking-standard ONLY

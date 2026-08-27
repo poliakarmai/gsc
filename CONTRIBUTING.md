@@ -47,7 +47,7 @@
 
 ## Разработка
 
-См. [AGENTS.md](AGENTS.md) для AI-агентов и [PROJECT.md](PROJECT.md) для полной документации.
+См. [AGENTS.md](AGENTS.md) для AI-агентов, [PROJECT.md](PROJECT.md) для обзора архитектуры и [docs/README.md](docs/README.md) для полной документации.
 
 ## Вопросы
 

@@ -147,7 +147,7 @@ GSC готов к превращению в SaaS без переписывани
 ---
 
 См. также:
-- [PROJECT.md](PROJECT.md) — текущее состояние v0.26
+- [PROJECT.md](PROJECT.md) — обзор архитектуры
 - [GSC_APPLY_PLAN.md](GSC_APPLY_PLAN.md) — история коммитов v0.17→v0.26
 - [docs/S1_IMPLEMENTATION.md](docs/S1_IMPLEMENTATION.md) — поблочный план S1
 - [docs/SAAS_STRATEGY.md](docs/SAAS_STRATEGY.md) — полная стратегия SaaS

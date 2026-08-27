@@ -1,7 +1,7 @@
 # GSC Audit Guide — для AI-агента
 
 > **Это актуальный источник правды.** PROJECT.md и AGENTS.md синхронизированы — все числа через `gsc_meta.py`.
-> Последнее обновление: 2026-08-19 | Версия кода: v1.4.0 | Schema: 33 | Коммит: `42677ac`
+> Последнее обновление: 2026-08-19 | Версия кода: v1.4.0 | Schema: 33
 
 ## Назначение
 
@@ -16,7 +16,7 @@
 Самообучающаяся AppSec-платформа: `detect → prove → fix → verify → heal → predict → learn`
 
 **Покрытие:**
-- SAST: plugin-детекторы + GS024 LLM (DeepSeek)
+- SAST: plugin-детекторы + GS024 LLM
 - SCA: зависимости через OSV.dev (GS030)
 - Secrets: GS029 + cross-repo корреляция
 - IaC: Terraform/K8s/Dockerfile (GS031)
