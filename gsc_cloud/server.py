@@ -22,7 +22,7 @@ import httpx
 import jwt
 from fastapi import BackgroundTasks, Body, Depends, FastAPI, Header, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import RedirectResponse
+from fastapi.responses import RedirectResponse, Response
 from pydantic import BaseModel
 
 # ── GSC paths ──
@@ -32,6 +32,8 @@ sys.path.insert(0, str(GSC_DIR))
 import sqlite3
 
 from gsc_cloud.gsc_db_backend import PgBackend, SqliteBackend
+from gsc_cloud.logging import RequestIdMiddleware, configure_logging
+from gsc_cloud.metrics import REGISTRY, MetricsMiddleware, render_metrics
 
 # GSC-008: default to a writable user path so `import server` doesn't fail
 # creating /data (which only exists in the container). Production sets
@@ -150,6 +152,7 @@ from contextlib import asynccontextmanager
 @asynccontextmanager
 async def lifespan(_app):
     """GSC roadmap 5.1: DDL/миграции при старте, не при import (uvicorn server:app)."""
+    configure_logging()
     init_cloud_db()
     yield
 
@@ -171,6 +174,10 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
     allow_credentials=False,
 )
+
+# Observability (DD-09): request-id correlation + Prometheus HTTP metrics.
+app.add_middleware(RequestIdMiddleware)
+app.add_middleware(MetricsMiddleware)
 
 # ═══════════════════════════════════════════════════════════
 # Schema init
@@ -468,6 +475,15 @@ def health():
         "db_size_kb": round(size / 1024, 1),
         "detectors": _detector_count(),
     }
+
+
+@app.get("/metrics")
+def metrics():
+    """Prometheus text exposition 0.0.4 for scraping (DD-09)."""
+    return Response(
+        content=render_metrics(REGISTRY),
+        media_type="text/plain; version=0.0.4",
+    )
 
 
 @app.get("/ready")
