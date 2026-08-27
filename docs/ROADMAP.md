@@ -1,11 +1,11 @@
 # GSC Roadmap
 
-> v1.4.0 — актуальное состояние. Инженерная история версий — в git-логе.
+> v1.4.0 — актуальное состояние (обновлено 2026-08-27). Инженерная история версий — в git-логе.
 
 ## ✅ Shipped — v1.4.0
 
 ### Платформа
-- **Детекция** — 47 детекторов (SAST · SCA · Secrets · IaC), YAML rule DSL, реестр правил.
+- **Детекция** — 50 детекторов (46 registry + 4 движка: SAST · SCA · Secrets · IaC), YAML rule DSL, реестр правил.
 - **LLM-триаж** — confidence scoring, cross-model voting, panel + judge, logprob-калибровка.
 - **Reachability** — AST-анализ импортов (PyPI / npm / Go) + deploy-context (prod vs dev vs base-image).
 - **GitHub** — App (Check Runs), webhook-автоскан, PR-комментарии, required status checks.
@@ -16,6 +16,17 @@
 - **Self-healing CI** — авто-PR с верифицированными фиксами.
 - **Dependency-PoF** + adversarial re-attack (мутация payload).
 - **DAST** — экспорт в nuclei, валидация на staging.
+
+### Recon (bug bounty)
+- **Passive reconnaissance** — `gsc_recon/`: subdomain enumeration (crt.sh), tech detection (36 сигнатур), raw-DNS (RFC 1035), HTTP probing; оркестратор `subdomains → dns → http → tech`.
+- **Параллелизация** — resolve/dns/http стадии конкурентно (ThreadPoolExecutor), детерминизм по исходному порядку.
+
+### Верификация и приоритизация
+- **FP-фильтры** — CSP-aware XSS, CDN-aware directory listing.
+- **БДУ ФСТЭК** — каталог уязвимостей (`gsc_bdu.py`), нормализация `BDU:YYYY-NNNNN`.
+- **EPSS + CISA KEV + ExploitDB** — приоритизация по вероятности эксплуатации, а не по сырому CVSS.
+- **VERIFICATION_RULES.md** — правила верификации (PoC прогоняется в sandbox, «находку проверяет не тот агент»).
+- **Новые детекторы** — File Upload (`YAML-UPLOAD001`), NetScaler misconfig (`YAML-NETSCALER001`).
 
 ### Интеллект
 - Security archaeology (полный lifespan уязвимости), predictive forecasting (heatmap).
@@ -33,14 +44,15 @@
 
 ## 🟡 In progress
 
-- LLM first-pass auditor — whole-repo semantic pass (модуль готов, идёт интеграция в оркестратор).
-- Мультиязычные sandbox-раннеры (Node / Go / Java / Rust) — manifest-парсеры готовы.
-- NL-policy через AST / Data Flow — семантические правила поверх regex.
+- **LLM first-pass auditor** — whole-repo semantic pass. Модуль `gsc_llm_first_pass.py` готов, **не интегрирован в CLI/оркестратор**.
+- **Мультиязычные sandbox-раннеры** (Node / Go / Java / Rust) — manifest-парсеры готовы, раннеры нет.
+- **NL-policy через AST / Data Flow** — семантические правила поверх regex.
 
 ## ⬜ Planned
 
-- Локальные LLM (air-gap) и батч-ревалидация legacy-находок.
-- Open-core split (community vs enterprise packages).
-- PostgreSQL-хранилище (сейчас SQLite).
-- SaaS S2–S3 — workers, очереди, биллинг.
-- Observability — structlog / Prometheus / OTel.
+- **Локальные LLM** (air-gap) и батч-ревалидация legacy-находок.
+- **Open-core split** (community vs enterprise packages).
+- **PostgreSQL-хранилище** — сейчас SQLite; `gsc_cloud/gsc_db_backend.py` есть, но не в проде.
+- **Observability** — structlog есть (`main.py`), Prometheus / OTel не доделаны.
+- **SaaS S4** — SOC 2 Type I, DPA (S1–S3 реализованы в `gsc_cloud/`, см. `GSC_SAAS_ROADMAP.md`).
+- **LLM-first позиции bug bounty** — OAuth, Account Takeover, Rate Limiting (семантические, не regex).

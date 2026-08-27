@@ -2,8 +2,8 @@
 
 > Для: стратегического планирования продукта
 > Автор: Море
-> Дата: 2026-08-06
-> Статус: активный (обновляется по факту этапов S1–S4)
+> Дата: 2026-08-27 (обновлено)
+> Статус: S1–S3 реализованы в `gsc_cloud/`; S4 (SOC 2 / DPA) — впереди
 
 ## Executive summary
 
@@ -102,6 +102,10 @@ GSC готов к превращению в SaaS без переписывани
 
 ## Этапы
 
+Статус (27.08): S1–S3 реализованы в `gsc_cloud/` (`api_v2`, `billing`, `sso`,
+`marketplace`, `scan_queue`, `workers`, `github_app/oidc`, `Dockerfile`).
+S4 (SOC 2 Type I, DPA) — не начат.
+
 | Этап | Содержание | Оценка | Версии |
 |---|---|---|---|
 | **S1. Фундамент** | Docker-образ; PgBackend; tenants/repos/scans; API key per tenant; queue + worker | 3–4 нед | v0.27–v0.28 |
@@ -134,13 +138,13 @@ GSC готов к превращению в SaaS без переписывани
 
 ## Первые шаги (этот месяц)
 
-- [ ] Dockerfile сканера
-- [ ] 12-factor аудит (конфиг из env, секреты вне кода)
-- [ ] PgBackend + миграция schema 23 → PG
-- [ ] tenants/repos/scans + API key middleware
-- [ ] Очередь Redis + worker-процесс
-- [ ] Лендинг + waitlist + домен
-- [ ] Черновик GitHub App
+- [x] Dockerfile сканера (`Dockerfile` + `docker-compose.yml`)
+- [x] 12-factor аудит (конфиг из env, секреты вне кода — `GSC_DATABASE_URL`)
+- [x] PgBackend (`gsc_cloud/gsc_db_backend.py`) + multi-tenant store
+- [x] tenants/repos/scans + API key middleware (`api_v2.py`, `auth.py`)
+- [x] Очередь + worker-процесс (`scan_queue.py`, `workers.py`, `scanjobs.py`)
+- [x] Лендинг (marketing/gsc-onepager-yandex.html); waitlist + домен — [ ]
+- [x] GitHub App (`github_auth.py` / `github_oidc.py` / `github_worker.py`)
 
 Пункты 1–5 = S1; каждый независим и не ломает production.
 
