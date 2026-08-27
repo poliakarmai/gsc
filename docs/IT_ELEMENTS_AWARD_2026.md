@@ -85,7 +85,7 @@ GSC — самообучающаяся платформа безопасност
 | Precision-отчёт (10 проектов) | `benchmark/PRECISION_REPORT.md` |
 | PoF-верификация (gap-анализ) | `benchmark/POC_VERIFICATION_GAP.md` |
 | MCP-гайд (ИИ-агенты) | `docs/MCP_SERVER.md` |
-| Roadmap | `GSC_ROADMAP.md` |
+| Roadmap | внутренний (vault) |
 | Метрики (версия/детекторы/schema) | `gsc_meta.py` → v1.4.0, 42 det, schema 33 |
 
 ### Схема цикла (для презентации)

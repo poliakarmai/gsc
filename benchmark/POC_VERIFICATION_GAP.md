@@ -73,4 +73,4 @@ PoF-верификация для **библиотек и CLI** (rich, youtube-d
    malicious input, без HTTP. Замыкает PoF для не-web кода.
 
 Связано: `docs/EXPERTISE_01_IAST_RUNTIME_VALIDATOR.md` (Runtime Validator, D→B→F),
-`GSC_ROADMAP.md` Трек 0.6.
+внутренний roadmap, Трек 0.6.

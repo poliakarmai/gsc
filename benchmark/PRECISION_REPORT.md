@@ -53,7 +53,7 @@
 > (n слишком мал для статистики). Known-TP на aiohttp-security/django-ca/cyberbro
 > детектятся как HIGH/MEDIUM (Session Fixation, SSRF, XSS) — recall сохранён, но
 > severity частично понижен. Прежде чем заявлять «~50% precision», нужен замер на
-> ≥100 проектах (track 0.14.2 в GSC_ROADMAP.md).
+> ≥100 проектах (track 0.14.2 во внутреннем roadmap).
 
 ---
 
