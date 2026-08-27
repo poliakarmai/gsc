@@ -53,6 +53,7 @@ from . import gs042_solidity as _gs042
 from . import gs043_honeypot as _gs043
 from . import gs044_trading_bots as _gs044
 from . import gs045_github_actions as _gs045
+from . import gs046_cpp as _gs046
 
 # ── Detector descriptor ──────────────────────────────────────────────────────
 
@@ -339,6 +340,13 @@ ALL_DETECTORS: Sequence[DetectorEntry] = [
         detect_fn=_gs045.detect,
         description=_gs045.description,
         noise_tier=getattr(_gs045, "NOISE_TIER", "sensitive"),
+    ),
+    DetectorEntry(
+        rule_id=_gs046.RULE_ID,
+        echelon=_gs046.ECHELON,
+        detect_fn=_gs046.detect,
+        description=_gs046.description,
+        noise_tier=getattr(_gs046, "NOISE_TIER", "sensitive"),
     ),
     # 🆕 v2.0: LLM-based SQLi detector (pilot, lazy-loaded)
     DetectorEntry(

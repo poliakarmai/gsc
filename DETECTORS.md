@@ -2,7 +2,7 @@
 
 Сгенерировано из registry — `scripts/gsc_detector_matrix.py`. SSOT по числам: `gsc_meta.py`.
 
-Всего registry-детекторов: **45** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 49).
+Всего registry-детекторов: **46** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 50).
 
 | Rule ID | Echelon | Noise | Fixture | Description |
 |---------|---------|-------|---------|-------------|
@@ -35,7 +35,7 @@
 | GS035 | 1 | sensitive | ✅ | GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization |
 | GS036 | 1 | sensitive | ✅ | GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi |
 | GS037 | 1 | sensitive | ✅ | GS037: Python Vulnerability Detection — pickle, eval, SSTI, command injection, deserialization |
-| GS038 | 1 | sensitive | ⬜ | GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto |
+| GS038 | 1 | sensitive | ✅ | GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto |
 | GS039 | 1 | sensitive | ✅ | GS039: Ruby Vulnerability Detection — YAML RCE, mass assignment, SSTI, SQLi, Marshal |
 | GS040 | 1 | normal | ✅ | GS040: PII & Information Disclosure — hardcoded emails, secrets in comments, debug tokens, private IPs in config |
 | GS041 | 2 | sensitive | ✅ | Crypto secrets — EVM private keys, BIP39 mnemonics, WIF, exchange API keys |
@@ -43,6 +43,7 @@
 | GS043 | 2 | sensitive | ✅ | Honeypot / rug-pull — trading switch, blacklist, unrestricted mint, owner-controlled fee |
 | GS044 | 2 | sensitive | ✅ | Trading bot security — replay-prone signing, unvalidated orders, check-then-act races, unauthenticated trading endpoints |
 | GS045 | 2 | sensitive | ✅ | GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE |
+| GS046 | 1 | sensitive | ✅ | GS046: C/C++ Vulnerability Detection — strcpy/strcat/gets/sprintf overflow, format-string, system/popen injection |
 | GS024 | 2 | precise | ✅ | LLM-based SQL injection (pilot — replaces 87 regex patterns) |
 | YAML-NETSCALER001 | 2 | custom | ⬜ | Citrix NetScaler misconfiguration surface: flags ns.conf lines associated with known authentication-bypass (CVE-2026-19490) and SIP ALG denial-of-service (CVE-2026-19489) vulnerabilities. Surface-flag for review, not a confirmed vulnerability — depends on version. |
 | YAML-36ACF0AD | 2 | custom | ⬜ | Use of eval() or exec() with dynamic input can lead to code injection |

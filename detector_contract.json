@@ -207,7 +207,7 @@
     "echelon": 1,
     "noise_tier": "sensitive",
     "description": "GS038: Go Vulnerability Detection — SSTI, SQLi, command injection, hardcoded secrets, weak crypto",
-    "covered_by_fixture": false
+    "covered_by_fixture": true
   },
   {
     "rule_id": "GS039",
@@ -256,6 +256,13 @@
     "echelon": 2,
     "noise_tier": "sensitive",
     "description": "GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE",
+    "covered_by_fixture": true
+  },
+  {
+    "rule_id": "GS046",
+    "echelon": 1,
+    "noise_tier": "sensitive",
+    "description": "GS046: C/C++ Vulnerability Detection — strcpy/strcat/gets/sprintf overflow, format-string, system/popen injection",
     "covered_by_fixture": true
   },
   {
