@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 47 · **Modules:** 210 · **Schema:** v33
+**Version:** v1.4.0 · **Detectors:** 48 · **Modules:** 210 · **Schema:** v33
 <!-- GSC-META-END -->
 
 ### Find it. Prove it. Fix it. Verify it.
@@ -37,6 +37,11 @@ findings you then triage, verify and fix by hand. GSC closes the loop:
 - **Heal** — opens a pull request with that verified fix.
 - **Learn** — tunes itself from your TP/FP feedback to cut false positives over time.
 
+GSC is **Vulnerability Management**, not just a scanner: it ranks findings by
+exploitability (EPSS + CISA KEV + ExploitDB, not raw CVSS), suppresses false
+positives deterministically (CSP/CDN-aware filters), and cross-references the
+Russian FSTEC BDU — closing the loop most scanners leave open.
+
 ---
 
 ## 🚀 Getting Started
@@ -65,7 +70,7 @@ Profiles: `developer-review` · `pr-gate` · `audit` · `candidate-review`
 ## ✨ Capabilities
 
 ### Detection
-- **SAST** — 47 detectors across Python, JS/TS, Go, Java, Rust and more, backed
+- **SAST** — 48 detectors across Python, JS/TS, Go, Java, Rust and more, backed
   by LLM revalidation for confidence scoring.
 - **SCA** — dependency vulnerabilities via OSV.dev, with precise lock-file
   resolution (`package-lock.json`, `yarn.lock`, `go.sum`).

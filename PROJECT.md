@@ -47,3 +47,17 @@ gsc reconcile                                # сверка доков с код
 ## 4. Дорожная карта
 
 См. [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## 5. Модель данных: alerts vs states
+
+По образцу Wazuh/OpenSearch (Selectel): GSC разделяет два среза findings.
+
+- **alerts (поток)** — append-only журнал каждого скана: «когда нашли, что делали»
+  (`scan`, `findings` на каждый прогон). Отвечает на «как развивалась история».
+- **states (срез)** — текущее состояние: «сколько открытых critical прямо сейчас»
+  (state lifecycle, `scan_diff`, fingerprint, `gsc_priority`). Отвечает на
+  «что чинить сегодня».
+
+Разделение write-path (сканы пишут поток) и read-path (аналитика читает срез)
+позволяет приоритизировать через `gsc_priority` (EPSS+KEV+exploit) без
+пересканирования всего журнала.
