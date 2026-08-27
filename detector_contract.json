@@ -266,6 +266,13 @@
     "covered_by_fixture": true
   },
   {
+    "rule_id": "YAML-NETSCALER001",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Citrix NetScaler misconfiguration surface: flags ns.conf lines associated with known authentication-bypass (CVE-2026-19490) and SIP ALG denial-of-service (CVE-2026-19489) vulnerabilities. Surface-flag for review, not a confirmed vulnerability — depends on version.",
+    "covered_by_fixture": false
+  },
+  {
     "rule_id": "YAML-36ACF0AD",
     "echelon": 2,
     "noise_tier": "custom",

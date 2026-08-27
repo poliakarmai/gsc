@@ -2,7 +2,7 @@
 
 Сгенерировано из registry — `scripts/gsc_detector_matrix.py`. SSOT по числам: `gsc_meta.py`.
 
-Всего registry-детекторов: **44** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 48).
+Всего registry-детекторов: **45** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 49).
 
 | Rule ID | Echelon | Noise | Fixture | Description |
 |---------|---------|-------|---------|-------------|
@@ -44,6 +44,7 @@
 | GS044 | 2 | sensitive | ✅ | Trading bot security — replay-prone signing, unvalidated orders, check-then-act races, unauthenticated trading endpoints |
 | GS045 | 2 | sensitive | ✅ | GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE |
 | GS024 | 2 | precise | ✅ | LLM-based SQL injection (pilot — replaces 87 regex patterns) |
+| YAML-NETSCALER001 | 2 | custom | ⬜ | Citrix NetScaler misconfiguration surface: flags ns.conf lines associated with known authentication-bypass (CVE-2026-19490) and SIP ALG denial-of-service (CVE-2026-19489) vulnerabilities. Surface-flag for review, not a confirmed vulnerability — depends on version. |
 | YAML-36ACF0AD | 2 | custom | ⬜ | Use of eval() or exec() with dynamic input can lead to code injection |
 | YAML-ECB85AD8 | 2 | custom | ⬜ | DEBUG=True in production Django/Flask config |
 | YAML-B39DC08C | 2 | custom | ⬜ | Printing potentially sensitive data to stdout |

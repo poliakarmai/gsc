@@ -3,7 +3,7 @@
 # 🛡️ GSC — Git Security Checker
 
 <!-- GSC-META-START -->
-**Version:** v1.4.0 · **Detectors:** 48 · **Modules:** 210 · **Schema:** v33
+**Version:** v1.4.0 · **Detectors:** 49 · **Modules:** 210 · **Schema:** v33
 <!-- GSC-META-END -->
 
 ### Find it. Prove it. Fix it. Verify it.
@@ -70,7 +70,7 @@ Profiles: `developer-review` · `pr-gate` · `audit` · `candidate-review`
 ## ✨ Capabilities
 
 ### Detection
-- **SAST** — 48 detectors across Python, JS/TS, Go, Java, Rust and more, backed
+- **SAST** — 49 detectors across Python, JS/TS, Go, Java, Rust and more, backed
   by LLM revalidation for confidence scoring.
 - **SCA** — dependency vulnerabilities via OSV.dev, with precise lock-file
   resolution (`package-lock.json`, `yarn.lock`, `go.sum`).
