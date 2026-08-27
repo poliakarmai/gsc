@@ -2356,6 +2356,19 @@ def cmd_registry(args):
     return 2
 
 
+def cmd_recon(args):
+    from gsc_recon.orchestrator import run_recon
+    rep = run_recon(args.domain, resolve=args.resolve, live=args.live)
+    print(f"Domain: {rep.domain}")
+    print(f"Subdomains: {len(rep.subdomains)}")
+    for s in rep.subdomains:
+        ip = rep.resolved.get(s, "")
+        print(f"  {s}{'  ->  ' + ip if ip else ''}")
+    if not rep.subdomains:
+        print("  (none — network unreachable or no CT entries)")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="GSC — Git Security Checker")
     sub = parser.add_subparsers(dest="command")
@@ -2383,6 +2396,14 @@ def main():
     # gsc dashboard
     dash = sub.add_parser("dashboard", help="Launch web dashboard")
     dash.add_argument("--port", type=int, help="Port (default: 8080)")
+
+    # gsc recon — passive reconnaissance (subdomains via CT logs)
+    recon = sub.add_parser("recon", help="Passive reconnaissance (subdomains, resolve)")
+    recon.add_argument("--domain", required=True, help="Apex domain (e.g. example.com)")
+    recon.add_argument("--resolve", action="store_true",
+                       help="Resolve discovered subdomains to IPs")
+    recon.add_argument("--live", action="store_true",
+                       help="Keep only subdomains that resolve")
 
     # gsc patterns (with subcommands)
     patterns = sub.add_parser('patterns', help='Manage patterns')
@@ -2858,6 +2879,8 @@ def main():
         cmd_init(args)
     elif args.command == "dashboard":
         cmd_dashboard(args)
+    elif args.command == "recon":
+        cmd_recon(args)
     elif args.command == "patterns":
         cmd_patterns(args)
     elif args.command == "registry":
