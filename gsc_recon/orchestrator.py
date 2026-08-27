@@ -11,16 +11,22 @@ The orchestrator is the *only* place that wires modules together — the
 modules themselves never import each other. Each stage is opt-in via a
 flag; the default is the cheapest passive stage (subdomain enumeration).
 
+The resolve / DNS / HTTP stages run concurrently (stdlib
+``concurrent.futures.ThreadPoolExecutor``) while preserving deterministic
+output order: results are collected in the original subdomain order, not
+in the order workers happen to finish.
+
 Follows ``RECON_CONTRACT.md``.
 """
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from gsc_recon.dns_enum import DnsClient, DnsRecord
-from gsc_recon.http_probe import HttpClient, ProbeResult
+from gsc_recon.http_probe import HttpClient, ProbeResult, normalize_url
 from gsc_recon.subdomain_enum import SubdomainClient, filter_live, resolve_host
 from gsc_recon.tech_detect import TechMatch, detect_tech
 
@@ -58,6 +64,7 @@ def run_recon(
     http: bool = False,
     tech: bool = False,
     timeout: int = 30,
+    max_workers: int = 10,
     client: Optional[SubdomainClient] = None,
     dns_client: Optional[DnsClient] = None,
     http_client: Optional[HttpClient] = None,
@@ -68,6 +75,9 @@ def run_recon(
     created. Network failures are tolerated inside every stage — they yield
     empty results rather than raising. ``tech`` requires ``http`` (tech
     detection runs over the headers collected by the HTTP probe stage).
+
+    The resolve / DNS / HTTP stages run concurrently with ``max_workers``
+    threads; output order stays deterministic (original subdomain order).
     """
     cli = client if client is not None else SubdomainClient(timeout=timeout)
     subdomains = cli.fetch(domain)
@@ -76,25 +86,47 @@ def run_recon(
 
     resolved: Dict[str, str] = {}
     if resolve:
-        for s in subdomains:
-            ip = resolve_host(s)
-            if ip:
-                resolved[s] = ip
+        def _resolve_one(host: str):
+            try:
+                return host, resolve_host(host)
+            except Exception:
+                return host, None
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for host, ip in executor.map(_resolve_one, subdomains):
+                if ip:
+                    resolved[host] = ip
 
     dns_records: Dict[str, List[DnsRecord]] = {}
     if dns:
         dc = dns_client if dns_client is not None else DnsClient(timeout=timeout)
-        for s in subdomains:
-            recs: List[DnsRecord] = []
-            for qtype in _DNS_QTYPES:
-                recs.extend(dc.query(s, qtype))
-            if recs:
-                dns_records[s] = recs
+
+        def _query_one(pair):
+            host, qtype = pair
+            try:
+                return host, qtype, dc.query(host, qtype)
+            except Exception:
+                return host, qtype, []
+
+        tasks = [(s, q) for s in subdomains for q in _DNS_QTYPES]
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            for host, qtype, recs in executor.map(_query_one, tasks):
+                if recs:
+                    dns_records.setdefault(host, []).extend(recs)
 
     http_results: List[ProbeResult] = []
     if http:
         hc = http_client if http_client is not None else HttpClient(timeout=timeout)
-        http_results = hc.probe_hosts(subdomains)
+
+        def _probe_one(host: str) -> ProbeResult:
+            url = normalize_url(host) or host
+            try:
+                return hc.probe_hosts([host])[0]
+            except Exception as exc:
+                return ProbeResult(url=url, valid=False, error=str(exc)[:200])
+
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            http_results = list(executor.map(_probe_one, subdomains))
 
     tech_map: Dict[str, List[TechMatch]] = {}
     if tech:
