@@ -941,7 +941,7 @@ class Revalidator:
 
         prompt = self._build_batch_prompt(need)
         verdicts = self._call_llm_batch(prompt, len(need))
-        for f, (verdict, reasoning) in zip(need, verdicts):
+        for f, (verdict, reasoning) in zip(need, verdicts, strict=False):
             self._apply_verdict(f, verdict, reasoning)
 
     def _build_batch_prompt(self, findings: list[dict]) -> str:

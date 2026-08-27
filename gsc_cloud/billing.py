@@ -57,7 +57,7 @@ def handle_webhook(db, payload: bytes, sig_header: str) -> None:
     try:
         event = stripe.Webhook.construct_event(payload, sig_header, secret)
     except (ValueError, stripe.error.SignatureVerificationError):
-        raise PermissionError("invalid stripe signature")
+        raise PermissionError("invalid stripe signature") from None
 
     if db.fetchone("SELECT 1 FROM stripe_events WHERE event_id = ?",
                    (event.id,)):

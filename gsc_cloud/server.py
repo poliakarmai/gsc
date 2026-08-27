@@ -439,7 +439,7 @@ def _validate_target(target: str) -> None:
     try:
         _policy_validate(target)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from None
 
 # ═══════════════════════════════════════════════════════════
 # Health
@@ -482,7 +482,7 @@ def ready(db=Depends(get_db)):
         db.fetchone("SELECT 1")
         return {"status": "ready", "db": "ok"}
     except Exception as e:
-        raise HTTPException(503, f"database not reachable: {e}")
+        raise HTTPException(503, f"database not reachable: {e}") from None
 
 # ═══════════════════════════════════════════════════════════
 # Scan

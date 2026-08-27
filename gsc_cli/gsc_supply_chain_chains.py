@@ -129,7 +129,7 @@ def compose_supply_chains(repo_root, findings, packages=None, db=None) -> list[d
 
     # Index vulnerable deps by normalized name → list of (package, version, vuln)
     vuln_deps: dict[str, list[tuple]] = {}
-    for (eco, name, ver), vulns in osv.items():
+    for (_, name, ver), vulns in osv.items():
         if not vulns:
             continue
         vuln_deps.setdefault(_normalize_pkg_name(name), []).append((name, ver, vulns))

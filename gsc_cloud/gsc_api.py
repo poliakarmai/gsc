@@ -172,7 +172,7 @@ def _validate_target(target: str) -> None:
     try:
         _policy_validate(target)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from None
 
 # ── Helpers ───────────────────────────────────────────────
 
@@ -312,7 +312,7 @@ async def get_scan(scan_id: str):
     try:
         state = _load_scan_state(scan_id)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from None
     if state.get("status") == "unknown":
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     return state

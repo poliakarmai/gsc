@@ -84,7 +84,7 @@ def load_invariants(config_path: str) -> list[Invariant]:
     except FileNotFoundError:
         return []
     except yaml.YAMLError as e:
-        raise InvariantLoadError(f"YAML parse error: {e}")
+        raise InvariantLoadError(f"YAML parse error: {e}") from e
 
     raw = cfg.get("invariants") or []
     if not isinstance(raw, list):
@@ -141,7 +141,7 @@ def compile_invariant(inv: Invariant) -> dict[str, Any]:
             return re.compile(pattern, re.MULTILINE)
         except re.error as e:
             raise InvariantLoadError(
-                f"{inv.id}: rule.{field_name} invalid regex: {e}")
+                f"{inv.id}: rule.{field_name} invalid regex: {e}") from e
 
     if inv.type == "pattern":
         return {"pattern": _compile("pattern")}

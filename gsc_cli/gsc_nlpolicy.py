@@ -84,7 +84,7 @@ def _compile_policy(natural_text: str) -> dict:
     try:
         compiled = json.loads(m.group(0))
     except json.JSONDecodeError:
-        raise PolicyError("invalid JSON from LLM")
+        raise PolicyError("invalid JSON from LLM") from None
 
     pattern = compiled.get("pattern", "")
 
@@ -98,7 +98,7 @@ def _compile_policy(natural_text: str) -> dict:
     try:
         re.compile(pattern)
     except re.error as e:
-        raise PolicyError(f"invalid regex: {e}")
+        raise PolicyError(f"invalid regex: {e}") from e
 
     return compiled
 
@@ -184,7 +184,7 @@ def compile_policy(natural_text, llm, max_len=MAX_POLICY_PATTERN_LEN):
     try:
         re.compile(pattern)
     except re.error as e:
-        raise PolicyError(f"invalid regex: {e}")
+        raise PolicyError(f"invalid regex: {e}") from e
     return compiled
 
 

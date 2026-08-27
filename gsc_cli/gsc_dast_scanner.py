@@ -83,9 +83,9 @@ def scan_target(target_url: str, severity_filter: List[str] = None) -> dict:
         if proc.returncode not in (0, 1):
             raise RuntimeError(f"nuclei error (exit {proc.returncode}): {proc.stderr[:300]}")
     except subprocess.TimeoutExpired:
-        Path(output_path).unlink(missing_ok=True); raise RuntimeError("nuclei scan timed out (600s)")
+        Path(output_path).unlink(missing_ok=True); raise RuntimeError("nuclei scan timed out (600s)") from None
     except FileNotFoundError:
-        Path(output_path).unlink(missing_ok=True); raise RuntimeError("nuclei not found. Install: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest")
+        Path(output_path).unlink(missing_ok=True); raise RuntimeError("nuclei not found. Install: go install github.com/projectdiscovery/nuclei/v3/cmd/nuclei@latest") from None
     findings = _parse_nuclei_output(output_path, target_url, conn)
     Path(output_path).unlink(missing_ok=True)
     conn.close()

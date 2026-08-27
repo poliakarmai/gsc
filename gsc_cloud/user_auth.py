@@ -119,7 +119,7 @@ def auth_callback(code: str, state: str, response: Response):
     try:
         gh_user = complete_login(code, state, dedup_store)
     except OAuthError as e:
-        raise HTTPException(401, str(e))
+        raise HTTPException(401, str(e)) from None
     db = control_plane()
     user_id = upsert_user(db, gh_user)
 

@@ -79,7 +79,7 @@ def create_scan(req: ScanRequest, tenant_id: int = Depends(tenant_ctx),
     try:
         _validate_target(req.target)
     except ValueError as exc:
-        raise HTTPException(400, str(exc))
+        raise HTTPException(400, str(exc)) from None
     db = store.control_plane(tenant_id)
     if not store.check_quota(db, tenant_id):
         raise HTTPException(402, "monthly scan quota exceeded")

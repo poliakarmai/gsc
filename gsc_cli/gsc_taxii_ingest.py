@@ -70,14 +70,14 @@ def fetch_objects(
             body = resp.read().decode("utf-8", "replace")
     except urllib.error.HTTPError as e:
         detail = e.read().decode("utf-8", "replace")
-        raise RuntimeError(f"TAXII GET failed (HTTP {e.code}): {detail[:300]}")
+        raise RuntimeError(f"TAXII GET failed (HTTP {e.code}): {detail[:300]}") from e
     except (urllib.error.URLError, TimeoutError) as e:
-        raise RuntimeError(f"connection error: {getattr(e, 'reason', e)}")
+        raise RuntimeError(f"connection error: {getattr(e, 'reason', e)}") from e
 
     try:
         data = json.loads(body)
     except json.JSONDecodeError:
-        raise RuntimeError("TAXII response is not valid JSON")
+        raise RuntimeError("TAXII response is not valid JSON") from None
     if not isinstance(data, dict):
         raise RuntimeError("TAXII response is not a JSON object")
     # TAXII Envelope and STIX Bundle both carry "objects"

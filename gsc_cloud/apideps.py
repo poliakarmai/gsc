@@ -16,4 +16,4 @@ def tenant_ctx(x_api_key: str = Header(default="")) -> int:
         db = control_plane()          # служебное соединение, без RLS
         return auth_tenant(x_api_key, db)
     except Unauthorized:
-        raise HTTPException(status_code=401, detail="invalid api key")
+        raise HTTPException(status_code=401, detail="invalid api key") from None

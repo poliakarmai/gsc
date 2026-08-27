@@ -53,7 +53,7 @@ def parse_dockerfile(path: Path) -> List[DockerfileService]:
     
     current_stage: Optional[DockerfileService] = None
     
-    for line_no, line in enumerate(lines, 1):
+    for _, line in enumerate(lines, 1):
         stripped_line = line.strip()
         
         # Detect build stages: FROM <image> AS <stage_name>

@@ -84,7 +84,7 @@ class LLMProvider:
         try:
             return redact_secrets(resp.json()["choices"][0]["message"]["content"])
         except (KeyError, IndexError, ValueError) as e:
-            raise RuntimeError(f"{self.name} bad response shape: {e}")
+            raise RuntimeError(f"{self.name} bad response shape: {e}") from e
 
 
 class LLMProviderManager:

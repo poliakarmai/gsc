@@ -361,7 +361,7 @@ def query_osv(packages: List[Package], db=None) -> dict:
         except Exception:
             continue  # batch failed — skip, don't crash scan
 
-        for (p, key), res in zip(batch, vulns_per_query):
+        for (_, key), res in zip(batch, vulns_per_query, strict=False):
             vulns = res.get("vulns", [])
             results[key] = vulns
             if db:

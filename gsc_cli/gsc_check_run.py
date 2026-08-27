@@ -48,7 +48,7 @@ def gh_api(method: str, path: str, token: str, data: dict = None) -> dict:
             return json.loads(resp.read().decode())
     except urllib.error.HTTPError as e:
         err = json.loads(e.read().decode()) if e.fp else {"message": str(e)}
-        raise RuntimeError(f"GitHub API {e.code}: {err.get('message', str(e))}")
+        raise RuntimeError(f"GitHub API {e.code}: {err.get('message', str(e))}") from e
 
 
 def findings_to_check_run(findings: list, conclusion: str = None) -> dict:

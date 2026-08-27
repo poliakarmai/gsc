@@ -757,7 +757,7 @@ def check_security(project: str, path: Path) -> list[dict]:
             continue
         try:
             svc_content = svc_file.read_text()
-            for directive, key, category, detail in REQUIRED_DIRECTIVES:
+            for _, key, category, detail in REQUIRED_DIRECTIVES:
                 if key not in svc_content:
                     if key + "=" in svc_content:
                         continue

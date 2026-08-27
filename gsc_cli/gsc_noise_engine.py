@@ -135,12 +135,12 @@ def calibrate() -> dict[str, dict]:
 
     # Compute FP rates, then an adaptive "noisy" threshold (Phase 11: median + k*MAD)
     # instead of a hardcoded 0.80 — self-scaling to the calibration set, robust to outliers.
-    for rid, stats in results.items():
+    for _, stats in results.items():
         stats["fp_rate"] = stats["fp"] / max(stats["total"], 1)
 
     fp_rates = [s["fp_rate"] for s in results.values() if s["total"] >= MIN_SAMPLES]
     threshold = adaptive_threshold(fp_rates)
-    for rid, stats in results.items():
+    for _, stats in results.items():
         stats["noisy"] = (stats["fp_rate"] > threshold and stats["total"] >= MIN_SAMPLES)
 
     results["_threshold"] = threshold  # metadata (not a rule)
@@ -217,7 +217,7 @@ def db_noise_analysis() -> dict[str, dict]:
         results[rid]["total"] += cnt
         results[rid]["category"] = cat
 
-    for rid, stats in results.items():
+    for _, stats in results.items():
         total = stats["total"]
         stats["fp_rate"] = 0.5
         stats["noisy"] = total >= MIN_SAMPLES

@@ -134,7 +134,7 @@ def assume_role_with_oidc(
                 "Expiration": creds.findtext("s:Expiration", "", ns),
             }
     except Exception as e:
-        raise RuntimeError(f"AWS STS AssumeRoleWithWebIdentity failed: {e}")
+        raise RuntimeError(f"AWS STS AssumeRoleWithWebIdentity failed: {e}") from e
 
 
 # ── Token Cache ────────────────────────────────────────────────────────
@@ -208,7 +208,7 @@ def gh_token_from_secrets_manager(role_arn: str, secret_id: str = "gsc/github-ap
         # Generate GitHub App installation token from private key
         return _github_app_token(secret.get("app_id", ""), secret.get("private_key", ""))
     except Exception as e:
-        raise RuntimeError(f"Failed to fetch GitHub token via OIDC: {e}")
+        raise RuntimeError(f"Failed to fetch GitHub token via OIDC: {e}") from e
 
 
 def _github_app_token(app_id: str, private_key: str) -> str:

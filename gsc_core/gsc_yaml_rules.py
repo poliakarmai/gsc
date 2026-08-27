@@ -179,12 +179,12 @@ class YamlRule:
             try:
                 re.compile(regex)
             except re.error as e:
-                raise ValueError(f"Rule '{self.id}': invalid regex '{regex[:50]}...': {e}")
+                raise ValueError(f"Rule '{self.id}': invalid regex '{regex[:50]}...': {e}") from e
         for regex in self.not_patterns:
             try:
                 re.compile(regex)
             except re.error as e:
-                raise ValueError(f"Rule '{self.id}': invalid not-pattern regex '{regex[:50]}...': {e}")
+                raise ValueError(f"Rule '{self.id}': invalid not-pattern regex '{regex[:50]}...': {e}") from e
 
     def to_detector_code(self) -> str:
         """Generate Python detector code from YAML rule."""

@@ -11,7 +11,7 @@ def make_finding(rule_id: str, title: str, severity: str, confidence: float,
                  metadata: Dict | None = None, invariant: bool = False) -> Dict:
     if not rule_id or not str(rule_id).strip():
         import warnings
-        warnings.warn(f"make_finding: empty rule_id — skipped. title={title!r} file={file!r}")
+        warnings.warn(f"make_finding: empty rule_id — skipped. title={title!r} file={file!r}", stacklevel=2)
         return None  # caller must handle: if f is None → skip
     key = hashlib.sha256(f"{rule_id}{file}{snippet}".encode()).hexdigest()[:12]
     # Contract: downstream (gsc_external.py) reads file_path / line_number / detail

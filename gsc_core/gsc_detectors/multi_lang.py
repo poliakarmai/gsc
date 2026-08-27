@@ -146,7 +146,7 @@ def scan_multilang(repo_path: Path, languages: list[str] = None) -> list[dict]:
             except Exception:
                 continue
 
-            for category, rules in patterns.items():
+            for _, rules in patterns.items():
                 for pattern, rule_id, severity, title in rules:
                     for m in re.finditer(pattern, content, re.MULTILINE):
                         line_no = content[:m.start()].count("\n") + 1

@@ -45,7 +45,7 @@ def _resolve_session(authorization: str) -> tuple[int, int]:
         data = json.loads(val)
         return data["tenant_id"], data["agent_id"]
     except Exception:
-        raise HTTPException(401, "invalid session")
+        raise HTTPException(401, "invalid session") from None
 
 
 @router.post("/activate")

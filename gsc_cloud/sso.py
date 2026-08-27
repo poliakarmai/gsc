@@ -113,7 +113,7 @@ def _verify_id_token(disc: dict, id_token: str, client_id: str,
             options={"verify_aud": False},  # aud проверяем ниже (может быть списком)
         )
     except InvalidTokenError as e:
-        raise SSOError(f"id_token verification failed: {e}")
+        raise SSOError(f"id_token verification failed: {e}") from e
     aud = claims.get("aud")
     aud_ok = client_id in (aud if isinstance(aud, list) else [aud])
     if not aud_ok:
