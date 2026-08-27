@@ -15,6 +15,6 @@ What makes it different from other scanners:
 3. **Self-learning.** Nightly batch revalidation (50 findings via LLM), federated DP-noised weights across projects.
 4. **Daily hunter.** Cron job finds small projects (10-100★), scans with precision profile, opens PRs.
 
-Stack: Python 3.12, SQLite, DeepSeek for LLM verification, 38 SAST detectors.
+Stack: Python 3.12, SQLite, an LLM for verification, 38 SAST detectors.
 
 Looking for feedback on detector coverage — what should I add next? SSTI? Prototype pollution? Deserialization?

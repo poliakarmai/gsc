@@ -219,7 +219,7 @@ PoC получает белый список из 9 переменных окр�
 Для частых классов уязвимостей (SQLi, command-injection, IDOR, XSS, SSRF,
 open-redirect, а по ключевым словам — SSTI/pickle/XXE/path-traversal) PoC
 генерируется **без LLM**, по жёстким шаблонам. Для остальных правил — через LLM
-(`DeepSeek`, таймаут 60 с). Без `DEEPSEEK_API_KEY` система деградирует до
+(таймаут 60 с). Без `DEEPSEEK_API_KEY` система деградирует до
 regex-only режима. Каждое исполнение ограничено: 30 с, вывод ≤ 4096 байт, сеть
 гасится прокси-заглушкой `127.0.0.1:9`.
 
@@ -357,7 +357,7 @@ Proof-of-Fix превращает SAST из «детектора» в «маши
 | rlimit лимиты | `gsc_pof_sandbox.py:122-153` |
 | env-whitelist (DD-01) | `gsc_pof_sandbox.py:36-40`, `gsc_proofoffix.py:133+` |
 | before/after цикл + fail-closed (GSC-001) | `gsc_pof_sandbox.py:319-362` |
-| LLM-вызов (DeepSeek) | `gsc_proofoffix.py:205` |
+| LLM-вызов | `gsc_proofoffix.py:205` |
 | Детерминированный PoC | `gsc_proofoffix.py:_generate_poc_code` ~492 |
 
 *Документ сгенерирован на основе фактического кода `poliakarmai/gsc` (ветка

@@ -216,8 +216,7 @@ The PoC receives a whitelist of 9 environment variables instead of the full
 
 For common flaw classes (SQLi, command injection, IDOR, XSS, SSRF, open redirect,
 and via title keywords — SSTI/pickle/XXE/path traversal) the PoC is generated
-**without an LLM**, from strict templates. For the rest — via an LLM (`DeepSeek`,
-60 s timeout). Without `DEEPSEEK_API_KEY` the system degrades to regex-only mode.
+**without an LLM**, from strict templates. For the rest — via an LLM (60 s timeout). Without `DEEPSEEK_API_KEY` the system degrades to regex-only mode.
 Each execution is bounded: 30 s, output ≤ 4096 bytes, network neutralized by a
 `127.0.0.1:9` discard-port proxy.
 
@@ -355,7 +354,7 @@ making security *verifiable* rather than merely *declared*.
 | rlimit limits | `gsc_pof_sandbox.py:122-153` |
 | env-whitelist (DD-01) | `gsc_pof_sandbox.py:36-40`, `gsc_proofoffix.py:133+` |
 | before/after cycle + fail-closed (GSC-001) | `gsc_pof_sandbox.py:319-362` |
-| LLM call (DeepSeek) | `gsc_proofoffix.py:205` |
+| LLM call | `gsc_proofoffix.py:205` |
 | Deterministic PoC | `gsc_proofoffix.py:_generate_poc_code` ~492 |
 
 *This document was generated from the actual code of `poliakarmai/gsc` (branch

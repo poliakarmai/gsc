@@ -23,7 +23,7 @@ def generate_fix(finding_key, report_path, project_root):
     # Step 1: Run PoC BEFORE fix — prove it's vulnerable
     evidence.poc_before, evidence.poc_before_exit = _run_poc(finding, source, root)
 
-    # Step 2: DeepSeek generates minimal patch
+    # Step 2: LLM generates minimal patch
     llm_output = _generate_patch(finding, source)
     evidence.patch = _parse_patch(llm_output)
 
@@ -98,7 +98,7 @@ def _eligible_for_autofix(finding):
 
 ### How GSC Verified These Fixes
 1. Generated PoC exploit → reproduced vulnerability ✅
-2. Generated minimal patch via DeepSeek
+2. Generated minimal patch via LLM
 3. Applied patch in sandbox
 4. Re-ran PoC → exploit FAILED → fix VERIFIED ✅
 ```
