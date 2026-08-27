@@ -2358,7 +2358,8 @@ def cmd_registry(args):
 
 def cmd_recon(args):
     from gsc_recon.orchestrator import run_recon
-    rep = run_recon(args.domain, resolve=args.resolve, live=args.live)
+    rep = run_recon(args.domain, resolve=args.resolve, live=args.live,
+                    dns=args.dns, http=args.http, tech=args.tech)
     print(f"Domain: {rep.domain}")
     print(f"Subdomains: {len(rep.subdomains)}")
     for s in rep.subdomains:
@@ -2366,6 +2367,19 @@ def cmd_recon(args):
         print(f"  {s}{'  ->  ' + ip if ip else ''}")
     if not rep.subdomains:
         print("  (none — network unreachable or no CT entries)")
+    if args.dns:
+        print("DNS:")
+        for host, recs in rep.dns.items():
+            for r in recs:
+                print(f"  {host}  {r.type}  {r.data}")
+    if args.http:
+        print("HTTP:")
+        for pr in rep.http:
+            print(f"  {pr.url}  {pr.status_code}  {pr.server or ''}")
+    if args.tech:
+        print("Tech:")
+        for host, ms in rep.tech.items():
+            print(f"  {host}: {', '.join(m.name for m in ms)}")
     return 0
 
 
@@ -2404,6 +2418,12 @@ def main():
                        help="Resolve discovered subdomains to IPs")
     recon.add_argument("--live", action="store_true",
                        help="Keep only subdomains that resolve")
+    recon.add_argument("--dns", action="store_true",
+                       help="Enumerate DNS records (A/CNAME/MX/TXT/NS)")
+    recon.add_argument("--http", action="store_true",
+                       help="Probe subdomains over HTTP(S)")
+    recon.add_argument("--tech", action="store_true",
+                       help="Detect tech stack (requires --http)")
 
     # gsc patterns (with subcommands)
     patterns = sub.add_parser('patterns', help='Manage patterns')
