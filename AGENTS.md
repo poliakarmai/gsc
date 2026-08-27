@@ -27,6 +27,7 @@ gsc/
 ├── gsc_cli/                      ← CLI + сканеры: orchestrator, external, github_adapter,
 │                                   poc_generator, proofoffix, archaeology, forecast, ...
 ├── gsc_cloud/                    ← SaaS: api, auth, workers, webhook, mcp_server, ...
+├── gsc_recon/                    ← passive recon: subdomain/tech/dns/http (bug bounty)
 ├── gsc_*.py (top-level)          ← shim'ы: re-export из gsc_core/cli/cloud
 ├── enterprise/                   ← RBAC, SSO, Audit, Multi-tenancy, Helm
 ├── gsc-vscode/                   ← VSCode extension
@@ -34,6 +35,7 @@ gsc/
 ├── scripts/                      ← reconcile, metrics, audit, ...
 ├── tests/                        ← pytest
 └── PROJECT.md AGENTS.md README.md
+    VERIFICATION_RULES.md POF_PARSER_CONTRACT.md (контракты)
 ```
 
 DB: SQLite (WAL, авто-миграции, schema 33). PostgreSQL — через `GSC_DATABASE_URL`.

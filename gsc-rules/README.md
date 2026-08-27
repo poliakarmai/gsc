@@ -55,4 +55,4 @@ automatically connected to the registry (`get_detectors()`) with `rule_id = YAML
 
 Built-in detectors (`GS001`–`GS0xx`) take priority: do not write a YAML rule if the
 vulnerability is already covered by a built-in detector (that would produce duplicate
-findings). YAML rules are for **new** patterns not covered by the 47 detectors.
+findings). YAML rules are for **new** patterns not covered by the 48 detectors.

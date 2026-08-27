@@ -11,7 +11,7 @@ GSC — AppSec-платформа с полным циклом
 Два контура исполнения:
 
 1. **CLI / self-hosted** (`gsc.py`, модули `gsc_*`) — локальный аудит репозитория:
-   SAST (38 registry-детекторов), движки (Secrets/SCA/IaC/Invariants = 4 standalone),
+   SAST (44 registry-детектора), движки (Secrets/SCA/IaC/Invariants = 4 standalone),
    PoC-генерация, Proof-of-Fix, self-healing.
 2. **Cloud/SaaS** (`server.py` + `cloud/`) — multi-tenant HTTP API поверх той же
    сканирующей машины: onboarding, очереди сканов, findings, billing.

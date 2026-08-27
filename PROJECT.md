@@ -15,7 +15,11 @@ GSC — самообучающаяся AppSec-платформа. Полный �
 - **Secrets** — fingerprinting + cross-repo корреляция (только хеши)
 - **IaC** — Terraform / Kubernetes / Dockerfile
 - **DAST** — nuclei-интеграция
+- **Recon** — passive reconnaissance: subdomain/tech/dns/http (crt.sh, raw-DNS)
 - **Supply chain** — SBOM (CycloneDX / SPDX) + VEX + подпись
+
+Верификация находок: FP-фильтры (CSP/CDN), БДУ ФСТЭК, `VERIFICATION_RULES.md`,
+приоритизация EPSS + CISA KEV + ExploitDB (не сырой CVSS).
 
 Эксклюзивы (нет у Semgrep / Snyk / CodeQL): PoC auto-generation + Proof-of-Fix,
 self-healing CI, security archaeology, predictive forecasting, NL policy,
@@ -27,6 +31,7 @@ federated self-learning.
 gsc_core/   — движок (детекторы, SCA, secrets, IaC, compliance, AST/taint)
 gsc_cli/    — CLI и сканеры (orchestrator, PoF, archaeology, forecast, adapters)
 gsc_cloud/  — SaaS API (multi-tenant, SSO, workers)
+gsc_recon/  — passive reconnaissance (subdomain/tech/dns/http) + RECON_CONTRACT.md
 ```
 
 Корневые `gsc_*.py` — shim'ы (re-export через `sys.modules`) для обратной совместимости.

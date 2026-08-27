@@ -169,14 +169,14 @@
   },
   {
     "rule_id": "GS033",
-    "echelon": 1,
+    "echelon": 2,
     "noise_tier": "sensitive",
     "description": "GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns",
     "covered_by_fixture": false
   },
   {
     "rule_id": "GS034",
-    "echelon": 1,
+    "echelon": 2,
     "noise_tier": "sensitive",
     "description": "GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json",
     "covered_by_fixture": false
@@ -253,7 +253,7 @@
   },
   {
     "rule_id": "GS045",
-    "echelon": 1,
+    "echelon": 2,
     "noise_tier": "sensitive",
     "description": "GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE",
     "covered_by_fixture": true
@@ -298,6 +298,13 @@
     "echelon": 2,
     "noise_tier": "custom",
     "description": "Server-Side Template Injection (SSTI): user input flowing into template render without sanitization — can lead to RCE",
+    "covered_by_fixture": false
+  },
+  {
+    "rule_id": "YAML-UPLOAD001",
+    "echelon": 2,
+    "noise_tier": "custom",
+    "description": "Insecure file upload: user-supplied file saved without validating extension / MIME / size or saved under a user-controlled filename. Can lead to Remote Code Execution by uploading an executable file (.php / .jsp / .asp / .war / .py / .sh / .exe).",
     "covered_by_fixture": false
   }
 ]

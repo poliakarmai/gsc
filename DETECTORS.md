@@ -2,7 +2,7 @@
 
 Сгенерировано из registry — `scripts/gsc_detector_matrix.py`. SSOT по числам: `gsc_meta.py`.
 
-Всего registry-детекторов: **43** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 47).
+Всего registry-детекторов: **44** (+ 4 standalone движка: Secrets/SCA/IaC/Invariants = 48).
 
 | Rule ID | Echelon | Noise | Fixture | Description |
 |---------|---------|-------|---------|-------------|
@@ -30,8 +30,8 @@
 | GS023 | 3 | noisy | ✅ | Race Conditions / TOCTOU — double-spend, async races, fs races (Bug Hunting) |
 | GS025 | 2 | normal | ✅ | GS025: AI-Code Provenance — detect AI-favored insecure defaults |
 | GS032 | 1 | sensitive | ⬜ | GS032: Prompt Injection — detect AI agent hijack via code/docs/issues |
-| GS033 | 1 | sensitive | ⬜ | GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns |
-| GS034 | 1 | sensitive | ⬜ | GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json |
+| GS033 | 2 | sensitive | ⬜ | GS033: CI/CD Anti-Patterns — detect unsafe GitHub Actions/GitLab CI patterns |
+| GS034 | 2 | sensitive | ⬜ | GS034: npm Malware Patterns — detect ChainDrop worms, dependency confusion, typosquatting in package.json |
 | GS035 | 1 | sensitive | ✅ | GS035: PHP Vulnerability Detection — SQLi, XSS, LFI, command injection, deserialization |
 | GS036 | 1 | sensitive | ✅ | GS036: Node.js Vulnerability Detection — prototype pollution, eval, command injection, SSRF, NoSQLi |
 | GS037 | 1 | sensitive | ✅ | GS037: Python Vulnerability Detection — pickle, eval, SSTI, command injection, deserialization |
@@ -42,10 +42,11 @@
 | GS042 | 2 | sensitive | ✅ | Solidity SAST — reentrancy, tx.origin, delegatecall, selfdestruct, unchecked arithmetic, unchecked call return, oracle manipulation |
 | GS043 | 2 | sensitive | ✅ | Honeypot / rug-pull — trading switch, blacklist, unrestricted mint, owner-controlled fee |
 | GS044 | 2 | sensitive | ✅ | Trading bot security — replay-prone signing, unvalidated orders, check-then-act races, unauthenticated trading endpoints |
-| GS045 | 1 | sensitive | ✅ | GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE |
+| GS045 | 2 | sensitive | ✅ | GS045: GitHub Actions CI/CD Security Audit — least-privilege permissions, env secrets, PR-target RCE |
 | GS024 | 2 | precise | ✅ | LLM-based SQL injection (pilot — replaces 87 regex patterns) |
 | YAML-36ACF0AD | 2 | custom | ⬜ | Use of eval() or exec() with dynamic input can lead to code injection |
 | YAML-ECB85AD8 | 2 | custom | ⬜ | DEBUG=True in production Django/Flask config |
 | YAML-B39DC08C | 2 | custom | ⬜ | Printing potentially sensitive data to stdout |
 | YAML-A7E2F001 | 2 | custom | ⬜ | Reverse shell one-liner detected — definitive backdoor indicator |
 | YAML-SSTI001 | 2 | custom | ⬜ | Server-Side Template Injection (SSTI): user input flowing into template render without sanitization — can lead to RCE |
+| YAML-UPLOAD001 | 2 | custom | ⬜ | Insecure file upload: user-supplied file saved without validating extension / MIME / size or saved under a user-controlled filename. Can lead to Remote Code Execution by uploading an executable file (.php / .jsp / .asp / .war / .py / .sh / .exe). |

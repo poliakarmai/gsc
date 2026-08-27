@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Recon-слой + верификация + File Upload (2026-08-27)
+- `gsc_recon/` — passive reconnaissance: `subdomain_enum.py` (crt.sh), `tech_detect.py`
+  (36 сигнатур), `dns_enum.py` (raw-DNS RFC 1035), `http_probe.py`, `orchestrator.py`
+  (пайплайн subdomains → dns → http → tech). CLI `gsc recon --domain X`.
+- `VERIFICATION_RULES.md` — правила верификации findings (судья обязан гонять PoC).
+- `gsc_core/gsc_fp_filter.py` — FP-фильтры: CSP-aware XSS + CDN-aware directory listing.
+- `gsc_core/gsc_bdu.py` — БДУ ФСТЭК каталог (российский аналог CISA KEV).
+- `yaml_rules/upload_injection.py` — `YAML-UPLOAD001` (10 паттернов Flask/Django/Node/PHP/Go).
+- Приоритизация EPSS+KEV+ExploitDB (`gsc_kev.py`, `gsc_exploitdb.py`, `gsc_priority.py`).
+
 ### Фаза 5 — Reachability для npm/Go (2026-08-24)
 - `gsc_reachability.py` — `collect_js_usage()` (ESM `import`/CJS `require`, scoped
   `@scope/pkg` → корень, relative `./x` и builtins `node:fs` отсекаются) и
