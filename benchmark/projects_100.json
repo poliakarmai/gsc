@@ -99,7 +99,7 @@
   {"name": "dvna", "url": "https://github.com/appsecco/dvna.git", "lang": "javascript", "recall": true},
   {"name": "NodeGoat", "url": "https://github.com/OWASP/NodeGoat.git", "lang": "javascript", "recall": true},
   {"name": "dvws-node", "url": "https://github.com/snoopysecurity/dvws-node.git", "lang": "javascript", "recall": true},
-  {"name": "aiohttp-security", "url": "https://github.com/aio-libs/aiohttp-security.git", "lang": "python", "recall": true},
+  {"name": "aiohttp-security", "url": "https://github.com/aio-libs/aiohttp-security.git", "lang": "python"},
   {"name": "django-ca", "url": "https://github.com/mathiasertl/django-ca.git", "lang": "python", "recall": true},
   {"name": "cyberbro", "url": "https://github.com/stanfrbd/cyberbro.git", "lang": "python", "recall": true}
 ]
