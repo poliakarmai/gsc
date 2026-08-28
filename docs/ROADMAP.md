@@ -1,6 +1,6 @@
 # GSC Roadmap
 
-> v1.4.0 — актуальное состояние (обновлено 2026-08-27). Инженерная история версий — в git-логе.
+> v1.4.0 — актуальное состояние (обновлено 2026-08-28). Инженерная история версий — в git-логе.
 
 ## ✅ Shipped — v1.4.0
 
@@ -9,6 +9,7 @@
 - **LLM-триаж** — confidence scoring, cross-model voting, panel + judge, logprob-калибровка.
 - **Reachability** — AST-анализ импортов (PyPI / npm / Go) + deploy-context (prod vs dev vs base-image).
 - **GitHub** — App (Check Runs), webhook-автоскан, PR-комментарии, required status checks.
+- **Air-gap LLM** — локальные провайдеры Ollama / LM Studio без внешнего API-ключа + failover-цепочка.
 
 ### Доказательство и исправление
 - **PoC auto-generation** — рабочий эксплойт для каждой находки.
@@ -16,6 +17,7 @@
 - **Self-healing CI** — авто-PR с верифицированными фиксами.
 - **Dependency-PoF** + adversarial re-attack (мутация payload).
 - **DAST** — экспорт в nuclei, валидация на staging.
+- **Мультиязычные sandbox-раннеры** — Proof-of-Fix для Node / Go / Java / Rust (Node + Java live, Go/Rust генераторы готовы).
 
 ### Recon (bug bounty)
 - **Passive reconnaissance** — `gsc_recon/`: subdomain enumeration (crt.sh), tech detection (36 сигнатур), raw-DNS (RFC 1035), HTTP probing; оркестратор `subdomains → dns → http → tech`.
@@ -32,6 +34,8 @@
 - Security archaeology (полный lifespan уязвимости), predictive forecasting (heatmap).
 - **LLM first-pass auditor** — whole-repo semantic pass (`gsc first-pass [repo]`): walk → select_relevant_files → prompt → LLM → parse (hallucinated paths dropped).
 - NL Policy (правила на естественном языке), exploit chains.
+- **NL-policy через AST/Data Flow** — семантические taint-правила (source → flow → sink) поверх regex.
+- **Батч-ревалидация legacy-находок** — multi-model panel + judge, авто-триаж.
 - Cross-repo secret correlation (только хеши), live-проверка секретов (GitHub / Slack / Stripe).
 - SCA license compliance (SPDX), threat modeling (DREAD / PASTA / attack trees).
 - STIX 2.1 / TAXII 2.1 экспорт (MISP / OpenCTI).
@@ -43,16 +47,11 @@
 - Enterprise: RBAC, SSO/OIDC, audit, multi-tenancy, Helm, air-gap.
 - SaaS API (multi-tenant), SBOM (CycloneDX / SPDX + VEX).
 
-## 🟡 In progress
-
-- **Мультиязычные sandbox-раннеры** (Node / Go / Java / Rust) — manifest-парсеры готовы, раннеры нет.
-- **NL-policy через AST / Data Flow** — семантические правила поверх regex.
-
 ## ⬜ Planned
 
-- **Локальные LLM** (air-gap) и батч-ревалидация legacy-находок.
 - **Open-core split** (community vs enterprise packages).
 - **PostgreSQL-хранилище** — сейчас SQLite; `gsc_cloud/gsc_db_backend.py` есть, но не в проде.
 - **Observability** — structlog + Prometheus `/metrics` (`gsc_cloud/observability.py`, v1.4.0) готовы; OTel (tracing) не начат.
 - **SaaS S4** — SOC 2 Type I, DPA (S1–S3 реализованы в `gsc_cloud/`, см. `GSC_SAAS_ROADMAP.md`).
 - **LLM-first позиции bug bounty** — OAuth, Account Takeover, Rate Limiting (семантические, не regex).
+- **vLLM-провайдер** — air-gap: Ollama и LM Studio есть, vLLM не добавлен.
