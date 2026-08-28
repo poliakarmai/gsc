@@ -12,6 +12,7 @@ requires-python = ">=3.10"
 dependencies = [
     "PyYAML>=6.0",
     "requests>=2.31",
+    "cvss>=3.0",
 ]
 authors = [{name = "Alexey Polyakov", email = "poliakarmai@github.com"}]
 keywords = ["security", "audit", "static-analysis", "sast", "sast-tool", "vulnerability-scanner", "appsec", "devsecops"]

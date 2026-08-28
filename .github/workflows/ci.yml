@@ -71,6 +71,8 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
+      - name: Install core deps
+        run: pip install -r requirements.txt
       - name: SCA gate (reachable MEDIUM+ blocks merge)
         run: python3 scripts/gsc_sca_gate.py --repo .
 
