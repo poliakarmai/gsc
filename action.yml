@@ -34,6 +34,18 @@ inputs:
     description: 'Max findings in PR comment'
     required: false
     default: '10'
+  llm_api_key:
+    description: 'Optional API key for LLM revalidation (DeepSeek/OpenAI-compatible). Without it, scan runs regex-only — faster, finds vulns but no confirmed verdicts.'
+    required: false
+    default: ''
+  llm_base_url:
+    description: 'Optional custom OpenAI-compatible endpoint (DeepSeek/OpenRouter/GMI/Ollama)'
+    required: false
+    default: ''
+  llm_model:
+    description: 'Optional model name for the custom endpoint'
+    required: false
+    default: ''
 
 outputs:
   score:
@@ -53,7 +65,13 @@ runs:
         if [ "${{ inputs.deep_scan }}" = "true" ]; then ARGS="$ARGS --deep"; fi
         if [ "${{ inputs.sarif }}" = "true" ]; then ARGS="$ARGS --sarif"; fi
         if [ "${{ inputs.reachability }}" = "true" ]; then ARGS="$ARGS --reachability"; fi
-        docker run --rm \
+        LLM_ENV=""
+        if [ -n "${{ inputs.llm_api_key }}" ]; then
+          LLM_ENV="-e DEEPSEEK_API_KEY=${{ inputs.llm_api_key }}"
+          [ -n "${{ inputs.llm_base_url }}" ] && LLM_ENV="$LLM_ENV -e LLM_BASE_URL=${{ inputs.llm_base_url }}"
+          [ -n "${{ inputs.llm_model }}" ] && LLM_ENV="$LLM_ENV -e LLM_MODEL=${{ inputs.llm_model }}"
+        fi
+        docker run --rm $LLM_ENV \
           -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
           ghcr.io/poliakarmai/gsc-scanner:1.4.0 \
           $ARGS > "$GITHUB_WORKSPACE/gsc_report.json"

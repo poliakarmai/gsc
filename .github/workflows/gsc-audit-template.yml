@@ -34,10 +34,13 @@ jobs:
         with:
           path: '.'
           deep_scan: true
-          with_poc: true
-          with_chains: true
           fail_on_critical: false   # set to true to block merge
           max_findings_to_comment: 10
+          # Optional: LLM revalidation (confirmed verdicts). Without a key,
+          # the scan runs regex-only — faster, still finds vulns.
+          # llm_api_key: ${{ secrets.DEEPSEEK_API_KEY }}
+          # llm_base_url: 'https://api.deepseek.com/v1'   # or OpenRouter / GMI / Ollama
+          # llm_model: 'deepseek-chat'
 
       # Optional: upload scan report as artifact
       - name: Upload Report
