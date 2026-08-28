@@ -36,8 +36,16 @@ jobs:
 закрытый Docker-образ `ghcr.io/poliakarmai/gsc-scanner` — исходный код движка
 не публикуется.
 
-**Входные параметры:** `path`, `with_poc`, `with_chains`, `deep_scan`,
-`fail_on_critical`, `fail_on_score`, `max_findings_to_comment`.
+**Входные параметры:** `path`, `deep_scan`, `fail_on_critical`, `fail_on_score`,
+`max_findings_to_comment`, `llm_api_key`, `llm_base_url`, `llm_model`, `sarif`, `reachability`.
+
+LLM-ревалидация — на вашем ключе (BYO-LLM):
+```yaml
+- uses: poliakarmai/gsc@v1
+  with:
+    llm_api_key: ${{ secrets.DEEPSEEK_API_KEY }}   # DeepSeek / OpenRouter / GMI / Ollama
+```
+Без ключа — быстрый regex-only скан (уязвимости находит; confirmed-вердикты — с ключом).
 
 ## Что умеет
 
@@ -50,6 +58,18 @@ jobs:
 | **Recon** | passive reconnaissance: subdomain / tech / DNS / HTTP |
 | **Supply chain** | SBOM (CycloneDX / SPDX) + VEX |
 | **Интеллект** | security archaeology, predictive forecasting, NL-policy, federated self-learning |
+
+## 🎯 Наша фишка: BYO-LLM — движок наш, судья твой
+
+GSC — это **движок + детекторы + PoC**, а не очередная обёртка над LLM.
+
+- **От GSC:** 50 детекторов, V3-scoring, FP-фильтр, PoC/PoF, self-learning — закрытый IP в Docker-образе.
+- **От вас:** LLM-ключ (любой OpenAI-совместимый — DeepSeek/OpenRouter/GMI/локальный Ollama) **или** ваш AI-агент (Claude/Cursor) через MCP.
+
+Почему это выгодно вам:
+- **Ноль расходов на чужие токены** — ревалидация на вашем ключе.
+- **Никакой привязки к провайдеру** — хоть бесплатный локальный Ollama.
+- **Вы платите за детекторы и логику**, а не за вызовы LLM.
 
 ## Реальные результаты
 
