@@ -21,7 +21,7 @@ Predictive Forecasting, Federated Learning.
 gsc/
 ├── gsc.py                        ← CLI entry (shim → gsc_cli.main:main)
 ├── server.py                     ← Cloud entry (shim → gsc_cloud.api)
-├── gsc_meta.py                   ← SSOT: 213 модулей, 50 детекторов, schema 33
+├── gsc_meta.py                   ← SSOT: 214 модулей, 50 детекторов, schema 33
 ├── gsc_core/                     ← движок: detectors, sca, secrets, iac, compliance,
 │                                   ast_dataflow, invariant_engine, ...
 ├── gsc_cli/                      ← CLI + сканеры: orchestrator, external, github_adapter,

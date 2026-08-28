@@ -24,6 +24,7 @@ from typing import Dict, List, Optional
 GSC_HOME = Path.home() / ".gsc"
 POLICY_FILE = GSC_HOME / "nl_policies.json"
 sys.path.insert(0, str(Path(__file__).parent))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 # C2: ReDoS guard — synced with GS028 v0.20
 MAX_POLICY_PATTERN_LEN = 200
@@ -70,7 +71,13 @@ def _compile_policy(natural_text: str) -> dict:
         "regex pattern. Output ONLY JSON:\n"
         '{"rule_id": "GS028-<hash>", "name": "short name", '
         '"severity": "CRITICAL|HIGH|MEDIUM|LOW", '
-        '"pattern": "<regex>", "description": "one sentence"}'
+        '"pattern": "<regex>", "description": "one sentence", '
+        '"taint": {"sources": ["<regex>", ...], "sinks": ["<regex>", ...], '
+        '"sanitizers": ["<regex>", ...]}}'
+        "\nIf the policy is a data-flow rule (e.g. \"user input must not reach "
+        "SQL / command / exec\"), also provide \"taint\" with source and sink "
+        "regexes and a \"pattern\" that matches either side; otherwise set "
+        "\"taint\": null."
     )
     user = f"POLICY: {natural_text}"
 
@@ -99,6 +106,14 @@ def _compile_policy(natural_text: str) -> dict:
         re.compile(pattern)
     except re.error as e:
         raise PolicyError(f"invalid regex: {e}") from e
+
+    # Optional semantic (AST/Data Flow) taint triple. Invalid specs fall back
+    # to regex-only rather than failing the whole compilation.
+    taint = compiled.get("taint")
+    if taint is not None:
+        from gsc_core.gsc_policy_taint import validate_taint_spec
+        ok, _reason = validate_taint_spec(taint)
+        compiled["taint"] = taint if ok else None
 
     return compiled
 
@@ -149,6 +164,7 @@ def policy_add(natural_text: str) -> Optional[dict]:
         "pattern": compiled["pattern"],
         "severity": compiled.get("severity", "HIGH"),
         "description": compiled.get("description", natural_text[:80]),
+        "taint": compiled.get("taint"),
         "created_at": datetime.now(timezone.utc).isoformat(),
         "enabled": True,
     }
@@ -185,6 +201,11 @@ def compile_policy(natural_text, llm, max_len=MAX_POLICY_PATTERN_LEN):
         re.compile(pattern)
     except re.error as e:
         raise PolicyError(f"invalid regex: {e}") from e
+    taint = compiled.get("taint")
+    if taint is not None:
+        from gsc_core.gsc_policy_taint import validate_taint_spec
+        ok, _reason = validate_taint_spec(taint)
+        compiled["taint"] = taint if ok else None
     return compiled
 
 
@@ -206,8 +227,34 @@ def _timeout_handler(signum, frame):
     raise PolicyError("policy test timed out")
 
 
+def _semantic_matches(taint: dict, text: str, f: Path, repo_path: Path) -> list[dict]:
+    """AST/Data Flow enforcement for a single Python file.
+
+    Returns sink-violation matches, or [] when the taint triple is invalid
+    or the analyzer cannot run (caller falls back to regex mode).
+    """
+    from gsc_core.gsc_policy_taint import apply_taint_rule, compile_taint_rule
+    rule = compile_taint_rule(taint["sources"], taint["sinks"], taint.get("sanitizers"))
+    if rule is None:
+        return []
+    vlines = apply_taint_rule(rule["source_re"], rule["sink_re"], rule["sanitizer_re"], text)
+    if not vlines:
+        return []
+    lines = text.split("\n")
+    out = []
+    for ln in vlines:
+        snippet = lines[ln - 1].strip()[:120] if 0 < ln <= len(lines) else ""
+        out.append({"file": str(f.relative_to(repo_path)), "line": ln, "snippet": snippet})
+    return out
+
+
 def policy_test(policy_name: str, repo: str) -> dict:
-    """Test policy against repo — delegates to GS028 invariant engine."""
+    """Test policy against repo — delegates to GS028 invariant engine.
+
+    When the policy carries a semantic taint triple, Python files are checked
+    with AST/Data Flow analysis (source → flow → sink) instead of per-line
+    regex; all other files stay on the regex path.
+    """
     policies = _load_policies()
     policy = policies.get(policy_name)
     if not policy:
@@ -238,6 +285,7 @@ def policy_test(policy_name: str, repo: str) -> dict:
         files.append(f)
 
     pat = re.compile(policy["pattern"])
+    taint = policy.get("taint")
 
     # C2: SIGALRM timeout
     if hasattr(signal, "SIGALRM"):
@@ -248,6 +296,9 @@ def policy_test(policy_name: str, repo: str) -> dict:
             try:
                 text = f.read_text(errors="ignore")
             except Exception:
+                continue
+            if taint and f.suffix == ".py":
+                matches.extend(_semantic_matches(taint, text, f, repo_path))
                 continue
             for line_no, line in enumerate(text.split("\n"), 1):
                 if pat.search(line):
