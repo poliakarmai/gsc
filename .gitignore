@@ -8,7 +8,6 @@ node_modules/
 *.egg-info/
 .vsix
 .DS_Store
-__pycache__/
 .env
 # Audit A-01: generated artifacts + databases must not enter source control/sdist
 build/
@@ -21,32 +20,56 @@ dist/
 *.tar.gz
 .repowise/
 graphify-out/
-# Generated precision brief — recreated by scripts/gsc_gen_detector_brief.py
-docs/GSC_DETECTOR_PRECISION_BRIEF.md
-docs/GSC_DETECTOR_PRECISION_BRIEF.pdf
 venv/
 .venv/
 OWASPBenchmark/
 FastAPI-ML/
 
-# Re-scan runtime state (resumable benchmark)
-rescan_state.json
-HuixiangDou/
-VPN_oultine_engine-project/
-flaskdash/
-lyanna/
-calibration/repos/.gsc/
-calibration/reports/
-cloud/nginx-production.conf
-cloud/static/
-
-# VSCode extension artifacts (distributed via GitHub Releases / Open VSX)
-gsc-vscode/*.vsix
-
-# Coverage + секретные бэкапы (.env.bak-*, docker-compose.yml.bak-*) — не в VCS
-.coverage
-*.bak
-*.bak-*
-
-# Benchmark clones (2.8GB, not for git)
-benchmark/real_world_100/
+# ── Closed-source core (lives in private poliakarmai/gsc-core, NOT published here) ──
+gsc_core/
+gsc_cli/
+gsc_cloud/
+gsc_recon/
+enterprise/
+gsc-vscode/
+apps/
+cloud/
+agent/
+corpus/
+demo/
+docs/
+helm/
+k8s/
+patterns/
+gsc-rules/
+calibration/
+benchmark/
+wiki/
+vscode/
+sandbox/
+scripts/
+*.py
+gsc.py
+server.py
+gsc_meta.py
+_cron_*.py
+detector_contract.json
+.gsc-audit.yml
+.gsc/
+.claude/
+.vscode/
+GSC_*.md
+DETECTORS.md
+AGENTS.md
+PROJECT.md
+VERIFICATION_RULES.md
+POF_PARSER_CONTRACT.md
+CHANGELOG.md
+VERSION
+requirements*.txt
+pyproject.toml
+Dockerfile
+docker-compose.yml
+*.yml
+*.yaml
+*.json
