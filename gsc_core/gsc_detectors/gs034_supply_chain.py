@@ -96,8 +96,58 @@ JS_MALWARE_RULES: list[tuple[str, str, str, float]] = [
      r'(?i)(?:fetch|https?://).{0,100}(?:github\.com/oven-sh/bun|'
      r'bun\.sh)/releases/download',
      "CRITICAL", 0.95),
+    # Narrowed: previously matched ANY `process.env.FOO` (and almost every
+    # legitimate Node/TS app reads at least one env var), producing 2082 FP.
+    # Real "token collector" behaviour in supply-chain worms (ChainDrop-class)
+    # is to GATHER and EXFIL env vars en masse, not to read a single one.
+    # We now require one of these exfiltration / mass-collection patterns:
+    #   - bulk serialization: JSON.stringify(process.env)
+    #   - network/IO sink directly fed with process.env:
+    #       fetch(..., {body: process.env})
+    #       axios.post(url, process.env)
+    #       socket.write(process.env)
+    #   - "collect then send" via a captured variable:
+    #       const x = process.env; ... fetch(url, {body: x})
+    # The single-line `.` window is bounded to 300 chars so we do not
+    # span unrelated statements.
     ("token_collector",
-     r'(?i)process\.env(?!\.CI|\.NODE_ENV|\.PATH|\.HOME|\.USER)',
+     r'(?is)(?:'
+     # 1) JSON.stringify(process.env) — direct bulk serialization
+     r'JSON\.stringify\s*\(\s*process\.env\b'
+     r'|'
+     # 2) process.env as argument to a network call.
+     #    fetch(...) / axios.<method>(...) / got(...) / http(s).request(...)
+     #    / got.<method>(...) / request.<method>(...) — within 300 chars
+     #    on same line. NB: we intentionally do NOT include bare
+     #    `request(` since "request" is a generic word (requestAnimationFrame,
+     #    custom request() etc.). The deprecated `request` library (npm)
+     #    is reached via its known method names.
+     r'(?:fetch|got)\s*\([^)]{0,300}'
+     r'\bprocess\.env\b[^)]{0,300}\)'
+     r'|'
+     r'(?:got|axios|http\.request|https\.request)\s*(?:\.\w+\s*)?\([^)]{0,300}'
+     r'\bprocess\.env\b[^)]{0,300}\)'
+     r'|'
+     r'request\s*\.\s*(?:get|post|put|delete|head|patch)\s*\([^)]{0,300}'
+     r'\bprocess\.env\b[^)]{0,300}\)'
+     r'|'
+     # 3) process.env fed into an IO write (send/write/emit/pipe)
+     r'(?:send|write|emit|pipe)\s*\(\s*process\.env\b'
+     r'|'
+     # 4) "collect then send" — assign process.env to a variable,
+     #    then later pass THAT variable to a network call.
+     #    Limited to 2000 chars between assignment and use (cross-line ok).
+     r'([A-Za-z_$][\w$]*)\s*=\s*process\.env\b[\s\S]{0,2000}?'
+     r'(?:fetch|got)\s*\([^)]{0,300}\b\1\b[^)]{0,300}\)'
+     r'|'
+     r'([A-Za-z_$][\w$]*)\s*=\s*process\.env\b[\s\S]{0,2000}?'
+     r'(?:got|axios|http\.request|https\.request)\s*(?:\.\w+\s*)?\([^)]{0,300}'
+     r'\b\2\b[^)]{0,300}\)'
+     r'|'
+     r'([A-Za-z_$][\w$]*)\s*=\s*process\.env\b[\s\S]{0,2000}?'
+     r'request\s*\.\s*(?:get|post|put|delete|head|patch)\s*\([^)]{0,300}'
+     r'\b\3\b[^)]{0,300}\)'
+     r')',
      "HIGH", 0.70),
     ("env_dump_all",
      r'(?i)(?:Object\.(?:entries|keys|values)|for\s*\(.*in)\s*\(?\s*process\.env',

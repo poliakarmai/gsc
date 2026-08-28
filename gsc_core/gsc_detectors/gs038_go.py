@@ -54,12 +54,15 @@ GO_RULES: list[tuple[str, str, str, float]] = [
      "HIGH", 0.80),
 
     # --- Weak Crypto ---
+    # Narrowed: dropped bare `crypto/md5|sha1|des` import-only matches that fired
+    # on every Go file that imported the stdlib package (24/8 FP, 0 TP on
+    # benchmark). Now we only match real call sites, not import statements.
     ("weak_crypto_md5",
-     r'(?i)(?:md5\.New|md5\.Sum|crypto/md5)', "HIGH", 0.70),
+     r'(?i)(?:md5\.New|md5\.Sum)', "HIGH", 0.70),
     ("weak_crypto_sha1",
-     r'(?i)(?:sha1\.New|sha1\.Sum|crypto/sha1)', "INFO", 0.30),
+     r'(?i)(?:sha1\.New|sha1\.Sum)', "INFO", 0.30),
     ("weak_crypto_des",
-     r'(?i)crypto/des', "MEDIUM", 0.50),
+     r'(?i)des\.NewCipher', "MEDIUM", 0.50),
 
     # --- TLS ---
     ("tls_skip_verify",

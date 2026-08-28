@@ -24,16 +24,47 @@ from typing import Any
 
 CICD_PATTERNS: list[tuple[str, str, str, float]] = [
     # --- Token/credential antipatterns ---
+    # Catch ONLY genuinely long-lived credentials. GitHub's auto-issued
+    # `${{ secrets.GITHUB_TOKEN }}` expires with the workflow run and is
+    # the recommended short-lived credential, so it is NOT a long-lived
+    # token. Same for the bare word "TOKEN" (matches nearly every CI file
+    # that touches any secret at all, e.g. SLACK_TOKEN, NPM_TOKEN in
+    # standard, ephemeral deployment pipelines). We keep signals that
+    # specifically indicate a long-lived, manually-issued credential:
+    #   - explicit PAT / Personal Access Token names
+    #   - long-lived DEPLOY_KEY / SSH private key references
+    #   - per-user AWS access keys
+    #   - the multi-line `with:\n  token: ${{ secrets.<PAT-style> }}`
+    #     form, but only when secrets.X is a PAT-style long-lived secret
     ("long_lived_token",
-     r'(?i)(?:\$\{\{\s*secrets\.\w+\s*\}\}|TOKEN|GITHUB_TOKEN|'
-     r'secrets\.(?:GITHUB_TOKEN|DEPLOY_KEY|NPM_TOKEN|PYPI_TOKEN|'
-     r'DOCKER_PASSWORD|AWS_ACCESS_KEY_ID)|'
-     r'with:\s*\n\s*token:\s*\$\{\{\s*secrets\.)',
+     r'(?i)(?:secrets\.(?:PAT|PERSONAL_ACCESS_TOKEN|PERSONAL_GITHUB_TOKEN|'
+     r'GITHUB_PAT|LONG_LIVED_TOKEN|LONG_TERM_TOKEN|PRIVATE_KEY|'
+     r'SSH_PRIVATE_KEY|DEPLOY_KEY|NPM_AUTH_TOKEN|PYPI_TOKEN|'
+     r'DOCKER_PASSWORD|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)'
+     r'\b|\bPERSONAL_ACCESS_TOKEN\b|\bLONG_LIVED_TOKEN\b|'
+     r'with:\s*\n\s*token:\s*\$\{\{\s*secrets\.(?:PAT|'
+     r'PERSONAL_ACCESS_TOKEN|PERSONAL_GITHUB_TOKEN|GITHUB_PAT|'
+     r'LONG_LIVED_TOKEN|DEPLOY_KEY|AWS_ACCESS_KEY_ID)\b)',
      "HIGH", 0.80),
 
     # --- Deploy without safety ---
+    # Narrowed: previously matched ANY `name:` containing "deploy prod" — that
+    # fired on human-readable step labels (e.g. `name: Deploy to production`)
+    # which is just a description, not evidence of skipping staging (81 FP,
+    # 0 TP on benchmark). Now requires:
+    #   1. `name:` is a YAML key (optionally preceded by `-` list bullet)
+    #      on a non-comment line.
+    #   2. The same step block contains a `run:` (or `uses:`) key followed
+    #      by an actual deploy action (kubectl|helm|aws|scp|ssh|terraform|
+    #      ansible|deploy.sh|apply|release). This filters out "echo done" /
+    #      label-only / non-action steps.
+    # The negative lookahead for staging/canary/blue-green/rolling is
+    # additionally enforced in the detect() loop (ignoring commented lines)
+    # to avoid FPs when those words appear in `# ...` comments.
     ("prod_deploy_no_staging",
-     r'(?i)name:\s*(?:deploy.*prod|production.*deploy|release)',
+     r'(?im)^[ \t]*(?:-[ \t]+)?name:[ \t]*(?:deploy.*prod|production.*deploy|release)'
+     r'(?:[^\n]*\n){1,15}[ \t]*(?:-[ \t]+)?(?:run:|uses:)'
+     r'(?:[^\n]*\n){0,8}[ \t]+(?:kubectl[ \t]|helm[ \t]|aws[ \t]|scp[ \t]|ssh[ \t]|terraform[ \t]|ansible-playbook[ \t]|\./deploy\.sh[ \t]|deploy\.sh[ \t]|deploy[ \t]|apply[ \t]|release[ \t])',
      "MEDIUM", 0.50),  # context-dependent — flag for review
 
     ("deploy_no_canary",
@@ -115,6 +146,38 @@ def _is_ci_file(file_path: str) -> bool:
     return False
 
 
+def _is_yaml_comment(line: str) -> bool:
+    """True when a line is a YAML comment (`# ...`)."""
+    return line.lstrip().startswith('#')
+
+
+_SAFETY_KEYWORDS = re.compile(
+    r'\b(?:staging|canary|blue[- ]green|rolling[ -]?update|preview|qa[ -]?env|'
+    r'dev[ -]?env|integration[ -]?env)\b',
+    re.IGNORECASE,
+)
+
+
+def _job_has_staging_or_canary(content: str, match_start: int, window: int = 30) -> bool:
+    """True when the same job (within `window` lines, excluding `#` comments)
+    mentions staging/canary/blue-green/rolling/preview — i.e. staging IS
+    present, so the deploy is not actually a 'no-staging' deploy.
+
+    Used to filter FPs for prod_deploy_no_staging.
+    """
+    lines = content.splitlines()
+    match_line = content[:match_start].count('\n')
+    start = max(0, match_line - window)
+    end = min(len(lines), match_line + window)
+    for i in range(start, end):
+        line = lines[i]
+        if _is_yaml_comment(line):
+            continue
+        if _SAFETY_KEYWORDS.search(line):
+            return True
+    return False
+
+
 def _finding(rule_id: str, severity: str, title: str, file_path: str,
              line_no: int, snippet: str, confidence: float) -> dict[str, Any]:
     key = hashlib.sha256(f"{rule_id}{file_path}{snippet}".encode()).hexdigest()[:12]
@@ -175,6 +238,17 @@ class GS033CICDDetector:
                 line_no = content[:match.start()].count("\n") + 1
                 snippet = _snippet(content, line_no)
                 matched = match.group(0)[:120]
+
+                # Filter (prod_deploy_no_staging only): drop YAML comments and
+                # cases where the same job already includes staging/canary
+                # safety nets — both are major FP sources (81 FP / 0 TP on
+                # benchmark before the fix).
+                if pattern_id == "prod_deploy_no_staging":
+                    line = content.splitlines()[line_no - 1] if line_no - 1 < len(content.splitlines()) else ""
+                    if _is_yaml_comment(line):
+                        continue
+                    if _job_has_staging_or_canary(content, match.start()):
+                        continue
 
                 confidence = base_conf
                 if pattern_id == "secret_in_log":

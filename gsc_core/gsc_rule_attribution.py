@@ -103,6 +103,16 @@ SECURITY_RULES: list[tuple[re.Pattern[str], str]] = [
     # Linux privilege escalation
     (re.compile(r"sudo|nopasswd|privilege\s+escalation|priv\s+esc|chmod\s*\+s|"
                 r"linux\s+priv", re.I), "GS016"),
+    # Outdated / unmaintained dependency (legacy Russian + English titles)
+    (re.compile(r"outdated\s+dependency|unmaintained\s+dependency|"
+                r"устаревшая\s+зависимость|outdated\s+package", re.I), "GS009"),
+    # File upload without content-type / MIME validation
+    # (matches both legacy Russian scans and modern YAML rule output)
+    (re.compile(r"file\s+upload\s+without\s+content[- ]type|"
+                r"insecure\s+file\s+upload|upload\s+without\s+mime|"
+                r"file\s+upload\s+without\s+mime|"
+                r"не\s+проверя[ею]тся?\s+(?:тип|content[- ]type)", re.I),
+     "YAML-UPLOAD001"),
     # SCA / CVE references
     (re.compile(r"cve-\d{4}", re.I), "GS030"),
     # IaC / systemd hardening

@@ -86,3 +86,35 @@ def test_ambiguous_falls_through():
 
 def test_empty_title_without_category():
     assert attribute_rule_id("", "") == LEGACY_SENTINEL
+
+
+def test_file_upload_content_type():
+    # Legacy title naming a real security finding (5184 findings in prod DB).
+    # Must map to the modern YAML-UPLOAD001 detector, NOT bucket as quality.
+    assert attribute_rule_id(
+        "Python: File upload without content-type validation"
+    ) == "YAML-UPLOAD001"
+    rid, tier = attribute(
+        "Python: File upload without content-type validation"
+    )
+    assert rid == "YAML-UPLOAD001"
+    assert tier == "normal"
+
+
+def test_outdated_dependency():
+    # Legacy title for an SCA / supply-chain finding (2418 findings in prod DB).
+    assert attribute_rule_id("Outdated dependency pattern") == "GS009"
+    rid, tier = attribute("Outdated dependency pattern")
+    assert rid == "GS009"
+    assert tier == "normal"
+
+
+def test_generic_code_smell_is_quality():
+    # The "Generic code smell #N" family (~140k findings) is a placeholder for
+    # ambiguous low-signal scans; it must stay out of security attribution.
+    for title in ("Generic code smell #1", "Generic code smell #24",
+                  "Generic code smell #198"):
+        rid, tier = attribute(title)
+        assert rid == LEGACY_SENTINEL, title
+        assert tier == QUALITY_TIER, title
+        assert is_quality(title), title
