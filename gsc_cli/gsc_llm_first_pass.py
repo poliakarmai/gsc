@@ -14,6 +14,10 @@ ladder.  They do NOT call any LLM and do NOT perform file or network I/O:
   * ``parse_first_pass_response`` — normalise an LLM response (which may be
     wrapped in a ```json fence or mixed with prose) into validated candidate
     finding dicts and reject hallucinated file paths.
+  * ``run_first_pass`` — orchestrator that walks a repo, filters its file
+    list, builds the prompt, hands it to an *injected* ``llm_call`` callable
+    and parses the response. The function performs no LLM / network I/O of
+    its own — the call site supplies ``llm_call``.
 
 The module-level ``SEVERITIES`` tuple mirrors the canonical severity
 vocabulary used across GSC findings (see ``gsc_revalidate.SEVERITY_RANK``).
@@ -32,8 +36,9 @@ Design notes
 from __future__ import annotations
 
 import json
+import os
 import re
-from typing import Dict, List, Set
+from typing import Callable, Dict, List, Set
 
 # Canonical severity ladder (highest → lowest). Mirrors the contract used by
 # ``gsc_detectors/base.make_finding`` and ``gsc_revalidate.SEVERITY_RANK``.
@@ -450,3 +455,101 @@ def parse_first_pass_response(
         })
 
     return out
+
+
+# ── run_first_pass orchestrator ─────────────────────────────────────────────
+
+
+def _walk_repo_files(repo_path: str) -> List[str]:
+    """Walk ``repo_path`` and return every regular file as a POSIX-style
+    relative path (forward slashes, no ``./`` prefix).
+
+    The walker is defensive: a missing or non-directory ``repo_path`` yields
+    an empty list rather than raising.  Symlinks and other non-regular files
+    are skipped.
+    """
+    if not isinstance(repo_path, str) or not repo_path:
+        return []
+    if not os.path.isdir(repo_path):
+        return []
+
+    out: List[str] = []
+    for root, dirs, files in os.walk(repo_path):
+        # In-place mutation of ``dirs`` prunes the walk — handy to avoid
+        # descending into huge vendored trees.  We do NOT filter here;
+        # filtering is the job of ``select_relevant_files``.
+        for name in files:
+            full = os.path.join(root, name)
+            if not os.path.isfile(full):
+                continue
+            rel = os.path.relpath(full, repo_path)
+            # Always normalise to forward slashes — the manifest is consumed
+            # both by Python and by an LLM that expects POSIX paths.
+            rel = rel.replace(os.sep, "/")
+            if rel.startswith("./"):
+                rel = rel[2:]
+            out.append(rel)
+    return out
+
+
+def run_first_pass(
+    repo_path: str,
+    llm_call: Callable[[str], str],
+) -> List[Dict]:
+    """Orchestrate an LLM first-pass audit over a repository.
+
+    Pipeline (no LLM / network I/O is performed by this function — the
+    caller injects ``llm_call``):
+
+      1. Walk ``repo_path`` and collect every regular file as a POSIX-style
+         relative path.
+      2. Filter the file list with :func:`select_relevant_files` (strips
+         binaries, vendored trees, minified bundles, lockfiles, logs, ...).
+      3. Build the prompt with :func:`build_first_pass_prompt`.
+      4. Hand the prompt to ``llm_call(prompt)`` and receive a string reply.
+      5. Parse the reply with :func:`parse_first_pass_response`, using the
+         filtered file list as the ``known_files`` set so any hallucinated
+         path the LLM invents is dropped.
+
+    Parameters
+    ----------
+    repo_path:
+        Filesystem path to the repository root.  If the path is missing,
+        empty, or not a directory, the function returns ``[]`` without
+        calling ``llm_call``.
+    llm_call:
+        A callable that accepts the assembled prompt string and returns the
+        raw LLM response string.  This dependency-injection seam keeps the
+        orchestrator pure: tests pass a mock; production wires the real
+        provider (DeepSeek, OpenAI, local Ollama, etc.).
+
+    Returns
+    -------
+    list[dict]
+        Validated candidate findings (same shape as
+        :func:`parse_first_pass_response`).  Returns ``[]`` on any
+        structural failure: missing repo, empty file list, empty LLM
+        response, or malformed JSON.
+    """
+    files = _walk_repo_files(repo_path)
+    if not files:
+        return []
+
+    relevant = select_relevant_files(files)
+    if not relevant:
+        # Nothing to audit — skip the LLM call entirely (saves tokens).
+        return []
+
+    prompt = build_first_pass_prompt({"files": relevant})
+    try:
+        response = llm_call(prompt)
+    except Exception:
+        # An LLM client may raise (network, auth, rate limit, etc.) — treat
+        # the whole pass as a soft failure and return no findings.  The
+        # orchestrator never crashes the caller.
+        return []
+
+    if not isinstance(response, str):
+        return []
+
+    return parse_first_pass_response(response, known_files=set(relevant))

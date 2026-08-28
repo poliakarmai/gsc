@@ -2383,6 +2383,39 @@ def cmd_recon(args):
     return 0
 
 
+def cmd_first_pass(args):
+    from gsc_cli.gsc_llm_providers import get_manager
+    from gsc_cli.gsc_llm_first_pass import run_first_pass
+    manager = get_manager()
+    if not manager.providers:
+        print("No LLM provider configured (set DEEPSEEK_API_KEY / "
+              "OPENROUTER_API_KEY / LLM_BASE_URL+LLM_API_KEY).", file=sys.stderr)
+        return 1
+    repo = args.repo or "."
+
+    def _call(prompt: str) -> str:
+        out = manager.chat("You are a security auditor performing an LLM first-pass.",
+                           prompt, max_tokens=2000)
+        return out if out else ""
+
+    findings = run_first_pass(repo, _call)
+    if args.json:
+        print(json.dumps({"findings": findings}, indent=2, ensure_ascii=False))
+        return 0
+    if not findings:
+        print("No first-pass findings.")
+        return 0
+    print(f"First-pass findings: {len(findings)}")
+    for f in findings:
+        sev = f.get("severity", "INFO")
+        path = f.get("file_path", "?")
+        line = f.get("line", 1)
+        title = f.get("title", "")
+        conf = f.get("confidence", 0.0)
+        print(f"  [{sev}] {path}:{line} — {title} (conf={conf:.2f})")
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description="GSC — Git Security Checker")
     sub = parser.add_subparsers(dest="command")
@@ -2424,6 +2457,11 @@ def main():
                        help="Probe subdomains over HTTP(S)")
     recon.add_argument("--tech", action="store_true",
                        help="Detect tech stack (requires --http)")
+
+    # gsc first-pass — LLM whole-repo semantic pre-audit (Phase 2)
+    fp = sub.add_parser("first-pass", help="LLM whole-repo semantic first-pass audit")
+    fp.add_argument("repo", nargs="?", default=".", help="Repo path (default: current dir)")
+    fp.add_argument("--json", action="store_true", help="Output findings as JSON")
 
     # gsc patterns (with subcommands)
     patterns = sub.add_parser('patterns', help='Manage patterns')
@@ -2901,6 +2939,8 @@ def main():
         cmd_dashboard(args)
     elif args.command == "recon":
         cmd_recon(args)
+    elif args.command == "first-pass":
+        sys.exit(cmd_first_pass(args))
     elif args.command == "patterns":
         cmd_patterns(args)
     elif args.command == "registry":

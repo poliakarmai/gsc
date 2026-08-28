@@ -30,6 +30,7 @@
 
 ### Интеллект
 - Security archaeology (полный lifespan уязвимости), predictive forecasting (heatmap).
+- **LLM first-pass auditor** — whole-repo semantic pass (`gsc first-pass [repo]`): walk → select_relevant_files → prompt → LLM → parse (hallucinated paths dropped).
 - NL Policy (правила на естественном языке), exploit chains.
 - Cross-repo secret correlation (только хеши), live-проверка секретов (GitHub / Slack / Stripe).
 - SCA license compliance (SPDX), threat modeling (DREAD / PASTA / attack trees).
@@ -44,7 +45,6 @@
 
 ## 🟡 In progress
 
-- **LLM first-pass auditor** — whole-repo semantic pass. Модуль `gsc_llm_first_pass.py` готов, **не интегрирован в CLI/оркестратор**.
 - **Мультиязычные sandbox-раннеры** (Node / Go / Java / Rust) — manifest-парсеры готовы, раннеры нет.
 - **NL-policy через AST / Data Flow** — семантические правила поверх regex.
 
@@ -53,6 +53,6 @@
 - **Локальные LLM** (air-gap) и батч-ревалидация legacy-находок.
 - **Open-core split** (community vs enterprise packages).
 - **PostgreSQL-хранилище** — сейчас SQLite; `gsc_cloud/gsc_db_backend.py` есть, но не в проде.
-- **Observability** — structlog есть (`main.py`), Prometheus / OTel не доделаны.
+- **Observability** — structlog + Prometheus `/metrics` (`gsc_cloud/observability.py`, v1.4.0) готовы; OTel (tracing) не начат.
 - **SaaS S4** — SOC 2 Type I, DPA (S1–S3 реализованы в `gsc_cloud/`, см. `GSC_SAAS_ROADMAP.md`).
 - **LLM-first позиции bug bounty** — OAuth, Account Takeover, Rate Limiting (семантические, не regex).
