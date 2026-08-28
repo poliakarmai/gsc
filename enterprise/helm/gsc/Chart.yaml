@@ -1,5 +1,0 @@
-apiVersion: v2
-name: gsc
-description: GSC — Self-learning AppSec Platform (Enterprise)
-type: application
-version: "0.38.0"

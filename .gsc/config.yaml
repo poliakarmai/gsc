@@ -1,3 +1,0 @@
-# GSC self-ignore — pattern files trigger their own rules
-ignore_patterns:
-  - patterns/*.json
