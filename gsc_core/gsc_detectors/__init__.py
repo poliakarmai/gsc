@@ -82,6 +82,13 @@ class AuditContext:
     # Skipped detectors (avoid re-running)
     skipped_detectors: set[str] = field(default_factory=set)
 
+    # Archive extraction (populated lazily by expand_archives). Maps a real
+    # temp-path of an extracted file back to a stable virtual name of the form
+    # ``"libs/foo.jar!/inner/application.properties"`` so findings stay
+    # traceable to the archive they came from.
+    archive_map: dict[str, str] = field(default_factory=dict)
+    _archive_tmpdir: Path | None = None
+
     # ── File classification ───────────────────────────────────────────────
 
     # Files larger than this are skipped (prevents scans stalling on huge
@@ -114,7 +121,8 @@ class AuditContext:
         "*.svg", "*.png", "*.jpg", "*.jpeg", "*.gif", "*.ico", "*.webp",
         "*.woff", "*.woff2", "*.ttf", "*.eot", "*.otf",
         "*.mp3", "*.mp4", "*.avi", "*.mov", "*.webm", "*.wav", "*.ogg",
-        "*.zip", "*.tar", "*.gz", "*.bz2", "*.7z", "*.whl", "*.egg",
+        "*.zip", "*.jar", "*.ear", "*.aar", "*.war", "*.apk", "*.tgz",
+        "*.tar", "*.gz", "*.bz2", "*.7z", "*.whl", "*.egg",
         "*.pdf", "*.doc", "*.docx", "*.xls", "*.xlsx", "*.ppt", "*.pptx",
         "*.db", "*.sqlite", "*.sqlite3", "*.model", "*.onnx", "*.pt", "*.pth",
         "*.bin", "*.so", "*.dll", "*.dylib", "*.exe", "*.wasm",
@@ -208,6 +216,89 @@ class AuditContext:
             return filepath.stat().st_size <= self.MAX_SCAN_FILE_SIZE
         except OSError:
             return False
+
+    def expand_archives(self) -> None:
+        """Extract supported archives under the project root into a hidden
+        temp subdirectory *inside* the project.
+
+        Archive files (``.zip/.jar/.ear/.aar/.war/.apk/.tar/.tar.gz/.tgz/
+        .tar.bz2``) are normally excluded from ``get_files()`` as non-code.
+        This walks the tree for them, extracts their *text* files into a
+        private ``.gsc_archive_*`` directory, and appends the real paths to
+        ``self.files`` so every detector scans them unchanged.
+
+        Extraction happens *inside* the project so that every detector's
+        ``fp.relative_to(ctx.path)`` keeps working (many detectors do this
+        without a guard and would raise on a path outside the project).
+
+        ``self.archive_map`` records ``rel_extracted -> "rel/arch!/inner"`` so
+        the caller can rewrite ``file_path`` back to a stable,
+        archive-traceable name. Extraction is best-effort: on a read-only
+        project (or any error) archives are simply skipped and nothing raises.
+        """
+        if self._archive_tmpdir is not None:
+            return  # already expanded
+        try:
+            from gsc_core.gsc_archive import is_archive, iter_archive_text_files
+        except ImportError:  # pragma: no cover - direct package import
+            from ..gsc_archive import is_archive, iter_archive_text_files
+
+        import tempfile
+
+        archives = [p for p in self.path.rglob("*")
+                    if p.is_file() and is_archive(p)]
+        if not archives:
+            return
+
+        # Unique hidden dir inside the project (mkdtemp guarantees uniqueness
+        # so we never clobber or delete a user's own directory on cleanup).
+        try:
+            extract_root = Path(tempfile.mkdtemp(dir=self.path,
+                                                 prefix=".gsc_archive_"))
+        except OSError:
+            return  # read-only project — skip archive expansion
+        self._archive_tmpdir = extract_root
+
+        for arch in archives:
+            try:
+                rel_arch = arch.relative_to(self.path)
+            except ValueError:
+                rel_arch = Path(arch.name)
+            safe = "_".join(rel_arch.parts).replace("..", "_") or arch.stem
+            out_dir = extract_root / safe
+            try:
+                out_dir.mkdir(parents=True, exist_ok=True)
+            except OSError:
+                continue
+            try:
+                for name, text in iter_archive_text_files(arch):
+                    inner = name.replace("\\", "/")
+                    # Defense in depth — iter_* already rejects traversal, but
+                    # never write outside out_dir regardless.
+                    if inner.startswith("/") or ".." in inner.split("/"):
+                        continue
+                    dest = out_dir / inner
+                    try:
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        dest.write_text(text, encoding="utf-8",
+                                        errors="replace")
+                    except OSError:
+                        continue
+                    rel_dest = str(dest.relative_to(self.path))
+                    self.archive_map[rel_dest] = f"{rel_arch}!/{inner}"
+            except Exception:
+                continue
+
+        extracted = [p for p in extract_root.rglob("*") if p.is_file()]
+        self.files = sorted(set(self.files) | set(extracted))
+
+    def cleanup_archives(self) -> None:
+        """Remove the extraction dir created by :meth:`expand_archives`."""
+        if self._archive_tmpdir is None:
+            return
+        import shutil
+        shutil.rmtree(self._archive_tmpdir, ignore_errors=True)
+        self._archive_tmpdir = None
 
     def get_source_files(self, extensions: Sequence[str] | None = None) -> list[Path]:
         """Return source files, excluding tests and non-code files."""

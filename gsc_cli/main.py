@@ -446,6 +446,7 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
         # instead of re-walking the whole tree (incl. huge static/data blobs).
         try:
             ctx.files = ctx.get_files()
+            ctx.expand_archives()
         except Exception as e:
             print(f"[gsc] warning: file pre-filter failed ({e})", file=sys.stderr)
         findings: list[dict] = []
@@ -476,6 +477,15 @@ def check_plugin_detectors(project: str, path: Path, echelon: int | None = None)
                     f["echelon"] = det.echelon
                     f["pattern_title"] = f"{det.rule_id} ({det.description[:60]})"
                 findings.extend(det_findings)
+        # Remap extracted-archive paths back to stable "arch!/inner" names.
+        if ctx.archive_map:
+            for f in findings:
+                fp = str(f.get("file_path") or "")
+                for real, virtual in ctx.archive_map.items():
+                    if fp.endswith(real):
+                        f["file_path"] = virtual
+                        break
+        ctx.cleanup_archives()
         return findings
     except ImportError:
         # detectors/ package not available — graceful degradation
