@@ -18,18 +18,18 @@ inputs:
     description: 'Fail if score below threshold (0-100)'
     required: false
     default: '0'
-  with_poc:
-    description: 'Generate proof-of-concept exploits'
-    required: false
-    default: 'true'
-  with_chains:
-    description: 'Compose attack chains'
-    required: false
-    default: 'true'
   deep_scan:
-    description: 'Deep scan (slower, more thorough)'
+    description: 'Deep scan (slower, LLM-powered Echelon 4)'
     required: false
     default: 'true'
+  sarif:
+    description: 'Also emit SARIF (GitHub Code Scanning)'
+    required: false
+    default: 'false'
+  reachability:
+    description: 'Downgrade findings in unreachable files (import-graph)'
+    required: false
+    default: 'false'
   max_findings_to_comment:
     description: 'Max findings in PR comment'
     required: false
@@ -51,8 +51,8 @@ runs:
       run: |
         ARGS="scan ${{ inputs.path }} --ci --json"
         if [ "${{ inputs.deep_scan }}" = "true" ]; then ARGS="$ARGS --deep"; fi
-        if [ "${{ inputs.with_poc }}" = "true" ]; then ARGS="$ARGS --with-poc"; fi
-        if [ "${{ inputs.with_chains }}" = "true" ]; then ARGS="$ARGS --with-chains"; fi
+        if [ "${{ inputs.sarif }}" = "true" ]; then ARGS="$ARGS --sarif"; fi
+        if [ "${{ inputs.reachability }}" = "true" ]; then ARGS="$ARGS --reachability"; fi
         docker run --rm \
           -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
           ghcr.io/poliakarmai/gsc-scanner:1.4.0 \
@@ -66,13 +66,11 @@ runs:
         import json, os
         with open(os.environ["GITHUB_WORKSPACE"] + "/gsc_report.json") as f:
             data = json.load(f)
-        crit = sum(1 for x in data if x.get("severity") == "CRITICAL" or x.get("category") == "CRITICAL")
-        high = sum(1 for x in data if x.get("severity") == "HIGH" or x.get("category") == "HIGH")
+        crit = sum(1 for x in data if (x.get("severity") or x.get("category") or "").upper() == "CRITICAL")
+        high = sum(1 for x in data if (x.get("severity") or x.get("category") or "").upper() == "HIGH")
         score = max(0, 100 - crit * 10 - high * 3)
         grade = "A+" if score >= 97 else "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "F"
-        print(f"score={score}")
-        print(f"grade={grade}")
-        print(f"critical={crit}")
+        print(f"score={score} grade={grade} critical={crit}")
         with open(os.environ["GITHUB_OUTPUT"], "a") as o:
             o.write(f"score={score}\n")
             o.write(f"grade={grade}\n")
