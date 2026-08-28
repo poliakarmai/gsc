@@ -340,18 +340,23 @@ class PoFSandbox:
         2. Execute PoC against patched code → must FAIL
         3. Only then → verified = True
         """
-        if language != "python":
-            return FixVerification(verified=False, reason=f"Sandbox only supports Python, got {language}")
+        lang = (language or "python").strip().lower()
+        if lang in ("python", "py", "python3"):
+            def _run(poc: str, tgt: str) -> SandboxResult:
+                return self._execute(poc, tgt, fmt=fmt)
+        else:
+            def _run(poc: str, tgt: str) -> SandboxResult:
+                return self._execute_multilang(poc, tgt, lang)
 
         # Step 1: PoC against vulnerable code
-        before = self._execute(poc_code, vulnerable_code, fmt=fmt)
+        before = _run(poc_code, vulnerable_code)
         if before.error:
             return FixVerification(verified=False, before=before, reason=f"before execution error: {before.error}")
         if not before.success:
             return FixVerification(verified=False, before=before, reason="PoC did not trigger on vulnerable code (possible FP)")
 
         # Step 2: PoC against patched code
-        after = self._execute(poc_code, patched_code, fmt=fmt)
+        after = _run(poc_code, patched_code)
         if after.error:
             return FixVerification(verified=False, before=before, after=after, reason=f"after execution error: {after.error}")
         if after.success:
@@ -712,6 +717,111 @@ class PoFSandbox:
             # Cleanup (but keep on error for debugging)
             try:
                 import shutil
+                shutil.rmtree(workdir, ignore_errors=True)
+            except Exception:
+                pass
+
+    def _execute_multilang(self, poc_code: str, target_code: str, language: str) -> SandboxResult:
+        """Execute a non-Python PoC against target code under rlimit isolation.
+
+        Writes the target source and a generated runner for the language,
+        compiles when required (Java/Rust), then runs the PoC and applies the
+        same ``SUCCESS_MARKERS`` convention as :meth:`_execute_python`.
+        Container isolation for these runtimes is not implemented yet, so the
+        result is always labelled ``rlimit`` — the fail-closed gate in
+        :meth:`verify_fix` therefore refuses to mark such a verification as
+        OS-isolated, but the before/after PoC result is still reported.
+        """
+        import shutil
+
+        from gsc_cli.gsc_multilang_runners import (
+            build_runner_go,
+            build_runner_java,
+            build_runner_javascript,
+            build_runner_rust,
+            detect_runtime,
+        )
+
+        lang = (language or "").strip().lower()
+        _LANGS = {
+            "javascript": ("target.js", "run_poc.js", build_runner_javascript, None),
+            "js": ("target.js", "run_poc.js", build_runner_javascript, None),
+            "node": ("target.js", "run_poc.js", build_runner_javascript, None),
+            "java": ("Target.java", "RunPoc.java", build_runner_java, ["javac"]),
+            "go": ("target.go", "main.go", build_runner_go, None),
+            "golang": ("target.go", "main.go", build_runner_go, None),
+            "rust": ("target.rs", "main.rs", build_runner_rust, ["rustc"]),
+            "rs": ("target.rs", "main.rs", build_runner_rust, ["rustc"]),
+        }
+        cfg = _LANGS.get(lang)
+        if cfg is None:
+            return SandboxResult(success=False, exit_code=-1, stdout="", stderr="",
+                                 elapsed=0, error=f"unsupported language: {language}",
+                                 isolation="rlimit")
+        target_name, runner_name, builder, compile_bins = cfg
+
+        if detect_runtime(lang) is None:
+            return SandboxResult(success=False, exit_code=-1, stdout="", stderr="",
+                                 elapsed=0, error=f"runtime not found for {language}",
+                                 isolation="rlimit")
+
+        workdir = SANDBOX_ROOT / f"run_{int(time.time())}"
+        workdir.mkdir(parents=True, exist_ok=True)
+        try:
+            (workdir / target_name).write_text(target_code)
+            (workdir / runner_name).write_text(builder(poc_code))
+
+            # Compile stage (Java / Rust).
+            if compile_bins:
+                compiler = shutil.which(compile_bins[0])
+                if compiler is None:
+                    return SandboxResult(success=False, exit_code=-1, stdout="", stderr="",
+                                         elapsed=0, error=f"compiler {compile_bins[0]} not found",
+                                         isolation="rlimit")
+                sources = [runner_name, target_name] if lang == "java" else [runner_name]
+                c = subprocess.run(
+                    [compiler] + sources, cwd=str(workdir), capture_output=True, text=True,
+                    timeout=SANDBOX_TIMEOUT, env=_sandbox_env(str(workdir)),
+                )
+                if c.returncode != 0:
+                    return SandboxResult(success=False, exit_code=c.returncode,
+                                         stdout=c.stdout[:MAX_OUTPUT_BYTES],
+                                         stderr=c.stderr[:MAX_OUTPUT_BYTES],
+                                         elapsed=0, error="compile failed", isolation="rlimit")
+
+            # Run stage.
+            if lang == "java":
+                run_argv = ["java", "RunPoc"]
+            elif lang in ("go", "golang"):
+                run_argv = ["go", "run", "."]
+            elif lang in ("rust", "rs"):
+                run_argv = [str(workdir / "main")]
+            else:
+                run_argv = ["node", runner_name]
+
+            t0 = time.time()
+            try:
+                proc = subprocess.run(
+                    run_argv, cwd=str(workdir), capture_output=True, text=True,
+                    timeout=SANDBOX_TIMEOUT, env=_sandbox_env(str(workdir)),
+                    preexec_fn=_sandbox_limits_shell,
+                )
+                elapsed = time.time() - t0
+            except subprocess.TimeoutExpired:
+                return SandboxResult(success=False, exit_code=-1, stdout="", stderr="TIMEOUT",
+                                     elapsed=SANDBOX_TIMEOUT, error="timeout", isolation="timeout")
+
+            stdout = proc.stdout[:MAX_OUTPUT_BYTES]
+            stderr = proc.stderr[:MAX_OUTPUT_BYTES]
+            has_marker = bool(SUCCESS_MARKERS.search(stdout)) and "NOT_EXPLOITED" not in stdout
+            success = proc.returncode == 0 and has_marker
+            return SandboxResult(success=success, exit_code=proc.returncode, stdout=stdout,
+                                 stderr=stderr, elapsed=round(elapsed, 2), isolation="rlimit")
+        except Exception as e:
+            return SandboxResult(success=False, exit_code=-1, stdout="", stderr=str(e),
+                                 elapsed=0, error=str(e), isolation="rlimit")
+        finally:
+            try:
                 shutil.rmtree(workdir, ignore_errors=True)
             except Exception:
                 pass
