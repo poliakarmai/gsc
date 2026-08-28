@@ -1,5 +1,7 @@
 # 🛡️ GSC — Git Security Checker
 
+[![GSC on GitHub Marketplace](https://img.shields.io/badge/Marketplace-GSC%20Security%20Audit-blue)](https://github.com/marketplace/actions/gsc-security-audit)
+
 **SAST, которое доказывает эксплойт, верифицирует фикс и лечит CI само.**
 
 GSC — самообучающаяся AppSec-платформа полного цикла:
