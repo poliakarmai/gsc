@@ -8,6 +8,37 @@ GSC — самообучающаяся AppSec-платформа полного 
 detect → prove → fix → verify → heal → learn
 ```
 
+## 🚀 Быстрый старт — GitHub Action
+
+Проверьте свой репозиторий за 30 секунд. Добавьте файл `.github/workflows/gsc.yml`:
+
+```yaml
+name: GSC Audit
+on:
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: poliakarmai/gsc@v1
+        with:
+          fail_on_critical: false   # true = блокировать merge при CRITICAL
+```
+
+Откройте pull request — GSC отсканирует код, пришлёт комментарий с находками
+(CRITICAL / HIGH) и поставит оценку безопасности. Ядро поставляется как
+закрытый Docker-образ `ghcr.io/poliakarmai/gsc-scanner` — исходный код движка
+не публикуется.
+
+**Входные параметры:** `path`, `with_poc`, `with_chains`, `deep_scan`,
+`fail_on_critical`, `fail_on_score`, `max_findings_to_comment`.
+
 ## Что умеет
 
 | Слой | Возможности |
@@ -30,6 +61,9 @@ detect → prove → fix → verify → heal → learn
 
 Ядро GSC (детекторы, PoC/PoF-движок, калибровочная сеть, LLM-слой) — **проприетарное (closed-source)** и не публикуется в этом репозитории.
 
-Этот репозиторий — публичная витрина продукта. Полный исходный код доступен по **коммерческой лицензии** после NDA. Для демо, пилота или приобретения — свяжитесь с автором.
+- **GitHub Action** — публичный канал: движок поставляется как закрытый Docker-образ, исходный код не раскрывается.
+- **SaaS / On-prem** — full-функционал (PoC, PoF, self-healing, multi-tenancy) по коммерческой лицензии после NDA.
+
+Для демо, пилота или приобретения — свяжитесь с автором.
 
 © 2026 Алексей Поляков. All rights reserved.
