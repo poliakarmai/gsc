@@ -74,3 +74,9 @@ docker-compose.yml
 *.yaml
 *.json
 .coverage
+
+# ── GitHub Action (public recipe — NOT core, must be tracked) ──
+!action.yml
+!.github/
+!.github/workflows/
+!.github/workflows/gsc-audit-template.yml

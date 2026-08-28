@@ -1,0 +1,134 @@
+name: 'GSC Security Audit'
+description: 'Self-learning code audit with PoC generation — finds bugs, secrets, injection, XSS, SSTI'
+author: 'poliakarmai'
+branding:
+  icon: 'shield'
+  color: 'green'
+
+inputs:
+  path:
+    description: 'Path to scan (default: repo root)'
+    required: false
+    default: '.'
+  fail_on_critical:
+    description: 'Fail workflow on CRITICAL findings'
+    required: false
+    default: 'false'
+  fail_on_score:
+    description: 'Fail if score below threshold (0-100)'
+    required: false
+    default: '0'
+  with_poc:
+    description: 'Generate proof-of-concept exploits'
+    required: false
+    default: 'true'
+  with_chains:
+    description: 'Compose attack chains'
+    required: false
+    default: 'true'
+  deep_scan:
+    description: 'Deep scan (slower, more thorough)'
+    required: false
+    default: 'true'
+  max_findings_to_comment:
+    description: 'Max findings in PR comment'
+    required: false
+    default: '10'
+
+outputs:
+  score:
+    description: 'Security score (0-100)'
+  grade:
+    description: 'Letter grade (A+ to F)'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Run GSC Scanner (Docker)
+      id: scan
+      # Engine ships as a closed-source image on GHCR. The public repo
+      # carries only this action.yml — no engine source is exposed.
+      run: |
+        ARGS="scan ${{ inputs.path }} --ci --json"
+        if [ "${{ inputs.deep_scan }}" = "true" ]; then ARGS="$ARGS --deep"; fi
+        if [ "${{ inputs.with_poc }}" = "true" ]; then ARGS="$ARGS --with-poc"; fi
+        if [ "${{ inputs.with_chains }}" = "true" ]; then ARGS="$ARGS --with-chains"; fi
+        docker run --rm \
+          -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+          ghcr.io/poliakarmai/gsc-scanner:1.4.0 \
+          $ARGS > "$GITHUB_WORKSPACE/gsc_report.json"
+      shell: bash
+
+    - name: Compute Score
+      id: score
+      run: |
+        python3 - <<'PY'
+        import json, os
+        with open(os.environ["GITHUB_WORKSPACE"] + "/gsc_report.json") as f:
+            data = json.load(f)
+        crit = sum(1 for x in data if x.get("severity") == "CRITICAL" or x.get("category") == "CRITICAL")
+        high = sum(1 for x in data if x.get("severity") == "HIGH" or x.get("category") == "HIGH")
+        score = max(0, 100 - crit * 10 - high * 3)
+        grade = "A+" if score >= 97 else "A" if score >= 90 else "B" if score >= 80 else "C" if score >= 70 else "D" if score >= 60 else "F"
+        print(f"score={score}")
+        print(f"grade={grade}")
+        print(f"critical={crit}")
+        with open(os.environ["GITHUB_OUTPUT"], "a") as o:
+            o.write(f"score={score}\n")
+            o.write(f"grade={grade}\n")
+            o.write(f"critical={crit}\n")
+        PY
+      shell: bash
+
+    - name: PR Comment
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea  # v7.0.1 (pinned)
+      with:
+        script: |
+          const fs = require('fs');
+          const report = JSON.parse(fs.readFileSync(process.env.GITHUB_WORKSPACE + '/gsc_report.json', 'utf8'));
+          const sev = f => (f.severity || f.category || 'LOW').toUpperCase();
+          const crit = report.filter(f => sev(f) === 'CRITICAL');
+          const high = report.filter(f => sev(f) === 'HIGH');
+          const maxItems = parseInt('${{ inputs.max_findings_to_comment }}');
+
+          let body = '## 🔍 GSC Security Audit\n\n';
+          body += `| Severity | Count |\n|----------|-------|\n`;
+          body += `| 🔴 CRITICAL | ${crit.length} |\n`;
+          body += `| 🟠 HIGH | ${high.length} |\n`;
+          body += `| **Total** | **${report.length}** |\n\n`;
+
+          if (crit.length > 0) {
+            body += '### 🚨 Critical\n';
+            for (const f of crit.slice(0, maxItems)) {
+              body += `- **${f.title}** \`${f.file_path}:${f.line_number}\`\n`;
+            }
+            if (crit.length > maxItems) body += `\n*...${crit.length - maxItems} more*\n`;
+          }
+          if (high.length > 0) {
+            body += '\n### ⚠️ High\n';
+            for (const f of high.slice(0, maxItems)) {
+              body += `- **${f.title}** \`${f.file_path}:${f.line_number}\`\n`;
+            }
+          }
+
+          body += '\n---\n*GSC v1.4.0 — [poliakarmai/gsc](https://github.com/poliakarmai/gsc)*';
+
+          const { data: comments } = await github.rest.issues.listComments({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+          });
+          const botComment = comments.find(c => c.body.includes('GSC Security Audit'));
+          if (botComment) {
+            await github.rest.issues.updateComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: botComment.id, body });
+          } else {
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: context.issue.number, body });
+          }
+
+    - name: Fail on Critical
+      if: inputs.fail_on_critical == 'true' && steps.score.outputs.critical != '0'
+      run: |
+        echo "::error::GSC found ${{ steps.score.outputs.critical }} CRITICAL findings"
+        exit 1
+      shell: bash
