@@ -6,7 +6,8 @@ sys.path.insert(0, '.')
 
 from gsc_federated import (
     _base_rule, add_laplace_noise, collect_local_metrics, adjust_confidence,
-    auto_deactivate_global, is_globally_deactivated, FederatedClient
+    auto_deactivate_global, is_globally_deactivated, FederatedClient,
+    _sanitize_weight
 )
 
 passed = 0
@@ -110,6 +111,70 @@ def t7():
         assert is_globally_deactivated(db, "GS001") == False
         assert is_globally_deactivated(db, "GS002") == False
 run_case('auto_deactivate_global', t7)
+
+
+def t8():
+    # self-poisoning defence: sanitize_weight clamps/rejects implausible weights
+    ok = _sanitize_weight("GS001", {"tp_rate": 0.7, "verdicts": 50, "tenants": 4})
+    assert ok == (0.7, 50)
+    assert _sanitize_weight("GS001", "nope") is None
+    assert _sanitize_weight("GS001", None) is None
+    assert _sanitize_weight("GS001", {"tp_rate": 1.5, "verdicts": 50, "tenants": 4}) is None
+    assert _sanitize_weight("GS001", {"tp_rate": -0.1, "verdicts": 50, "tenants": 4}) is None
+    assert _sanitize_weight("GS001", {"tp_rate": float('nan'), "verdicts": 50, "tenants": 4}) is None
+    assert _sanitize_weight("GS001", {"tp_rate": float('inf'), "verdicts": 50, "tenants": 4}) is None
+    assert _sanitize_weight("GS001", {"tp_rate": 0.7, "verdicts": 5, "tenants": 4}) is None
+    assert _sanitize_weight("GS001", {"tp_rate": 0.7, "verdicts": 50, "tenants": 1}) is None
+    assert _sanitize_weight("GS001", {}) is None
+run_case('sanitize_weight self-poisoning bounds', t8)
+
+
+def t9():
+    # self-poisoning defence: fed must NOT deactivate a rule with local TP
+    import tempfile
+    from pathlib import Path
+    from gsc_db import GSCDatabase
+    tmpdb = Path(tempfile.mkdtemp()) / "fed_test.db"
+    with GSCDatabase(path=tmpdb) as db:
+        db.conn.execute("""INSERT OR REPLACE INTO federated_global_weights
+            (rule_id, global_tp_rate, global_verdicts, updated_at)
+            VALUES ('GS099', 0.20, 50, datetime('now'))""")
+        db.conn.execute("""INSERT INTO findings (finding_key, rule_id, project, echelon, category, title)
+            VALUES ('fk1', 'GS099-vuln', 'test', 1, 'sec', 't')""")
+        db.conn.execute("""INSERT INTO feedback (finding_key, verdict)
+            VALUES ('fk1', 'tp')""")
+        db.conn.commit()
+        client = FederatedClient(db, "http://x", "key")
+        deactivated = auto_deactivate_global(db, client, tp_threshold=0.30, min_verdicts=30)
+        assert deactivated == [], f"fed deactivated rule with local TP: {deactivated}"
+run_case('auto_deactivate_global local-TP guard', t9)
+
+
+def t10():
+    # self-poisoning defence: server publishes a weight only with tenant quorum
+    import sqlite3, tempfile
+    from pathlib import Path
+    from gsc_cloud.federated_server import FederatedServer
+    tmp = Path(tempfile.mkdtemp()) / "srv.db"
+    conn = sqlite3.connect(str(tmp))
+    conn.row_factory = sqlite3.Row
+    conn.executescript("""
+        CREATE TABLE federated_submissions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, tenant_hash TEXT, rule_id TEXT,
+            tp_count INTEGER, fp_count INTEGER, submitted_at TEXT DEFAULT (datetime('now')));
+        CREATE TABLE federated_global_weights (
+            rule_id TEXT PRIMARY KEY, global_tp_rate REAL, global_verdicts INTEGER,
+            tenant_count INTEGER, computed_at TEXT DEFAULT (datetime('now')));
+    """)
+    srv = FederatedServer(conn)
+    srv.submit("tenant_A", {"GS099": {"tp": 0, "fp": 100}})
+    srv.compute_weights(min_total_verdicts=10, min_tenants=3)
+    assert "GS099" not in srv.get_weights(), "single-tenant weight published (no quorum)"
+    srv.submit("tenant_B", {"GS099": {"tp": 0, "fp": 10}})
+    srv.submit("tenant_C", {"GS099": {"tp": 0, "fp": 10}})
+    srv.compute_weights(min_total_verdicts=10, min_tenants=3)
+    assert "GS099" in srv.get_weights(), "quorum-met weight not published"
+run_case('federated server Sybil quorum', t10)
 
 
 print(f'\n{"="*50}')

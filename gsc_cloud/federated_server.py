@@ -46,11 +46,15 @@ class FederatedServer:
         self.db.commit()
         return n
 
-    def compute_weights(self, min_total_verdicts: int = 10):
+    def compute_weights(self, min_total_verdicts: int = 10, min_tenants: int = 3):
+        # Self-poisoning defence (EVOMAL): a weight is only published once it is
+        # backed by at least `min_tenants` independent tenants (Sybil resistance).
         rows = self.db.execute("""SELECT rule_id, SUM(tp_count) AS total_tp, SUM(fp_count) AS total_fp,
             COUNT(DISTINCT tenant_hash) AS tenant_count FROM federated_submissions
-            GROUP BY rule_id HAVING (SUM(tp_count) + SUM(fp_count)) >= ?""",
-            (min_total_verdicts,)).fetchall()
+            GROUP BY rule_id
+            HAVING (SUM(tp_count) + SUM(fp_count)) >= ?
+               AND COUNT(DISTINCT tenant_hash) >= ?""",
+            (min_total_verdicts, min_tenants)).fetchall()
         for r in rows:
             total = r["total_tp"] + r["total_fp"]
             tp_rate = r["total_tp"] / total if total else 0.0

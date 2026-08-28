@@ -33,6 +33,12 @@ ROTATION_PERIOD_DAYS = 7
 BUDGET_WARN_EPSILON = 5.0
 BUDGET_STOP_EPSILON = 10.0
 
+# Self-poisoning defence (EVOMAL): federated weights are soft signals — never
+# trusted blindly. Quorum + sanity bounds reject poisoned/implausible weights
+# before they can deactivate a local detector or boost a malicious one.
+MIN_FED_TENANTS = 3       # independent tenants required to trust a weight (Sybil)
+MIN_FED_VERDICTS = 20     # minimum verdict volume for a weight to be considered
+
 
 def _base_rule(rule_id: str) -> str:
     """GS025-permissive_cors → GS025; GS030-PYSEC-x → GS030."""
@@ -71,6 +77,33 @@ def collect_local_metrics(db, min_verdicts: int = 3) -> Dict[str, Dict[str, int]
 
     return {rid: m for rid, m in metrics.items()
             if (m["tp"] + m["fp"]) >= min_verdicts}
+
+
+def _sanitize_weight(rule_id: str, data: object) -> Optional[tuple]:
+    """Validate a fetched federated weight (self-poisoning defence).
+
+    Rejects non-dict payloads, ``tp_rate`` outside ``[0, 1]``, NaN/inf, verdict
+    volume below ``MIN_FED_VERDICTS``, or a tenant quorum below
+    ``MIN_FED_TENANTS``. Returns ``(tp_rate, verdicts)`` on success, ``None``
+    to drop the entry.
+    """
+    if not isinstance(data, dict):
+        return None
+    try:
+        tp_rate = float(data.get("tp_rate", 0.0))
+        verdicts = int(data.get("verdicts", 0))
+        tenants = int(data.get("tenants", 0))
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(tp_rate) or math.isinf(tp_rate):
+        return None
+    if not (0.0 <= tp_rate <= 1.0):
+        return None
+    if verdicts < MIN_FED_VERDICTS:
+        return None
+    if tenants < MIN_FED_TENANTS:
+        return None
+    return (tp_rate, verdicts)
 
 
 # ── Federated Client ───────────────────────────────────────
@@ -185,11 +218,16 @@ class FederatedClient:
             return {}
 
         for rule_id, data in weights.items():
+            clean = _sanitize_weight(rule_id, data)
+            if clean is None:
+                self._log("fetch", f"reject={rule_id}")
+                continue
+            tp_rate, verdicts = clean
             self.db.conn.execute("""
                 INSERT OR REPLACE INTO federated_global_weights
                 (rule_id, global_tp_rate, global_verdicts, updated_at)
                 VALUES (?, ?, ?, datetime('now'))
-            """, (rule_id, data.get("tp_rate", 0.0), data.get("verdicts", 0)))
+            """, (rule_id, tp_rate, verdicts))
         self.db.conn.commit()
         self._log("fetch", f"rules={len(weights)}")
         return weights
@@ -240,6 +278,15 @@ def auto_deactivate_global(db, client: FederatedClient,
 
     deactivated = []
     for r in rows:
+        # Self-poisoning defence: federated data must never deactivate a rule
+        # that has local TP evidence. Local observations win over fed signals.
+        local_tp = db.conn.execute("""
+            SELECT COUNT(*) AS n
+            FROM feedback fb JOIN findings f ON f.finding_key = fb.finding_key
+            WHERE f.rule_id LIKE ? AND fb.verdict IN ('tp','fixed')
+        """, (r["rule_id"] + "%",)).fetchone()["n"]
+        if local_tp > 0:
+            continue
         db.conn.execute("""
             INSERT OR IGNORE INTO federated_deactivated (rule_id, reason)
             VALUES (?, ?)
