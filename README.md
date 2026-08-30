@@ -79,6 +79,20 @@ GSC — это **движок + детекторы + PoC**, а не очеред
 
 Первый публичный кейс: [CASE_STUDY_CYBERBRO.md](CASE_STUDY_CYBERBRO.md).
 
+## 🔌 Интеграции
+
+### Paperclip — «найми GSC как сотрудника по безопасности»
+
+[Paperclip](https://github.com/paperclipai/paperclip) (79K★, open-source оркестратор AI-агентов)
+подключает GSC через MCP Tool Gateway — любой нанятый агент (Claude Code / Codex / Hermes)
+получает GSC-инструменты и роль «Security Engineer».
+
+- **5 MCP-инструментов:** `scan_repo` · `list_findings` · `verify_finding` · `get_finding` · `list_detectors`
+- **Гайд + skill `gsc-security-review`** — в `docs/integrations/paperclip/` (репозиторий gsc-core)
+- **Транспорт:** `local_stdio` (subprocess) или `mcp_remote` (HTTP)
+
+Подключение за минуты: зарегистрируй `ToolStdioCommandTemplate`, создай gateway — и GSC сканирует репозитории твоей Paperclip-компании.
+
 ## Лицензия и доступ
 
 Ядро GSC (детекторы, PoC/PoF-движок, калибровочная сеть, LLM-слой) — **проприетарное (closed-source)** и не публикуется в этом репозитории.
