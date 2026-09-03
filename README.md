@@ -53,7 +53,7 @@ LLM-ревалидация — на вашем ключе (BYO-LLM):
 
 | Слой | Возможности |
 |---|---|
-| **SAST** | 50 детекторов (SAST · SCA · Secrets · IaC), YAML rule DSL, LLM-триаж с confidence scoring |
+| **SAST** | 52 детектора (SAST · SCA · Secrets · IaC), YAML rule DSL, LLM-триаж с confidence scoring |
 | **Доказательство** | PoC auto-generation — рабочий эксплойт для каждой находки |
 | **Исправление** | Proof-of-Fix — патч верифицируется перезапуском эксплойта в sandbox; self-healing CI (авто-PR) |
 | **Приоритизация** | EPSS + CISA KEV + ExploitDB (не сырой CVSS), БДУ ФСТЭК |
@@ -65,7 +65,7 @@ LLM-ревалидация — на вашем ключе (BYO-LLM):
 
 GSC — это **движок + детекторы + PoC**, а не очередная обёртка над LLM.
 
-- **От GSC:** 50 детекторов, V3-scoring, FP-фильтр, PoC/PoF, self-learning — закрытый IP в Docker-образе.
+- **От GSC:** 52 детектора, V3-scoring, FP-фильтр, PoC/PoF, self-learning — закрытый IP в Docker-образе.
 - **От вас:** LLM-ключ (любой OpenAI-совместимый — DeepSeek/OpenRouter/GMI/локальный Ollama) **или** ваш AI-агент (Claude/Cursor) через MCP.
 
 Почему это выгодно вам:
