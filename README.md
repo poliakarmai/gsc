@@ -115,7 +115,7 @@ self-learning: разметка по фиксированной сети + ди�
 подключает GSC через MCP Tool Gateway — любой нанятый агент (Claude Code / Codex / Hermes)
 получает GSC-инструменты и роль «Security Engineer».
 
-- **5 MCP-инструментов:** `scan_repo` · `list_findings` · `verify_finding` · `get_finding` · `list_detectors`
+- **6 MCP-инструментов:** `scan_repo` · `scan_diff` · `list_findings` · `verify_finding` · `get_finding` · `list_detectors`
 - **Гайд + skill `gsc-security-review`** — в `docs/integrations/paperclip/` (репозиторий gsc-core)
 - **Транспорт:** `local_stdio` (subprocess) или `mcp_remote` (HTTP)
 
