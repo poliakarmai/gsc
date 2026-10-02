@@ -73,7 +73,7 @@ runs:
         fi
         docker run --rm $LLM_ENV \
           -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
-          ghcr.io/poliakarmai/gsc-scanner:1.4.0 \
+          ghcr.io/poliakarmai/gsc-scanner:latest \
           $ARGS > "$GITHUB_WORKSPACE/gsc_report.json"
       shell: bash
 
