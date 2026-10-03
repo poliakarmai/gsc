@@ -59,6 +59,7 @@ LLM-ревалидация — на вашем ключе (BYO-LLM):
 | **Приоритизация** | EPSS + CISA KEV + ExploitDB (не сырой CVSS), БДУ ФСТЭК |
 | **Recon** | passive reconnaissance: subdomain / tech / DNS / HTTP |
 | **Supply chain** | SBOM (CycloneDX / SPDX) + VEX |
+| **Compliance** | маппинг находок на ГОСТ Р 56939-2024, PCI DSS 4.0, SOC2, ISO 27001, CWE, OWASP — отчёт для ФСТЭК / КИИ / аудита |
 | **Интеллект** | security archaeology, predictive forecasting, NL-policy, federated self-learning |
 
 ## 🎯 Наша фишка: BYO-LLM — движок наш, судья твой
