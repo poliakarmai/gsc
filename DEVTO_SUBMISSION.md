@@ -71,7 +71,7 @@ gsc scan cyberbro/ --ci --json
 # → GS020 CRITICAL: "DOM XSS: .innerHTML assignment"
 ```
 
-GSC doesn't just find vulnerabilities — it proves them with auto-generated exploits, auto-generates verified fixes, and opens PRs. This cyberbro fix is one of [6 security PRs](https://github.com/poliakarmai/gsc/blob/master/GSC_PRS.md) created by GSC.
+GSC doesn't just find vulnerabilities — it proves them with auto-generated exploits, auto-generates verified fixes, and opens PRs. This cyberbro fix is one of [the security PRs](https://github.com/poliakarmai/gsc/blob/master/HALL_OF_FAME.md) created by GSC.
 
 ## Credits
 
