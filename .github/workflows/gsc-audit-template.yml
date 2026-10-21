@@ -27,7 +27,7 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned, GSC-009)
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v4.2.2 (pinned, GSC-009)
 
       - name: GSC Security Audit
         uses: poliakarmai/gsc@v1  # moving tag; pin to a SHA/digest for an audited, frozen pipeline
