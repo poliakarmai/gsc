@@ -7,7 +7,7 @@ This file is for AI agents and LLM crawlers. Human docs: [README.md](README.md).
 
 ## What it does
 
-- **67 detectors** — SAST, SCA (OSV.dev), Secrets, IaC
+- **68 detectors** — SAST, SCA (OSV.dev), Secrets, IaC
 - **PoC auto-generation** — рабочий эксплойт, доказывающий находку
 - **Proof-of-Fix** — патч считается исправлением только если эксплойт перестал срабатывать
 - **Self-healing CI** — авто-PR с фиксом (только CLI, требует явного флага)

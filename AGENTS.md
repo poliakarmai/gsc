@@ -1,6 +1,6 @@
 # AGENTS.md — GSC для AI-агентов
 
-GSC — SAST-сканер: 67 детекторов (SAST · SCA · Secrets · IaC), PoC (доказанный
+GSC — SAST-сканер: 68 детекторов (SAST · SCA · Secrets · IaC), PoC (доказанный
 эксплойт), Proof-of-Fix (верифицированный фикс), self-healing CI.
 
 ## Как подключить GSC
