@@ -24,7 +24,7 @@ re-running the exploit.
 
 **What makes it different:**
 
-- **68 detectors** across SAST, SCA, secrets and IaC — plus a YAML rule DSL.
+- **73 detectors** (69 rules + 4 engines) across SAST, SCA, secrets and IaC — plus a YAML rule DSL.
 - **PoC auto-generation** with a safe-exploitation gate: a finding ships with a working exploit, not just a line number.
 - **Proof-of-Fix** — a patch is only accepted after the exploit stops firing in a sandbox.
 - **Self-learning** — detectors are re-scored nightly against a calibration network; noisy patterns are auto-deactivated at <30% TP. Federated feedback is privacy-first (`{tenant_hash, rule_id, tp, fp}` + DP noise).
@@ -176,7 +176,7 @@ docker run --rm -v "$PWD:/repo:ro" ghcr.io/poliakarmai/gsc-scanner:v1 scan /repo
 
 | Слой | Возможности |
 |---|---|
-| **SAST** | 68 детекторов (SAST · SCA · Secrets · IaC), YAML rule DSL, LLM-триаж с confidence scoring |
+| **SAST** | 73 детектора (69 правил + 4 движка) в SAST · SCA · Secrets · IaC, YAML rule DSL, LLM-триаж с confidence scoring |
 | **Доказательство** | PoC auto-generation — рабочий эксплойт для находки *(CLI `--with-poc`, MCP `get_poc`/`verify_finding`)* |
 | **Исправление** | Proof-of-Fix — патч верифицируется перезапуском эксплойта в sandbox; self-healing CI (авто-PR) *(CLI, требует явного флага)* |
 | **Приоритизация** | EPSS + CISA KEV + ExploitDB (не сырой CVSS), БДУ ФСТЭК |
@@ -213,7 +213,7 @@ docker run --rm -v "$PWD:/repo:ro" ghcr.io/poliakarmai/gsc-scanner:v1 scan /repo
 
 GSC — это **движок + детекторы + PoC**, а не очередная обёртка над LLM.
 
-- **От GSC:** 68 детекторов, V3-scoring, FP-фильтр, PoC/PoF, self-learning — закрытый IP в Docker-образе.
+- **От GSC:** 73 детектора, V3-scoring, FP-фильтр, PoC/PoF, self-learning — закрытый IP в Docker-образе.
 - **От вас:** LLM-ключ (любой OpenAI-совместимый — DeepSeek/OpenRouter/GMI/локальный Ollama).
 
 Почему это выгодно вам:

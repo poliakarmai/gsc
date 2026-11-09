@@ -118,7 +118,7 @@ Six fixes in production — 4 merged patches, 2 fixed upstream by the maintainer
 
 ## How I Built It
 
-GSC ("Git Security Checker") is an open-source SAST platform — 69 detectors across SAST, secrets, SCA and IaC, with a full `detect → prove → fix → verify` loop. The parts that matter for this post:
+GSC ("Git Security Checker") is an open-source SAST platform — 73 detectors across SAST, secrets, SCA and IaC, with a full `detect → prove → fix → verify` loop. The parts that matter for this post:
 
 - **Precision-hunt profile.** The legacy catch-all detector is off, and the six noisiest ones are review-only — they flag but never block. A finding that opens a PR needs to be *right*, so the profile optimises for precision over recall — and every finding gets a human review before it becomes a PR. That review is what caught the wine-cellar false positive before it cost a maintainer time.
 - **Fix generation, not just detection.** Detecting a hardcoded secret is easy; the `+168/−1` cabotage patch is the actual work, and it's the reason these PRs get merged instead of closed.
