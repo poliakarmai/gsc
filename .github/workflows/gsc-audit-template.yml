@@ -30,7 +30,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2 (pinned, GSC-009)
 
       - name: GSC Security Audit
-        uses: poliakarmai/gsc@v1  # moving tag; pin to a SHA/digest for an audited, frozen pipeline
+        uses: poliakarmai/gsc@937dfd89fac4762594b5258158c750b98cfd3bef  # v1 (pinned SHA, GSC-009) — тег перевешиваем, SHA нет
         with:
           path: '.'
           deep_scan: true

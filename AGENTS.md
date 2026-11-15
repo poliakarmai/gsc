@@ -22,7 +22,7 @@ jobs:
       pull-requests: write
     steps:
       - uses: actions/checkout@v4
-      - uses: poliakarmai/gsc@v1
+      - uses: poliakarmai/gsc@937dfd89fac4762594b5258158c750b98cfd3bef  # v1, запинено по SHA (GSC-009)
         with:
           fail_on_critical: false
           # fail_on_score: 80      # опционально: упасть, если score ниже порога
